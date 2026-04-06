@@ -1,0 +1,612 @@
+import request from "supertest";
+import { createApp } from "../../src/app";
+import { InMemoryStorage } from "../../src/services/storage";
+
+let storage: InMemoryStorage;
+let app: ReturnType<typeof createApp>;
+
+beforeEach(() => {
+  storage = new InMemoryStorage();
+  app = createApp(storage);
+});
+
+describe("GET /health", () => {
+  it("returns ok status", async () => {
+    const res = await request(app).get("/health");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+  });
+});
+
+describe("Trip CRUD", () => {
+  describe("POST /api/v1/trips", () => {
+    it("creates a trip with auto-generated days", async () => {
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Christmas 2025",
+          startDate: "2025-12-19",
+          endDate: "2025-12-21",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.title).toBe("Christmas 2025");
+      expect(res.body.id).toBeTruthy();
+      expect(res.body.status).toBe("planning");
+      expect(res.body.days).toHaveLength(3);
+      expect(res.body.days[0].date).toBe("2025-12-19");
+      expect(res.body.days[0].dayOfWeek).toBe("Fri");
+      expect(res.body.days[1].date).toBe("2025-12-20");
+      expect(res.body.days[2].date).toBe("2025-12-21");
+    });
+
+    it("rejects invalid input", async () => {
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({ title: "" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects when endDate before startDate", async () => {
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Bad Trip",
+          startDate: "2025-12-30",
+          endDate: "2025-12-19",
+        });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /api/v1/trips", () => {
+    it("returns empty list initially", async () => {
+      const res = await request(app).get("/api/v1/trips");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it("returns trip summaries", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip A",
+          startDate: "2025-06-01",
+          endDate: "2025-06-03",
+        });
+
+      const res = await request(app).get("/api/v1/trips");
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].title).toBe("Trip A");
+      expect(res.body[0].dayCount).toBe(3);
+      // Summaries should not include full days array
+      expect(res.body[0].days).toBeUndefined();
+    });
+  });
+
+  describe("GET /api/v1/trips/:tripId", () => {
+    it("returns full trip with days", async () => {
+      const createRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip A",
+          startDate: "2025-06-01",
+          endDate: "2025-06-02",
+        });
+
+      const res = await request(app).get(
+        `/api/v1/trips/${createRes.body.id}`,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(2);
+    });
+
+    it("returns 404 for non-existent trip", async () => {
+      const res = await request(app).get("/api/v1/trips/nonexistent");
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("PUT /api/v1/trips/:tripId", () => {
+    it("updates trip title", async () => {
+      const createRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Old Title",
+          startDate: "2025-06-01",
+          endDate: "2025-06-02",
+        });
+
+      const res = await request(app)
+        .put(`/api/v1/trips/${createRes.body.id}`)
+        .send({ title: "New Title" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.title).toBe("New Title");
+    });
+
+    it("updates trip status", async () => {
+      const createRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip",
+          startDate: "2025-06-01",
+          endDate: "2025-06-02",
+        });
+
+      const res = await request(app)
+        .put(`/api/v1/trips/${createRes.body.id}`)
+        .send({ status: "active" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("active");
+    });
+  });
+
+  describe("DELETE /api/v1/trips/:tripId", () => {
+    it("deletes a trip", async () => {
+      const createRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip",
+          startDate: "2025-06-01",
+          endDate: "2025-06-02",
+        });
+
+      const delRes = await request(app).delete(
+        `/api/v1/trips/${createRes.body.id}`,
+      );
+      expect(delRes.status).toBe(204);
+
+      const getRes = await request(app).get(
+        `/api/v1/trips/${createRes.body.id}`,
+      );
+      expect(getRes.status).toBe(404);
+    });
+
+    it("returns 404 for non-existent trip", async () => {
+      const res = await request(app).delete("/api/v1/trips/nonexistent");
+      expect(res.status).toBe(404);
+    });
+  });
+});
+
+describe("Day routes", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Test Trip",
+        startDate: "2025-12-19",
+        endDate: "2025-12-21",
+      });
+    tripId = res.body.id;
+  });
+
+  it("GET /days returns all days", async () => {
+    const res = await request(app).get(`/api/v1/trips/${tripId}/days`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(3);
+  });
+
+  it("PUT /days/:date updates city", async () => {
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/days/2025-12-19`)
+      .send({ city: "Prague" });
+    expect(res.status).toBe(200);
+    expect(res.body.city).toBe("Prague");
+  });
+});
+
+describe("Segment routes", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Test Trip",
+        startDate: "2025-12-19",
+        endDate: "2025-12-21",
+      });
+    tripId = res.body.id;
+  });
+
+  it("creates a segment on a specific day", async () => {
+    const res = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "flight",
+        title: "BA52 SEA-LHR",
+        startTime: "13:35",
+        endTime: "07:10",
+        departureCity: "Seattle",
+        arrivalCity: "London",
+        carrier: "BA",
+        routeCode: "52",
+        confirmationCode: "XTWLTR",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeTruthy();
+    expect(res.body.type).toBe("flight");
+    expect(res.body.source).toBe("manual");
+    expect(res.body.needsReview).toBe(false);
+  });
+
+  it("lists all segments for a trip", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "Flight 1" });
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-20",
+        type: "hotel",
+        title: "Hotel Prague",
+      });
+
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/segments`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+  });
+
+  it("filters segments by type", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "Flight" });
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-20", type: "hotel", title: "Hotel" });
+
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/segments?type=flight`,
+    );
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].type).toBe("flight");
+  });
+
+  it("updates a segment", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "Old Title" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ title: "New Title" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("New Title");
+  });
+
+  it("deletes a segment", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "Flight" });
+
+    const delRes = await request(app).delete(
+      `/api/v1/trips/${tripId}/segments/${createRes.body.id}`,
+    );
+    expect(delRes.status).toBe(204);
+
+    const listRes = await request(app).get(
+      `/api/v1/trips/${tripId}/segments`,
+    );
+    expect(listRes.body).toHaveLength(0);
+  });
+
+  it("confirms an auto-parsed segment", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "Flight" });
+
+    // Manually set needsReview to true (simulating email parse)
+    await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ needsReview: true });
+
+    const confirmRes = await request(app).post(
+      `/api/v1/trips/${tripId}/segments/${createRes.body.id}/confirm`,
+    );
+
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.needsReview).toBe(false);
+    expect(confirmRes.body.source).toBe("email_confirmed");
+  });
+
+  it("rejects segment without date", async () => {
+    const res = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ type: "flight", title: "No Date" });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("Cost Summary", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Test Trip",
+        startDate: "2025-12-19",
+        endDate: "2025-12-20",
+      });
+    tripId = res.body.id;
+  });
+
+  it("aggregates costs across segments", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "flight",
+        title: "Flight to Europe",
+        cost: { amount: 4704.05, currency: "USD" },
+      });
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-20",
+        type: "hotel",
+        title: "Hotel Prague",
+        cost: {
+          amount: 649.9,
+          currency: "USD",
+          details: "Queen Guest Room",
+        },
+      });
+
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/costs`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.items).toHaveLength(2);
+    expect(res.body.totalsByCurrency.USD).toBeCloseTo(5353.95);
+  });
+
+  it("handles multiple currencies", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "flight",
+        title: "Flight",
+        cost: { amount: 4704.05, currency: "USD" },
+      });
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-20",
+        type: "train",
+        title: "Train to Dresden",
+        cost: { amount: 74.97, currency: "EUR" },
+      });
+
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/costs`,
+    );
+    expect(res.body.totalsByCurrency.USD).toBeCloseTo(4704.05);
+    expect(res.body.totalsByCurrency.EUR).toBeCloseTo(74.97);
+  });
+});
+
+describe("Todo routes", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Test Trip",
+        startDate: "2025-12-19",
+        endDate: "2025-12-20",
+      });
+    tripId = res.body.id;
+  });
+
+  it("creates a todo", async () => {
+    const res = await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Book Paris dinner", category: "meals" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.text).toBe("Book Paris dinner");
+    expect(res.body.isCompleted).toBe(false);
+    expect(res.body.category).toBe("meals");
+  });
+
+  it("lists todos", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Todo 1" });
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Todo 2" });
+
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/todos`,
+    );
+    expect(res.body).toHaveLength(2);
+  });
+
+  it("marks a todo as completed", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Todo 1" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/todos/${createRes.body.id}`)
+      .send({ isCompleted: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.isCompleted).toBe(true);
+  });
+
+  it("deletes a todo", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Todo 1" });
+
+    const delRes = await request(app).delete(
+      `/api/v1/trips/${tripId}/todos/${createRes.body.id}`,
+    );
+    expect(delRes.status).toBe(204);
+  });
+});
+
+describe("Share routes", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Test Trip",
+        startDate: "2025-12-19",
+        endDate: "2025-12-20",
+      });
+    tripId = res.body.id;
+  });
+
+  it("creates a share link", async () => {
+    const res = await request(app)
+      .post(`/api/v1/trips/${tripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    expect(res.status).toBe(201);
+    expect(res.body.shareToken).toBeTruthy();
+    expect(res.body.permission).toBe("view");
+    expect(res.body.showCosts).toBe(false);
+  });
+
+  it("accesses shared trip via token", async () => {
+    // Add a segment with cost
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "flight",
+        title: "Flight",
+        cost: { amount: 100, currency: "USD" },
+      });
+
+    // Add a todo
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({ text: "Book dinner" });
+
+    // Create share without costs/todos
+    const shareRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    const sharedRes = await request(app).get(
+      `/api/v1/shared/${shareRes.body.shareToken}`,
+    );
+
+    expect(sharedRes.status).toBe(200);
+    expect(sharedRes.body.title).toBe("Test Trip");
+    // Cost should be hidden
+    expect(sharedRes.body.days[0].segments[0].cost).toBeUndefined();
+    // Todos should be hidden
+    expect(sharedRes.body.todos).toEqual([]);
+  });
+
+  it("shows costs when share permits it", async () => {
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "hotel",
+        title: "Hotel",
+        cost: { amount: 200, currency: "EUR" },
+      });
+
+    const shareRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/share`)
+      .send({ permission: "view", showCosts: true, showTodos: true });
+
+    const sharedRes = await request(app).get(
+      `/api/v1/shared/${shareRes.body.shareToken}`,
+    );
+
+    expect(sharedRes.body.days[0].segments[0].cost.amount).toBe(200);
+  });
+
+  it("returns 404 for invalid token", async () => {
+    const res = await request(app).get("/api/v1/shared/invalid-token");
+    expect(res.status).toBe(404);
+  });
+
+  it("deletes a share", async () => {
+    const shareRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    const delRes = await request(app).delete(
+      `/api/v1/trips/${tripId}/shares/${shareRes.body.id}`,
+    );
+    expect(delRes.status).toBe(204);
+
+    // Token should no longer work
+    const sharedRes = await request(app).get(
+      `/api/v1/shared/${shareRes.body.shareToken}`,
+    );
+    expect(sharedRes.status).toBe(404);
+  });
+});
+
+describe("Export routes", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/v1/trips")
+      .send({
+        title: "Christmas 2025",
+        startDate: "2025-12-19",
+        endDate: "2025-12-20",
+      });
+    tripId = res.body.id;
+
+    await request(app)
+      .put(`/api/v1/trips/${tripId}/days/2025-12-19`)
+      .send({ city: "Seattle" });
+
+    await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "flight",
+        title: "BA52 SEA-LHR",
+        cost: { amount: 4704.05, currency: "USD" },
+      });
+  });
+
+  it("exports to markdown", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/markdown`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/markdown");
+    expect(res.text).toContain("# Christmas 2025");
+    expect(res.text).toContain("BA52 SEA-LHR");
+    expect(res.text).toContain("$4,704.05");
+  });
+
+  it("exports markdown without costs", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/markdown?exclude=costs`,
+    );
+    expect(res.text).toContain("# Christmas 2025");
+    expect(res.text).not.toContain("Cost Summary");
+  });
+});

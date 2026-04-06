@@ -1,0 +1,558 @@
+import { Router, type Request, type Response } from "express";
+import {
+  createTripSchema,
+  updateTripSchema,
+  createSegmentSchema,
+  createTodoSchema,
+  updateTodoSchema,
+  createShareSchema,
+  generateId,
+  generateDateRange,
+  getDayOfWeek,
+  type Trip,
+  type TripDay,
+  type Segment,
+} from "@travel-app/shared";
+import type { StorageProvider } from "../services/storage";
+
+export function createTripRoutes(storage: StorageProvider): Router {
+  const router = Router();
+
+  // ─── Trip CRUD ───────────────────────────────────────────
+
+  router.get("/", async (_req: Request, res: Response) => {
+    const trips = await storage.listTrips();
+    // Return summary list (without full day/segment data)
+    const summaries = trips.map((t) => ({
+      id: t.id,
+      title: t.title,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      status: t.status,
+      dayCount: t.days.length,
+      todoCount: t.todos.filter((td) => !td.isCompleted).length,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
+    res.json(summaries);
+  });
+
+  router.post("/", async (req: Request, res: Response) => {
+    const parsed = createTripSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+
+    const { title, startDate, endDate } = parsed.data;
+    const now = new Date().toISOString();
+
+    const days: TripDay[] = generateDateRange(startDate, endDate).map(
+      (date) => ({
+        date,
+        dayOfWeek: getDayOfWeek(date),
+        city: "",
+        segments: [],
+      }),
+    );
+
+    const trip: Trip = {
+      id: generateId(),
+      title,
+      startDate,
+      endDate,
+      status: "planning",
+      days,
+      todos: [],
+      shares: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await storage.saveTrip(trip);
+    res.status(201).json(trip);
+  });
+
+  router.get("/:tripId", async (req: Request, res: Response) => {
+    const trip = await storage.getTrip(req.params.tripId);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+    res.json(trip);
+  });
+
+  router.put("/:tripId", async (req: Request, res: Response) => {
+    const trip = await storage.getTrip(req.params.tripId);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    const parsed = updateTripSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+
+    const updates = parsed.data;
+    if (updates.title !== undefined) trip.title = updates.title;
+    if (updates.status !== undefined) trip.status = updates.status;
+    if (updates.startDate !== undefined) trip.startDate = updates.startDate;
+    if (updates.endDate !== undefined) trip.endDate = updates.endDate;
+    trip.updatedAt = new Date().toISOString();
+
+    await storage.saveTrip(trip);
+    res.json(trip);
+  });
+
+  router.delete("/:tripId", async (req: Request, res: Response) => {
+    const deleted = await storage.deleteTrip(req.params.tripId);
+    if (!deleted) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+    res.status(204).send();
+  });
+
+  // ─── Days ────────────────────────────────────────────────
+
+  router.get("/:tripId/days", async (req: Request, res: Response) => {
+    const trip = await storage.getTrip(req.params.tripId);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+    res.json(trip.days);
+  });
+
+  router.put(
+    "/:tripId/days/:date",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const day = trip.days.find((d) => d.date === req.params.date);
+      if (!day) {
+        res.status(404).json({ error: "Day not found" });
+        return;
+      }
+
+      if (req.body.city !== undefined) day.city = req.body.city;
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.json(day);
+    },
+  );
+
+  // ─── Segments ────────────────────────────────────────────
+
+  router.get(
+    "/:tripId/segments",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const allSegments: (Segment & { date: string })[] = [];
+      for (const day of trip.days) {
+        for (const seg of day.segments) {
+          allSegments.push({ ...seg, date: day.date });
+        }
+      }
+
+      // Optional type filter
+      const typeFilter = req.query.type as string | undefined;
+      if (typeFilter) {
+        const filtered = allSegments.filter((s) => s.type === typeFilter);
+        res.json(filtered);
+        return;
+      }
+
+      // Optional needs_review filter
+      if (req.query.needs_review === "true") {
+        res.json(allSegments.filter((s) => s.needsReview));
+        return;
+      }
+
+      res.json(allSegments);
+    },
+  );
+
+  router.post(
+    "/:tripId/segments",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const { date, ...segmentData } = req.body;
+      if (!date) {
+        res.status(400).json({ error: "date is required" });
+        return;
+      }
+
+      const day = trip.days.find((d) => d.date === date);
+      if (!day) {
+        res.status(404).json({ error: "Day not found for given date" });
+        return;
+      }
+
+      const parsed = createSegmentSchema.safeParse(segmentData);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      const segment: Segment = {
+        ...parsed.data,
+        id: generateId(),
+        source: "manual",
+        needsReview: false,
+        sortOrder: day.segments.length,
+      };
+
+      day.segments.push(segment);
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(201).json(segment);
+    },
+  );
+
+  router.put(
+    "/:tripId/segments/:segId",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      let found: Segment | undefined;
+      for (const day of trip.days) {
+        found = day.segments.find((s) => s.id === req.params.segId);
+        if (found) break;
+      }
+
+      if (!found) {
+        res.status(404).json({ error: "Segment not found" });
+        return;
+      }
+
+      // Apply partial updates
+      const updates = req.body;
+      for (const [key, value] of Object.entries(updates)) {
+        if (key !== "id" && key !== "source" && key !== "sourceEmailId") {
+          (found as Record<string, unknown>)[key] = value;
+        }
+      }
+
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.json(found);
+    },
+  );
+
+  router.delete(
+    "/:tripId/segments/:segId",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      let deleted = false;
+      for (const day of trip.days) {
+        const idx = day.segments.findIndex((s) => s.id === req.params.segId);
+        if (idx >= 0) {
+          day.segments.splice(idx, 1);
+          deleted = true;
+          break;
+        }
+      }
+
+      if (!deleted) {
+        res.status(404).json({ error: "Segment not found" });
+        return;
+      }
+
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(204).send();
+    },
+  );
+
+  router.post(
+    "/:tripId/segments/:segId/confirm",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      let found: Segment | undefined;
+      for (const day of trip.days) {
+        found = day.segments.find((s) => s.id === req.params.segId);
+        if (found) break;
+      }
+
+      if (!found) {
+        res.status(404).json({ error: "Segment not found" });
+        return;
+      }
+
+      found.needsReview = false;
+      found.source = "email_confirmed";
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.json(found);
+    },
+  );
+
+  // ─── Cost Summary ───────────────────────────────────────
+
+  router.get("/:tripId/costs", async (req: Request, res: Response) => {
+    const trip = await storage.getTrip(req.params.tripId);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    const items: Array<{
+      category: string;
+      description: string;
+      amount: number;
+      currency: string;
+      details?: string;
+      segmentId: string;
+    }> = [];
+
+    for (const day of trip.days) {
+      for (const seg of day.segments) {
+        if (seg.cost) {
+          items.push({
+            category: seg.type,
+            description: seg.title,
+            amount: seg.cost.amount,
+            currency: seg.cost.currency,
+            details: seg.cost.details,
+            segmentId: seg.id,
+          });
+        }
+      }
+    }
+
+    const totalsByCurrency: Record<string, number> = {};
+    for (const item of items) {
+      totalsByCurrency[item.currency] =
+        (totalsByCurrency[item.currency] ?? 0) + item.amount;
+    }
+
+    res.json({ items, totalsByCurrency });
+  });
+
+  // ─── TODOs ──────────────────────────────────────────────
+
+  router.get("/:tripId/todos", async (req: Request, res: Response) => {
+    const trip = await storage.getTrip(req.params.tripId);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+    res.json(trip.todos);
+  });
+
+  router.post(
+    "/:tripId/todos",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const parsed = createTodoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      const todo = {
+        id: generateId(),
+        text: parsed.data.text,
+        isCompleted: false,
+        category: parsed.data.category,
+        sortOrder: trip.todos.length,
+      };
+
+      trip.todos.push(todo);
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(201).json(todo);
+    },
+  );
+
+  router.put(
+    "/:tripId/todos/:todoId",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const todo = trip.todos.find((t) => t.id === req.params.todoId);
+      if (!todo) {
+        res.status(404).json({ error: "Todo not found" });
+        return;
+      }
+
+      const parsed = updateTodoSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      const updates = parsed.data;
+      if (updates.text !== undefined) todo.text = updates.text;
+      if (updates.isCompleted !== undefined)
+        todo.isCompleted = updates.isCompleted;
+      if (updates.category !== undefined) todo.category = updates.category;
+      if (updates.sortOrder !== undefined) todo.sortOrder = updates.sortOrder;
+
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.json(todo);
+    },
+  );
+
+  router.delete(
+    "/:tripId/todos/:todoId",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const idx = trip.todos.findIndex((t) => t.id === req.params.todoId);
+      if (idx < 0) {
+        res.status(404).json({ error: "Todo not found" });
+        return;
+      }
+
+      trip.todos.splice(idx, 1);
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(204).send();
+    },
+  );
+
+  // ─── Shares ──────────────────────────────────────────────
+
+  router.post(
+    "/:tripId/share",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const parsed = createShareSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      const share = {
+        id: generateId(),
+        shareToken: generateId(),
+        sharedWithEmail: parsed.data.sharedWithEmail,
+        permission: parsed.data.permission,
+        showCosts: parsed.data.showCosts,
+        showTodos: parsed.data.showTodos,
+        createdAt: new Date().toISOString(),
+      };
+
+      trip.shares.push(share);
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(201).json(share);
+    },
+  );
+
+  router.get(
+    "/:tripId/shares",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+      res.json(trip.shares);
+    },
+  );
+
+  router.delete(
+    "/:tripId/shares/:shareId",
+    async (req: Request, res: Response) => {
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const idx = trip.shares.findIndex((s) => s.id === req.params.shareId);
+      if (idx < 0) {
+        res.status(404).json({ error: "Share not found" });
+        return;
+      }
+
+      trip.shares.splice(idx, 1);
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+      res.status(204).send();
+    },
+  );
+
+  // ─── Export ──────────────────────────────────────────────
+
+  router.get(
+    "/:tripId/export/markdown",
+    async (req: Request, res: Response) => {
+      const { tripToMarkdown } = await import("@travel-app/shared");
+      const trip = await storage.getTrip(req.params.tripId);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const excludeCosts = req.query.exclude?.toString().includes("costs");
+      const excludeTodos = req.query.exclude?.toString().includes("todos");
+
+      const markdown = tripToMarkdown(trip, {
+        includeCosts: !excludeCosts,
+        includeTodos: !excludeTodos,
+      });
+
+      res.setHeader("Content-Type", "text/markdown");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${trip.title.replace(/[^a-zA-Z0-9 ]/g, "")}.md"`,
+      );
+      res.send(markdown);
+    },
+  );
+
+  return router;
+}
