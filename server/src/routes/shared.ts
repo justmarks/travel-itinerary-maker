@@ -15,7 +15,7 @@ export function createSharedRoutes(storage: StorageProvider): Router {
 
     for (const trip of trips) {
       const share = trip.shares.find(
-        (s) => s.shareToken === req.params.token,
+        (s) => s.shareToken === (req.params.token as string),
       );
       if (share) {
         foundTrip = trip;

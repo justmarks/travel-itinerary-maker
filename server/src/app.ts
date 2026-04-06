@@ -6,7 +6,7 @@ import { createAuthRoutes } from "./routes/auth";
 import type { StorageProvider } from "./services/storage";
 import { config } from "./config/env";
 
-export function createApp(storage: StorageProvider) {
+export function createApp(storage: StorageProvider): express.Express {
   const app = express();
 
   app.use(cors({ origin: config.corsOrigin }));
