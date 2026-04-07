@@ -683,7 +683,6 @@ export class MockApiClient extends ApiClient {
       showCosts: input.showCosts ?? true,
       showTodos: input.showTodos ?? false,
       sharedWithEmail: input.sharedWithEmail,
-      expiresAt: input.expiresAt,
       createdAt: now(),
     };
     trip.shares.push(share);
