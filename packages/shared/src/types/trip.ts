@@ -114,6 +114,6 @@ export interface CostSummaryItem {
 
 export interface CostSummary {
   items: CostSummaryItem[];
-  totalsByurrency: Record<string, number>;
+  totalsByCurrency: Record<string, number>;
   totalUsd?: number;
 }
