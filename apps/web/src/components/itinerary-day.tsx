@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const RESTAURANT_TYPES = new Set(["restaurant_lunch", "restaurant_dinner"]);
+const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
 const FLIGHT_TYPES = new Set(["flight"]);
 const CAR_SERVICE_TYPES = new Set(["car_service"]);
@@ -64,9 +64,11 @@ const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
   car_service:       { icon: Car,             label: "Car Service", color: "text-orange-500" },
   other_transport:   { icon: Navigation,      label: "Transport",   color: "text-gray-500"   },
   hotel:             { icon: BedDouble,       label: "Hotel",       color: "text-indigo-500" },
-  activity:          { icon: MapPin,          label: "Activity",    color: "text-green-500"  },
-  restaurant_lunch:  { icon: UtensilsCrossed, label: "Lunch",       color: "text-amber-500"  },
-  restaurant_dinner: { icon: UtensilsCrossed, label: "Dinner",      color: "text-red-500"    },
+  activity:               { icon: MapPin,          label: "Activity",   color: "text-green-500"  },
+  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",  color: "text-sky-500"    },
+  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",     color: "text-lime-500"   },
+  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",      color: "text-amber-500"  },
+  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",     color: "text-red-500"    },
   tour:              { icon: Camera,          label: "Tour",        color: "text-teal-500"   },
   cruise:            { icon: Ship,            label: "Cruise",      color: "text-cyan-500"   },
 };

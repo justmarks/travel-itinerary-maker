@@ -238,6 +238,20 @@ const SAMPLE_TRIPS: Trip[] = [
             url: "https://inari.jp/en/",
           },
           {
+            id: "seg-10b",
+            type: "restaurant_brunch",
+            title: "Brunch · Arabica Coffee & Eggs Arashiyama",
+            venueName: "%Arabica Kyoto Arashiyama",
+            address: "3-47 Sagatenryuji Susukinobabacho, Ukyo Ward",
+            startTime: "11:00",
+            partySize: 2,
+            cost: { amount: 18, currency: "USD" },
+            source: "manual",
+            needsReview: false,
+            sortOrder: 1,
+            url: "https://arabica.coffee/",
+          },
+          {
             id: "seg-11",
             type: "activity",
             title: "Arashiyama Bamboo Grove & Tenryu-ji",
@@ -246,7 +260,7 @@ const SAMPLE_TRIPS: Trip[] = [
             endTime: "17:00",
             source: "manual",
             needsReview: false,
-            sortOrder: 1,
+            sortOrder: 2,
             url: "https://www.tenryuji.com/en/",
           },
         ],
@@ -476,7 +490,7 @@ const SAMPLE_TRIPS: Trip[] = [
         segments: [
           {
             id: "seg-p7",
-            type: "restaurant_lunch",
+            type: "restaurant_breakfast",
             title: "Breakfast · Café de Flore",
             venueName: "Café de Flore",
             address: "172 Boulevard Saint-Germain",
