@@ -523,7 +523,7 @@ const SAMPLE_TRIPS: Trip[] = [
     title: "Disney Fantasy Caribbean Cruise",
     startDate: "2025-07-19",
     endDate: "2025-07-26",
-    status: "confirmed",
+    status: "completed",
     createdAt: "2025-04-01T10:00:00Z",
     updatedAt: "2025-04-01T10:00:00Z",
     days: [
