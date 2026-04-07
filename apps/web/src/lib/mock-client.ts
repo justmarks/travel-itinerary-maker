@@ -465,7 +465,7 @@ export class MockApiClient extends ApiClient {
       days.push({
         date: d.toISOString().slice(0, 10),
         dayOfWeek: DAY_NAMES[d.getDay()],
-        city: input.homeCity ?? "",
+        city: "",
         segments: [],
       });
     }
