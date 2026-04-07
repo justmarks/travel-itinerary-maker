@@ -1,0 +1,164 @@
+"use client";
+
+import type { TripDay, Segment } from "@travel-app/shared";
+import {
+  Plane,
+  Train,
+  Car,
+  BedDouble,
+  MapPin,
+  UtensilsCrossed,
+  Camera,
+  Ship,
+  Navigation,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function formatTime(t?: string) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "pm" : "am";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")}${ampm}`;
+}
+
+function formatCost(cost?: { amount: number; currency: string; details?: string }) {
+  if (!cost) return null;
+  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
+  const sym = symbols[cost.currency] ?? `${cost.currency} `;
+  return `${sym}${cost.amount.toLocaleString()}`;
+}
+
+type SegmentConfig = {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  color: string;
+};
+
+const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
+  flight:            { icon: Plane,            label: "Flight",      color: "text-blue-500"   },
+  train:             { icon: Train,            label: "Train",       color: "text-purple-500" },
+  car_rental:        { icon: Car,              label: "Car Rental",  color: "text-orange-500" },
+  car_service:       { icon: Car,              label: "Car Service", color: "text-orange-500" },
+  other_transport:   { icon: Navigation,       label: "Transport",   color: "text-gray-500"   },
+  hotel:             { icon: BedDouble,        label: "Hotel",       color: "text-indigo-500" },
+  activity:          { icon: MapPin,           label: "Activity",    color: "text-green-500"  },
+  restaurant_lunch:  { icon: UtensilsCrossed,  label: "Lunch",       color: "text-amber-500"  },
+  restaurant_dinner: { icon: UtensilsCrossed,  label: "Dinner",      color: "text-red-500"    },
+  tour:              { icon: Camera,           label: "Tour",        color: "text-teal-500"   },
+  cruise:            { icon: Ship,             label: "Cruise",      color: "text-cyan-500"   },
+};
+
+function SegmentRow({ segment }: { segment: Segment }) {
+  const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
+  const Icon = config.icon;
+  const cost = formatCost(segment.cost);
+  const startTime = formatTime(segment.startTime);
+  const endTime = formatTime(segment.endTime);
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
+      <div className={cn("mt-0.5 shrink-0", config.color)}>
+        <Icon className="h-4 w-4" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium leading-snug">{segment.title}</span>
+          {segment.needsReview && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 px-2 py-0.5 text-xs text-amber-600">
+              <AlertCircle className="h-3 w-3" />
+              Review
+            </span>
+          )}
+          {segment.source === "email_confirmed" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-green-300 px-2 py-0.5 text-xs text-green-600">
+              <CheckCircle2 className="h-3 w-3" />
+              Confirmed
+            </span>
+          )}
+        </div>
+
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          {(startTime || endTime) && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {startTime}{endTime ? ` – ${endTime}` : ""}
+            </span>
+          )}
+          {segment.confirmationCode && (
+            <span className="font-mono text-xs">#{segment.confirmationCode}</span>
+          )}
+          {cost && (
+            <span className="font-medium text-foreground">
+              {cost}
+              {segment.cost?.details && (
+                <span className="ml-1 font-normal text-muted-foreground">
+                  · {segment.cost.details}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {segment.departureCity && segment.arrivalCity && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {segment.departureCity} → {segment.arrivalCity}
+            {segment.carrier && ` · ${segment.carrier}`}
+            {segment.routeCode && ` ${segment.routeCode}`}
+          </p>
+        )}
+
+        {segment.venueName && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {segment.venueName}
+            {segment.address && ` · ${segment.address}`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ItineraryDay({ day }: { day: TripDay }) {
+  const segments = [...day.segments].sort((a, b) => {
+    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    return a.sortOrder - b.sortOrder;
+  });
+
+  const dateLabel = new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+  return (
+    <div>
+      <div className="mb-3 flex items-baseline gap-3">
+        <h3 className="text-base font-semibold">
+          {day.dayOfWeek}, {dateLabel}
+        </h3>
+        {day.city && (
+          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            {day.city}
+          </span>
+        )}
+      </div>
+
+      {segments.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          No activities planned.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {segments.map((seg) => (
+            <SegmentRow key={seg.id} segment={seg} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
