@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@travel-app/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@travel-app/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -63,6 +66,25 @@ importers:
       tailwindcss:
         specifier: ^4.1.4
         version: 4.2.2
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
+  packages/api-client:
+    dependencies:
+      '@tanstack/react-query':
+        specifier: ^5.75.5
+        version: 5.96.2(react@19.2.4)
+      '@travel-app/shared':
+        specifier: workspace:*
+        version: link:../shared
+      react:
+        specifier: ^18.0.0 || ^19.0.0
+        version: 19.2.4
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.2
+        version: 19.2.14
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -1435,6 +1457,14 @@ packages:
 
   '@tailwindcss/postcss@4.2.2':
     resolution: {integrity: sha512-n4goKQbW8RVXIbNKRB/45LzyUqN451deQK0nzIeauVEqjlI49slUlgKYJM2QyUzap/PcpnS7kzSUmPb1sCRvYQ==}
+
+  '@tanstack/query-core@5.96.2':
+    resolution: {integrity: sha512-hzI6cTVh4KNRk8UtoIBS7Lv9g6BnJPXvBKsvYH1aGWvv0347jT3BnSvztOE+kD76XGvZnRC/t6qdW1CaIfwCeA==}
+
+  '@tanstack/react-query@5.96.2':
+    resolution: {integrity: sha512-sYyzzJT4G0g02azzJ8o55VFFV31XvFpdUpG+unxS0vSaYsJnSPKGoI6WdPwUucJL1wpgGfwfmntNX/Ub1uOViA==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@tsconfig/node10@1.0.12':
     resolution: {integrity: sha512-UCYBaeFvM11aU2y3YPZ//O5Rhj+xKyzy7mvcIoAjASbigy8mHMryP5cK7dgjlz2hWxh1g5pLw084E0a/wlUSFQ==}
@@ -4583,6 +4613,13 @@ snapshots:
       '@tailwindcss/oxide': 4.2.2
       postcss: 8.5.8
       tailwindcss: 4.2.2
+
+  '@tanstack/query-core@5.96.2': {}
+
+  '@tanstack/react-query@5.96.2(react@19.2.4)':
+    dependencies:
+      '@tanstack/query-core': 5.96.2
+      react: 19.2.4
 
   '@tsconfig/node10@1.0.12': {}
 
