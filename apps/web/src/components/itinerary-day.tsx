@@ -14,15 +14,35 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Users,
+  CreditCard,
+  Phone,
+  Armchair,
+  UserRound,
+  ExternalLink,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function formatTime(t?: string) {
+const RESTAURANT_TYPES = new Set(["restaurant_lunch", "restaurant_dinner"]);
+const HOTEL_TYPES = new Set(["hotel"]);
+const FLIGHT_TYPES = new Set(["flight"]);
+const CAR_SERVICE_TYPES = new Set(["car_service"]);
+
+function fmt12h(t?: string) {
   if (!t) return null;
   const [h, m] = t.split(":").map(Number);
   const ampm = h >= 12 ? "pm" : "am";
   const h12 = h % 12 || 12;
   return `${h12}:${m.toString().padStart(2, "0")}${ampm}`;
+}
+
+function fmtDate(iso?: string) {
+  if (!iso) return null;
+  return new Date(iso + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function formatCost(cost?: { amount: number; currency: string; details?: string }) {
@@ -39,25 +59,30 @@ type SegmentConfig = {
 };
 
 const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:            { icon: Plane,            label: "Flight",      color: "text-blue-500"   },
-  train:             { icon: Train,            label: "Train",       color: "text-purple-500" },
-  car_rental:        { icon: Car,              label: "Car Rental",  color: "text-orange-500" },
-  car_service:       { icon: Car,              label: "Car Service", color: "text-orange-500" },
-  other_transport:   { icon: Navigation,       label: "Transport",   color: "text-gray-500"   },
-  hotel:             { icon: BedDouble,        label: "Hotel",       color: "text-indigo-500" },
-  activity:          { icon: MapPin,           label: "Activity",    color: "text-green-500"  },
-  restaurant_lunch:  { icon: UtensilsCrossed,  label: "Lunch",       color: "text-amber-500"  },
-  restaurant_dinner: { icon: UtensilsCrossed,  label: "Dinner",      color: "text-red-500"    },
-  tour:              { icon: Camera,           label: "Tour",        color: "text-teal-500"   },
-  cruise:            { icon: Ship,             label: "Cruise",      color: "text-cyan-500"   },
+  flight:            { icon: Plane,           label: "Flight",      color: "text-blue-500"   },
+  train:             { icon: Train,           label: "Train",       color: "text-purple-500" },
+  car_rental:        { icon: Car,             label: "Car Rental",  color: "text-orange-500" },
+  car_service:       { icon: Car,             label: "Car Service", color: "text-orange-500" },
+  other_transport:   { icon: Navigation,      label: "Transport",   color: "text-gray-500"   },
+  hotel:             { icon: BedDouble,       label: "Hotel",       color: "text-indigo-500" },
+  activity:          { icon: MapPin,          label: "Activity",    color: "text-green-500"  },
+  restaurant_lunch:  { icon: UtensilsCrossed, label: "Lunch",       color: "text-amber-500"  },
+  restaurant_dinner: { icon: UtensilsCrossed, label: "Dinner",      color: "text-red-500"    },
+  tour:              { icon: Camera,          label: "Tour",        color: "text-teal-500"   },
+  cruise:            { icon: Ship,            label: "Cruise",      color: "text-cyan-500"   },
 };
 
 function SegmentRow({ segment }: { segment: Segment }) {
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
   const Icon = config.icon;
   const cost = formatCost(segment.cost);
-  const startTime = formatTime(segment.startTime);
-  const endTime = formatTime(segment.endTime);
+  const isRestaurant = RESTAURANT_TYPES.has(segment.type);
+  const isHotel = HOTEL_TYPES.has(segment.type);
+  const isFlight = FLIGHT_TYPES.has(segment.type);
+  const isCarService = CAR_SERVICE_TYPES.has(segment.type);
+
+  const startTime = fmt12h(segment.startTime);
+  const endTime = fmt12h(segment.endTime);
 
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
@@ -66,6 +91,7 @@ function SegmentRow({ segment }: { segment: Segment }) {
       </div>
 
       <div className="min-w-0 flex-1">
+        {/* Title row */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium leading-snug">{segment.title}</span>
           {segment.needsReview && (
@@ -82,13 +108,24 @@ function SegmentRow({ segment }: { segment: Segment }) {
           )}
         </div>
 
+        {/* Time */}
+        {(startTime || endTime) && (
+          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Clock className="h-3 w-3 shrink-0" />
+            {isHotel ? (
+              <>
+                {startTime && <span>Check-in {startTime}</span>}
+                {startTime && endTime && <span className="mx-1">·</span>}
+                {endTime && <span>Check-out {endTime}</span>}
+              </>
+            ) : (
+              <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
+            )}
+          </div>
+        )}
+
+        {/* Confirmation + cost */}
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          {(startTime || endTime) && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {startTime}{endTime ? ` – ${endTime}` : ""}
-            </span>
-          )}
           {segment.confirmationCode && (
             <span className="font-mono text-xs">#{segment.confirmationCode}</span>
           )}
@@ -104,19 +141,93 @@ function SegmentRow({ segment }: { segment: Segment }) {
           )}
         </div>
 
+        {/* Route info (flights / trains / transport) */}
         {segment.departureCity && segment.arrivalCity && (
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {segment.departureCity} → {segment.arrivalCity}
             {segment.carrier && ` · ${segment.carrier}`}
             {segment.routeCode && ` ${segment.routeCode}`}
           </p>
         )}
 
+        {/* Seat numbers (flights) */}
+        {isFlight && segment.seatNumber && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Armchair className="h-3 w-3 shrink-0" />
+            Seats: {segment.seatNumber}
+          </p>
+        )}
+
+        {/* Venue / address */}
         {segment.venueName && (
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground">
             {segment.venueName}
             {segment.address && ` · ${segment.address}`}
           </p>
+        )}
+
+        {/* Hotel breakfast */}
+        {isHotel && segment.breakfastIncluded !== undefined && (
+          <p className={cn("mt-1 flex items-center gap-1 text-sm", segment.breakfastIncluded ? "text-green-600" : "text-muted-foreground")}>
+            <Coffee className="h-3 w-3 shrink-0" />
+            {segment.breakfastIncluded ? "Breakfast included" : "Breakfast not included"}
+          </p>
+        )}
+
+        {/* Restaurant details */}
+        {isRestaurant && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            {segment.partySize && (
+              <span className="flex items-center gap-1">
+                <Users className="h-3 w-3 shrink-0" />
+                Party of {segment.partySize}
+              </span>
+            )}
+            {segment.creditCardHold && (
+              <span className="flex items-center gap-1">
+                <CreditCard className="h-3 w-3 shrink-0" />
+                CC hold
+                {segment.cancellationDeadline && (
+                  <span className="text-amber-600">
+                    · cancel by {fmtDate(segment.cancellationDeadline)}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Phone (restaurants + car service) */}
+        {(isRestaurant || isCarService) && segment.phone && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Phone className="h-3 w-3 shrink-0" />
+            <a href={`tel:${segment.phone}`} className="hover:text-foreground hover:underline">
+              {segment.phone}
+            </a>
+          </p>
+        )}
+
+        {/* Car service driver contact */}
+        {isCarService && segment.contactName && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <UserRound className="h-3 w-3 shrink-0" />
+            Driver: {segment.contactName}
+          </p>
+        )}
+
+        {/* URL */}
+        {segment.url && (
+          <div className="mt-1.5">
+            <a
+              href={segment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              <ExternalLink className="h-3 w-3" />
+              {new URL(segment.url).hostname.replace(/^www\./, "")}
+            </a>
+          </div>
         )}
       </div>
     </div>
