@@ -226,3 +226,15 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 cd packages/shared && pnpm test -- --testPathPattern="validators"
 ```
+
+**Keep demo data in sync:**
+
+The GitHub Pages deployment uses `apps/web/src/lib/mock-client.ts` to serve sample data instead of a real backend. Whenever you add or change API/data structures, update this file to match:
+
+1. **New field on an existing type** — add it to the relevant objects in `SAMPLE_TRIPS` so the demo renders real-looking values rather than `undefined`.
+2. **New segment type** — add an entry to `SEGMENT_CONFIG` in `itinerary-day.tsx` (icon, label, colour) and a representative segment to at least one sample trip day.
+3. **New top-level resource** (e.g. a new relation on `Trip`) — add the corresponding override method to `MockApiClient` following the same pattern as existing methods (return `Promise.resolve(...)` for queries, mutate in-memory state for mutations).
+4. **New API endpoint** — add a matching `override` method to `MockApiClient`; if it adds data to `Trip`, extend `SAMPLE_TRIPS` with plausible values.
+5. **Renamed or removed field** — update `SAMPLE_TRIPS` and any `MockApiClient` method that references the old name.
+
+The mock client lives entirely in the frontend package and has no effect on local development or server tests — only the GitHub Pages build sets `NEXT_PUBLIC_DEMO_MODE=true`.
