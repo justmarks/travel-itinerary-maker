@@ -16,12 +16,17 @@ export function useApiClient(): ApiClient {
 
 export function ApiClientProvider({
   baseUrl,
+  client: clientProp,
   children,
 }: {
-  baseUrl: string;
+  baseUrl?: string;
+  client?: ApiClient;
   children: React.ReactNode;
 }) {
-  const client = useMemo(() => new ApiClient(baseUrl), [baseUrl]);
+  const client = useMemo(
+    () => clientProp ?? new ApiClient(baseUrl!),
+    [clientProp, baseUrl],
+  );
   const queryClient = useMemo(
     () =>
       new QueryClient({
