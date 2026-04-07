@@ -20,6 +20,7 @@ import {
   Armchair,
   UserRound,
   ExternalLink,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -162,6 +163,14 @@ function SegmentRow({ segment }: { segment: Segment }) {
           <p className="mt-1 text-sm text-muted-foreground">
             {segment.venueName}
             {segment.address && ` · ${segment.address}`}
+          </p>
+        )}
+
+        {/* Hotel breakfast */}
+        {isHotel && segment.breakfastIncluded !== undefined && (
+          <p className={cn("mt-1 flex items-center gap-1 text-sm", segment.breakfastIncluded ? "text-green-600" : "text-muted-foreground")}>
+            <Coffee className="h-3 w-3 shrink-0" />
+            {segment.breakfastIncluded ? "Breakfast included" : "Breakfast not included"}
           </p>
         )}
 
