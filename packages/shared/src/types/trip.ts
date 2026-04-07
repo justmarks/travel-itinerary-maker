@@ -48,6 +48,12 @@ export interface Segment {
   // Dining-specific
   partySize?: number;
   creditCardHold?: boolean;
+  cancellationDeadline?: string; // ISO date "YYYY-MM-DD" — when CC hold must be cancelled by
+  phone?: string;
+  // Flight-specific
+  seatNumber?: string; // e.g. "14A, 14B"
+  // Car service specific
+  contactName?: string; // driver / pickup contact name
   // Cost embedded in segment
   cost?: SegmentCost;
   // Source tracking

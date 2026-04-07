@@ -3,7 +3,7 @@ import TripDetailClient from "./trip-detail-client";
 export function generateStaticParams() {
   // Pre-generate demo trip pages for static export.
   // Newly created trips fall back to 404.html (which serves the same SPA shell).
-  return [{ tripId: "demo-1" }, { tripId: "demo-2" }];
+  return [{ tripId: "demo-1" }, { tripId: "demo-2" }, { tripId: "demo-3" }];
 }
 
 export default function TripDetailPage({
