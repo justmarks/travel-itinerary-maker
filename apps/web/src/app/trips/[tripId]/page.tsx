@@ -1,5 +1,9 @@
 "use client";
 
+export function generateStaticParams() {
+  return [];
+}
+
 import { use } from "react";
 import Link from "next/link";
 import { useTrip } from "@travel-app/api-client";
