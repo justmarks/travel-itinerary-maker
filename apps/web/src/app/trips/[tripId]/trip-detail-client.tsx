@@ -100,7 +100,7 @@ export default function TripDetailClient({
           {/* Day-by-day itinerary */}
           <div className="flex flex-col gap-8">
             {trip.days.map((day) => (
-              <ItineraryDay key={day.date} day={day} />
+              <ItineraryDay key={day.date} day={day} tripId={trip.id} />
             ))}
           </div>
 

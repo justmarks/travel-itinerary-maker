@@ -1,6 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import type { TripDay, Segment } from "@travel-app/shared";
+import {
+  useDeleteSegment,
+  useConfirmSegment,
+  useUpdateDay,
+} from "@travel-app/api-client";
 import {
   Plane,
   Train,
@@ -20,7 +26,14 @@ import {
   Armchair,
   UserRound,
   Coffee,
+  Trash2,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AddSegmentDialog } from "@/components/add-segment-dialog";
 import { cn } from "@/lib/utils";
 
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
@@ -73,7 +86,17 @@ const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
   cruise:            { icon: Ship,            label: "Cruise",      color: "text-cyan-500"   },
 };
 
-function SegmentRow({ segment }: { segment: Segment }) {
+function SegmentRow({
+  segment,
+  tripId,
+  readOnly,
+}: {
+  segment: Segment;
+  tripId?: string;
+  readOnly?: boolean;
+}) {
+  const deleteSegment = useDeleteSegment(tripId ?? "");
+  const confirmSegment = useConfirmSegment(tripId ?? "");
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
   const Icon = config.icon;
   const cost = formatCost(segment.cost);
@@ -86,7 +109,7 @@ function SegmentRow({ segment }: { segment: Segment }) {
   const endTime = fmt12h(segment.endTime);
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
+    <div className="group/seg flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
       <div className={cn("mt-0.5 shrink-0", config.color)}>
         <Icon className="h-4 w-4" />
       </div>
@@ -228,11 +251,124 @@ function SegmentRow({ segment }: { segment: Segment }) {
         )}
 
       </div>
+
+      {/* Actions */}
+      {!readOnly && tripId && (
+        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
+          {segment.needsReview && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-green-600 hover:text-green-700"
+              title="Confirm"
+              onClick={() => confirmSegment.mutate(segment.id)}
+              disabled={confirmSegment.isPending}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+            title="Delete"
+            onClick={() => {
+              if (confirm(`Delete "${segment.title}"?`)) {
+                deleteSegment.mutate(segment.id);
+              }
+            }}
+            disabled={deleteSegment.isPending}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
 
-export function ItineraryDay({ day }: { day: TripDay }) {
+function EditableCity({
+  tripId,
+  date,
+  city,
+}: {
+  tripId: string;
+  date: string;
+  city: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(city);
+  const updateDay = useUpdateDay(tripId);
+
+  const save = () => {
+    updateDay.mutate(
+      { date, city: value },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  if (editing) {
+    return (
+      <form
+        className="flex items-center gap-1"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="h-6 w-28 px-1.5 text-sm"
+          autoFocus
+        />
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          disabled={updateDay.isPending}
+        >
+          <Check className="h-3 w-3" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6"
+          onClick={() => {
+            setValue(city);
+            setEditing(false);
+          }}
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      title="Edit city"
+    >
+      <MapPin className="h-3 w-3" />
+      {city || "Set city"}
+      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-0 transition-opacity group-hover/day:opacity-100" />
+    </button>
+  );
+}
+
+export function ItineraryDay({
+  day,
+  tripId,
+  readOnly,
+}: {
+  day: TripDay;
+  tripId?: string;
+  readOnly?: boolean;
+}) {
   const segments = [...day.segments].sort((a, b) => {
     if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
     return a.sortOrder - b.sortOrder;
@@ -244,16 +380,25 @@ export function ItineraryDay({ day }: { day: TripDay }) {
   });
 
   return (
-    <div>
-      <div className="mb-3 flex items-baseline gap-3">
-        <h3 className="text-base font-semibold">
-          {day.dayOfWeek}, {dateLabel}
-        </h3>
-        {day.city && (
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            {day.city}
-          </span>
+    <div className="group/day">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-baseline gap-3">
+          <h3 className="text-base font-semibold">
+            {day.dayOfWeek}, {dateLabel}
+          </h3>
+          {!readOnly && tripId ? (
+            <EditableCity tripId={tripId} date={day.date} city={day.city} />
+          ) : (
+            day.city && (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                {day.city}
+              </span>
+            )
+          )}
+        </div>
+        {!readOnly && tripId && (
+          <AddSegmentDialog tripId={tripId} date={day.date} />
         )}
       </div>
 
@@ -264,7 +409,12 @@ export function ItineraryDay({ day }: { day: TripDay }) {
       ) : (
         <div className="flex flex-col gap-2">
           {segments.map((seg) => (
-            <SegmentRow key={seg.id} segment={seg} />
+            <SegmentRow
+              key={seg.id}
+              segment={seg}
+              tripId={tripId}
+              readOnly={readOnly}
+            />
           ))}
         </div>
       )}
