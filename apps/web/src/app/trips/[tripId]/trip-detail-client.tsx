@@ -6,6 +6,12 @@ import { useTrip, useUpdateTrip, useApiClient } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowLeft,
   Calendar,
   MapPin,
@@ -13,6 +19,8 @@ import {
   Check,
   X,
   Download,
+  FileText,
+  BookOpen,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
@@ -97,21 +105,37 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
   );
 }
 
-function ExportButton({ tripId }: { tripId: string }) {
+function downloadBlob(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ExportMenu({ tripId }: { tripId: string }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
 
-  const handleExport = async () => {
+  const handleExportMarkdown = async () => {
     setExporting(true);
     try {
       const markdown = await client.exportMarkdown(tripId);
-      const blob = new Blob([markdown], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "itinerary.md";
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(markdown, "itinerary.md", "text/markdown");
+    } catch {
+      alert("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportOneNote = async () => {
+    setExporting(true);
+    try {
+      const html = await client.exportOneNote(tripId);
+      downloadBlob(html, "itinerary.html", "text/html");
     } catch {
       alert("Export failed.");
     } finally {
@@ -120,15 +144,24 @@ function ExportButton({ tripId }: { tripId: string }) {
   };
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleExport}
-      disabled={exporting}
-    >
-      <Download className="mr-2 h-3.5 w-3.5" />
-      {exporting ? "Exporting..." : "Export Markdown"}
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" disabled={exporting}>
+          <Download className="mr-2 h-3.5 w-3.5" />
+          {exporting ? "Exporting..." : "Export"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={handleExportMarkdown}>
+          <FileText className="mr-2 h-4 w-4" />
+          Markdown (.md)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportOneNote}>
+          <BookOpen className="mr-2 h-4 w-4" />
+          OneNote (.html)
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -179,7 +212,7 @@ export default function TripDetailClient({
               All trips
             </Button>
           </Link>
-          <ExportButton tripId={trip.id} />
+          <ExportMenu tripId={trip.id} />
         </div>
 
         <div className="mb-8">

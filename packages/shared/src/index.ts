@@ -52,3 +52,4 @@ export { getDayOfWeek, generateDateRange, isDateInRange } from "./utils/dates";
 export { formatCurrency, getCurrencySymbol, sumByCurrency } from "./utils/currency";
 export { generateId } from "./utils/ids";
 export { tripToMarkdown } from "./utils/markdown";
+export { tripToOneNoteHtml } from "./utils/onenote";
