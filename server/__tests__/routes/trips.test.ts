@@ -609,4 +609,24 @@ describe("Export routes", () => {
     expect(res.text).toContain("# Christmas 2025");
     expect(res.text).not.toContain("Cost Summary");
   });
+
+  it("exports to OneNote HTML", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/onenote`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/html");
+    expect(res.text).toContain("<!DOCTYPE html>");
+    expect(res.text).toContain("<h1>Christmas 2025</h1>");
+    expect(res.text).toContain("BA52 SEA-LHR");
+    expect(res.text).toContain("$4,704.05");
+  });
+
+  it("exports OneNote HTML without costs", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/onenote?exclude=costs`,
+    );
+    expect(res.text).toContain("<h1>Christmas 2025</h1>");
+    expect(res.text).not.toContain("Cost Summary");
+  });
 });

@@ -242,4 +242,19 @@ export class ApiClient {
     }
     return res.text();
   }
+
+  async exportOneNote(
+    tripId: string,
+    exclude?: string[],
+  ): Promise<string> {
+    const qs = exclude?.length ? `?exclude=${exclude.join(",")}` : "";
+    const res = await fetch(
+      `${this.baseUrl}/trips/${tripId}/export/onenote${qs}`,
+    );
+    if (!res.ok) {
+      const body = await res.json();
+      throw new ApiError(res.status, body);
+    }
+    return res.text();
+  }
 }

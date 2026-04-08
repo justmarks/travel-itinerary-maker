@@ -1186,4 +1186,11 @@ export class MockApiClient extends ApiClient {
     const { tripToMarkdown } = await import("@travel-app/shared");
     return tripToMarkdown(trip, { includeCosts: true, includeTodos: true });
   }
+
+  override async exportOneNote(tripId: string): Promise<string> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { tripToOneNoteHtml } = await import("@travel-app/shared");
+    return tripToOneNoteHtml(trip, { includeCosts: true, includeTodos: true });
+  }
 }
