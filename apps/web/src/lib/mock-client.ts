@@ -1150,4 +1150,40 @@ export class MockApiClient extends ApiClient {
     trip.shares = trip.shares.filter((s) => s.id !== shareId);
     return Promise.resolve();
   }
+
+  // ─── Shared (public) ────────────────────────────────────
+
+  override getSharedTrip(token: string) {
+    for (const trip of this.trips.values()) {
+      const share = trip.shares.find((s) => s.shareToken === token);
+      if (share) {
+        return Promise.resolve({
+          id: trip.id,
+          title: trip.title,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          status: trip.status,
+          days: trip.days.map((day) => ({
+            ...day,
+            segments: day.segments.map((seg) => ({
+              ...seg,
+              cost: share.showCosts ? seg.cost : undefined,
+            })),
+          })),
+          todos: share.showTodos ? trip.todos : [],
+          permission: share.permission,
+        });
+      }
+    }
+    return Promise.reject(new Error("Shared trip not found"));
+  }
+
+  // ─── Export ─────────────────────────────────────────────
+
+  override async exportMarkdown(tripId: string): Promise<string> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { tripToMarkdown } = await import("@travel-app/shared");
+    return tripToMarkdown(trip, { includeCosts: true, includeTodos: true });
+  }
 }
