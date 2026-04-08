@@ -25,6 +25,8 @@ import {
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
+import { RequireAuth } from "@/components/require-auth";
+import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -201,6 +203,7 @@ export default function TripDetailClient({
   }
 
   return (
+    <RequireAuth>
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-7xl">
 
@@ -212,7 +215,10 @@ export default function TripDetailClient({
               All trips
             </Button>
           </Link>
-          <ExportMenu tripId={trip.id} />
+          <div className="flex items-center gap-2">
+            <ExportMenu tripId={trip.id} />
+            <UserMenu />
+          </div>
         </div>
 
         <div className="mb-8">
@@ -262,5 +268,6 @@ export default function TripDetailClient({
         </div>
       </div>
     </main>
+    </RequireAuth>
   );
 }
