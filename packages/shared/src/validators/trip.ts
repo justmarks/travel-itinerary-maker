@@ -8,6 +8,8 @@ export const SEGMENT_TYPES = [
   "other_transport",
   "hotel",
   "activity",
+  "restaurant_breakfast",
+  "restaurant_brunch",
   "restaurant_lunch",
   "restaurant_dinner",
   "tour",
