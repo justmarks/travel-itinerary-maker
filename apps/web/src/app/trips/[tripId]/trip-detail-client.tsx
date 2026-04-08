@@ -1,10 +1,19 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
-import { useTrip } from "@travel-app/api-client";
+import { useTrip, useUpdateTrip, useApiClient } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, MapPin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  Pencil,
+  Check,
+  X,
+  Download,
+} from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
@@ -21,6 +30,106 @@ function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
   const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
   return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title);
+  const updateTrip = useUpdateTrip(tripId);
+
+  const save = () => {
+    if (!value.trim()) return;
+    updateTrip.mutate(
+      { title: value.trim() },
+      { onSuccess: () => setEditing(false) },
+    );
+  };
+
+  if (editing) {
+    return (
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save();
+        }}
+      >
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="h-9 text-2xl font-bold"
+          autoFocus
+        />
+        <Button
+          type="submit"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          disabled={!value.trim() || updateTrip.isPending}
+        >
+          <Check className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => {
+            setValue(title);
+            setEditing(false);
+          }}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="group/title flex items-center gap-2 text-left"
+      title="Rename trip"
+    >
+      <h1 className="text-2xl font-bold">{title}</h1>
+      <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100" />
+    </button>
+  );
+}
+
+function ExportButton({ tripId }: { tripId: string }) {
+  const client = useApiClient();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const markdown = await client.exportMarkdown(tripId);
+      const blob = new Blob([markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "itinerary.md";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleExport}
+      disabled={exporting}
+    >
+      <Download className="mr-2 h-3.5 w-3.5" />
+      {exporting ? "Exporting..." : "Export Markdown"}
+    </Button>
+  );
 }
 
 export default function TripDetailClient({
@@ -63,16 +172,19 @@ export default function TripDetailClient({
       <div className="mx-auto max-w-7xl">
 
         {/* Header */}
-        <Link href="/">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            All trips
-          </Button>
-        </Link>
+        <div className="mb-4 flex items-center justify-between">
+          <Link href="/">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              All trips
+            </Button>
+          </Link>
+          <ExportButton tripId={trip.id} />
+        </div>
 
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold">{trip.title}</h1>
+            <EditableTitle tripId={trip.id} title={trip.title} />
             <span
               className={cn(
                 "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
