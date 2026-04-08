@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import type { TripSummary } from "@travel-app/api-client";
-import { useDeleteTrip } from "@travel-app/api-client";
+import { useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
 import {
   Card,
   CardHeader,
@@ -12,13 +13,22 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar, MapPin, MoreVertical, Trash2 } from "lucide-react";
+import {
+  Calendar,
+  MapPin,
+  MoreVertical,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+} from "lucide-react";
 
 const statusColors: Record<string, string> = {
   planning: "bg-blue-100 text-blue-800",
@@ -44,6 +54,9 @@ function formatDateRange(start: string, end: string): string {
 
 export function TripCard({ trip }: { trip: TripSummary }) {
   const deleteTrip = useDeleteTrip();
+  const updateTrip = useUpdateTrip(trip.id);
+  const [renaming, setRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState(trip.title);
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
@@ -51,12 +64,68 @@ export function TripCard({ trip }: { trip: TripSummary }) {
     }
   };
 
+  const handleRename = () => {
+    if (!newTitle.trim()) return;
+    updateTrip.mutate(
+      { title: newTitle.trim() },
+      {
+        onSuccess: () => setRenaming(false),
+      },
+    );
+  };
+
   return (
     <Card className="group relative transition-shadow hover:shadow-md">
-      <Link href={`/trips/${trip.id}`} className="absolute inset-0 z-0" />
+      {!renaming && (
+        <Link href={`/trips/${trip.id}`} className="absolute inset-0 z-0" />
+      )}
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <div className="space-y-1">
-          <CardTitle className="text-lg">{trip.title}</CardTitle>
+        <div className="min-w-0 flex-1 space-y-1">
+          {renaming ? (
+            <form
+              className="relative z-10 flex items-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRename();
+              }}
+            >
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="h-7 text-base font-semibold"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setNewTitle(trip.title);
+                    setRenaming(false);
+                  }
+                }}
+              />
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                disabled={!newTitle.trim() || updateTrip.isPending}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                onClick={() => {
+                  setNewTitle(trip.title);
+                  setRenaming(false);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </form>
+          ) : (
+            <CardTitle className="text-lg">{trip.title}</CardTitle>
+          )}
           <CardDescription className="flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5" />
             {formatDateRange(trip.startDate, trip.endDate)}
@@ -73,6 +142,15 @@ export function TripCard({ trip }: { trip: TripSummary }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                setNewTitle(trip.title);
+                setRenaming(true);
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Rename
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive"
               onClick={handleDelete}
