@@ -52,15 +52,28 @@ export class ApiError extends Error {
 }
 
 export class ApiClient {
-  constructor(private baseUrl: string) {}
+  private getAccessToken?: () => string | null;
+
+  constructor(
+    private baseUrl: string,
+    options?: { getAccessToken?: () => string | null },
+  ) {
+    this.getAccessToken = options?.getAccessToken;
+  }
 
   private async request<T>(
     path: string,
     options?: RequestInit,
   ): Promise<T> {
+    const token = this.getAccessToken?.();
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+
     const res = await fetch(`${this.baseUrl}${path}`, {
       headers: {
         "Content-Type": "application/json",
+        ...authHeaders,
         ...options?.headers,
       },
       ...options,

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-oauth/google": "^0.13.5",
     "@travel-app/api-client": "workspace:*",
     "@travel-app/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",

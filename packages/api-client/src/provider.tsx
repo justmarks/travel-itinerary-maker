@@ -17,14 +17,17 @@ export function useApiClient(): ApiClient {
 export function ApiClientProvider({
   baseUrl,
   client: clientProp,
+  getAccessToken,
   children,
 }: {
   baseUrl?: string;
   client?: ApiClient;
+  getAccessToken?: () => string | null;
   children: React.ReactNode;
 }) {
   const client = useMemo(
-    () => clientProp ?? new ApiClient(baseUrl!),
+    () => clientProp ?? new ApiClient(baseUrl!, { getAccessToken }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [clientProp, baseUrl],
   );
   const queryClient = useMemo(
