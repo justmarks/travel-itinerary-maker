@@ -54,7 +54,7 @@ export default function LoginPage() {
       console.error("Google login error:", error);
       setLoginError("Google sign-in was cancelled or failed. Please try again.");
     },
-    scope: "openid email profile https://www.googleapis.com/auth/drive.file",
+    scope: "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
   });
 
   useEffect(() => {

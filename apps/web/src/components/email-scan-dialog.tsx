@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Mail,
   Loader2,
@@ -96,7 +97,7 @@ export function EmailScanDialog({
   const [errorMessage, setErrorMessage] = useState("");
   const [appliedCount, setAppliedCount] = useState(0);
 
-  const { data: labels } = useGmailLabels(open);
+  const { data: labels, error: labelsError } = useGmailLabels(open);
   const { data: trips } = useTrips();
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
@@ -269,26 +270,62 @@ export function EmailScanDialog({
               <label className="text-sm font-medium">
                 Gmail Label (optional)
               </label>
-              <Select value={selectedLabel} onValueChange={setSelectedLabel}>
-                <SelectTrigger>
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-                    <SelectValue placeholder="All mail (default search)" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">All mail (default search)</SelectItem>
-                  {labels?.map((label) => (
-                    <SelectItem key={label.id} value={label.name}>
+              <div className="flex items-center gap-2">
+                <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Input
+                  value={selectedLabel}
+                  onChange={(e) => setSelectedLabel(e.target.value)}
+                  placeholder="e.g. Travel, Receipts (leave blank to search all mail)"
+                  className="h-9"
+                />
+                {selectedLabel && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setSelectedLabel("")}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              {labels && labels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {labels.map((label) => (
+                    <button
+                      key={label.id}
+                      type="button"
+                      onClick={() => setSelectedLabel(label.name)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                        selectedLabel === label.name
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                      )}
+                    >
                       {label.name}
-                    </SelectItem>
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
-                Filter to a specific label, or scan all mail for travel keywords.
+                Type a label name, click a suggestion, or leave blank to search all mail for travel keywords.
               </p>
             </div>
+
+            {labelsError && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Could not load Gmail labels</p>
+                  <p className="mt-0.5">
+                    You may need to sign out and sign back in to grant Gmail access.
+                    You can still type a label name manually or leave it blank.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <Button onClick={handleScan} className="w-full">
               <Mail className="mr-2 h-4 w-4" />
