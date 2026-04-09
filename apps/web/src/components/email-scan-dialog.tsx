@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -34,35 +35,13 @@ import {
   CheckCircle2,
   XCircle,
   MinusCircle,
-  Plane,
-  BedDouble,
-  UtensilsCrossed,
   MapPin,
-  Car,
-  Train,
-  Ship,
   AlertCircle,
   Check,
   X,
   Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const SEGMENT_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  flight: Plane,
-  hotel: BedDouble,
-  restaurant_breakfast: UtensilsCrossed,
-  restaurant_brunch: UtensilsCrossed,
-  restaurant_lunch: UtensilsCrossed,
-  restaurant_dinner: UtensilsCrossed,
-  activity: MapPin,
-  car_rental: Car,
-  car_service: Car,
-  train: Train,
-  cruise: Ship,
-  tour: MapPin,
-  other_transport: Car,
-};
 
 const CONFIDENCE_STYLES: Record<string, string> = {
   high: "border-green-300 bg-green-50 text-green-700",
@@ -130,7 +109,6 @@ export function EmailScanDialog({
 
       setResults(res.results);
 
-      // Build selections from parsed segments
       const sels: SegmentSelection[] = [];
       for (const result of res.results) {
         for (const seg of result.parsedSegments) {
@@ -219,7 +197,6 @@ export function EmailScanDialog({
       const res = await applySegments.mutateAsync({ segments });
       setAppliedCount(res.created.length);
 
-      // Dismiss emails with no selected segments
       const appliedEmailIds = new Set(toApply.map((s) => s.emailId));
       const dismissedEmailIds = new Set(
         results
@@ -258,124 +235,117 @@ export function EmailScanDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] flex-col overflow-hidden sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            Scan Emails for Travel
+            Scan Emails
           </DialogTitle>
           <DialogDescription>
-            Search your Gmail for travel confirmations and add them to your itinerary.
+            Search Gmail for travel confirmations and add them to your itinerary.
           </DialogDescription>
         </DialogHeader>
 
         {/* ── Step: Config ── */}
         {step === "config" && (
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Gmail Label (optional)
-              </label>
-              <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <Input
-                  value={selectedLabel}
-                  onChange={(e) => setSelectedLabel(e.target.value)}
-                  placeholder="e.g. Travel, Receipts (leave blank to search all mail)"
-                  className="h-9"
-                />
-                {selectedLabel && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 shrink-0"
-                    onClick={() => setSelectedLabel("")}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-              {labels && labels.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {labels.map((label) => (
-                    <button
-                      key={label.id}
+          <>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Gmail Label (optional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <Input
+                    value={selectedLabel}
+                    onChange={(e) => setSelectedLabel(e.target.value)}
+                    placeholder="e.g. Travel, Receipts"
+                    className="h-9"
+                  />
+                  {selectedLabel && (
+                    <Button
                       type="button"
-                      onClick={() => setSelectedLabel(label.name)}
-                      className={cn(
-                        "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
-                        selectedLabel === label.name
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                      )}
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => setSelectedLabel("")}
                     >
-                      {label.name}
-                    </button>
-                  ))}
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Type a label name, click a suggestion, or leave blank to search all mail for travel keywords.
-              </p>
-            </div>
+                {labels && labels.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {labels.map((label) => (
+                      <button
+                        key={label.id}
+                        type="button"
+                        onClick={() => setSelectedLabel(label.name)}
+                        className={cn(
+                          "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+                          selectedLabel === label.name
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                        )}
+                      >
+                        {label.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to search all mail for travel keywords.
+                </p>
+              </div>
 
-            {labelsError && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <div>
-                  <p className="font-medium">Could not load Gmail labels</p>
-                  <p className="mt-0.5">
-                    You may need to sign out and sign back in to grant Gmail access.
-                    You can still type a label name manually or leave it blank.
+              {labelsError && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800">
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <p>
+                    Could not load labels. You may need to sign out and back in for Gmail access.
                   </p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            <Button onClick={handleScan} className="w-full">
-              <Mail className="mr-2 h-4 w-4" />
-              Start Scan
-            </Button>
-          </div>
+            <DialogFooter>
+              <Button onClick={handleScan} className="w-full">
+                <Mail className="mr-2 h-4 w-4" />
+                Start Scan
+              </Button>
+            </DialogFooter>
+          </>
         )}
 
         {/* ── Step: Scanning ── */}
         {step === "scanning" && (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <div className="text-center">
-              <p className="font-medium">Scanning emails...</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Searching Gmail and parsing travel content with AI.
-              </p>
-            </div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            <p className="font-medium">Scanning emails...</p>
+            <p className="text-sm text-muted-foreground">
+              Searching Gmail and parsing with AI.
+            </p>
           </div>
         )}
 
         {/* ── Step: Results ── */}
         {step === "results" && (
-          <div className="space-y-4 pt-2">
+          <>
             {results.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <MinusCircle className="h-8 w-8 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">No new emails found</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    All travel emails have already been processed, or no new confirmations were found.
-                  </p>
-                </div>
-                <Button variant="outline" onClick={() => setOpen(false)}>
-                  Close
-                </Button>
+              <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+                <MinusCircle className="h-7 w-7 text-muted-foreground" />
+                <p className="font-medium">No new emails found</p>
+                <p className="text-sm text-muted-foreground">
+                  Already processed, or no confirmations found.
+                </p>
               </div>
             ) : (
               <>
-                {/* Summary */}
-                <div className="flex items-center gap-4 text-sm">
+                {/* Summary — fixed */}
+                <div className="flex flex-wrap items-center gap-3 text-sm">
                   <span className="flex items-center gap-1.5">
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    {travelResults.length} with travel content
+                    {travelResults.length} with travel
                   </span>
                   {noTravelResults.length > 0 && (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
@@ -385,166 +355,162 @@ export function EmailScanDialog({
                   )}
                 </div>
 
-                {/* Segment list */}
-                {selections.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">
-                      Found {selections.length} travel segment{selections.length !== 1 ? "s" : ""}:
-                    </p>
-                    {selections.map((seg, idx) => {
-                      const Icon = SEGMENT_ICONS[seg.type] || MapPin;
-                      const email = results.find((r) => r.emailId === seg.emailId);
-                      return (
-                        <div
-                          key={`${seg.emailId}-${idx}`}
-                          className={cn(
-                            "rounded-lg border p-3 transition-colors",
-                            seg.selected
-                              ? "border-border bg-card"
-                              : "border-muted bg-muted/30 opacity-60",
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <button
-                              onClick={() => toggleSelection(idx)}
-                              className="mt-0.5 shrink-0"
-                            >
-                              {seg.selected ? (
-                                <Check className="h-5 w-5 rounded border border-primary bg-primary p-0.5 text-primary-foreground" />
-                              ) : (
-                                <div className="h-5 w-5 rounded border border-muted-foreground/30" />
-                              )}
-                            </button>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                <span className="font-medium">{seg.title}</span>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "text-[10px]",
-                                    CONFIDENCE_STYLES[seg.confidence],
-                                  )}
-                                >
-                                  {seg.confidence}
-                                </Badge>
-                              </div>
-
-                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                                <span>{seg.date}</span>
-                                {seg.startTime && <span>{seg.startTime}</span>}
-                                {seg.confirmationCode && (
-                                  <span className="font-mono">
-                                    #{seg.confirmationCode}
-                                  </span>
+                {/* Scrollable segment list */}
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {selections.length > 0 ? (
+                    <div className="space-y-2 pr-1">
+                      <p className="text-sm font-medium">
+                        {selections.length} segment{selections.length !== 1 ? "s" : ""} found:
+                      </p>
+                      {selections.map((seg, idx) => {
+                        const email = results.find((r) => r.emailId === seg.emailId);
+                        return (
+                          <div
+                            key={`${seg.emailId}-${idx}`}
+                            className={cn(
+                              "rounded-lg border p-2.5 transition-colors",
+                              seg.selected
+                                ? "border-border bg-card"
+                                : "border-muted bg-muted/30 opacity-60",
+                            )}
+                          >
+                            <div className="flex items-start gap-2.5">
+                              <button
+                                onClick={() => toggleSelection(idx)}
+                                className="mt-0.5 shrink-0"
+                              >
+                                {seg.selected ? (
+                                  <Check className="h-4 w-4 rounded border border-primary bg-primary p-0.5 text-primary-foreground" />
+                                ) : (
+                                  <div className="h-4 w-4 rounded border border-muted-foreground/30" />
                                 )}
-                              </div>
+                              </button>
 
-                              {email && (
-                                <p className="mt-1 truncate text-xs text-muted-foreground">
-                                  From: {email.from} — {email.subject}
-                                </p>
-                              )}
-
-                              {/* Trip assignment */}
-                              {seg.selected && (
-                                <div className="mt-2">
-                                  <Select
-                                    value={seg.assignedTripId}
-                                    onValueChange={(v) => setTripForSegment(idx, v)}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="text-sm font-medium">{seg.title}</span>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[10px]",
+                                      CONFIDENCE_STYLES[seg.confidence],
+                                    )}
                                   >
-                                    <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue placeholder="Assign to trip..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {trips?.map((t) => (
-                                        <SelectItem key={t.id} value={t.id}>
-                                          {t.title} ({t.startDate} – {t.endDate})
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  {!seg.assignedTripId && (
-                                    <p className="mt-1 text-[10px] text-amber-600">
-                                      Select a trip to add this segment
-                                    </p>
+                                    {seg.confidence}
+                                  </Badge>
+                                </div>
+
+                                <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                  <span>{seg.date}</span>
+                                  {seg.startTime && <span>{seg.startTime}</span>}
+                                  {seg.confirmationCode && (
+                                    <span className="font-mono">#{seg.confirmationCode}</span>
                                   )}
                                 </div>
-                              )}
+
+                                {email && (
+                                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                    {email.subject}
+                                  </p>
+                                )}
+
+                                {seg.selected && (
+                                  <div className="mt-1.5">
+                                    <Select
+                                      value={seg.assignedTripId}
+                                      onValueChange={(v) => setTripForSegment(idx, v)}
+                                    >
+                                      <SelectTrigger className="h-7 w-full text-xs">
+                                        <SelectValue placeholder="Assign to trip..." />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {trips?.map((t) => (
+                                          <SelectItem key={t.id} value={t.id}>
+                                            {t.title} ({t.startDate})
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    {!seg.assignedTripId && (
+                                      <p className="mt-0.5 text-[10px] text-amber-600">
+                                        Select a trip to add this segment
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-4 text-center text-sm text-muted-foreground">
-                    No travel segments found in the scanned emails.
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="flex items-center justify-between border-t pt-4">
-                  <Button variant="ghost" onClick={() => setOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleApply}
-                    disabled={selectedCount === 0}
-                  >
-                    <Check className="mr-2 h-4 w-4" />
-                    Add {selectedCount} segment{selectedCount !== 1 ? "s" : ""} to trip
-                  </Button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="py-4 text-center text-sm text-muted-foreground">
+                      No travel segments found in scanned emails.
+                    </p>
+                  )}
                 </div>
               </>
             )}
-          </div>
+
+            {/* Footer — always visible */}
+            <DialogFooter className="flex-row justify-between gap-2 border-t pt-3">
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                {results.length === 0 ? "Close" : "Cancel"}
+              </Button>
+              {selections.length > 0 && (
+                <Button size="sm" onClick={handleApply} disabled={selectedCount === 0}>
+                  <Check className="mr-1.5 h-3.5 w-3.5" />
+                  Add {selectedCount} segment{selectedCount !== 1 ? "s" : ""}
+                </Button>
+              )}
+            </DialogFooter>
+          </>
         )}
 
         {/* ── Step: Applying ── */}
         {step === "applying" && (
-          <div className="flex flex-col items-center gap-4 py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             <p className="font-medium">Adding segments to your trip...</p>
           </div>
         )}
 
         {/* ── Step: Done ── */}
         {step === "done" && (
-          <div className="flex flex-col items-center gap-4 py-8 text-center">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
-            <div>
+          <>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+              <CheckCircle2 className="h-8 w-8 text-green-500" />
               <p className="text-lg font-medium">
                 {appliedCount} segment{appliedCount !== 1 ? "s" : ""} added!
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                The segments have been added to your trip. Items marked with a yellow &quot;Review&quot; badge may need verification.
+              <p className="text-sm text-muted-foreground">
+                Look for the yellow &quot;Review&quot; badge to verify.
               </p>
             </div>
-            <Button onClick={() => setOpen(false)}>Done</Button>
-          </div>
+            <DialogFooter>
+              <Button onClick={() => setOpen(false)} className="w-full">Done</Button>
+            </DialogFooter>
+          </>
         )}
 
         {/* ── Step: Error ── */}
         {step === "error" && (
-          <div className="flex flex-col items-center gap-4 py-8 text-center">
-            <XCircle className="h-10 w-10 text-destructive" />
-            <div>
+          <>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+              <XCircle className="h-8 w-8 text-destructive" />
               <p className="text-lg font-medium">Scan Failed</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {errorMessage}
-              </p>
+              <p className="text-sm text-muted-foreground">{errorMessage}</p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
+            <DialogFooter className="flex-row justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => setOpen(false)}>
                 Close
               </Button>
-              <Button onClick={() => { reset(); handleScan(); }}>
+              <Button size="sm" onClick={() => { reset(); handleScan(); }}>
                 Retry
               </Button>
-            </div>
-          </div>
+            </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>
