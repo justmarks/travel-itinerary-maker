@@ -1,157 +1,212 @@
-# Travel Itinerary Maker
+# ✈️ Travel Itinerary Maker
 
-Auto-generate travel itineraries from Gmail confirmation emails. Monitors your inbox for flight, hotel, restaurant, and activity confirmations, then builds a structured day-by-day itinerary you can view, edit, share, and export.
+Auto-generate structured travel itineraries from email confirmations. Sign in with Google, and your trip data lives in your own Google Drive — no third-party database, no monthly hosting costs.
+
+[![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
+
+**[Live Demo →](https://justmarks.github.io/travel-itinerary-maker/?demo=true)**
+
+---
 
 ## Features
 
-- **Email-powered** - Scans Gmail (entire inbox or a specific folder) and uses AI to extract travel details from confirmation emails
-- **Day-by-day itinerary** - 8-column table: City, Day, Date, Transport, Lodging, Activities, Lunch, Dinner
-- **Embedded costs** - Each segment card shows cost and booking details inline, with an on-demand cost summary view
-- **TODO tracking** - Categorized checklist for meals, activities, research, and logistics still to book
-- **Sharing** - Generate read-only links with configurable visibility (hide costs/TODOs from shared viewers)
-- **Export** - Markdown, email (plans only, no prices), and OneNote (planned)
-- **Manual editing** - Inline editing for all segments; changes persist alongside auto-generated content
-- **Hyperlinks** - Every hotel, restaurant, and venue links to its website or booking page
-- **Cross-platform** - Web + Android from the same codebase
-- **Your data, your account** - Trip data stored in your own Google Drive, not a third-party database
+- **Day-by-day itinerary view** — 8-column table (city, day, date, transport, lodging, activities, lunch, dinner) with inline segment cards
+- **Google OAuth** — sign in with your Google account; no separate credentials needed
+- **Google Drive storage** — trip data stored as JSON in your own Drive (you own your data)
+- **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs
+- **Embedded costs** — each segment card shows cost and booking details inline, with an on-demand cost summary view
+- **TODO tracking** — categorized checklist for meals, activities, research, and logistics
+- **Sharing** — generate share links with configurable visibility (costs, TODOs)
+- **Export** — download itineraries as Markdown or OneNote-compatible HTML
+- **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
+- **Email parsing** *(planned)* — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend (web) | Next.js + TailwindCSS + ShadCN UI |
-| Frontend (mobile) | Expo + React Native + NativeWind |
-| Cross-platform | Solito 5 |
-| Backend | Node.js + Express + TypeScript |
-| Auth | Google OAuth |
-| Storage | Google Drive API (user's own account) |
-| Email parsing | Claude API (Anthropic) |
-| Notifications | Firebase Cloud Messaging |
-| Testing | Jest + Supertest + React Testing Library |
-| CI/CD | GitHub Actions |
-| Hosting | Vercel (web) + Railway (API) |
+| Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI |
+| Backend | Express 5 · TypeScript · Google Drive API |
+| Shared packages | Zod validators · TanStack React Query · typed API client |
+| Auth | Google OAuth (auth-code flow) |
+| Monorepo | pnpm 10 workspaces · Turborepo |
+| CI/CD | GitHub Actions · auto version bumping |
+| Hosting | Vercel (web) · Railway (API) — all free tier |
 
 ## Project Structure
 
 ```
 travel-itinerary-maker/
 ├── apps/
-│   ├── web/                    # Next.js web app
-│   └── mobile/                 # Expo Android app
+│   └── web/                  # Next.js 15 frontend (App Router)
 ├── packages/
-│   ├── shared/                 # Types, validators, utilities
-│   ├── ui/                     # Shared UI components
-│   └── api-client/             # Typed API client
-├── server/                     # Express backend
+│   ├── shared/               # Types, Zod schemas, utilities (framework-agnostic)
+│   └── api-client/           # Typed fetch client + React Query hooks
+├── server/                   # Express 5 REST API
 │   ├── src/
-│   │   ├── routes/             # API endpoints
-│   │   ├── services/
-│   │   │   ├── email-parser/   # Gmail + Claude AI parsing
-│   │   │   └── google-drive/   # Trip data storage
-│   │   └── middleware/         # Auth
+│   │   ├── routes/           # trips, auth, shared
+│   │   ├── services/         # Google Drive, token store, share registry
+│   │   └── middleware/       # Auth
 │   └── __tests__/
-└── examples/                   # Reference itinerary PDFs
+├── .github/workflows/        # CI + auto version bump + GitHub Pages deploy
+├── turbo.json                # Build pipeline
+└── pnpm-workspace.yaml       # Workspace config
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js >= 20
-- pnpm (`npm install -g pnpm`)
-- Google Cloud project with OAuth credentials and Gmail API enabled
+- **Node.js** ≥ 20
+- **pnpm** 10.33.0 — enable via corepack:
+  ```bash
+  corepack enable
+  corepack prepare pnpm@10.33.0 --activate
+  ```
 
 ### Setup
 
 ```bash
-# Install dependencies
+git clone https://github.com/justmarks/travel-itinerary-maker.git
+cd travel-itinerary-maker
 pnpm install
 
-# Copy environment variables
-cp .env.example .env
-# Edit .env with your Google OAuth credentials and Anthropic API key
-
-# Build shared packages
-pnpm --filter @travel-app/shared build
-
-# Run the API server (development mode with in-memory storage)
-pnpm --filter @travel-app/server dev
-
-# Run all tests
-pnpm turbo run test
+# Configure environment
+cp server/.env.example server/.env
+# Edit server/.env with your Google OAuth credentials
 ```
 
-### Environment Variables
+### Development
 
-| Variable | Description |
-|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | OAuth callback URL |
-| `ANTHROPIC_API_KEY` | Anthropic API key for email parsing |
-| `PORT` | Server port (default: 3001) |
-| `CORS_ORIGIN` | Allowed frontend origin (default: http://localhost:3000) |
+```bash
+# Start everything (frontend + backend + shared packages)
+pnpm dev
 
-## API
+# Or run individually:
+cd server && pnpm dev       # Express API → http://localhost:3001
+cd apps/web && pnpm dev     # Next.js → http://localhost:3000
+```
+
+The backend runs in **memory mode** during development — no Google Drive credentials needed. Data resets on server restart.
+
+### Build
+
+```bash
+pnpm build    # Builds all packages in dependency order via Turborepo
+```
+
+### Test
+
+```bash
+pnpm test     # Run all tests across the monorepo
+
+# Run specific packages:
+cd server && pnpm test
+cd packages/shared && pnpm test
+
+# Run a single test file:
+cd server && pnpm test -- --testPathPattern="trips.test"
+```
+
+Current coverage: **146 tests** across 8 test suites.
+
+| Package | Tests | What's tested |
+|---------|-------|---------------|
+| `packages/shared` | 87 | Validators, date utils, currency formatting, markdown export, IDs |
+| `server` | 59 | Route CRUD, sharing, costs, export, DriveStorage, TokenStore, ShareRegistry |
+
+## Google OAuth Setup
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project (or select existing)
+3. Enable **Google Drive API** and **Gmail API**
+4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID**
+5. Add authorized JavaScript origins:
+   - `http://localhost:3000` (local dev)
+   - Your production domain (e.g., `https://justmarks.github.io`)
+6. Add authorized redirect URIs:
+   - `http://localhost:3001/api/v1/auth/google/callback`
+7. Copy credentials into `server/.env`:
+   ```
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost:3001/api/v1/auth/google/callback
+   ```
+8. Set the frontend env var in `apps/web/.env.local`:
+   ```
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-client-id
+   ```
+
+## Environment Variables
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `PORT` | server | Express port (default: `3001`) |
+| `NODE_ENV` | server | `development` / `production` / `test` |
+| `CORS_ORIGIN` | server | Allowed origin (default: `http://localhost:3000`) |
+| `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
+| `ANTHROPIC_API_KEY` | server | For AI email parsing (future) |
+| `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
+
+## API Overview
 
 Base URL: `/api/v1`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/auth/google` | Exchange Google auth code for tokens |
-| POST | `/auth/refresh` | Refresh access token |
-| GET | `/trips` | List all trips (summaries) |
-| POST | `/trips` | Create a new trip |
-| GET | `/trips/:id` | Get full trip with days and segments |
-| PUT | `/trips/:id` | Update trip metadata |
-| DELETE | `/trips/:id` | Delete a trip |
-| GET | `/trips/:id/segments` | List segments (filterable by type) |
-| POST | `/trips/:id/segments` | Add a segment to a day |
-| PUT | `/trips/:id/segments/:segId` | Update a segment |
-| DELETE | `/trips/:id/segments/:segId` | Delete a segment |
-| POST | `/trips/:id/segments/:segId/confirm` | Confirm auto-parsed segment |
-| GET | `/trips/:id/costs` | Aggregated cost summary |
-| GET/POST/PUT/DELETE | `/trips/:id/todos` | TODO CRUD |
-| POST | `/trips/:id/share` | Create a share link |
-| GET | `/shared/:token` | Access a shared trip (public) |
-| GET | `/trips/:id/export/markdown` | Export as markdown |
+| `POST` | `/auth/google` | Exchange Google auth code for tokens |
+| `GET` | `/trips` | List all trips |
+| `POST` | `/trips` | Create a new trip |
+| `GET` | `/trips/:id` | Get trip with days and segments |
+| `PUT` | `/trips/:id` | Update trip metadata |
+| `DELETE` | `/trips/:id` | Delete a trip |
+| `POST` | `/trips/:id/segments` | Add a segment to a day |
+| `PUT` | `/trips/:id/segments/:segId` | Update a segment |
+| `DELETE` | `/trips/:id/segments/:segId` | Delete a segment |
+| `GET` | `/trips/:id/costs` | Aggregated cost summary |
+| `POST` | `/trips/:id/todos` | Add a TODO |
+| `PUT` | `/trips/:id/todos/:todoId` | Update a TODO |
+| `DELETE` | `/trips/:id/todos/:todoId` | Delete a TODO |
+| `POST` | `/trips/:id/share` | Create a share link |
+| `DELETE` | `/trips/:id/shares/:shareId` | Revoke a share link |
+| `GET` | `/shared/:token` | View a shared trip (public) |
+| `GET` | `/trips/:id/export/markdown` | Export as Markdown |
+| `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 
-## Testing
+## Demo Mode
 
-Tests follow TDD red/green methodology. Run the full suite:
+The app supports a runtime demo mode for trying it without Google credentials. Append `?demo=true` to any URL:
 
-```bash
-pnpm turbo run test
-```
+- **Live demo**: https://justmarks.github.io/travel-itinerary-maker/?demo=true
+- **Local**: http://localhost:3000/?demo=true
 
-Current coverage: **106 tests** across 5 test suites.
-
-| Package | Tests | Coverage |
-|---------|-------|----------|
-| `packages/shared` | 72 | Validators, date utils, currency formatting, markdown export |
-| `server` | 34 | All CRUD routes, sharing permissions, cost aggregation, export |
+Demo mode uses a mock API client with sample trip data. No backend required. The demo and real login flow are served from the same build — toggle via the URL parameter.
 
 ## Contributing
 
 All changes go through pull requests — no direct commits to main.
 
 Use [conventional commits](https://www.conventionalcommits.org/):
-- `feat:` - new feature (bumps minor version)
-- `fix:` - bug fix (bumps patch version)
-- `feat!:` - breaking change (bumps major version)
+- `feat:` — new feature (bumps minor version)
+- `fix:` — bug fix (bumps patch version)
+- `feat!:` or `BREAKING CHANGE` — breaking change (bumps major version)
 
 Version is auto-incremented on merge to main via GitHub Actions.
 
 ## Roadmap
 
-- [x] **Phase 1** - Monorepo, types, backend API, tests
-- [ ] **Phase 2** - Core UI (Next.js web app with itinerary table)
-- [ ] **Phase 3** - Email processing (Gmail + Claude AI parsing)
-- [ ] **Phase 4** - Sharing + export
-- [ ] **Phase 5** - Mobile app (Expo Android)
-- [ ] **Phase 6** - OneNote export, visual timeline, PDF export
-- [ ] **Phase 7** - Google Calendar sync
+- [x] **Phase 1** — Foundation: monorepo, types, Zod schemas, Express API, tests
+- [x] **Phase 2** — Core UI: Next.js web app, itinerary table, segment cards, inline editing
+- [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
+- [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
+- [ ] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing
+- [ ] **Phase 6** — Sharing & notifications: push notifications for shared trip updates
+- [ ] **Phase 7** — Mobile app: Expo + React Native for Android
+- [ ] **Phase 8** — Polish: OneNote export, visual timeline, PDF export, Google Calendar sync
 
 ## License
 
-Private project.
+MIT
