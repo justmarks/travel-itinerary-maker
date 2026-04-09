@@ -12,6 +12,16 @@ export function createApp(storage: StorageProvider): express.Express {
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json());
 
+  // Root — friendly landing for browser visits
+  app.get("/", (_req, res) => {
+    res.json({
+      name: "Travel Itinerary Maker API",
+      version: "0.1.0",
+      health: "/health",
+      docs: "/api/v1",
+    });
+  });
+
   // Health check
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", version: "0.1.0" });
