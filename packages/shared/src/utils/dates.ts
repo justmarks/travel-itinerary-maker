@@ -28,3 +28,28 @@ export function isDateInRange(
 ): boolean {
   return date >= startDate && date <= endDate;
 }
+
+export interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+/** Check if two date ranges overlap (inclusive boundaries) */
+export function dateRangesOverlap(a: DateRange, b: DateRange): boolean {
+  return a.startDate <= b.endDate && b.startDate <= a.endDate;
+}
+
+/**
+ * Find all trips whose date ranges overlap with the given range.
+ * Optionally exclude a trip by ID (useful when updating an existing trip).
+ */
+export function findOverlappingTrips<T extends DateRange & { id: string; title: string }>(
+  trips: T[],
+  range: DateRange,
+  excludeTripId?: string,
+): T[] {
+  return trips.filter(
+    (trip) =>
+      trip.id !== excludeTripId && dateRangesOverlap(trip, range),
+  );
+}

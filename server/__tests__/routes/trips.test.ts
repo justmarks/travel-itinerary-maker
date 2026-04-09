@@ -57,6 +57,69 @@ describe("Trip CRUD", () => {
         });
       expect(res.status).toBe(400);
     });
+
+    it("rejects trip with overlapping dates", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "France Trip",
+          startDate: "2026-06-20",
+          endDate: "2026-07-05",
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("Date range overlaps with an existing trip");
+      expect(res.body.overlappingTrips).toHaveLength(1);
+      expect(res.body.overlappingTrips[0].title).toBe("Italy Trip");
+    });
+
+    it("allows non-overlapping trips", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-09-01",
+          endDate: "2026-09-14",
+        });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("allows adjacent trips (back-to-back)", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "France Trip",
+          startDate: "2026-06-26",
+          endDate: "2026-07-05",
+        });
+
+      expect(res.status).toBe(201);
+    });
   });
 
   describe("GET /api/v1/trips", () => {
@@ -141,6 +204,51 @@ describe("Trip CRUD", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("active");
+    });
+
+    it("rejects date update that would overlap another trip", async () => {
+      const trip1 = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const trip2 = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-09-01",
+          endDate: "2026-09-14",
+        });
+
+      // Try to extend Japan trip dates to overlap with Italy
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip2.body.id}`)
+        .send({ startDate: "2026-06-20" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.overlappingTrips).toHaveLength(1);
+      expect(res.body.overlappingTrips[0].title).toBe("Italy Trip");
+    });
+
+    it("allows updating own dates without self-overlap", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      // Extend the same trip — should not conflict with itself
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ endDate: "2026-06-30" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.endDate).toBe("2026-06-30");
     });
   });
 

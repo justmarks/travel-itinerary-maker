@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useCreateTrip } from "@travel-app/api-client";
+import { ApiError } from "@travel-app/api-client";
 import {
   Dialog,
   DialogContent,
@@ -12,17 +13,26 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, AlertCircle } from "lucide-react";
+
+interface OverlapInfo {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+}
 
 export function CreateTripDialog() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const createTrip = useCreateTrip();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setOverlapError(null);
     createTrip.mutate(
       { title, startDate, endDate },
       {
@@ -31,6 +41,15 @@ export function CreateTripDialog() {
           setTitle("");
           setStartDate("");
           setEndDate("");
+          setOverlapError(null);
+        },
+        onError: (error) => {
+          if (error instanceof ApiError && error.status === 409) {
+            const body = error.body as { overlappingTrips?: OverlapInfo[] };
+            if (body.overlappingTrips) {
+              setOverlapError(body.overlappingTrips);
+            }
+          }
         },
       },
     );
@@ -38,8 +57,23 @@ export function CreateTripDialog() {
 
   const isValid = title.trim() && startDate && endDate && startDate <= endDate;
 
+  const formatDate = (iso: string) => {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) setOverlapError(null);
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <Plus className="mr-2 h-4 w-4" />
@@ -68,7 +102,10 @@ export function CreateTripDialog() {
                 id="startDate"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setOverlapError(null);
+                }}
               />
             </div>
             <div className="space-y-2">
@@ -77,7 +114,10 @@ export function CreateTripDialog() {
                 id="endDate"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setOverlapError(null);
+                }}
               />
             </div>
           </div>
@@ -85,6 +125,31 @@ export function CreateTripDialog() {
             <p className="text-sm text-destructive">
               End date must be on or after start date.
             </p>
+          )}
+          {overlapError && (
+            <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-left text-sm text-destructive">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  These dates overlap with an existing trip:
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {overlapError.map((trip) => (
+                    <li key={trip.id}>
+                      <span className="font-medium">{trip.title}</span>{" "}
+                      <span className="text-xs opacity-75">
+                        ({formatDate(trip.startDate)} &ndash;{" "}
+                        {formatDate(trip.endDate)})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs opacity-75">
+                  Check the dates or consider extending the existing trip
+                  instead.
+                </p>
+              </div>
+            </div>
           )}
           <div className="flex justify-end gap-2">
             <Button

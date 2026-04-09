@@ -48,7 +48,14 @@ export type {
 } from "./validators/trip";
 
 // Utilities
-export { getDayOfWeek, generateDateRange, isDateInRange } from "./utils/dates";
+export {
+  getDayOfWeek,
+  generateDateRange,
+  isDateInRange,
+  dateRangesOverlap,
+  findOverlappingTrips,
+} from "./utils/dates";
+export type { DateRange } from "./utils/dates";
 export { formatCurrency, getCurrencySymbol, sumByCurrency } from "./utils/currency";
 export { generateId } from "./utils/ids";
 export { tripToMarkdown } from "./utils/markdown";
