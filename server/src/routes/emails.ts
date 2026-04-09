@@ -70,7 +70,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return;
       }
 
-      const { tripId, labelFilter, maxResults } = parsed.data;
+      const { tripId, labelFilter, maxResults, newerThanDays } = parsed.data;
       const storage = getStorage(req);
 
       // Get already-processed email IDs
@@ -85,6 +85,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const rawEmails = await scanner.scanEmails({
         labelFilter,
         maxResults: maxResults ?? 25,
+        newerThanDays: newerThanDays ?? 365,
       });
 
       // Filter out already-processed
@@ -105,13 +106,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const results: EmailScanResult[] = [];
       const newProcessedEmails: ProcessedEmail[] = [];
 
+      console.log(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail)`);
+
       for (const email of newEmails) {
         try {
+          console.log(`Parsing email: "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
           const segments = await parser.parseEmail({
             subject: email.subject,
             from: email.from,
             body: email.bodyText,
           });
+          console.log(`  → ${segments.length} segments extracted`);
 
           // Auto-match segments to trips by date
           const matchedSegments = segments.map((seg) => {

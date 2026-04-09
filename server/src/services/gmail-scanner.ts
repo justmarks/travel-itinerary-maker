@@ -13,6 +13,7 @@ export interface RawEmail {
 export interface GmailScanOptions {
   labelFilter?: string;
   maxResults?: number;
+  newerThanDays?: number;
 }
 
 /**
@@ -40,12 +41,14 @@ export class GmailScanner {
 
   /** Search for travel confirmation emails */
   async scanEmails(options: GmailScanOptions = {}): Promise<RawEmail[]> {
-    const { labelFilter, maxResults = 25 } = options;
+    const { labelFilter, maxResults = 25, newerThanDays = 365 } = options;
 
-    let query =
-      "subject:(confirmation OR booking OR reservation OR itinerary OR e-ticket OR receipt) newer_than:90d";
+    const age = `newer_than:${newerThanDays}d`;
+    let query: string;
     if (labelFilter) {
-      query = `label:${labelFilter} newer_than:90d`;
+      query = `label:${labelFilter} ${age}`;
+    } else {
+      query = `subject:(confirmation OR booking OR reservation OR itinerary OR e-ticket OR receipt) ${age}`;
     }
 
     const listRes = await this.gmail.users.messages.list({
@@ -101,38 +104,31 @@ export class GmailScanner {
     };
   }
 
+  /** Collect all text/plain and text/html parts from a MIME tree */
+  private collectTextParts(
+    payload: gmail_v1.Schema$MessagePart,
+    result: { plain: string[]; html: string[] },
+  ): void {
+    if (payload.body?.data) {
+      const decoded = this.decodeBase64Url(payload.body.data);
+      if (payload.mimeType === "text/plain") result.plain.push(decoded);
+      else if (payload.mimeType === "text/html") result.html.push(decoded);
+    }
+    if (payload.parts) {
+      for (const part of payload.parts) {
+        this.collectTextParts(part, result);
+      }
+    }
+  }
+
   /** Extract plain text body from MIME payload */
   private extractBody(payload: gmail_v1.Schema$MessagePart): string {
-    // Direct body on the payload
-    if (payload.body?.data) {
-      const text = this.decodeBase64Url(payload.body.data);
-      if (payload.mimeType === "text/plain") return text;
-      if (payload.mimeType === "text/html") return this.htmlToText(text);
-    }
+    const parts: { plain: string[]; html: string[] } = { plain: [], html: [] };
+    this.collectTextParts(payload, parts);
 
-    // Multipart: look for text/plain first, then text/html
-    if (payload.parts) {
-      // First pass: look for text/plain
-      for (const part of payload.parts) {
-        if (part.mimeType === "text/plain" && part.body?.data) {
-          return this.decodeBase64Url(part.body.data);
-        }
-      }
-      // Second pass: look for text/html
-      for (const part of payload.parts) {
-        if (part.mimeType === "text/html" && part.body?.data) {
-          return this.htmlToText(this.decodeBase64Url(part.body.data));
-        }
-      }
-      // Recurse into nested multipart
-      for (const part of payload.parts) {
-        if (part.parts) {
-          const text = this.extractBody(part);
-          if (text) return text;
-        }
-      }
-    }
-
+    // Prefer plain text, fall back to HTML conversion
+    if (parts.plain.length > 0) return parts.plain.join("\n");
+    if (parts.html.length > 0) return this.htmlToText(parts.html.join("\n"));
     return "";
   }
 

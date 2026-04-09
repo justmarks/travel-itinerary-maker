@@ -215,6 +215,7 @@ export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
   labelFilter: z.string().optional(),
   maxResults: z.number().int().min(1).max(100).optional(),
+  newerThanDays: z.number().int().min(1).max(730).optional(),
 });
 
 /** Schema for applying parsed segments to trips */
