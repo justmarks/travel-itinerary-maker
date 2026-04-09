@@ -251,6 +251,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const storage = getStorage(req);
       const createdSegments: Array<{ tripId: string; segmentId: string; title: string }> = [];
 
+      console.log(`Applying ${parsed.data.segments.length} segments from email scan`);
+
       // Group segments by trip
       const byTrip = new Map<string, typeof parsed.data.segments>();
       for (const seg of parsed.data.segments) {
@@ -261,11 +263,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       for (const [tid, segs] of byTrip) {
         const trip = await storage.getTrip(tid);
-        if (!trip) continue;
+        if (!trip) {
+          console.warn(`  Trip ${tid} not found, skipping ${segs.length} segments`);
+          continue;
+        }
+        console.log(`  Trip "${trip.title}" (${tid}): adding ${segs.length} segments`);
 
         for (const seg of segs) {
           const day = trip.days.find((d) => d.date === seg.date);
-          if (!day) continue;
+          if (!day) {
+            console.warn(`    No day ${seg.date} in trip, skipping "${seg.title}"`);
+            continue;
+          }
 
           const segmentId = generateId();
           day.segments.push({
@@ -298,6 +307,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           });
 
           createdSegments.push({ tripId: tid, segmentId, title: seg.title });
+          console.log(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
         }
 
         trip.updatedAt = new Date().toISOString();
@@ -315,6 +325,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
+      console.log(`Apply complete: ${createdSegments.length} segments created`);
       res.status(201).json({ created: createdSegments });
     } catch (err) {
       console.error("POST /emails/apply error:", err);
