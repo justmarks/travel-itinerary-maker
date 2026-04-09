@@ -1,8 +1,12 @@
 import dotenv from "dotenv";
+import { existsSync } from "fs";
 import path from "path";
 
-// Load .env from monorepo root (one level up from server/)
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+// Load .env — try monorepo root first (pnpm dev from root via Turbo),
+// then one level up from server/ (cd server && pnpm dev).
+const rootEnv = path.resolve(process.cwd(), ".env");
+const parentEnv = path.resolve(process.cwd(), "../.env");
+dotenv.config({ path: existsSync(rootEnv) ? rootEnv : parentEnv });
 
 import { createApp } from "./app";
 import { InMemoryStorage } from "./services/storage";
