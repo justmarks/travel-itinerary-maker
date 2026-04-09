@@ -91,5 +91,16 @@ export function createApp(options: AppOptions): express.Express {
     tokenStore,
   }));
 
+  // 404 handler — catch any unmatched routes
+  app.use((_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
+
+  // Error handler — catch any unhandled errors from route handlers
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  });
+
   return app;
 }
