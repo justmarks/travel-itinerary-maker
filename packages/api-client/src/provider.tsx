@@ -27,6 +27,9 @@ export function ApiClientProvider({
 }) {
   const client = useMemo(
     () => clientProp ?? new ApiClient(baseUrl!, { getAccessToken }),
+    // getAccessToken intentionally excluded — callers should provide a
+    // stable function ref (e.g. via useCallback + useRef) so the ApiClient
+    // instance is only recreated when baseUrl or clientProp changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [clientProp, baseUrl],
   );

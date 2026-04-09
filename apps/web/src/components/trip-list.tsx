@@ -21,9 +21,12 @@ export function TripList() {
   }
 
   if (error) {
+    const detail =
+      error instanceof Error ? error.message : "Unknown error";
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        Failed to load trips. Is the API server running?
+        <p className="font-medium">Failed to load trips</p>
+        <p className="mt-1 text-xs opacity-75">{detail}</p>
       </div>
     );
   }

@@ -6,7 +6,12 @@ import path from "path";
 // then one level up from server/ (cd server && pnpm dev).
 const rootEnv = path.resolve(process.cwd(), ".env");
 const parentEnv = path.resolve(process.cwd(), "../.env");
-dotenv.config({ path: existsSync(rootEnv) ? rootEnv : parentEnv });
+// override: true ensures .env values win over any NODE_ENV that Turbo
+// or other tooling may inject into the process environment.
+dotenv.config({
+  path: existsSync(rootEnv) ? rootEnv : parentEnv,
+  override: true,
+});
 
 import { createApp } from "./app";
 import { InMemoryStorage } from "./services/storage";

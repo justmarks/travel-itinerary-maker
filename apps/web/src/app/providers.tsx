@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useRef } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -20,6 +21,13 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   const isDemo = useDemoMode();
   const { accessToken } = useAuth();
 
+  // Keep a stable function reference that always returns the latest token.
+  // This avoids recreating the ApiClient on every render while ensuring
+  // requests always use the current access token.
+  const tokenRef = useRef(accessToken);
+  tokenRef.current = accessToken;
+  const getAccessToken = useCallback(() => tokenRef.current, []);
+
   if (isDemo) {
     return (
       <ApiClientProvider baseUrl={API_BASE_URL} client={mockClient}>
@@ -31,7 +39,7 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   return (
     <ApiClientProvider
       baseUrl={API_BASE_URL}
-      getAccessToken={() => accessToken}
+      getAccessToken={getAccessToken}
     >
       {children}
     </ApiClientProvider>
