@@ -12,6 +12,9 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  GmailLabel,
+  EmailScanRequest,
+  ApplyParsedSegmentsInput,
 } from "@travel-app/shared";
 
 function uid() {
@@ -1176,6 +1179,84 @@ export class MockApiClient extends ApiClient {
       }
     }
     return Promise.reject(new Error("Shared trip not found"));
+  }
+
+  // ─── Email Scanning ──────────────────────────────────────
+
+  override getGmailLabels(): Promise<GmailLabel[]> {
+    return Promise.resolve([
+      { id: "INBOX", name: "INBOX", type: "system" },
+      { id: "STARRED", name: "STARRED", type: "system" },
+      { id: "Label_1", name: "Travel", type: "user" },
+      { id: "Label_2", name: "Receipts", type: "user" },
+    ]);
+  }
+
+  override scanEmails(
+    _input?: EmailScanRequest,
+  ): Promise<{ results: never[]; message: string }> {
+    // In demo mode, pretend no new emails to process
+    return Promise.resolve({
+      results: [],
+      message: "No new emails to process (demo mode)",
+    });
+  }
+
+  override applyParsedSegments(
+    input: ApplyParsedSegmentsInput,
+  ): Promise<{ created: Array<{ tripId: string; segmentId: string; title: string }> }> {
+    const created: Array<{ tripId: string; segmentId: string; title: string }> = [];
+    for (const seg of input.segments) {
+      const trip = this.trips.get(seg.tripId);
+      if (!trip) continue;
+      const day = trip.days.find((d) => d.date === seg.date);
+      if (!day) continue;
+      const segmentId = `seg-${uid()}`;
+      day.segments.push({
+        id: segmentId,
+        type: seg.type,
+        title: seg.title,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+        venueName: seg.venueName,
+        address: seg.address,
+        city: seg.city,
+        url: seg.url || undefined,
+        confirmationCode: seg.confirmationCode,
+        provider: seg.provider,
+        departureCity: seg.departureCity,
+        arrivalCity: seg.arrivalCity,
+        carrier: seg.carrier,
+        routeCode: seg.routeCode,
+        partySize: seg.partySize,
+        creditCardHold: seg.creditCardHold,
+        seatNumber: seg.seatNumber,
+        contactName: seg.contactName,
+        phone: seg.phone,
+        breakfastIncluded: seg.breakfastIncluded,
+        cost: seg.cost,
+        source: "email_auto",
+        sourceEmailId: seg.emailId,
+        needsReview: true,
+        sortOrder: day.segments.length,
+      });
+      created.push({ tripId: seg.tripId, segmentId, title: seg.title });
+    }
+    return Promise.resolve({ created });
+  }
+
+  override getProcessedEmails(): Promise<Array<{
+    gmailMessageId: string;
+    subject?: string;
+    fromAddress?: string;
+    parseStatus: string;
+    createdAt: string;
+  }>> {
+    return Promise.resolve([]);
+  }
+
+  override dismissEmail(_emailId: string): Promise<{ status: string }> {
+    return Promise.resolve({ status: "dismissed" });
   }
 
   // ─── Export ─────────────────────────────────────────────

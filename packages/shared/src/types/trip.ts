@@ -127,3 +127,50 @@ export interface CostSummary {
   totalsByCurrency: Record<string, number>;
   totalUsd?: number;
 }
+
+/** A segment parsed from an email by Claude AI */
+export interface ParsedSegment {
+  type: SegmentType;
+  title: string;
+  date: string; // YYYY-MM-DD
+  startTime?: string;
+  endTime?: string;
+  venueName?: string;
+  address?: string;
+  city?: string;
+  url?: string;
+  confirmationCode?: string;
+  provider?: string;
+  departureCity?: string;
+  arrivalCity?: string;
+  carrier?: string;
+  routeCode?: string;
+  partySize?: number;
+  creditCardHold?: boolean;
+  cancellationDeadline?: string;
+  phone?: string;
+  breakfastIncluded?: boolean;
+  seatNumber?: string;
+  contactName?: string;
+  cost?: SegmentCost;
+  confidence: "high" | "medium" | "low";
+  suggestedTripId?: string;
+}
+
+/** Result of scanning and parsing a single email */
+export interface EmailScanResult {
+  emailId: string;
+  subject: string;
+  from: string;
+  receivedAt: string;
+  parsedSegments: ParsedSegment[];
+  parseStatus: "success" | "no_travel_content" | "failed";
+  error?: string;
+}
+
+/** Gmail label info */
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
+}

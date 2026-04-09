@@ -22,10 +22,12 @@ import {
   FileText,
   BookOpen,
   AlertCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
+import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useDemoHref } from "@/lib/demo";
@@ -362,6 +364,7 @@ export default function TripDetailClient({
             </Button>
           </Link>
           <div className="flex items-center gap-2">
+            <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
             <ExportMenu tripId={trip.id} />
             <UserMenu />
           </div>
@@ -391,6 +394,24 @@ export default function TripDetailClient({
             </span>
           </div>
         </div>
+
+        {/* Needs-review banner */}
+        {(() => {
+          const reviewCount = trip.days.reduce(
+            (sum, d) => sum + d.segments.filter((s) => s.needsReview).length,
+            0,
+          );
+          if (reviewCount === 0) return null;
+          return (
+            <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
+                Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Body */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">

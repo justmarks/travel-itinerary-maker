@@ -3,6 +3,7 @@ import cors from "cors";
 import { createTripRoutes } from "./routes/trips";
 import { createSharedRoutes } from "./routes/shared";
 import { createAuthRoutes } from "./routes/auth";
+import { createEmailRoutes } from "./routes/emails";
 import { requireAuth } from "./middleware/auth";
 import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
@@ -81,6 +82,17 @@ export function createApp(options: AppOptions): express.Express {
     app.use("/api/v1/trips", createTripRoutes({
       resolveStorage,
       shareRegistry,
+    }));
+  }
+
+  // Email routes — always require auth (needs Gmail access token)
+  if (mode === "drive") {
+    app.use("/api/v1/emails", requireAuth, createEmailRoutes({
+      resolveStorage,
+    }));
+  } else {
+    app.use("/api/v1/emails", createEmailRoutes({
+      resolveStorage,
     }));
   }
 

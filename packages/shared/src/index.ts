@@ -14,6 +14,9 @@ export type {
   UserSettings,
   CostSummary,
   CostSummaryItem,
+  ParsedSegment,
+  EmailScanResult,
+  GmailLabel,
 } from "./types/trip";
 
 // Validators
@@ -31,6 +34,9 @@ export {
   updateTodoSchema,
   createShareSchema,
   userSettingsSchema,
+  parsedSegmentSchema,
+  emailScanRequestSchema,
+  applyParsedSegmentsSchema,
   SEGMENT_TYPES,
   TRIP_STATUSES,
   SEGMENT_SOURCES,
@@ -45,6 +51,8 @@ export type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  EmailScanRequest,
+  ApplyParsedSegmentsInput,
 } from "./validators/trip";
 
 // Utilities
