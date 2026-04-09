@@ -147,11 +147,37 @@ export function EmailScanDialog({
     [tripId],
   );
 
-  // Compute the full date range across ALL segments (for new trip defaults)
-  const allSegmentDateRange = useMemo(() => {
+  // Compute date range from ALL scanned segments for new trip defaults.
+  // Uses every segment regardless of selection or assignment — the goal is
+  // to suggest the full travel date span so the trip covers everything.
+  const scannedDateRange = useMemo(() => {
     const dates = selections.map((s) => s.date).sort();
     if (dates.length === 0) return null;
     return { start: dates[0], end: dates[dates.length - 1] };
+  }, [selections]);
+
+  // Suggest a trip name from segment destinations + year
+  const suggestedTripName = useMemo(() => {
+    if (selections.length === 0) return "";
+    // Collect destination cities: prefer flight arrivalCity, then segment city
+    const cities: string[] = [];
+    for (const s of selections) {
+      if (s.type === "flight" && s.arrivalCity) {
+        cities.push(s.arrivalCity);
+      } else if (s.city) {
+        cities.push(s.city);
+      }
+    }
+    if (cities.length === 0) return "";
+    // Count occurrences and pick the most common destination
+    const counts = new Map<string, number>();
+    for (const c of cities) {
+      counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    const topCity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    // Get year from the earliest segment date
+    const year = selections[0]?.date?.slice(0, 4) || "";
+    return year ? `${topCity} ${year}` : topCity;
   }, [selections]);
 
   // Check if any selected segment is unassigned (no trip match)
@@ -166,13 +192,13 @@ export function EmailScanDialog({
     }
   }, [step, hasUnassignedSegments, trips]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-populate new trip dates from all segment dates
+  // Auto-populate new trip name and dates from scanned segments
   useEffect(() => {
-    if (showNewTripForm && allSegmentDateRange) {
-      if (!newTripStart) setNewTripStart(allSegmentDateRange.start);
-      if (!newTripEnd) setNewTripEnd(allSegmentDateRange.end);
-    }
-  }, [showNewTripForm, allSegmentDateRange]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!showNewTripForm) return;
+    if (!newTripTitle && suggestedTripName) setNewTripTitle(suggestedTripName);
+    if (!newTripStart && scannedDateRange) setNewTripStart(scannedDateRange.start);
+    if (!newTripEnd && scannedDateRange) setNewTripEnd(scannedDateRange.end);
+  }, [showNewTripForm, scannedDateRange, suggestedTripName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScan = async () => {
     setStep("scanning");
@@ -896,7 +922,7 @@ function SkippedEmailsSection({ emails }: { emails: EmailScanResult[] }) {
           <ChevronRight className="h-3.5 w-3.5" />
         )}
         <Eye className="h-3.5 w-3.5" />
-        {emails.length} skipped email{emails.length !== 1 ? "s" : ""} (no travel content detected)
+        {emails.length} skipped email{emails.length !== 1 ? "s" : ""} (duplicates or non-travel)
       </button>
       {expanded && (
         <div className="mt-2 space-y-1.5">
@@ -912,7 +938,7 @@ function SkippedEmailsSection({ emails }: { emails: EmailScanResult[] }) {
             </div>
           ))}
           <p className="text-[10px] text-muted-foreground italic">
-            These emails were scanned but no travel bookings were found. They won&apos;t be scanned again.
+            These emails are likely duplicates of bookings already extracted, or not related to travel segments. They won&apos;t be scanned again.
           </p>
         </div>
       )}

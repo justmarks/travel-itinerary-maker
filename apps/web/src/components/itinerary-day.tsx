@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
 const FLIGHT_TYPES = new Set(["flight"]);
+const CAR_RENTAL_TYPES = new Set(["car_rental"]);
 const CAR_SERVICE_TYPES = new Set(["car_service"]);
 
 function fmt12h(t?: string) {
@@ -103,6 +104,7 @@ function SegmentRow({
   const isRestaurant = RESTAURANT_TYPES.has(segment.type);
   const isHotel = HOTEL_TYPES.has(segment.type);
   const isFlight = FLIGHT_TYPES.has(segment.type);
+  const isCarRental = CAR_RENTAL_TYPES.has(segment.type);
   const isCarService = CAR_SERVICE_TYPES.has(segment.type);
 
   const startTime = fmt12h(segment.startTime);
@@ -153,6 +155,8 @@ function SegmentRow({
                 {startTime && endTime && <span className="mx-1">·</span>}
                 {endTime && <span>Check-out {endTime}</span>}
               </>
+            ) : isCarRental ? (
+              <span>{startTime || endTime}</span>
             ) : (
               <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
             )}

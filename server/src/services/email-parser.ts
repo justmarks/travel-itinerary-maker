@@ -2,6 +2,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
 import type { ParsedSegment } from "@travel-app/shared";
 
+// TODO: Support points/miles in SegmentCost (e.g. 40,000 hotel points, points + cash combos)
+// TODO: For hotels, extract key fees on top of hotel cost (self-parking vs. valet, resort fee)
+//       — may need a `fees` array on SegmentCost or separate cost line items
+// TODO: Allow rescan of specific emails after errors (e.g. retry button per-email in the UI)
+// TODO: Extract bag fees for flights (e.g. "$35/bag first checked bag") as separate cost line items
+
 const SYSTEM_PROMPT = `You are a travel itinerary extraction assistant. Given an email, extract all travel-related bookings and return them as a JSON array.
 
 Each item in the array must be a JSON object with these fields:
@@ -31,8 +37,12 @@ Each item in the array must be a JSON object with these fields:
 
 IMPORTANT RULES:
 - One booking = one segment. If an email has a flight with 4 passengers and 4 seat numbers, return ONE flight segment with all seats in "seatNumber" and partySize=4.
-- For car rentals, include the vehicle class/type in the title (e.g. "National Car Rental - Midsize SUV"). Include pickup and drop-off details.
-- For hotels, include any extras mentioned (parking, breakfast, resort fees) in the cost details.
+- **CAR RENTALS**: Return TWO separate segments — one for PICKUP and one for DROPOFF:
+  - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only.
+  - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment.
+- **HOTELS**: Include room type in the cost details (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View"). Include any extras mentioned (parking, breakfast, resort fees) in the cost details as well.
+- **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).
+- **AIRLINE EMAILS**: Be sure to parse emails from ALL airlines including Hawaiian Airlines, Alaska Airlines, Delta, United, American, Southwest, JetBlue, Spirit, Frontier, and international carriers. Itinerary changes, schedule changes, and booking confirmations are all travel-related. Look for flight numbers, dates, times, and routes even if the email format is unusual.
 - Only include fields that are actually present in the email. Do not guess or fabricate data.
 - For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
 

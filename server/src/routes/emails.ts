@@ -72,14 +72,17 @@ function mergeSegments(
     }
   }
 
-  // Merge cost — prefer the one with details, or the higher amount
+  // Merge cost — for flights (per-person tickets like Delta), SUM the amounts.
+  // For other types, prefer the one with details or the higher amount.
   if (b.cost && !a.cost) {
     merged.cost = b.cost;
   } else if (b.cost && a.cost) {
-    // Combine cost details
+    const isFlightType = a.type === "flight";
     const details = [a.cost.details, b.cost.details].filter(Boolean).join("; ");
     merged.cost = {
-      amount: Math.max(a.cost.amount, b.cost.amount),
+      amount: isFlightType
+        ? a.cost.amount + b.cost.amount   // Sum per-person ticket prices
+        : Math.max(a.cost.amount, b.cost.amount),
       currency: a.cost.currency,
       ...(details ? { details } : {}),
     };

@@ -24,7 +24,7 @@ export async function requireAuth(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    console.error("Auth: missing or invalid header:", authHeader?.slice(0, 20) ?? "(none)");
+    // Don't log at error level — this fires on OPTIONS preflight and other unauthenticated requests
     res.status(401).json({ error: "Missing or invalid Authorization header" });
     return;
   }
