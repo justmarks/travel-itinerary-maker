@@ -10,7 +10,7 @@ Each item in the array must be a JSON object with these fields:
 - "date": date in YYYY-MM-DD format
 - "startTime": time in HH:MM format (if available)
 - "endTime": time in HH:MM format (if available)
-- "city": city name (if available)
+- "city": the destination city for this segment. For flights, use the arrival city. For hotels/restaurants/activities, use the city they are located in. Always include this field.
 - "venueName": hotel/restaurant/venue name (if applicable)
 - "address": street address (if available)
 - "confirmationCode": booking confirmation number (if available)
@@ -19,16 +19,20 @@ Each item in the array must be a JSON object with these fields:
 - "routeCode": flight number or route (e.g. "AS123")
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
-- "seatNumber": seat assignment (if available)
-- "partySize": number of guests (for restaurants)
+- "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger.
+- "partySize": total number of travelers/guests
 - "breakfastIncluded": boolean (for hotels, if mentioned)
 - "phone": contact phone number (if available)
 - "url": booking URL (if available)
-- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned)
+- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). Include all cost details like parking fees, extras, vehicle class, etc. in the "details" string.
 - "confidence": "high" if clearly a confirmed booking, "medium" if likely a booking, "low" if uncertain
 
-Only include fields that are actually present in the email. Do not guess or fabricate data.
-For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
+IMPORTANT RULES:
+- One booking = one segment. If an email has a flight with 4 passengers and 4 seat numbers, return ONE flight segment with all seats in "seatNumber" and partySize=4.
+- For car rentals, include the vehicle class/type in the title (e.g. "National Car Rental - Midsize SUV"). Include pickup and drop-off details.
+- For hotels, include any extras mentioned (parking, breakfast, resort fees) in the cost details.
+- Only include fields that are actually present in the email. Do not guess or fabricate data.
+- For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
 
 If the email contains NO travel-related bookings, return an empty array: []
 

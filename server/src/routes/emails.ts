@@ -17,6 +17,142 @@ export interface EmailRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
 }
 
+/**
+ * Generate a dedup key for a parsed segment.
+ * Segments with the same key are considered duplicates to be merged.
+ */
+function segmentDedupeKey(seg: ParsedSegment): string {
+  // Flights: same route + date
+  if (seg.type === "flight" && seg.routeCode) {
+    return `flight:${seg.date}:${seg.routeCode}`;
+  }
+  if (seg.type === "flight" && seg.departureCity && seg.arrivalCity) {
+    return `flight:${seg.date}:${seg.departureCity}-${seg.arrivalCity}`;
+  }
+  // Confirmation code match: same type + date + confirmation
+  if (seg.confirmationCode) {
+    return `${seg.type}:${seg.confirmationCode}`;
+  }
+  // Same type + date + title (fuzzy)
+  return `${seg.type}:${seg.date}:${seg.title.toLowerCase().replace(/\s+/g, "")}`;
+}
+
+/**
+ * Merge two duplicate segments, combining data from both.
+ * The "winner" keeps its fields; the "donor" fills in blanks and appends seat numbers.
+ */
+function mergeSegments(
+  a: ParsedSegment & { emailId?: string },
+  b: ParsedSegment & { emailId?: string },
+): ParsedSegment & { emailId?: string } {
+  const merged = { ...a };
+
+  // Combine seat numbers
+  if (b.seatNumber) {
+    const existingSeats = new Set((a.seatNumber || "").split(",").map((s) => s.trim()).filter(Boolean));
+    const newSeats = b.seatNumber.split(",").map((s) => s.trim()).filter(Boolean);
+    for (const s of newSeats) existingSeats.add(s);
+    merged.seatNumber = [...existingSeats].join(", ");
+  }
+
+  // Take higher party size
+  if (b.partySize && (!a.partySize || b.partySize > a.partySize)) {
+    merged.partySize = b.partySize;
+  }
+
+  // Fill in missing fields from b
+  const fillFields = [
+    "city", "venueName", "address", "confirmationCode", "provider",
+    "carrier", "routeCode", "departureCity", "arrivalCity", "phone",
+    "url", "startTime", "endTime", "breakfastIncluded",
+  ] as const;
+  for (const field of fillFields) {
+    if (!merged[field] && b[field] !== undefined) {
+      (merged as Record<string, unknown>)[field] = b[field];
+    }
+  }
+
+  // Merge cost — prefer the one with details, or the higher amount
+  if (b.cost && !a.cost) {
+    merged.cost = b.cost;
+  } else if (b.cost && a.cost) {
+    // Combine cost details
+    const details = [a.cost.details, b.cost.details].filter(Boolean).join("; ");
+    merged.cost = {
+      amount: Math.max(a.cost.amount, b.cost.amount),
+      currency: a.cost.currency,
+      ...(details ? { details } : {}),
+    };
+  }
+
+  // Take higher confidence
+  const confRank = { high: 3, medium: 2, low: 1 };
+  if (confRank[b.confidence] > confRank[a.confidence]) {
+    merged.confidence = b.confidence;
+  }
+
+  return merged;
+}
+
+/**
+ * Deduplicate parsed segments across all email results.
+ * Modifies results in place.
+ */
+function deduplicateResults(results: EmailScanResult[]): void {
+  // Collect all segments with their email context
+  const allSegments: Array<{ seg: ParsedSegment & { emailId: string }; resultIdx: number; segIdx: number }> = [];
+  for (let ri = 0; ri < results.length; ri++) {
+    for (let si = 0; si < results[ri].parsedSegments.length; si++) {
+      allSegments.push({
+        seg: { ...results[ri].parsedSegments[si], emailId: results[ri].emailId },
+        resultIdx: ri,
+        segIdx: si,
+      });
+    }
+  }
+
+  // Group by dedup key
+  const groups = new Map<string, typeof allSegments>();
+  for (const entry of allSegments) {
+    const key = segmentDedupeKey(entry.seg);
+    const group = groups.get(key) || [];
+    group.push(entry);
+    groups.set(key, group);
+  }
+
+  // Find duplicates and mark segments to remove
+  const toRemove = new Set<string>(); // "resultIdx:segIdx"
+  const replacements = new Map<string, ParsedSegment>(); // "resultIdx:segIdx" → merged
+
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+
+    // Merge all into the first one
+    let merged = group[0].seg;
+    for (let i = 1; i < group.length; i++) {
+      merged = mergeSegments(merged, group[i].seg) as ParsedSegment & { emailId: string };
+      toRemove.add(`${group[i].resultIdx}:${group[i].segIdx}`);
+    }
+
+    const winnerKey = `${group[0].resultIdx}:${group[0].segIdx}`;
+    replacements.set(winnerKey, merged);
+    console.log(`  Dedup: merged ${group.length} segments → "${merged.title}" (${merged.seatNumber || "no seats"})`);
+  }
+
+  // Apply removals and replacements (iterate backwards to preserve indices)
+  for (let ri = results.length - 1; ri >= 0; ri--) {
+    const segs = results[ri].parsedSegments;
+    for (let si = segs.length - 1; si >= 0; si--) {
+      const key = `${ri}:${si}`;
+      if (toRemove.has(key)) {
+        segs.splice(si, 1);
+      } else if (replacements.has(key)) {
+        segs[si] = replacements.get(key)!;
+      }
+    }
+  }
+}
+
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
   const { resolveStorage } = options;
 
@@ -209,6 +345,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
+      // Deduplicate segments across emails (e.g. same flight from multiple passenger confirmations)
+      deduplicateResults(results);
+
       // Save processed email records
       await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
 
@@ -308,6 +447,30 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           createdSegments.push({ tripId: tid, segmentId, title: seg.title });
           console.log(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
+        }
+
+        // Auto-fill city on days based on segment destinations
+        // 1. Set city from segments on each day (flights → arrivalCity, others → city)
+        for (const day of trip.days) {
+          if (day.city) continue; // don't overwrite manually set cities
+          for (const seg of day.segments) {
+            const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
+            if (segCity) {
+              day.city = segCity;
+              console.log(`    City: set ${day.date} → "${segCity}" (from "${seg.title}")`);
+              break;
+            }
+          }
+        }
+        // 2. Propagate city forward — days without a city inherit from the previous day
+        let lastCity = "";
+        for (const day of trip.days) {
+          if (day.city) {
+            lastCity = day.city;
+          } else if (lastCity) {
+            day.city = lastCity;
+            console.log(`    City: propagated ${day.date} → "${lastCity}"`);
+          }
         }
 
         trip.updatedAt = new Date().toISOString();
