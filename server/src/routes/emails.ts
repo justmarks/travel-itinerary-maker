@@ -158,14 +158,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           // Detect billing / auth errors from Anthropic — these affect ALL emails,
           // so stop immediately and don't mark any emails as processed.
           const errMsg = err instanceof Error ? err.message : String(err);
-          const errObj = err as { status?: number; error?: { error?: { type?: string } } };
+          const errObj = err as Record<string, unknown>;
+          const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
           const isBillingError =
             errMsg.includes("credit balance") ||
             errMsg.includes("billing") ||
-            errObj.error?.error?.type === "invalid_request_error";
+            errMsg.includes("too low") ||
+            (errStatus === 400 && errMsg.includes("credit"));
           const isAuthError =
-            errObj.status === 401 ||
+            errStatus === 401 ||
             errMsg.includes("authentication") ||
+            errMsg.includes("invalid x-api-key") ||
             errMsg.includes("api_key");
 
           if (isBillingError || isAuthError) {

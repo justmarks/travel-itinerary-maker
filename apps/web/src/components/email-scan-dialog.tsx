@@ -145,22 +145,21 @@ export function EmailScanDialog({
       setSelections(sels);
       setStep("results");
     } catch (err) {
-      if (err instanceof ApiError) {
-        const body = err.body as { code?: string; error?: string; emailsFound?: number };
-        if (err.status === 403 && body.code === "GMAIL_SCOPE_REQUIRED") {
-          setErrorMessage(
-            "Gmail access is required. Please sign out and sign back in, granting Gmail permissions when prompted.",
-          );
-        } else if (err.status === 402 && (body.code === "ANTHROPIC_BILLING" || body.code === "ANTHROPIC_AUTH")) {
-          const found = body.emailsFound ? ` (${body.emailsFound} emails found)` : "";
-          setErrorMessage(
-            body.code === "ANTHROPIC_BILLING"
-              ? `Found emails${found} but the AI service needs credits to parse them. Please add credits at console.anthropic.com, then try scanning again — your emails will be re-fetched.`
-              : `Found emails${found} but the AI service key is invalid. Please update the ANTHROPIC_API_KEY and try again.`,
-          );
-        } else {
-          setErrorMessage(body.error || `API error ${err.status}`);
-        }
+      const apiErr = err as { status?: number; body?: { code?: string; error?: string; emailsFound?: number } };
+      const status = apiErr.status;
+      const body = apiErr.body;
+
+      if (status === 403 && body?.code === "GMAIL_SCOPE_REQUIRED") {
+        setErrorMessage(
+          "Gmail access is required. Please sign out and sign back in, granting Gmail permissions when prompted.",
+        );
+      } else if (status === 402) {
+        const found = body?.emailsFound ? ` (${body.emailsFound} emails found)` : "";
+        setErrorMessage(
+          `Found emails${found} but the AI service needs credits to parse them. Please add credits at console.anthropic.com, then try scanning again \u2014 your emails will be re-fetched.`,
+        );
+      } else if (body?.error) {
+        setErrorMessage(body.error);
       } else {
         setErrorMessage(
           err instanceof Error ? err.message : "Failed to scan emails",
