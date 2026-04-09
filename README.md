@@ -19,14 +19,15 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Sharing** — generate share links with configurable visibility (costs, TODOs)
 - **Export** — download itineraries as Markdown or OneNote-compatible HTML
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
-- **Email parsing** *(planned)* — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
+- **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI |
-| Backend | Express 5 · TypeScript · Google Drive API |
+| Backend | Express 5 · TypeScript · Google Drive API · Gmail API |
+| AI | Claude API (Anthropic) for email parsing |
 | Shared packages | Zod validators · TanStack React Query · typed API client |
 | Auth | Google OAuth (auth-code flow) |
 | Monorepo | pnpm 10 workspaces · Turborepo |
@@ -44,8 +45,8 @@ travel-itinerary-maker/
 │   └── api-client/           # Typed fetch client + React Query hooks
 ├── server/                   # Express 5 REST API
 │   ├── src/
-│   │   ├── routes/           # trips, auth, shared
-│   │   ├── services/         # Google Drive, token store, share registry
+│   │   │   ├── routes/           # trips, auth, shared, emails
+│   │   ├── services/         # Google Drive, Gmail scanner, email parser, token store
 │   │   └── middleware/       # Auth
 │   └── __tests__/
 ├── .github/workflows/        # CI + auto version bump + GitHub Pages deploy
@@ -108,12 +109,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **146 tests** across 8 test suites.
+Current coverage: **173 tests** across 10 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 87 | Validators, date utils, currency formatting, markdown export, IDs |
-| `server` | 59 | Route CRUD, sharing, costs, export, DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 96 | Validators, date utils, currency formatting, markdown export, IDs, overlap detection |
+| `server` | 77 | Route CRUD, sharing, costs, export, email scanning, DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -147,7 +148,7 @@ Current coverage: **146 tests** across 8 test suites.
 | `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
-| `ANTHROPIC_API_KEY` | server | For AI email parsing (future) |
+| `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
 
@@ -175,6 +176,31 @@ Base URL: `/api/v1`
 | `GET` | `/shared/:token` | View a shared trip (public) |
 | `GET` | `/trips/:id/export/markdown` | Export as Markdown |
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
+| `GET` | `/emails/labels` | List Gmail labels for scan filtering |
+| `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
+| `POST` | `/emails/apply` | Add parsed segments to a trip |
+| `GET` | `/emails/processed` | List previously processed emails |
+| `POST` | `/emails/dismiss/:emailId` | Dismiss an email (skip on re-scan) |
+
+## Email Processing
+
+The app scans your Gmail for travel confirmation emails and uses Claude AI to extract structured itinerary data.
+
+**How it works:**
+1. Click "Scan Emails" from the dashboard or a trip detail page
+2. Optionally select a Gmail label to filter (e.g., "Travel") or scan all mail
+3. The backend searches Gmail for travel-related keywords (confirmation, booking, reservation, itinerary, e-ticket)
+4. Each email body is sent to Claude AI, which extracts segments (flights, hotels, restaurants, activities, etc.) as structured JSON
+5. Extracted segments are validated with Zod and auto-matched to existing trips by date
+6. You review the results, select which segments to add, and assign them to trips
+7. Added segments appear with a yellow "Review" badge — click the green checkmark to confirm
+
+**Requirements:**
+- Gmail API enabled in your Google Cloud project
+- `ANTHROPIC_API_KEY` set in `server/.env` (Claude API key from [Anthropic](https://console.anthropic.com/))
+- User must grant Gmail read permission during OAuth sign-in
+
+**Deduplication:** Processed email IDs are tracked, so re-scanning skips already-handled emails. Dismissed emails are also skipped.
 
 ## Demo Mode
 
@@ -202,7 +228,7 @@ Version is auto-incremented on merge to main via GitHub Actions.
 - [x] **Phase 2** — Core UI: Next.js web app, itinerary table, segment cards, inline editing
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
-- [ ] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing
+- [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing
 - [ ] **Phase 6** — Sharing & notifications: push notifications for shared trip updates
 - [ ] **Phase 7** — Mobile app: Expo + React Native for Android
 - [ ] **Phase 8** — Polish: OneNote export, visual timeline, PDF export, Google Calendar sync
