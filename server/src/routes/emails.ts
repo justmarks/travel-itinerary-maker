@@ -152,8 +152,38 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             parseStatus: segments.length > 0 ? "parsed" : "skipped",
             createdAt: new Date().toISOString(),
           });
-        } catch (err) {
+        } catch (err: unknown) {
           console.error(`Failed to parse email ${email.id}:`, err);
+
+          // Detect billing / auth errors from Anthropic — these affect ALL emails,
+          // so stop immediately and don't mark any emails as processed.
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const errObj = err as { status?: number; error?: { error?: { type?: string } } };
+          const isBillingError =
+            errMsg.includes("credit balance") ||
+            errMsg.includes("billing") ||
+            errObj.error?.error?.type === "invalid_request_error";
+          const isAuthError =
+            errObj.status === 401 ||
+            errMsg.includes("authentication") ||
+            errMsg.includes("api_key");
+
+          if (isBillingError || isAuthError) {
+            const code = isBillingError ? "ANTHROPIC_BILLING" : "ANTHROPIC_AUTH";
+            const userMessage = isBillingError
+              ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
+              : "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY.";
+
+            // Return what we found from Gmail but explain why parsing failed
+            res.status(402).json({
+              error: userMessage,
+              code,
+              emailsFound: newEmails.length,
+            });
+            return;
+          }
+
+          // For other per-email errors, record as failed and continue
           results.push({
             emailId: email.id,
             subject: email.subject,
@@ -161,7 +191,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             receivedAt: email.receivedAt,
             parsedSegments: [],
             parseStatus: "failed",
-            error: err instanceof Error ? err.message : "Parse failed",
+            error: errMsg,
           });
 
           newProcessedEmails.push({

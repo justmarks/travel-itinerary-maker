@@ -145,14 +145,21 @@ export function EmailScanDialog({
       setSelections(sels);
       setStep("results");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        const body = err.body as { code?: string };
-        if (body.code === "GMAIL_SCOPE_REQUIRED") {
+      if (err instanceof ApiError) {
+        const body = err.body as { code?: string; error?: string; emailsFound?: number };
+        if (err.status === 403 && body.code === "GMAIL_SCOPE_REQUIRED") {
           setErrorMessage(
             "Gmail access is required. Please sign out and sign back in, granting Gmail permissions when prompted.",
           );
+        } else if (err.status === 402 && (body.code === "ANTHROPIC_BILLING" || body.code === "ANTHROPIC_AUTH")) {
+          const found = body.emailsFound ? ` (${body.emailsFound} emails found)` : "";
+          setErrorMessage(
+            body.code === "ANTHROPIC_BILLING"
+              ? `Found emails${found} but the AI service needs credits to parse them. Please add credits at console.anthropic.com, then try scanning again — your emails will be re-fetched.`
+              : `Found emails${found} but the AI service key is invalid. Please update the ANTHROPIC_API_KEY and try again.`,
+          );
         } else {
-          setErrorMessage("Gmail access denied. Please check your permissions.");
+          setErrorMessage(body.error || `API error ${err.status}`);
         }
       } else {
         setErrorMessage(

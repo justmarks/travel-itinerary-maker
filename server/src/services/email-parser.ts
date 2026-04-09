@@ -60,27 +60,22 @@ export class EmailParser {
     from: string;
     body: string;
   }): Promise<ParsedSegment[]> {
-    try {
-      const response = await this.client.messages.create({
-        model: this.model,
-        max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
-          },
-        ],
-      });
+    const response = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 4096,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
+        },
+      ],
+    });
 
-      const text =
-        response.content[0].type === "text" ? response.content[0].text : "";
+    const text =
+      response.content[0].type === "text" ? response.content[0].text : "";
 
-      return this.parseResponse(text);
-    } catch (err) {
-      console.error("Claude parsing error:", err);
-      return [];
-    }
+    return this.parseResponse(text);
   }
 
   /** Parse and validate Claude's JSON response */
