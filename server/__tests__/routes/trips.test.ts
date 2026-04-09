@@ -250,6 +250,62 @@ describe("Trip CRUD", () => {
       expect(res.status).toBe(200);
       expect(res.body.endDate).toBe("2026-06-30");
     });
+
+    it("regenerates days array when dates change", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Short Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-17",
+        });
+
+      expect(trip.body.days).toHaveLength(3);
+
+      // Extend by 2 days
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ endDate: "2026-06-19" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(5);
+      // Original days preserved
+      expect(res.body.days[0].date).toBe("2026-06-15");
+      // New days added
+      expect(res.body.days[4].date).toBe("2026-06-19");
+    });
+
+    it("preserves existing segments when dates change", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-18",
+        });
+
+      // Add a segment on June 16
+      await request(app)
+        .post(`/api/v1/trips/${trip.body.id}/segments`)
+        .send({
+          date: "2026-06-16",
+          type: "flight",
+          title: "SFO → FCO",
+          startTime: "10:00",
+        });
+
+      // Shrink start date (removes June 15), extend end date
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ startDate: "2026-06-16", endDate: "2026-06-20" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(5);
+      // June 16 segment preserved
+      const june16 = res.body.days.find((d: { date: string }) => d.date === "2026-06-16");
+      expect(june16.segments).toHaveLength(1);
+      expect(june16.segments[0].title).toBe("SFO → FCO");
+    });
   });
 
   describe("DELETE /api/v1/trips/:tripId", () => {

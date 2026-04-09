@@ -164,8 +164,30 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
     if (updates.title !== undefined) trip.title = updates.title;
     if (updates.status !== undefined) trip.status = updates.status;
-    if (updates.startDate !== undefined) trip.startDate = updates.startDate;
-    if (updates.endDate !== undefined) trip.endDate = updates.endDate;
+
+    // When dates change, rebuild the days array while preserving existing
+    // segments for dates that remain in range.
+    if (updates.startDate !== undefined || updates.endDate !== undefined) {
+      const newStart = updates.startDate ?? trip.startDate;
+      const newEnd = updates.endDate ?? trip.endDate;
+      trip.startDate = newStart;
+      trip.endDate = newEnd;
+
+      // Index existing days by date for fast lookup
+      const existingDays = new Map(trip.days.map((d) => [d.date, d]));
+
+      trip.days = generateDateRange(newStart, newEnd).map((date) => {
+        const existing = existingDays.get(date);
+        if (existing) return existing;
+        return {
+          date,
+          dayOfWeek: getDayOfWeek(date),
+          city: "",
+          segments: [],
+        };
+      });
+    }
+
     trip.updatedAt = new Date().toISOString();
 
     await storage.saveTrip(trip);
