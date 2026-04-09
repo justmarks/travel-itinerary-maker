@@ -237,4 +237,4 @@ The GitHub Pages deployment uses `apps/web/src/lib/mock-client.ts` to serve samp
 4. **New API endpoint** — add a matching `override` method to `MockApiClient`; if it adds data to `Trip`, extend `SAMPLE_TRIPS` with plausible values.
 5. **Renamed or removed field** — update `SAMPLE_TRIPS` and any `MockApiClient` method that references the old name.
 
-The mock client lives entirely in the frontend package and has no effect on local development or server tests — only the GitHub Pages build sets `NEXT_PUBLIC_DEMO_MODE=true`.
+The mock client lives entirely in the frontend package and has no effect on local development or server tests. Demo mode is activated at runtime by adding `?demo=true` to the URL — there is no build-time flag. The GitHub Pages deployment serves both the real login flow and demo content from the same build.

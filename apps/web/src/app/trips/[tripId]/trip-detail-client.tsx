@@ -27,6 +27,7 @@ import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
+import { useDemoHref } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -174,6 +175,7 @@ export default function TripDetailClient({
 }) {
   const { tripId } = use(params);
   const { data: trip, isLoading, error } = useTrip(tripId);
+  const homeHref = useDemoHref("/");
 
   if (isLoading) {
     return (
@@ -190,7 +192,7 @@ export default function TripDetailClient({
     return (
       <main className="min-h-screen p-8">
         <div className="mx-auto max-w-7xl">
-          <Link href="/">
+          <Link href={homeHref}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
@@ -209,7 +211,7 @@ export default function TripDetailClient({
 
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
-          <Link href="/">
+          <Link href={homeHref}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-2 h-4 w-4" />
               All trips

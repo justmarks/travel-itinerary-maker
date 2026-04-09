@@ -39,7 +39,7 @@ jobs:
         run: pnpm --filter web build
         env:
           NODE_ENV: production
-          NEXT_PUBLIC_DEMO_MODE: "true"
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
 
       - name: Copy index.html to 404.html for SPA routing
         run: cp apps/web/out/index.html apps/web/out/404.html

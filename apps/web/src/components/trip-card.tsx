@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { TripSummary } from "@travel-app/api-client";
+import { useDemoHref } from "@/lib/demo";
 import { useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
 import {
   Card,
@@ -57,6 +58,7 @@ export function TripCard({ trip }: { trip: TripSummary }) {
   const updateTrip = useUpdateTrip(trip.id);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(trip.title);
+  const tripHref = useDemoHref(`/trips/${trip.id}`);
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
@@ -77,7 +79,7 @@ export function TripCard({ trip }: { trip: TripSummary }) {
   return (
     <Card className="group relative transition-shadow hover:shadow-md">
       {!renaming && (
-        <Link href={`/trips/${trip.id}`} className="absolute inset-0 z-0" />
+        <Link href={tripHref} className="absolute inset-0 z-0" />
       )}
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div className="min-w-0 flex-1 space-y-1">

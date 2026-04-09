@@ -3,22 +3,34 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 
-const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
-const mockClient = IS_DEMO ? new MockApiClient() : undefined;
+const mockClient = new MockApiClient();
 
-function ApiProviderWithAuth({ children }: { children: React.ReactNode }) {
+/**
+ * Chooses between MockApiClient (demo) and real ApiClient (authenticated).
+ * Reads demo mode from the URL querystring via useDemoMode().
+ */
+function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
+  const isDemo = useDemoMode();
   const { accessToken } = useAuth();
+
+  if (isDemo) {
+    return (
+      <ApiClientProvider baseUrl={API_BASE_URL} client={mockClient}>
+        {children}
+      </ApiClientProvider>
+    );
+  }
 
   return (
     <ApiClientProvider
       baseUrl={API_BASE_URL}
-      client={mockClient}
       getAccessToken={() => accessToken}
     >
       {children}
@@ -27,20 +39,12 @@ function ApiProviderWithAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  if (IS_DEMO) {
-    return (
-      <AuthProvider>
-        <ApiClientProvider baseUrl={API_BASE_URL} client={mockClient}>
-          {children}
-        </ApiClientProvider>
-      </AuthProvider>
-    );
-  }
-
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>
-        <ApiProviderWithAuth>{children}</ApiProviderWithAuth>
+        <DemoProvider>
+          <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+        </DemoProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   );
