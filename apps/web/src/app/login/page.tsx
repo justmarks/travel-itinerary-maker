@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
@@ -83,12 +84,12 @@ export default function LoginPage() {
           </svg>
           Sign in with Google
         </Button>
-        <a
+        <Link
           href="/?demo=true"
           className="block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
         >
           Try with demo data
-        </a>
+        </Link>
       </div>
     </main>
   );

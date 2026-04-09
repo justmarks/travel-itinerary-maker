@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
+import { useDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -8,10 +10,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User } from "lucide-react";
 
 export function UserMenu() {
   const { user, isAuthenticated, logout } = useAuth();
+  const isDemo = useDemoMode();
+
+  // In demo mode without auth, show a "Sign in" button
+  if (isDemo && (!isAuthenticated || !user)) {
+    return (
+      <Link href="/login">
+        <Button variant="outline" size="sm" className="gap-2">
+          <LogIn className="h-4 w-4" />
+          <span className="hidden sm:inline">Sign in</span>
+        </Button>
+      </Link>
+    );
+  }
 
   if (!isAuthenticated || !user) return null;
 
