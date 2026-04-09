@@ -137,30 +137,84 @@ describe("Email Routes", () => {
       expect(newsletter.parsedSegments).toHaveLength(0);
     });
 
-    it("saves processed email records", async () => {
+    it("persists parsed results for travel emails", async () => {
       await request(app)
         .post("/api/v1/emails/scan")
         .send({});
 
       const processed = await storage.getProcessedEmails();
+      // All 3 emails are saved: 2 with "parsed" status, 1 with "skipped"
       expect(processed).toHaveLength(3);
-      expect(processed[0].gmailMessageId).toBe("msg-001");
-      expect(processed[0].parseStatus).toBe("parsed");
-      expect(processed[2].parseStatus).toBe("skipped");
+
+      const flight = processed.find((e) => e.gmailMessageId === "msg-001");
+      expect(flight?.parseStatus).toBe("parsed");
+      expect(flight?.rawParseResult).toBeDefined();
+
+      const hotel = processed.find((e) => e.gmailMessageId === "msg-002");
+      expect(hotel?.parseStatus).toBe("parsed");
+
+      const newsletter = processed.find((e) => e.gmailMessageId === "msg-003");
+      expect(newsletter?.parseStatus).toBe("skipped");
     });
 
-    it("skips already-processed emails", async () => {
-      // First scan
-      await request(app)
+    it("returns pending results on second scan without re-calling Claude", async () => {
+      // First scan — calls Claude for all 3 emails
+      const first = await request(app)
         .post("/api/v1/emails/scan")
         .send({});
+      expect(first.body.results).toHaveLength(3);
+      expect(first.body.newCount).toBe(2); // 2 travel emails parsed
 
-      // Second scan — all already processed
+      // Second scan — no new emails to parse, returns pending results
       const res = await request(app)
         .post("/api/v1/emails/scan")
         .send({});
 
       expect(res.status).toBe(200);
+      // 2 pending travel results returned (newsletter already skipped)
+      expect(res.body.results).toHaveLength(2);
+      expect(res.body.pendingCount).toBe(2);
+      expect(res.body.newCount).toBe(0);
+    });
+
+    it("stops returning emails after they are applied", async () => {
+      // Create a trip
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-06-25",
+          endDate: "2026-07-05",
+        });
+      const tripId = tripRes.body.id;
+
+      // Scan
+      await request(app).post("/api/v1/emails/scan").send({});
+
+      // Apply the flight segment
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [{
+            type: "flight",
+            title: "SEA → NRT",
+            date: "2026-06-26",
+            confidence: "high",
+            tripId,
+            emailId: "msg-001",
+          }],
+        });
+
+      // Dismiss the hotel email
+      await request(app).post("/api/v1/emails/dismiss/msg-002");
+
+      // Third scan — all emails are done
+      const res = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.results).toHaveLength(0);
       expect(res.body.message).toBe("No new emails to process");
     });
 
@@ -189,6 +243,43 @@ describe("Email Routes", () => {
         .send({ labelFilter: "Travel", maxResults: 10 });
 
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("GET /api/v1/emails/pending", () => {
+    it("returns pending results from previous scan", async () => {
+      // Scan first
+      await request(app).post("/api/v1/emails/scan").send({});
+
+      // Get pending
+      const res = await request(app).get("/api/v1/emails/pending");
+      expect(res.status).toBe(200);
+      expect(res.body.results).toHaveLength(2); // 2 travel emails pending
+    });
+
+    it("returns empty when no pending results", async () => {
+      const res = await request(app).get("/api/v1/emails/pending");
+      expect(res.status).toBe(200);
+      expect(res.body.results).toHaveLength(0);
+    });
+
+    it("re-matches trips on pending results", async () => {
+      // Scan first (no trips exist)
+      await request(app).post("/api/v1/emails/scan").send({});
+
+      // Create a trip that covers the segment dates
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-06-25",
+          endDate: "2026-07-05",
+        });
+
+      // Get pending — should now suggest the new trip
+      const res = await request(app).get("/api/v1/emails/pending");
+      const flight = res.body.results[0].parsedSegments[0];
+      expect(flight.suggestedTripId).toBeDefined();
     });
   });
 
@@ -239,6 +330,34 @@ describe("Email Routes", () => {
       expect(june26.segments[0].sourceEmailId).toBe("msg-001");
     });
 
+    it("marks applied emails as mapped and clears rawParseResult", async () => {
+      // Scan first to create parsed records
+      await request(app).post("/api/v1/emails/scan").send({});
+
+      // Create a trip and apply
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({ title: "Trip", startDate: "2026-06-25", endDate: "2026-07-05" });
+
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [{
+            type: "flight",
+            title: "SEA → NRT",
+            date: "2026-06-26",
+            confidence: "high",
+            tripId: tripRes.body.id,
+            emailId: "msg-001",
+          }],
+        });
+
+      const processed = await storage.getProcessedEmails();
+      const applied = processed.find((e) => e.gmailMessageId === "msg-001");
+      expect(applied?.parseStatus).toBe("mapped");
+      expect(applied?.rawParseResult).toBeUndefined();
+    });
+
     it("rejects empty segments array", async () => {
       const res = await request(app)
         .post("/api/v1/emails/apply")
@@ -255,10 +374,10 @@ describe("Email Routes", () => {
         .post("/api/v1/emails/scan")
         .send({});
 
-      // The scan should have processed 3 emails
       expect(scanRes.status).toBe(200);
       expect(scanRes.body.results).toHaveLength(3);
 
+      // All emails are tracked (parsed + skipped)
       const res = await request(app).get("/api/v1/emails/processed");
       expect(res.status).toBe(200);
       expect(res.body).toHaveLength(3);
@@ -278,8 +397,8 @@ describe("Email Routes", () => {
       expect(dismissed?.parseStatus).toBe("skipped");
     });
 
-    it("updates existing processed email to skipped", async () => {
-      // Scan first to create processed records
+    it("updates existing parsed email to skipped and clears rawParseResult", async () => {
+      // Scan first to create parsed records
       await request(app)
         .post("/api/v1/emails/scan")
         .send({});
@@ -291,6 +410,7 @@ describe("Email Routes", () => {
       const processed = await storage.getProcessedEmails();
       const dismissed = processed.find((e) => e.gmailMessageId === "msg-001");
       expect(dismissed?.parseStatus).toBe("skipped");
+      expect(dismissed?.rawParseResult).toBeUndefined();
     });
   });
 });

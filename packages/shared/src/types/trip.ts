@@ -56,6 +56,8 @@ export interface Segment {
   breakfastIncluded?: boolean;
   // Flight-specific
   seatNumber?: string; // e.g. "14A, 14B"
+  cabinClass?: string; // e.g. "Economy", "Business", "First", "Premium Economy"
+  baggageInfo?: string; // e.g. "1 checked bag included", "No checked bags - $35/bag"
   // Car service specific
   contactName?: string; // driver / pickup contact name
   // Cost embedded in segment
@@ -151,6 +153,8 @@ export interface ParsedSegment {
   phone?: string;
   breakfastIncluded?: boolean;
   seatNumber?: string;
+  cabinClass?: string;
+  baggageInfo?: string;
   contactName?: string;
   cost?: SegmentCost;
   confidence: "high" | "medium" | "low";

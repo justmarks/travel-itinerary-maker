@@ -65,6 +65,8 @@ export const segmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
   cost: segmentCostSchema.optional(),
   source: z.enum(SEGMENT_SOURCES),
   sourceEmailId: z.string().optional(),
@@ -149,6 +151,8 @@ export const createSegmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
   cost: segmentCostSchema.optional(),
 });
 
@@ -204,6 +208,8 @@ export const parsedSegmentSchema = z.object({
   phone: z.string().optional(),
   breakfastIncluded: z.boolean().optional(),
   seatNumber: z.string().optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
   contactName: z.string().optional(),
   cost: segmentCostSchema.optional(),
   confidence: z.enum(["high", "medium", "low"]),

@@ -64,7 +64,7 @@ function mergeSegments(
   const fillFields = [
     "city", "venueName", "address", "confirmationCode", "provider",
     "carrier", "routeCode", "departureCity", "arrivalCity", "phone",
-    "url", "startTime", "endTime", "breakfastIncluded",
+    "url", "startTime", "endTime", "breakfastIncluded", "cabinClass", "baggageInfo",
   ] as const;
   for (const field of fillFields) {
     if (!merged[field] && b[field] !== undefined) {
@@ -153,6 +153,9 @@ function deduplicateResults(results: EmailScanResult[]): void {
   }
 }
 
+/** Statuses that mean the email is "done" and shouldn't be re-shown */
+const DONE_STATUSES = new Set(["mapped", "skipped"]);
+
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
   const { resolveStorage } = options;
 
@@ -195,8 +198,54 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   });
 
   /**
+   * GET /emails/pending
+   * Return previously-parsed results that haven't been applied or dismissed yet.
+   * This lets the UI resume where the user left off without re-scanning.
+   */
+  router.get("/pending", async (req: Request, res: Response) => {
+    try {
+      const storage = getStorage(req);
+      const processedEmails = await storage.getProcessedEmails();
+      const trips = await storage.listTrips();
+
+      // Find emails with status "parsed" — they have saved results but aren't done
+      const pendingEmails = processedEmails.filter(
+        (pe) => pe.parseStatus === "parsed" && pe.rawParseResult,
+      );
+
+      if (pendingEmails.length === 0) {
+        res.json({ results: [] });
+        return;
+      }
+
+      // Reconstruct EmailScanResult from stored data, re-matching trip suggestions
+      const results: EmailScanResult[] = pendingEmails.map((pe) => {
+        const stored = pe.rawParseResult as EmailScanResult;
+        // Re-run trip matching with current trips (user may have created new trips)
+        const rematchedSegments = stored.parsedSegments.map((seg) => {
+          const matchingTrip = trips.find((t) =>
+            isDateInRange(seg.date, t.startDate, t.endDate),
+          );
+          return matchingTrip
+            ? { ...seg, suggestedTripId: matchingTrip.id }
+            : { ...seg, suggestedTripId: undefined };
+        });
+        return { ...stored, parsedSegments: rematchedSegments };
+      });
+
+      console.log(`Returning ${results.length} pending email results`);
+      res.json({ results });
+    } catch (err) {
+      console.error("GET /emails/pending error:", err);
+      res.status(500).json({ error: "Failed to load pending results" });
+    }
+  });
+
+  /**
    * POST /emails/scan
    * Trigger a Gmail scan and parse emails with Claude AI.
+   * Returns: pending (previously parsed) results + newly parsed results combined.
+   * Only NEW emails (not in processedEmails at all) are sent to Claude.
    */
   router.post("/scan", async (req: Request, res: Response) => {
     try {
@@ -209,14 +258,33 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const { tripId, labelFilter, maxResults, newerThanDays } = parsed.data;
       const storage = getStorage(req);
 
-      // Get already-processed email IDs
+      // Load all processed email records
       const processedEmails = await storage.getProcessedEmails();
-      const processedIds = new Set(processedEmails.map((e) => e.gmailMessageId));
+      const processedMap = new Map(processedEmails.map((e) => [e.gmailMessageId, e]));
 
       // Get existing trips for auto-matching
       const trips = await storage.listTrips();
 
-      // Scan Gmail
+      // Collect pending results (parsed but not applied/dismissed)
+      const pendingResults: EmailScanResult[] = [];
+      for (const pe of processedEmails) {
+        if (pe.parseStatus === "parsed" && pe.rawParseResult) {
+          const stored = pe.rawParseResult as EmailScanResult;
+          // Re-match trip suggestions with current trips
+          const rematchedSegments = stored.parsedSegments.map((seg) => {
+            if (tripId) return { ...seg, suggestedTripId: tripId };
+            const matchingTrip = trips.find((t) =>
+              isDateInRange(seg.date, t.startDate, t.endDate),
+            );
+            return matchingTrip
+              ? { ...seg, suggestedTripId: matchingTrip.id }
+              : { ...seg, suggestedTripId: undefined };
+          });
+          pendingResults.push({ ...stored, parsedSegments: rematchedSegments });
+        }
+      }
+
+      // Scan Gmail for new emails
       const scanner = new GmailScanner(req.accessToken || "");
       const rawEmails = await scanner.scanEmails({
         labelFilter,
@@ -224,25 +292,32 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays: newerThanDays ?? 365,
       });
 
-      // Filter out already-processed
-      const newEmails = rawEmails.filter((e) => !processedIds.has(e.id));
+      // Filter to truly new emails (not in processedEmails at all)
+      const newEmails = rawEmails.filter((e) => !processedMap.has(e.id));
 
+      // If no new emails to parse, just return pending results
       if (newEmails.length === 0) {
-        res.json({ results: [], message: "No new emails to process" });
+        if (pendingResults.length > 0) {
+          console.log(`No new emails. Returning ${pendingResults.length} pending results.`);
+          res.json({ results: pendingResults, pendingCount: pendingResults.length, newCount: 0 });
+        } else {
+          res.json({ results: [], message: "No new emails to process" });
+        }
         return;
       }
 
-      // Parse with Claude
+      // Parse new emails with Claude
       if (!config.anthropic.apiKey) {
         res.status(500).json({ error: "Anthropic API key not configured" });
         return;
       }
 
       const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
-      const results: EmailScanResult[] = [];
+      const newResults: EmailScanResult[] = [];      // travel results
+      const noTravelResults: EmailScanResult[] = []; // for UI display only
       const newProcessedEmails: ProcessedEmail[] = [];
 
-      console.log(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail)`);
+      console.log(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
 
       for (const email of newEmails) {
         try {
@@ -256,10 +331,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           // Auto-match segments to trips by date
           const matchedSegments = segments.map((seg) => {
-            // If a specific trip was requested, use that
             if (tripId) return { ...seg, suggestedTripId: tripId };
-
-            // Otherwise, find a trip whose date range contains this segment's date
             const matchingTrip = trips.find((t) =>
               isDateInRange(seg.date, t.startDate, t.endDate),
             );
@@ -268,31 +340,39 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               : seg;
           });
 
-          results.push({
+          const hasTravel = segments.length > 0;
+          const scanResult: EmailScanResult = {
             emailId: email.id,
             subject: email.subject,
             from: email.from,
             receivedAt: email.receivedAt,
             parsedSegments: matchedSegments,
-            parseStatus: segments.length > 0 ? "success" : "no_travel_content",
-          });
+            parseStatus: hasTravel ? "success" : "no_travel_content",
+          };
 
-          // Track as processed
+          if (hasTravel) {
+            newResults.push(scanResult);
+          } else {
+            noTravelResults.push(scanResult);
+          }
+
+          // Save to processedEmails — travel emails get "parsed" status with saved results,
+          // no-travel emails get "skipped" status
           newProcessedEmails.push({
             gmailMessageId: email.id,
             gmailThreadId: email.threadId,
             subject: email.subject,
             fromAddress: email.from,
             receivedAt: email.receivedAt,
-            parsedType: segments.length > 0 ? segments[0].type : undefined,
-            parseStatus: segments.length > 0 ? "parsed" : "skipped",
+            parsedType: hasTravel ? segments[0].type : undefined,
+            parseStatus: hasTravel ? "parsed" : "skipped",
+            rawParseResult: hasTravel ? scanResult : undefined,
             createdAt: new Date().toISOString(),
           });
         } catch (err: unknown) {
           console.error(`Failed to parse email ${email.id}:`, err);
 
-          // Detect billing / auth errors from Anthropic — these affect ALL emails,
-          // so stop immediately and don't mark any emails as processed.
+          // Detect billing / auth errors from Anthropic
           const errMsg = err instanceof Error ? err.message : String(err);
           const errObj = err as Record<string, unknown>;
           const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
@@ -313,17 +393,25 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
               : "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY.";
 
-            // Return what we found from Gmail but explain why parsing failed
+            // Save any results we parsed so far before the error
+            if (newProcessedEmails.length > 0) {
+              await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
+            }
+
+            // Return pending + whatever we parsed before error
+            const allResults = [...pendingResults, ...newResults];
             res.status(402).json({
               error: userMessage,
               code,
               emailsFound: newEmails.length,
+              // Include any results we managed to parse before hitting the error
+              results: allResults.length > 0 ? allResults : undefined,
             });
             return;
           }
 
-          // For other per-email errors, record as failed and continue
-          results.push({
+          // Per-email errors: don't save, allow retry on next scan
+          newResults.push({
             emailId: email.id,
             subject: email.subject,
             from: email.from,
@@ -332,23 +420,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             parseStatus: "failed",
             error: errMsg,
           });
-
-          newProcessedEmails.push({
-            gmailMessageId: email.id,
-            gmailThreadId: email.threadId,
-            subject: email.subject,
-            fromAddress: email.from,
-            receivedAt: email.receivedAt,
-            parseStatus: "failed",
-            createdAt: new Date().toISOString(),
-          });
         }
       }
 
-      // Deduplicate segments across emails (e.g. same flight from multiple passenger confirmations)
-      deduplicateResults(results);
+      // Combine pending + new travel results, then deduplicate
+      const allResults = [...pendingResults, ...newResults];
+      deduplicateResults(allResults);
 
-      // Save processed email records
+      // Append no-travel results for UI display (not persisted as pending)
+      allResults.push(...noTravelResults);
+
+      // Save new processed email records
       await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
 
       // Save label preference if provided
@@ -360,7 +442,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
-      res.json({ results });
+      res.json({
+        results: allResults,
+        pendingCount: pendingResults.length,
+        newCount: newResults.length,
+      });
     } catch (err) {
       console.error("POST /emails/scan error:", err);
       const message = err instanceof Error ? err.message : "Scan failed";
@@ -435,6 +521,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             partySize: seg.partySize,
             creditCardHold: seg.creditCardHold,
             seatNumber: seg.seatNumber,
+            cabinClass: seg.cabinClass,
+            baggageInfo: seg.baggageInfo,
             contactName: seg.contactName,
             phone: seg.phone,
             breakfastIncluded: seg.breakfastIncluded,
@@ -450,9 +538,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
 
         // Auto-fill city on days based on segment destinations
-        // 1. Set city from segments on each day (flights → arrivalCity, others → city)
         for (const day of trip.days) {
-          if (day.city) continue; // don't overwrite manually set cities
+          if (day.city) continue;
           for (const seg of day.segments) {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
             if (segCity) {
@@ -462,7 +549,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             }
           }
         }
-        // 2. Propagate city forward — days without a city inherit from the previous day
+        // Propagate city forward
         let lastCity = "";
         for (const day of trip.days) {
           if (day.city) {
@@ -476,13 +563,22 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         trip.updatedAt = new Date().toISOString();
         await storage.saveTrip(trip);
 
-        // Update processed email status to "mapped"
+        // Mark applied emails as "mapped" and clear rawParseResult
         const processedEmails = await storage.getProcessedEmails();
         const emailIds = new Set(segs.map((s) => s.emailId));
-        for (const pe of processedEmails) {
-          if (emailIds.has(pe.gmailMessageId)) {
-            pe.parseStatus = "mapped";
-            pe.tripId = tid;
+        for (const eid of emailIds) {
+          const existing = processedEmails.find((pe) => pe.gmailMessageId === eid);
+          if (existing) {
+            existing.parseStatus = "mapped";
+            existing.tripId = tid;
+            existing.rawParseResult = undefined;
+          } else {
+            processedEmails.push({
+              gmailMessageId: eid,
+              parseStatus: "mapped",
+              tripId: tid,
+              createdAt: new Date().toISOString(),
+            });
           }
         }
         await storage.saveProcessedEmails(processedEmails);
@@ -513,7 +609,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
   /**
    * POST /emails/dismiss/:emailId
-   * Mark an email as skipped so it won't be re-scanned.
+   * Mark an email as skipped so it won't appear in pending results.
    */
   router.post("/dismiss/:emailId", async (req: Request, res: Response) => {
     try {
@@ -524,6 +620,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const existing = processedEmails.find((e) => e.gmailMessageId === emailId);
       if (existing) {
         existing.parseStatus = "skipped";
+        existing.rawParseResult = undefined;
       } else {
         processedEmails.push({
           gmailMessageId: emailId as string,

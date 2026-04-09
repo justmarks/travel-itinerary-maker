@@ -185,11 +185,18 @@ function SegmentRow({
           </p>
         )}
 
-        {/* Seat numbers (flights) */}
-        {isFlight && segment.seatNumber && (
+        {/* Cabin class, seats, baggage (flights) */}
+        {isFlight && (segment.seatNumber || segment.cabinClass) && (
           <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Armchair className="h-3 w-3 shrink-0" />
-            Seats: {segment.seatNumber}
+            {segment.cabinClass && <span>{segment.cabinClass}</span>}
+            {segment.cabinClass && segment.seatNumber && <span>·</span>}
+            {segment.seatNumber && <span>Seats: {segment.seatNumber}</span>}
+          </p>
+        )}
+        {isFlight && segment.baggageInfo && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {segment.baggageInfo}
           </p>
         )}
 

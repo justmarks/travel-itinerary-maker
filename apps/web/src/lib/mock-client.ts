@@ -13,6 +13,7 @@ import type {
   UpdateTodoInput,
   CreateShareInput,
   GmailLabel,
+  EmailScanResult,
   EmailScanRequest,
   ApplyParsedSegmentsInput,
 } from "@travel-app/shared";
@@ -54,6 +55,8 @@ const SAMPLE_TRIPS: Trip[] = [
             routeCode: "JL006",
             confirmationCode: "JLXYZ12",
             seatNumber: "31A, 31B",
+            cabinClass: "Economy",
+            baggageInfo: "2 checked bags included",
             cost: { amount: 1250, currency: "USD", details: "Economy" },
             source: "email_confirmed",
             needsReview: false,
@@ -318,6 +321,8 @@ const SAMPLE_TRIPS: Trip[] = [
             startTime: "10:30",
             confirmationCode: "JLXYZ13",
             seatNumber: "31A, 31B",
+            cabinClass: "Economy",
+            baggageInfo: "2 checked bags included",
             cost: { amount: 1250, currency: "USD", details: "Economy" },
             source: "email_confirmed",
             needsReview: false,
@@ -1183,6 +1188,10 @@ export class MockApiClient extends ApiClient {
 
   // ─── Email Scanning ──────────────────────────────────────
 
+  override getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
+    return Promise.resolve({ results: [] });
+  }
+
   override getGmailLabels(): Promise<GmailLabel[]> {
     return Promise.resolve([
       { id: "INBOX", name: "INBOX", type: "system" },
@@ -1231,6 +1240,8 @@ export class MockApiClient extends ApiClient {
         partySize: seg.partySize,
         creditCardHold: seg.creditCardHold,
         seatNumber: seg.seatNumber,
+        cabinClass: seg.cabinClass,
+        baggageInfo: seg.baggageInfo,
         contactName: seg.contactName,
         phone: seg.phone,
         breakfastIncluded: seg.breakfastIncluded,

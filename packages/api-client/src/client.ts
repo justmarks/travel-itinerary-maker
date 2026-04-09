@@ -266,7 +266,11 @@ export class ApiClient {
     return this.request("/emails/labels");
   }
 
-  scanEmails(input?: EmailScanRequest): Promise<{ results: EmailScanResult[]; message?: string }> {
+  getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
+    return this.request("/emails/pending");
+  }
+
+  scanEmails(input?: EmailScanRequest): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
     return this.request("/emails/scan", {
       method: "POST",
       body: JSON.stringify(input ?? {}),

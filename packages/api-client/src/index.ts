@@ -28,6 +28,7 @@ export {
   useDeleteShare,
   useSharedTrip,
   useGmailLabels,
+  usePendingEmails,
   useScanEmails,
   useApplyParsedSegments,
   useProcessedEmails,

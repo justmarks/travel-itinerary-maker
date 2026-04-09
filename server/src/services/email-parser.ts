@@ -20,11 +20,13 @@ Each item in the array must be a JSON object with these fields:
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
 - "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger.
+- "cabinClass": class of service for flights (e.g. "Economy", "Premium Economy", "Business", "First", "Main Cabin", "Comfort+"). Extract exactly as stated in the email.
+- "baggageInfo": checked baggage policy for flights (e.g. "1 checked bag included", "2 checked bags included", "No checked bags included - $35/bag", "1 free checked bag per passenger"). Extract if mentioned in the email.
 - "partySize": total number of travelers/guests
 - "breakfastIncluded": boolean (for hotels, if mentioned)
 - "phone": contact phone number (if available)
 - "url": booking URL (if available)
-- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). Include all cost details like parking fees, extras, vehicle class, etc. in the "details" string.
+- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). The "amount" MUST be a plain number with no currency symbol (e.g. 547.20, NOT "$547.20"). The "currency" must be a string like "USD", "EUR", etc. Include all cost details like parking fees, extras, vehicle class, etc. in the "details" string. ALWAYS extract flight prices, hotel prices, car rental prices, and any other costs mentioned in the email.
 - "confidence": "high" if clearly a confirmed booking, "medium" if likely a booking, "low" if uncertain
 
 IMPORTANT RULES:
@@ -82,6 +84,70 @@ export class EmailParser {
     return this.parseResponse(text);
   }
 
+  /**
+   * Normalize a time string to HH:MM format.
+   * Handles: "4:00 PM", "16:00:00.000", "4:00", "16:00", "3:00PM", etc.
+   */
+  private normalizeTime(time: unknown): string | undefined {
+    if (typeof time !== "string" || !time.trim()) return undefined;
+    let t = time.trim();
+
+    // Handle AM/PM formats like "4:00 PM", "3:00PM", "12:30 am"
+    const ampmMatch = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM|am|pm|a\.m\.|p\.m\.)$/i);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1], 10);
+      const minutes = ampmMatch[2];
+      const isPM = /pm|p\.m\./i.test(ampmMatch[4]);
+      if (isPM && hours < 12) hours += 12;
+      if (!isPM && hours === 12) hours = 0;
+      return `${hours.toString().padStart(2, "0")}:${minutes}`;
+    }
+
+    // Handle 24-hour formats: "16:00", "4:00", "16:00:00", "16:00:00.000"
+    const h24Match = t.match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/);
+    if (h24Match) {
+      const hours = parseInt(h24Match[1], 10);
+      const minutes = h24Match[2];
+      if (hours >= 0 && hours <= 23) {
+        return `${hours.toString().padStart(2, "0")}:${minutes}`;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Normalize cost field so Zod validation doesn't silently strip it.
+   * Handles: string amounts ("547.20", "$547.20"), missing currency, etc.
+   */
+  private normalizeCost(
+    cost: unknown,
+  ): { amount: number; currency: string; details?: string } | undefined {
+    if (!cost || typeof cost !== "object") return undefined;
+    const c = cost as Record<string, unknown>;
+
+    // Coerce amount: strip currency symbols, parse to number
+    let amount: number | undefined;
+    if (typeof c.amount === "number") {
+      amount = c.amount;
+    } else if (typeof c.amount === "string") {
+      const cleaned = c.amount.replace(/[^0-9.,\-]/g, "").replace(/,/g, "");
+      amount = parseFloat(cleaned);
+    }
+    if (amount === undefined || isNaN(amount) || amount < 0) return undefined;
+
+    // Default currency to USD if missing
+    const currency =
+      typeof c.currency === "string" && c.currency.length > 0
+        ? c.currency
+        : "USD";
+
+    const details =
+      typeof c.details === "string" ? c.details : undefined;
+
+    return { amount, currency, ...(details ? { details } : {}) };
+  }
+
   /** Parse and validate Claude's JSON response */
   private parseResponse(text: string): ParsedSegment[] {
     try {
@@ -97,6 +163,27 @@ export class EmailParser {
       // Validate each segment with Zod, keeping only valid ones
       const segments: ParsedSegment[] = [];
       for (const item of raw) {
+        // Normalize time fields before validation
+        if (item.startTime) item.startTime = this.normalizeTime(item.startTime);
+        if (item.endTime) item.endTime = this.normalizeTime(item.endTime);
+
+        // Log raw cost data for debugging
+        if (item.cost) {
+          console.log(
+            `[EmailParser] Raw cost for "${item.title}":`,
+            JSON.stringify(item.cost),
+          );
+          item.cost = this.normalizeCost(item.cost);
+          console.log(
+            `[EmailParser] Normalized cost for "${item.title}":`,
+            JSON.stringify(item.cost),
+          );
+        } else {
+          console.log(
+            `[EmailParser] No cost returned for "${item.title}" (type: ${item.type})`,
+          );
+        }
+
         const result = parsedSegmentSchema.safeParse(item);
         if (result.success) {
           segments.push(result.data as ParsedSegment);

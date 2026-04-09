@@ -185,7 +185,7 @@ export class DriveStorage implements StorageProvider {
     const fileId = await this.findFile(SETTINGS_FILE_NAME, appFolderId);
     if (!fileId) {
       return {
-        emailScanIntervalMinutes: 15,
+        emailScanIntervalMinutes: 1440,
         notificationsEnabled: true,
       };
     }

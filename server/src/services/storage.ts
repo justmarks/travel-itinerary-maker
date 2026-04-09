@@ -30,7 +30,7 @@ export type StorageResolver = (req: Request) => StorageProvider;
 export class InMemoryStorage implements StorageProvider {
   private trips: Map<string, Trip> = new Map();
   private settings: UserSettings = {
-    emailScanIntervalMinutes: 15,
+    emailScanIntervalMinutes: 1440,
     notificationsEnabled: true,
   };
   private processedEmails: ProcessedEmail[] = [];
@@ -73,7 +73,7 @@ export class InMemoryStorage implements StorageProvider {
   /** Reset all data (for testing) */
   clear(): void {
     this.trips.clear();
-    this.settings = { emailScanIntervalMinutes: 15, notificationsEnabled: true };
+    this.settings = { emailScanIntervalMinutes: 1440, notificationsEnabled: true };
     this.processedEmails = [];
   }
 }

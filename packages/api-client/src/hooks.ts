@@ -293,6 +293,15 @@ export function useSharedTrip(token: string) {
 
 // ─── Email Scanning ──────────────────────────────────────
 
+export function usePendingEmails(enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.processedEmails,
+    queryFn: () => client.getPendingEmails(),
+    enabled,
+  });
+}
+
 export function useGmailLabels(enabled = true) {
   const client = useApiClient();
   return useQuery({

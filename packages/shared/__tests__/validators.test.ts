@@ -363,7 +363,7 @@ describe("createShareSchema", () => {
 describe("userSettingsSchema", () => {
   it("validates default settings", () => {
     const result = userSettingsSchema.safeParse({
-      emailScanIntervalMinutes: 15,
+      emailScanIntervalMinutes: 1440,
       notificationsEnabled: true,
     });
     expect(result.success).toBe(true);
