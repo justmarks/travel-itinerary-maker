@@ -7,13 +7,28 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
-import { Plane, AlertCircle } from "lucide-react";
+import { Plane, AlertCircle, Info } from "lucide-react";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export default function LoginPage() {
   const isDemo = useDemoMode();
   const { isAuthenticated, isLoading, login } = useAuth();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
+
+  // Check if the API server is reachable on mount
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(`${API_BASE_URL.replace(/\/api\/v1$/, "")}/health`, {
+      signal: controller.signal,
+    })
+      .then((res) => setApiAvailable(res.ok))
+      .catch(() => setApiAvailable(false));
+    return () => controller.abort();
+  }, []);
 
   const googleLogin = useGoogleLogin({
     flow: "auth-code",
@@ -77,9 +92,19 @@ export default function LoginPage() {
             <span>{loginError}</span>
           </div>
         )}
+        {apiAvailable === false && !loginError && (
+          <div className="flex items-start gap-3 rounded-md border border-border bg-muted/50 p-3 text-left text-sm text-muted-foreground">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              No API server detected. Sign-in requires a running backend.
+              You can still explore the app with demo data below.
+            </span>
+          </div>
+        )}
         <Button
           size="lg"
           className="w-full"
+          disabled={apiAvailable === false}
           onClick={() => {
             setLoginError(null);
             googleLogin();
