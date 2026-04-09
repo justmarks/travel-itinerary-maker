@@ -1,22 +1,62 @@
 import { Router, type Request, type Response } from "express";
-import type { StorageProvider } from "../services/storage";
+import type { StorageProvider, StorageResolver } from "../services/storage";
+import type { ShareRegistry } from "../services/share-registry";
+import type { TokenStore } from "../services/token-store";
+import { DriveStorage } from "../services/google-drive/drive-storage";
+
+export interface SharedRoutesOptions {
+  resolveStorage: StorageResolver | StorageProvider;
+  shareRegistry?: ShareRegistry;
+  tokenStore?: TokenStore;
+}
 
 /**
  * Public routes for accessing shared trips (no auth required).
  */
-export function createSharedRoutes(storage: StorageProvider): Router {
+export function createSharedRoutes(options: SharedRoutesOptions): Router {
+  const { resolveStorage, shareRegistry, tokenStore } = options;
+
+  // Support both a resolver function and a direct storage instance
+  const getStorage: StorageResolver =
+    typeof resolveStorage === "function"
+      ? resolveStorage
+      : () => resolveStorage;
+
   const router = Router();
 
   router.get("/:token", async (req: Request, res: Response) => {
+    const token = req.params.token as string;
+
+    // Try to resolve storage for the trip owner via share registry
+    let storage: StorageProvider;
+
+    if (shareRegistry && tokenStore) {
+      const entry = shareRegistry.lookup(token);
+      if (entry) {
+        // Get a fresh access token for the trip owner
+        const accessToken = await tokenStore.getAccessToken(entry.ownerUserId);
+        if (accessToken) {
+          storage = new DriveStorage({ accessToken });
+        } else {
+          // Owner's refresh token expired or missing — fall back
+          storage = getStorage(req);
+        }
+      } else {
+        // Share token not in registry — fall back to request-level storage
+        storage = getStorage(req);
+      }
+    } else {
+      // Development mode — use the shared in-memory storage
+      storage = getStorage(req);
+    }
+
     const trips = await storage.listTrips();
 
     let foundTrip = null;
     let foundShare = null;
 
     for (const trip of trips) {
-      const share = trip.shares.find(
-        (s) => s.shareToken === (req.params.token as string),
-      );
+      const share = trip.shares.find((s) => s.shareToken === token);
       if (share) {
         foundTrip = trip;
         foundShare = share;

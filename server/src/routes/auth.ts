@@ -1,8 +1,14 @@
 import { Router, type Request, type Response } from "express";
 import { google } from "googleapis";
 import { config } from "../config/env";
+import type { TokenStore } from "../services/token-store";
 
-export function createAuthRoutes(): Router {
+export interface AuthRoutesOptions {
+  tokenStore?: TokenStore;
+}
+
+export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
+  const { tokenStore } = options;
   const router = Router();
 
   /**
@@ -32,6 +38,15 @@ export function createAuthRoutes(): Router {
       // Get user info
       const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
+
+      // Store refresh token server-side for shared route access
+      if (tokenStore && tokens.refresh_token && userInfo.data.id) {
+        tokenStore.set(
+          userInfo.data.id,
+          tokens.refresh_token,
+          userInfo.data.email || "",
+        );
+      }
 
       res.json({
         accessToken: tokens.access_token,

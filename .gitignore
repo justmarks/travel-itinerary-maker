@@ -10,3 +10,4 @@ coverage/
 .expo/
 android/
 ios/
+.claude/settings.local.json
