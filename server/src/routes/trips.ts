@@ -13,14 +13,29 @@ import {
   type TripDay,
   type Segment,
 } from "@travel-app/shared";
-import type { StorageProvider } from "../services/storage";
+import type { StorageProvider, StorageResolver } from "../services/storage";
+import type { ShareRegistry } from "../services/share-registry";
 
-export function createTripRoutes(storage: StorageProvider): Router {
+export interface TripRoutesOptions {
+  resolveStorage: StorageResolver | StorageProvider;
+  shareRegistry?: ShareRegistry;
+}
+
+export function createTripRoutes(options: TripRoutesOptions): Router {
+  const { resolveStorage, shareRegistry } = options;
+
+  // Support both a resolver function and a direct storage instance
+  const getStorage: StorageResolver =
+    typeof resolveStorage === "function"
+      ? resolveStorage
+      : () => resolveStorage;
+
   const router = Router();
 
   // ─── Trip CRUD ───────────────────────────────────────────
 
-  router.get("/", async (_req: Request, res: Response) => {
+  router.get("/", async (req: Request, res: Response) => {
+    const storage = getStorage(req);
     const trips = await storage.listTrips();
     // Return summary list (without full day/segment data)
     const summaries = trips.map((t) => ({
@@ -38,6 +53,7 @@ export function createTripRoutes(storage: StorageProvider): Router {
   });
 
   router.post("/", async (req: Request, res: Response) => {
+    const storage = getStorage(req);
     const parsed = createTripSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues });
@@ -74,7 +90,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   });
 
   router.get("/:tripId", async (req: Request, res: Response) => {
-    const trip = await storage.getTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -83,7 +100,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   });
 
   router.put("/:tripId", async (req: Request, res: Response) => {
-    const trip = await storage.getTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -107,7 +125,15 @@ export function createTripRoutes(storage: StorageProvider): Router {
   });
 
   router.delete("/:tripId", async (req: Request, res: Response) => {
-    const deleted = await storage.deleteTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const tripId = req.params.tripId as string;
+
+    // Clean up share registry entries when a trip is deleted
+    if (shareRegistry) {
+      shareRegistry.removeByTrip(tripId);
+    }
+
+    const deleted = await storage.deleteTrip(tripId);
     if (!deleted) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -118,7 +144,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   // ─── Days ────────────────────────────────────────────────
 
   router.get("/:tripId/days", async (req: Request, res: Response) => {
-    const trip = await storage.getTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -129,7 +156,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.put(
     "/:tripId/days/:date",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -153,7 +181,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.get(
     "/:tripId/segments",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -187,7 +216,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.post(
     "/:tripId/segments",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -229,7 +259,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.put(
     "/:tripId/segments/:segId",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -263,7 +294,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.delete(
     "/:tripId/segments/:segId",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -293,7 +325,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.post(
     "/:tripId/segments/:segId/confirm",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -321,7 +354,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   // ─── Cost Summary ───────────────────────────────────────
 
   router.get("/:tripId/costs", async (req: Request, res: Response) => {
-    const trip = await storage.getTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -363,7 +397,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   // ─── TODOs ──────────────────────────────────────────────
 
   router.get("/:tripId/todos", async (req: Request, res: Response) => {
-    const trip = await storage.getTrip((req.params.tripId as string));
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
       res.status(404).json({ error: "Trip not found" });
       return;
@@ -374,7 +409,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.post(
     "/:tripId/todos",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -404,7 +440,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.put(
     "/:tripId/todos/:todoId",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -438,7 +475,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.delete(
     "/:tripId/todos/:todoId",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -462,7 +500,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.post(
     "/:tripId/share",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -487,6 +526,12 @@ export function createTripRoutes(storage: StorageProvider): Router {
       trip.shares.push(share);
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
+
+      // Register share token in the share registry for public access
+      if (shareRegistry && req.userId) {
+        shareRegistry.register(share.shareToken, trip.id, req.userId);
+      }
+
       res.status(201).json(share);
     },
   );
@@ -494,7 +539,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.get(
     "/:tripId/shares",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -506,7 +552,8 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.delete(
     "/:tripId/shares/:shareId",
     async (req: Request, res: Response) => {
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -516,6 +563,12 @@ export function createTripRoutes(storage: StorageProvider): Router {
       if (idx < 0) {
         res.status(404).json({ error: "Share not found" });
         return;
+      }
+
+      // Remove from share registry
+      const removedShare = trip.shares[idx];
+      if (shareRegistry && removedShare) {
+        shareRegistry.remove(removedShare.shareToken);
       }
 
       trip.shares.splice(idx, 1);
@@ -530,8 +583,9 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.get(
     "/:tripId/export/markdown",
     async (req: Request, res: Response) => {
+      const storage = getStorage(req);
       const { tripToMarkdown } = await import("@travel-app/shared");
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
@@ -557,8 +611,9 @@ export function createTripRoutes(storage: StorageProvider): Router {
   router.get(
     "/:tripId/export/onenote",
     async (req: Request, res: Response) => {
+      const storage = getStorage(req);
       const { tripToOneNoteHtml } = await import("@travel-app/shared");
-      const trip = await storage.getTrip((req.params.tripId as string));
+      const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;

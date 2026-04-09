@@ -1,3 +1,4 @@
+import type { Request } from "express";
 import type { Trip, UserSettings } from "@travel-app/shared";
 import type { ProcessedEmail } from "./google-drive/drive-storage";
 
@@ -15,6 +16,13 @@ export interface StorageProvider {
   getProcessedEmails(): Promise<ProcessedEmail[]>;
   saveProcessedEmails(emails: ProcessedEmail[]): Promise<void>;
 }
+
+/**
+ * Factory function that resolves a StorageProvider from a request.
+ * In development, returns a shared InMemoryStorage.
+ * In production, creates a per-user DriveStorage from the request's access token.
+ */
+export type StorageResolver = (req: Request) => StorageProvider;
 
 /**
  * In-memory storage for testing and development.

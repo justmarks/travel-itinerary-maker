@@ -7,7 +7,7 @@ let app: ReturnType<typeof createApp>;
 
 beforeEach(() => {
   storage = new InMemoryStorage();
-  app = createApp(storage);
+  app = createApp({ mode: "memory", storage });
 });
 
 describe("GET /health", () => {

@@ -1,5 +1,6 @@
 import { google, type drive_v3 } from "googleapis";
 import type { Trip, UserSettings } from "@travel-app/shared";
+import type { StorageProvider } from "../storage";
 
 const APP_FOLDER_NAME = "TravelItineraryMaker";
 const TRIPS_FOLDER_NAME = "trips";
@@ -28,7 +29,7 @@ export interface DriveStorageOptions {
  * Google Drive storage service that reads/writes trip data
  * to the user's own Google Drive in a hidden app folder.
  */
-export class DriveStorage {
+export class DriveStorage implements StorageProvider {
   private drive: drive_v3.Drive;
 
   constructor(options: DriveStorageOptions) {
