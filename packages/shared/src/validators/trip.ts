@@ -156,6 +156,18 @@ export const createSegmentSchema = z.object({
   cost: segmentCostSchema.optional(),
 });
 
+/** Schema for updating a segment (all fields optional — partial update) */
+export const updateSegmentSchema = createSegmentSchema.extend({
+  // Additional fields editable on existing segments (not needed at creation time)
+  seatNumber: z.string().optional(),
+  contactName: z.string().optional(),
+  phone: z.string().optional(),
+  breakfastIncluded: z.boolean().optional(),
+  cancellationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
+  needsReview: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+}).partial();
+
 /** Schema for creating a todo */
 export const createTodoSchema = z.object({
   text: z.string().min(1),
@@ -237,6 +249,7 @@ export const applyParsedSegmentsSchema = z.object({
 export type CreateTripInput = z.infer<typeof createTripSchema>;
 export type UpdateTripInput = z.infer<typeof updateTripSchema>;
 export type CreateSegmentInput = z.infer<typeof createSegmentSchema>;
+export type UpdateSegmentInput = z.infer<typeof updateSegmentSchema>;
 export type CreateTodoInput = z.infer<typeof createTodoSchema>;
 export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;

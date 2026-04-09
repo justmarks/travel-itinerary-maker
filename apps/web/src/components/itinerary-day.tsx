@@ -7,6 +7,7 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
+import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
   Plane,
   Train,
@@ -96,6 +97,7 @@ function SegmentRow({
   tripId?: string;
   readOnly?: boolean;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const deleteSegment = useDeleteSegment(tripId ?? "");
   const confirmSegment = useConfirmSegment(tripId ?? "");
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
@@ -265,34 +267,51 @@ function SegmentRow({
 
       {/* Actions */}
       {!readOnly && tripId && (
-        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
-          {segment.needsReview && (
+        <>
+          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
+            {segment.needsReview && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-green-600 hover:text-green-700"
+                title="Confirm"
+                onClick={() => confirmSegment.mutate(segment.id)}
+                disabled={confirmSegment.isPending}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-green-600 hover:text-green-700"
-              title="Confirm"
-              onClick={() => confirmSegment.mutate(segment.id)}
-              disabled={confirmSegment.isPending}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="Edit"
+              onClick={() => setEditOpen(true)}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
+              <Pencil className="h-3.5 w-3.5" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-            title="Delete"
-            onClick={() => {
-              if (confirm(`Delete "${segment.title}"?`)) {
-                deleteSegment.mutate(segment.id);
-              }
-            }}
-            disabled={deleteSegment.isPending}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              title="Delete"
+              onClick={() => {
+                if (confirm(`Delete "${segment.title}"?`)) {
+                  deleteSegment.mutate(segment.id);
+                }
+              }}
+              disabled={deleteSegment.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <EditSegmentDialog
+            tripId={tripId}
+            segment={segment}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+          />
+        </>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import {
   createTripSchema,
   updateTripSchema,
   createSegmentSchema,
+  updateSegmentSchema,
   createTodoSchema,
   updateTodoSchema,
   createShareSchema,
@@ -347,12 +348,16 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
-      // Apply partial updates
-      const updates = req.body;
-      for (const [key, value] of Object.entries(updates)) {
-        if (key !== "id" && key !== "source" && key !== "sourceEmailId") {
-          (found as unknown as Record<string, unknown>)[key] = value;
-        }
+      // Validate partial updates
+      const parsed = updateSegmentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      // Apply validated updates (immutable fields protected by schema — id/source/sourceEmailId not in updateSegmentSchema)
+      for (const [key, value] of Object.entries(parsed.data)) {
+        (found as unknown as Record<string, unknown>)[key] = value;
       }
 
       trip.updatedAt = new Date().toISOString();

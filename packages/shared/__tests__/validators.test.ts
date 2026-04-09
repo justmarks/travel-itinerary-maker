@@ -3,6 +3,7 @@ import {
   updateTripSchema,
   segmentSchema,
   createSegmentSchema,
+  updateSegmentSchema,
   tripDaySchema,
   todoSchema,
   createTodoSchema,
@@ -291,6 +292,44 @@ describe("createSegmentSchema", () => {
       creditCardHold: true,
       url: "https://rutz-restaurant.de",
     });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("updateSegmentSchema", () => {
+  it("accepts partial updates", () => {
+    const result = updateSegmentSchema.safeParse({ title: "Updated Title" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts empty object (no-op update)", () => {
+    const result = updateSegmentSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it("validates time format on update", () => {
+    const result = updateSegmentSchema.safeParse({ startTime: "1:35PM" });
+    expect(result.success).toBe(false);
+  });
+
+  it("allows updating cost", () => {
+    const result = updateSegmentSchema.safeParse({
+      cost: { amount: 500, currency: "EUR", details: "Suite upgrade" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("allows updating flight-specific fields", () => {
+    const result = updateSegmentSchema.safeParse({
+      seatNumber: "14A, 14B",
+      cabinClass: "Business",
+      baggageInfo: "2 checked bags included",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("allows updating needsReview", () => {
+    const result = updateSegmentSchema.safeParse({ needsReview: true });
     expect(result.success).toBe(true);
   });
 });

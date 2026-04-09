@@ -449,6 +449,60 @@ describe("Segment routes", () => {
     expect(res.body.title).toBe("New Title");
   });
 
+  it("updates multiple segment fields at once", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "flight", title: "SEA-NRT" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({
+        title: "AS 101 SEA-NRT",
+        startTime: "13:35",
+        carrier: "AS",
+        routeCode: "101",
+        cabinClass: "Premium Economy",
+        seatNumber: "12A, 12B",
+        cost: { amount: 1200, currency: "USD", details: "2 passengers" },
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("AS 101 SEA-NRT");
+    expect(res.body.startTime).toBe("13:35");
+    expect(res.body.carrier).toBe("AS");
+    expect(res.body.cabinClass).toBe("Premium Economy");
+    expect(res.body.seatNumber).toBe("12A, 12B");
+    expect(res.body.cost.amount).toBe(1200);
+  });
+
+  it("rejects segment update with invalid time format", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "hotel", title: "Hilton" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ startTime: "1:35PM" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("does not allow updating immutable fields via update endpoint", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "hotel", title: "Hotel" });
+
+    // These fields are not in updateSegmentSchema, so they'll be stripped
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ title: "Updated Hotel" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Updated Hotel");
+    // source should remain unchanged from creation
+    expect(res.body.source).toBe("manual");
+  });
+
   it("deletes a segment", async () => {
     const createRes = await request(app)
       .post(`/api/v1/trips/${tripId}/segments`)
