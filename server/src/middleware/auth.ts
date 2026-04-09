@@ -24,6 +24,7 @@ export async function requireAuth(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
+    console.error("Auth: missing or invalid header:", authHeader?.slice(0, 20) ?? "(none)");
     res.status(401).json({ error: "Missing or invalid Authorization header" });
     return;
   }
@@ -45,7 +46,8 @@ export async function requireAuth(
     req.accessToken = accessToken;
 
     next();
-  } catch {
+  } catch (err) {
+    console.error("Auth: token validation failed:", err instanceof Error ? err.message : err);
     res.status(401).json({ error: "Invalid or expired access token" });
   }
 }

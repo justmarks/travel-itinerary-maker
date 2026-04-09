@@ -9,6 +9,7 @@ import {
   generateId,
   generateDateRange,
   getDayOfWeek,
+  findOverlappingTrips,
   type Trip,
   type TripDay,
   type Segment,
@@ -35,21 +36,26 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   // ─── Trip CRUD ───────────────────────────────────────────
 
   router.get("/", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trips = await storage.listTrips();
-    // Return summary list (without full day/segment data)
-    const summaries = trips.map((t) => ({
-      id: t.id,
-      title: t.title,
-      startDate: t.startDate,
-      endDate: t.endDate,
-      status: t.status,
-      dayCount: t.days.length,
-      todoCount: t.todos.filter((td) => !td.isCompleted).length,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    }));
-    res.json(summaries);
+    try {
+      const storage = getStorage(req);
+      const trips = await storage.listTrips();
+      // Return summary list (without full day/segment data)
+      const summaries = trips.map((t) => ({
+        id: t.id,
+        title: t.title,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        status: t.status,
+        dayCount: t.days.length,
+        todoCount: t.todos.filter((td) => !td.isCompleted).length,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }));
+      res.json(summaries);
+    } catch (err) {
+      console.error("GET /trips error:", err);
+      res.status(500).json({ error: "Failed to list trips" });
+    }
   });
 
   router.post("/", async (req: Request, res: Response) => {
@@ -61,6 +67,23 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     const { title, startDate, endDate } = parsed.data;
+
+    // Check for overlapping trips
+    const existingTrips = await storage.listTrips();
+    const overlapping = findOverlappingTrips(existingTrips, { startDate, endDate });
+    if (overlapping.length > 0) {
+      res.status(409).json({
+        error: "Date range overlaps with an existing trip",
+        overlappingTrips: overlapping.map((t) => ({
+          id: t.id,
+          title: t.title,
+          startDate: t.startDate,
+          endDate: t.endDate,
+        })),
+      });
+      return;
+    }
+
     const now = new Date().toISOString();
 
     const days: TripDay[] = generateDateRange(startDate, endDate).map(
@@ -114,10 +137,57 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     const updates = parsed.data;
+
+    // Check for overlapping trips if dates are changing
+    if (updates.startDate !== undefined || updates.endDate !== undefined) {
+      const newStart = updates.startDate ?? trip.startDate;
+      const newEnd = updates.endDate ?? trip.endDate;
+      const existingTrips = await storage.listTrips();
+      const overlapping = findOverlappingTrips(
+        existingTrips,
+        { startDate: newStart, endDate: newEnd },
+        trip.id,
+      );
+      if (overlapping.length > 0) {
+        res.status(409).json({
+          error: "Date range overlaps with an existing trip",
+          overlappingTrips: overlapping.map((t) => ({
+            id: t.id,
+            title: t.title,
+            startDate: t.startDate,
+            endDate: t.endDate,
+          })),
+        });
+        return;
+      }
+    }
+
     if (updates.title !== undefined) trip.title = updates.title;
     if (updates.status !== undefined) trip.status = updates.status;
-    if (updates.startDate !== undefined) trip.startDate = updates.startDate;
-    if (updates.endDate !== undefined) trip.endDate = updates.endDate;
+
+    // When dates change, rebuild the days array while preserving existing
+    // segments for dates that remain in range.
+    if (updates.startDate !== undefined || updates.endDate !== undefined) {
+      const newStart = updates.startDate ?? trip.startDate;
+      const newEnd = updates.endDate ?? trip.endDate;
+      trip.startDate = newStart;
+      trip.endDate = newEnd;
+
+      // Index existing days by date for fast lookup
+      const existingDays = new Map(trip.days.map((d) => [d.date, d]));
+
+      trip.days = generateDateRange(newStart, newEnd).map((date) => {
+        const existing = existingDays.get(date);
+        if (existing) return existing;
+        return {
+          date,
+          dayOfWeek: getDayOfWeek(date),
+          city: "",
+          segments: [],
+        };
+      });
+    }
+
     trip.updatedAt = new Date().toISOString();
 
     await storage.saveTrip(trip);

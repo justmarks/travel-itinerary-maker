@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useTrip, useUpdateTrip, useApiClient } from "@travel-app/api-client";
+import { useTrip, useUpdateTrip, useApiClient, ApiError } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +21,7 @@ import {
   Download,
   FileText,
   BookOpen,
+  AlertCircle,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
@@ -104,6 +105,149 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     >
       <h1 className="text-2xl font-bold">{title}</h1>
       <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100" />
+    </button>
+  );
+}
+
+interface OverlapInfo {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+}
+
+function EditableDates({
+  tripId,
+  startDate,
+  endDate,
+}: {
+  tripId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [newStart, setNewStart] = useState(startDate);
+  const [newEnd, setNewEnd] = useState(endDate);
+  const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
+  const updateTrip = useUpdateTrip(tripId);
+
+  const isValid = newStart && newEnd && newStart <= newEnd;
+  const hasChanges = newStart !== startDate || newEnd !== endDate;
+
+  const save = () => {
+    if (!isValid || !hasChanges) return;
+    setOverlapError(null);
+
+    const updates: Record<string, string> = {};
+    if (newStart !== startDate) updates.startDate = newStart;
+    if (newEnd !== endDate) updates.endDate = newEnd;
+
+    updateTrip.mutate(updates, {
+      onSuccess: () => {
+        setEditing(false);
+        setOverlapError(null);
+      },
+      onError: (error) => {
+        if (error instanceof ApiError && error.status === 409) {
+          const body = error.body as { overlappingTrips?: OverlapInfo[] };
+          if (body.overlappingTrips) {
+            setOverlapError(body.overlappingTrips);
+          }
+        }
+      },
+    });
+  };
+
+  const cancel = () => {
+    setNewStart(startDate);
+    setNewEnd(endDate);
+    setOverlapError(null);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="space-y-2">
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <Input
+            type="date"
+            value={newStart}
+            onChange={(e) => {
+              setNewStart(e.target.value);
+              setOverlapError(null);
+            }}
+            className="h-8 w-36 text-sm"
+          />
+          <span className="text-sm text-muted-foreground">–</span>
+          <Input
+            type="date"
+            value={newEnd}
+            onChange={(e) => {
+              setNewEnd(e.target.value);
+              setOverlapError(null);
+            }}
+            className="h-8 w-36 text-sm"
+          />
+          <Button
+            type="submit"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            disabled={!isValid || !hasChanges || updateTrip.isPending}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={cancel}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </form>
+        {newStart && newEnd && newStart > newEnd && (
+          <p className="text-xs text-destructive">
+            End date must be on or after start date.
+          </p>
+        )}
+        {overlapError && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <div>
+              <p className="font-medium">
+                These dates overlap with:
+              </p>
+              <ul className="mt-0.5">
+                {overlapError.map((trip) => (
+                  <li key={trip.id}>
+                    {trip.title} ({formatDateRange(trip.startDate, trip.endDate)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className="group/dates flex items-center gap-1.5 text-left"
+      title="Edit dates"
+    >
+      <Calendar className="h-3.5 w-3.5" />
+      {formatDateRange(startDate, endDate)}
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/dates:opacity-100" />
     </button>
   );
 }
@@ -236,10 +380,11 @@ export default function TripDetailClient({
             </span>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5" />
-              {formatDateRange(trip.startDate, trip.endDate)}
-            </span>
+            <EditableDates
+              tripId={trip.id}
+              startDate={trip.startDate}
+              endDate={trip.endDate}
+            />
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5" />
               {trip.days.length} {trip.days.length === 1 ? "day" : "days"}

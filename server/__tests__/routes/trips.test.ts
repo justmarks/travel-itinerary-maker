@@ -57,6 +57,69 @@ describe("Trip CRUD", () => {
         });
       expect(res.status).toBe(400);
     });
+
+    it("rejects trip with overlapping dates", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "France Trip",
+          startDate: "2026-06-20",
+          endDate: "2026-07-05",
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("Date range overlaps with an existing trip");
+      expect(res.body.overlappingTrips).toHaveLength(1);
+      expect(res.body.overlappingTrips[0].title).toBe("Italy Trip");
+    });
+
+    it("allows non-overlapping trips", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-09-01",
+          endDate: "2026-09-14",
+        });
+
+      expect(res.status).toBe(201);
+    });
+
+    it("allows adjacent trips (back-to-back)", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "France Trip",
+          startDate: "2026-06-26",
+          endDate: "2026-07-05",
+        });
+
+      expect(res.status).toBe(201);
+    });
   });
 
   describe("GET /api/v1/trips", () => {
@@ -141,6 +204,107 @@ describe("Trip CRUD", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("active");
+    });
+
+    it("rejects date update that would overlap another trip", async () => {
+      const trip1 = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      const trip2 = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-09-01",
+          endDate: "2026-09-14",
+        });
+
+      // Try to extend Japan trip dates to overlap with Italy
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip2.body.id}`)
+        .send({ startDate: "2026-06-20" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.overlappingTrips).toHaveLength(1);
+      expect(res.body.overlappingTrips[0].title).toBe("Italy Trip");
+    });
+
+    it("allows updating own dates without self-overlap", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Italy Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-25",
+        });
+
+      // Extend the same trip — should not conflict with itself
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ endDate: "2026-06-30" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.endDate).toBe("2026-06-30");
+    });
+
+    it("regenerates days array when dates change", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Short Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-17",
+        });
+
+      expect(trip.body.days).toHaveLength(3);
+
+      // Extend by 2 days
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ endDate: "2026-06-19" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(5);
+      // Original days preserved
+      expect(res.body.days[0].date).toBe("2026-06-15");
+      // New days added
+      expect(res.body.days[4].date).toBe("2026-06-19");
+    });
+
+    it("preserves existing segments when dates change", async () => {
+      const trip = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Trip",
+          startDate: "2026-06-15",
+          endDate: "2026-06-18",
+        });
+
+      // Add a segment on June 16
+      await request(app)
+        .post(`/api/v1/trips/${trip.body.id}/segments`)
+        .send({
+          date: "2026-06-16",
+          type: "flight",
+          title: "SFO → FCO",
+          startTime: "10:00",
+        });
+
+      // Shrink start date (removes June 15), extend end date
+      const res = await request(app)
+        .put(`/api/v1/trips/${trip.body.id}`)
+        .send({ startDate: "2026-06-16", endDate: "2026-06-20" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.days).toHaveLength(5);
+      // June 16 segment preserved
+      const june16 = res.body.days.find((d: { date: string }) => d.date === "2026-06-16");
+      expect(june16.segments).toHaveLength(1);
+      expect(june16.segments[0].title).toBe("SFO → FCO");
     });
   });
 
