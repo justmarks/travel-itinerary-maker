@@ -22,7 +22,26 @@ function getServerSnapshot(): boolean {
 function subscribe(callback: () => void): () => void {
   // Re-check on popstate (back/forward navigation)
   window.addEventListener("popstate", callback);
-  return () => window.removeEventListener("popstate", callback);
+
+  // Next.js client-side navigation uses pushState/replaceState which don't
+  // fire popstate. Patch them so we detect ?demo=true changes immediately.
+  const origPush = history.pushState.bind(history);
+  const origReplace = history.replaceState.bind(history);
+
+  history.pushState = (...args) => {
+    origPush(...args);
+    callback();
+  };
+  history.replaceState = (...args) => {
+    origReplace(...args);
+    callback();
+  };
+
+  return () => {
+    window.removeEventListener("popstate", callback);
+    history.pushState = origPush;
+    history.replaceState = origReplace;
+  };
 }
 
 const DemoContext = createContext(false);
