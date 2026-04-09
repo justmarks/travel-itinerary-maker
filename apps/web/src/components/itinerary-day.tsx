@@ -156,12 +156,25 @@ function SegmentRow({
                 {startTime && <span>Check-in {startTime}</span>}
                 {startTime && endTime && <span className="mx-1">·</span>}
                 {endTime && <span>Check-out {endTime}</span>}
+                {segment.endDate && (
+                  <>
+                    <span className="mx-1">·</span>
+                    <span>Out {fmtDate(segment.endDate)}</span>
+                  </>
+                )}
               </>
             ) : isCarRental ? (
               <span>{startTime || endTime}</span>
             ) : (
               <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
             )}
+          </div>
+        )}
+        {/* Hotel checkout date (when no times shown) */}
+        {isHotel && !startTime && !endTime && segment.endDate && (
+          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>Check-out {fmtDate(segment.endDate)}</span>
           </div>
         )}
 

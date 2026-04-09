@@ -85,6 +85,7 @@ const SAMPLE_TRIPS: Trip[] = [
             city: "Tokyo",
             startTime: "16:00",
             endTime: "11:00",
+            endDate: "2025-11-18",
             breakfastIncluded: false,
             confirmationCode: "SGBH-44821",
             cost: { amount: 180, currency: "USD", details: "Superior Twin × 4 nights" },

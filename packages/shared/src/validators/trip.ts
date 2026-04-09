@@ -65,6 +65,7 @@ export const segmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
   cost: segmentCostSchema.optional(),
@@ -151,18 +152,19 @@ export const createSegmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
+  seatNumber: z.string().optional(),
+  contactName: z.string().optional(),
+  phone: z.string().optional(),
+  breakfastIncluded: z.boolean().optional(),
   cost: segmentCostSchema.optional(),
 });
 
 /** Schema for updating a segment (all fields optional — partial update) */
 export const updateSegmentSchema = createSegmentSchema.extend({
-  // Additional fields editable on existing segments (not needed at creation time)
-  seatNumber: z.string().optional(),
-  contactName: z.string().optional(),
-  phone: z.string().optional(),
-  breakfastIncluded: z.boolean().optional(),
+  // Additional fields editable on existing segments (not at creation)
   cancellationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
   needsReview: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
@@ -218,6 +220,7 @@ export const parsedSegmentSchema = z.object({
   creditCardHold: z.boolean().optional(),
   cancellationDeadline: z.string().regex(isoDateRegex).optional(),
   phone: z.string().optional(),
+  endDate: z.string().regex(isoDateRegex).optional(),
   breakfastIncluded: z.boolean().optional(),
   seatNumber: z.string().optional(),
   cabinClass: z.string().optional(),

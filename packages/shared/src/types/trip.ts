@@ -53,6 +53,7 @@ export interface Segment {
   cancellationDeadline?: string; // ISO date "YYYY-MM-DD" — when CC hold must be cancelled by
   phone?: string;
   // Hotel-specific
+  endDate?: string; // Check-out date for hotels (YYYY-MM-DD)
   breakfastIncluded?: boolean;
   // Flight-specific
   seatNumber?: string; // e.g. "14A, 14B"
@@ -151,6 +152,7 @@ export interface ParsedSegment {
   creditCardHold?: boolean;
   cancellationDeadline?: string;
   phone?: string;
+  endDate?: string;
   breakfastIncluded?: boolean;
   seatNumber?: string;
   cabinClass?: string;

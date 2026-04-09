@@ -29,10 +29,11 @@ Each item in the array must be a JSON object with these fields:
 - "cabinClass": class of service for flights (e.g. "Economy", "Premium Economy", "Business", "First", "Main Cabin", "Comfort+"). Extract exactly as stated in the email.
 - "baggageInfo": checked baggage policy for flights (e.g. "1 checked bag included", "2 checked bags included", "No checked bags included - $35/bag", "1 free checked bag per passenger"). Extract if mentioned in the email.
 - "partySize": total number of travelers/guests
+- "endDate": check-out date for hotels in YYYY-MM-DD format (if available). This is the departure/check-out date, NOT the check-in date.
 - "breakfastIncluded": boolean (for hotels, if mentioned)
 - "phone": contact phone number (if available)
 - "url": booking URL (if available)
-- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). The "amount" MUST be a plain number with no currency symbol (e.g. 547.20, NOT "$547.20"). The "currency" must be a string like "USD", "EUR", etc. Include all cost details like parking fees, extras, vehicle class, etc. in the "details" string. ALWAYS extract flight prices, hotel prices, car rental prices, and any other costs mentioned in the email.
+- "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). The "amount" MUST be a plain number with no currency symbol (e.g. 547.20, NOT "$547.20"). The "currency" must be a string like "USD", "EUR", etc. ALWAYS extract flight prices, hotel prices, car rental prices, and any other costs mentioned in the email.
 - "confidence": "high" if clearly a confirmed booking, "medium" if likely a booking, "low" if uncertain
 
 IMPORTANT RULES:
@@ -40,7 +41,7 @@ IMPORTANT RULES:
 - **CAR RENTALS**: Return TWO separate segments — one for PICKUP and one for DROPOFF:
   - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only.
   - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment.
-- **HOTELS**: Include room type in the cost details (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View"). Include any extras mentioned (parking, breakfast, resort fees) in the cost details as well.
+- **HOTELS**: The cost "amount" should be the ROOM RATE only (nightly or total room charge), NOT including fees like parking, resort fees, or taxes. Put the room type (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View") and any fees/extras (parking, resort fee, breakfast) in the "details" string so the user can see them separately.
 - **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).
 - **AIRLINE EMAILS**: Be sure to parse emails from ALL airlines including Hawaiian Airlines, Alaska Airlines, Delta, United, American, Southwest, JetBlue, Spirit, Frontier, and international carriers. Itinerary changes, schedule changes, and booking confirmations are all travel-related. Look for flight numbers, dates, times, and routes even if the email format is unusual.
 - Only include fields that are actually present in the email. Do not guess or fabricate data.

@@ -328,6 +328,7 @@ export function EmailScanDialog({
         partySize: s.partySize,
         creditCardHold: s.creditCardHold,
         phone: s.phone,
+        endDate: s.endDate,
         breakfastIncluded: s.breakfastIncluded,
         seatNumber: s.seatNumber,
         cabinClass: s.cabinClass,

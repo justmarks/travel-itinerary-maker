@@ -64,7 +64,7 @@ function mergeSegments(
   const fillFields = [
     "city", "venueName", "address", "confirmationCode", "provider",
     "carrier", "routeCode", "departureCity", "arrivalCity", "phone",
-    "url", "startTime", "endTime", "breakfastIncluded", "cabinClass", "baggageInfo",
+    "url", "startTime", "endTime", "endDate", "breakfastIncluded", "cabinClass", "baggageInfo",
   ] as const;
   for (const field of fillFields) {
     if (!merged[field] && b[field] !== undefined) {
@@ -528,6 +528,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             baggageInfo: seg.baggageInfo,
             contactName: seg.contactName,
             phone: seg.phone,
+            endDate: seg.endDate,
             breakfastIncluded: seg.breakfastIncluded,
             cost: seg.cost,
             source: "email_auto",
