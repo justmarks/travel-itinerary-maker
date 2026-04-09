@@ -1,31 +1,43 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
-import { Plane } from "lucide-react";
+import { Plane, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const isDemo = useDemoMode();
   const { isAuthenticated, isLoading, login } = useAuth();
   const router = useRouter();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const googleLogin = useGoogleLogin({
     flow: "auth-code",
     onSuccess: async (response) => {
+      setLoginError(null);
       try {
         await login(response.code);
         router.replace("/");
       } catch (err) {
         console.error("Login failed:", err);
+        if (err instanceof TypeError && err.message === "Failed to fetch") {
+          setLoginError(
+            "Unable to reach the API server. Sign-in requires a running backend — try demo mode instead, or run the server locally.",
+          );
+        } else {
+          setLoginError(
+            err instanceof Error ? err.message : "Login failed. Please try again.",
+          );
+        }
       }
     },
     onError: (error) => {
       console.error("Google login error:", error);
+      setLoginError("Google sign-in was cancelled or failed. Please try again.");
     },
     scope: "openid email profile https://www.googleapis.com/auth/drive.file",
   });
@@ -59,10 +71,19 @@ export default function LoginPage() {
             Sign in to manage your travel itineraries
           </p>
         </div>
+        {loginError && (
+          <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-left text-sm text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{loginError}</span>
+          </div>
+        )}
         <Button
           size="lg"
           className="w-full"
-          onClick={() => googleLogin()}
+          onClick={() => {
+            setLoginError(null);
+            googleLogin();
+          }}
         >
           <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
             <path

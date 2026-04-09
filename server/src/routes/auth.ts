@@ -21,7 +21,9 @@ export function createAuthRoutes(): Router {
       const oauth2Client = new google.auth.OAuth2(
         config.google.clientId,
         config.google.clientSecret,
-        config.google.redirectUri,
+        // The frontend uses @react-oauth/google popup flow, which sets
+        // redirect_uri to "postmessage". The token exchange must match.
+        "postmessage",
       );
 
       const { tokens } = await oauth2Client.getToken(code);

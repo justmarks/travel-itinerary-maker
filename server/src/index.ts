@@ -1,3 +1,9 @@
+import dotenv from "dotenv";
+import path from "path";
+
+// Load .env from monorepo root (one level up from server/)
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 import { createApp } from "./app";
 import { InMemoryStorage } from "./services/storage";
 import { config } from "./config/env";
