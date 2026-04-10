@@ -199,6 +199,27 @@ export const userSettingsSchema = z.object({
   notificationsEnabled: z.boolean(),
 });
 
+export const SEGMENT_MATCH_STATUSES = [
+  "new",
+  "duplicate",
+  "enrichment",
+  "conflict",
+] as const;
+
+export const segmentFieldDiffSchema = z.object({
+  field: z.string().min(1),
+  existing: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  parsed: z.union([z.string(), z.number(), z.boolean()]).optional(),
+});
+
+export const segmentMatchSchema = z.object({
+  status: z.enum(SEGMENT_MATCH_STATUSES),
+  existingSegmentId: z.string().optional(),
+  existingTripId: z.string().optional(),
+  newFields: z.array(z.string()).optional(),
+  conflictFields: z.array(segmentFieldDiffSchema).optional(),
+});
+
 /** Schema for a segment parsed from email by Claude AI */
 export const parsedSegmentSchema = z.object({
   type: z.enum(SEGMENT_TYPES),
@@ -229,6 +250,7 @@ export const parsedSegmentSchema = z.object({
   cost: segmentCostSchema.optional(),
   confidence: z.enum(["high", "medium", "low"]),
   suggestedTripId: z.string().optional(),
+  match: segmentMatchSchema.optional(),
 });
 
 /** Schema for triggering an email scan */
@@ -239,12 +261,19 @@ export const emailScanRequestSchema = z.object({
   newerThanDays: z.number().int().min(1).max(730).optional(),
 });
 
+export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;
+export type ApplyAction = (typeof APPLY_ACTIONS)[number];
+
 /** Schema for applying parsed segments to trips */
 export const applyParsedSegmentsSchema = z.object({
   segments: z.array(
     parsedSegmentSchema.extend({
       tripId: z.string().min(1),
       emailId: z.string().min(1),
+      /** How to apply: create new (default), merge into existing, or replace existing */
+      action: z.enum(APPLY_ACTIONS).optional(),
+      /** Required when action is merge or replace */
+      existingSegmentId: z.string().optional(),
     }),
   ).min(1),
 });

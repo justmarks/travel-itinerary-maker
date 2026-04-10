@@ -6,6 +6,10 @@ import {
   isDateInRange,
   type EmailScanResult,
   type ParsedSegment,
+  type Segment,
+  type SegmentMatch,
+  type SegmentFieldDiff,
+  type Trip,
 } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ProcessedEmail } from "../services/google-drive/drive-storage";
@@ -95,6 +99,282 @@ function mergeSegments(
   }
 
   return merged;
+}
+
+/** Normalize a string for fuzzy comparison: lowercase, alnum only */
+function normStr(s: string | undefined): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * Fields compared between a parsed segment and an existing itinerary segment.
+ * Keys with meaningful values on either side drive the enrichment/conflict logic.
+ */
+const COMPARABLE_FIELDS = [
+  "title",
+  "startTime",
+  "endTime",
+  "venueName",
+  "address",
+  "city",
+  "url",
+  "confirmationCode",
+  "provider",
+  "departureCity",
+  "arrivalCity",
+  "carrier",
+  "routeCode",
+  "partySize",
+  "creditCardHold",
+  "phone",
+  "endDate",
+  "breakfastIncluded",
+  "seatNumber",
+  "cabinClass",
+  "baggageInfo",
+  "contactName",
+] as const;
+
+type ComparableField = (typeof COMPARABLE_FIELDS)[number];
+
+/** Decide if two field values should be considered "the same". */
+function fieldValuesEqual(
+  field: ComparableField,
+  a: unknown,
+  b: unknown,
+): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  // Strings: loose match (whitespace/case/punct insensitive)
+  if (typeof a === "string" && typeof b === "string") {
+    if (field === "startTime" || field === "endTime") {
+      // Compare HH:MM portion only, regardless of seconds
+      return a.slice(0, 5) === b.slice(0, 5);
+    }
+    return normStr(a) === normStr(b);
+  }
+  return false;
+}
+
+/** Does this existing segment look like the same booking as the parsed one? */
+function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate: string): boolean {
+  // Must be same type
+  if (existing.type !== parsed.type) return false;
+
+  // Confirmation code match is strongest signal, regardless of date/title.
+  if (
+    parsed.confirmationCode &&
+    existing.confirmationCode &&
+    normStr(parsed.confirmationCode) === normStr(existing.confirmationCode)
+  ) {
+    return true;
+  }
+
+  // Flights: same date + same route code, OR same date + same departure/arrival.
+  if (parsed.type === "flight") {
+    if (existingDate !== parsed.date) return false;
+    if (
+      parsed.routeCode &&
+      existing.routeCode &&
+      normStr(parsed.routeCode) === normStr(existing.routeCode)
+    ) {
+      return true;
+    }
+    if (
+      parsed.departureCity &&
+      parsed.arrivalCity &&
+      existing.departureCity &&
+      existing.arrivalCity &&
+      normStr(parsed.departureCity) === normStr(existing.departureCity) &&
+      normStr(parsed.arrivalCity) === normStr(existing.arrivalCity)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  // Hotels: match by venueName (fuzzy). Date may differ because parsed uses
+  // check-in and existing could be stored on any of the nights.
+  if (parsed.type === "hotel") {
+    if (!parsed.venueName || !existing.venueName) return false;
+    return normStr(parsed.venueName) === normStr(existing.venueName);
+  }
+
+  // Car rentals: match by provider + date (pickup OR dropoff day).
+  if (parsed.type === "car_rental") {
+    if (existingDate !== parsed.date) return false;
+    if (
+      parsed.provider &&
+      existing.provider &&
+      normStr(parsed.provider) === normStr(existing.provider)
+    ) {
+      return true;
+    }
+    // Fallback: same title (e.g. "National - Lihue")
+    return normStr(parsed.title) === normStr(existing.title);
+  }
+
+  // Restaurants / activities / tours: same date + fuzzy venue or title.
+  if (existingDate !== parsed.date) return false;
+  if (
+    parsed.venueName &&
+    existing.venueName &&
+    normStr(parsed.venueName) === normStr(existing.venueName)
+  ) {
+    return true;
+  }
+  return normStr(parsed.title) === normStr(existing.title);
+}
+
+/**
+ * Match a parsed segment against the existing segments in a trip.
+ * Returns a classification (new/duplicate/enrichment/conflict) + diffs.
+ */
+function matchParsedAgainstTrip(
+  parsed: ParsedSegment,
+  trip: Trip,
+): SegmentMatch {
+  for (const day of trip.days) {
+    for (const existing of day.segments) {
+      if (!isCandidateMatch(existing, parsed, day.date)) continue;
+
+      const newFields: string[] = [];
+      const conflictFields: SegmentFieldDiff[] = [];
+
+      for (const field of COMPARABLE_FIELDS) {
+        const pVal = (parsed as unknown as Record<string, unknown>)[field];
+        const eVal = (existing as unknown as Record<string, unknown>)[field];
+        const pEmpty = pVal === undefined || pVal === null || pVal === "";
+        const eEmpty = eVal === undefined || eVal === null || eVal === "";
+
+        if (pEmpty) continue;
+        if (eEmpty) {
+          newFields.push(field);
+          continue;
+        }
+        if (!fieldValuesEqual(field, pVal, eVal)) {
+          conflictFields.push({
+            field,
+            existing: eVal as string | number | boolean,
+            parsed: pVal as string | number | boolean,
+          });
+        }
+      }
+
+      // Compare cost amount separately (nested)
+      if (parsed.cost && !existing.cost) {
+        newFields.push("cost");
+      } else if (parsed.cost && existing.cost) {
+        if (
+          parsed.cost.currency !== existing.cost.currency ||
+          Math.abs(parsed.cost.amount - existing.cost.amount) > 0.01
+        ) {
+          conflictFields.push({
+            field: "cost",
+            existing: `${existing.cost.currency} ${existing.cost.amount}`,
+            parsed: `${parsed.cost.currency} ${parsed.cost.amount}`,
+          });
+        }
+      }
+
+      // Compare parsed.date vs existing day.date for non-flight types (flights
+      // already require same date in the candidate check).
+      if (parsed.type !== "flight" && parsed.date !== day.date) {
+        conflictFields.push({
+          field: "date",
+          existing: day.date,
+          parsed: parsed.date,
+        });
+      }
+
+      let status: SegmentMatch["status"];
+      if (conflictFields.length > 0) {
+        status = "conflict";
+      } else if (newFields.length > 0) {
+        status = "enrichment";
+      } else {
+        status = "duplicate";
+      }
+
+      return {
+        status,
+        existingSegmentId: existing.id,
+        existingTripId: trip.id,
+        newFields: newFields.length ? newFields : undefined,
+        conflictFields: conflictFields.length ? conflictFields : undefined,
+      };
+    }
+  }
+
+  return { status: "new" };
+}
+
+/** Locate a segment by id within a trip. */
+function findSegmentById(
+  trip: Trip,
+  segmentId: string,
+): { segment: Segment; day: Trip["days"][number] } | null {
+  for (const day of trip.days) {
+    const segment = day.segments.find((s) => s.id === segmentId);
+    if (segment) return { segment, day };
+  }
+  return null;
+}
+
+/**
+ * Copy fields from a parsed segment onto an existing segment.
+ * - overwrite=false (merge): only fill fields that are empty on the existing segment.
+ * - overwrite=true  (replace): overwrite every field that is set on the parsed segment.
+ * Never touches id/source/sortOrder/sourceEmailId.
+ */
+function applySegmentFields(
+  target: Segment,
+  parsed: ParsedSegment,
+  { overwrite }: { overwrite: boolean },
+): void {
+  const copyable = [
+    "title",
+    "startTime",
+    "endTime",
+    "venueName",
+    "address",
+    "city",
+    "url",
+    "confirmationCode",
+    "provider",
+    "departureCity",
+    "arrivalCity",
+    "carrier",
+    "routeCode",
+    "partySize",
+    "creditCardHold",
+    "phone",
+    "endDate",
+    "breakfastIncluded",
+    "seatNumber",
+    "cabinClass",
+    "baggageInfo",
+    "contactName",
+  ] as const;
+
+  const existing = target as unknown as Record<string, unknown>;
+  const incoming = parsed as unknown as Record<string, unknown>;
+
+  for (const field of copyable) {
+    const pVal = incoming[field];
+    if (pVal === undefined || pVal === null || pVal === "") continue;
+    const eVal = existing[field];
+    const eEmpty = eVal === undefined || eVal === null || eVal === "";
+    if (overwrite || eEmpty) {
+      existing[field] = pVal;
+    }
+  }
+
+  if (parsed.cost) {
+    if (overwrite || !target.cost) {
+      target.cost = { ...parsed.cost };
+    }
+  }
 }
 
 /**
@@ -222,16 +502,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
 
       // Reconstruct EmailScanResult from stored data, re-matching trip suggestions
+      // and re-classifying against current itinerary state.
       const results: EmailScanResult[] = pendingEmails.map((pe) => {
         const stored = pe.rawParseResult as EmailScanResult;
-        // Re-run trip matching with current trips (user may have created new trips)
         const rematchedSegments = stored.parsedSegments.map((seg) => {
           const matchingTrip = trips.find((t) =>
             isDateInRange(seg.date, t.startDate, t.endDate),
           );
-          return matchingTrip
-            ? { ...seg, suggestedTripId: matchingTrip.id }
-            : { ...seg, suggestedTripId: undefined };
+          if (!matchingTrip) {
+            return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
+          }
+          const match = matchParsedAgainstTrip(seg, matchingTrip);
+          return { ...seg, suggestedTripId: matchingTrip.id, match };
         });
         return { ...stored, parsedSegments: rematchedSegments };
       });
@@ -269,19 +551,21 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const trips = await storage.listTrips();
 
       // Collect pending results (parsed but not applied/dismissed)
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
       const pendingResults: EmailScanResult[] = [];
       for (const pe of processedEmails) {
         if (pe.parseStatus === "parsed" && pe.rawParseResult) {
           const stored = pe.rawParseResult as EmailScanResult;
-          // Re-match trip suggestions with current trips
+          // Re-match trip suggestions + re-classify against current itinerary
           const rematchedSegments = stored.parsedSegments.map((seg) => {
-            if (tripId) return { ...seg, suggestedTripId: tripId };
-            const matchingTrip = trips.find((t) =>
-              isDateInRange(seg.date, t.startDate, t.endDate),
-            );
-            return matchingTrip
-              ? { ...seg, suggestedTripId: matchingTrip.id }
-              : { ...seg, suggestedTripId: undefined };
+            const matchingTrip = tripId
+              ? tripsById.get(tripId)
+              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            if (!matchingTrip) {
+              return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
           });
           pendingResults.push({ ...stored, parsedSegments: rematchedSegments });
         }
@@ -332,15 +616,16 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           });
           console.log(`  → ${segments.length} segments extracted`);
 
-          // Auto-match segments to trips by date
+          // Auto-match segments to trips by date, then classify against itinerary
           const matchedSegments = segments.map((seg) => {
-            if (tripId) return { ...seg, suggestedTripId: tripId };
-            const matchingTrip = trips.find((t) =>
-              isDateInRange(seg.date, t.startDate, t.endDate),
-            );
-            return matchingTrip
-              ? { ...seg, suggestedTripId: matchingTrip.id }
-              : seg;
+            const matchingTrip = tripId
+              ? tripsById.get(tripId)
+              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            if (!matchingTrip) {
+              return { ...seg, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
           });
 
           const hasTravel = segments.length > 0;
@@ -467,6 +752,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   /**
    * POST /emails/apply
    * Apply selected parsed segments to trips.
+   * Each segment may specify action=create|merge|replace + existingSegmentId.
    */
   router.post("/apply", async (req: Request, res: Response) => {
     try {
@@ -478,6 +764,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       const storage = getStorage(req);
       const createdSegments: Array<{ tripId: string; segmentId: string; title: string }> = [];
+      const updatedSegments: Array<{ tripId: string; segmentId: string; title: string; action: "merge" | "replace" }> = [];
 
       console.log(`Applying ${parsed.data.segments.length} segments from email scan`);
 
@@ -495,9 +782,36 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           console.warn(`  Trip ${tid} not found, skipping ${segs.length} segments`);
           continue;
         }
-        console.log(`  Trip "${trip.title}" (${tid}): adding ${segs.length} segments`);
+        console.log(`  Trip "${trip.title}" (${tid}): applying ${segs.length} segments`);
 
         for (const seg of segs) {
+          const action = seg.action ?? "create";
+
+          // Merge / replace onto an existing segment
+          if ((action === "merge" || action === "replace") && seg.existingSegmentId) {
+            const target = findSegmentById(trip, seg.existingSegmentId);
+            if (!target) {
+              console.warn(`    Existing segment ${seg.existingSegmentId} not found — falling back to create`);
+            } else {
+              if (action === "replace") {
+                applySegmentFields(target.segment, seg, { overwrite: true });
+              } else {
+                applySegmentFields(target.segment, seg, { overwrite: false });
+              }
+              target.segment.sourceEmailId ??= seg.emailId;
+              target.segment.needsReview = true;
+              updatedSegments.push({
+                tripId: tid,
+                segmentId: target.segment.id,
+                title: target.segment.title,
+                action,
+              });
+              console.log(`    ${action === "merge" ? "~" : "↻"} [${seg.type}] "${target.segment.title}" ← ${seg.emailId}`);
+              continue;
+            }
+          }
+
+          // Create new segment
           const day = trip.days.find((d) => d.date === seg.date);
           if (!day) {
             console.warn(`    No day ${seg.date} in trip, skipping "${seg.title}"`);
@@ -588,8 +902,10 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
-      console.log(`Apply complete: ${createdSegments.length} segments created`);
-      res.status(201).json({ created: createdSegments });
+      console.log(
+        `Apply complete: ${createdSegments.length} created, ${updatedSegments.length} updated`,
+      );
+      res.status(201).json({ created: createdSegments, updated: updatedSegments });
     } catch (err) {
       console.error("POST /emails/apply error:", err);
       res.status(500).json({ error: "Failed to apply segments" });

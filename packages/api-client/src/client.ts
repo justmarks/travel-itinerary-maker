@@ -279,7 +279,10 @@ export class ApiClient {
 
   applyParsedSegments(
     input: ApplyParsedSegmentsInput,
-  ): Promise<{ created: Array<{ tripId: string; segmentId: string; title: string }> }> {
+  ): Promise<{
+    created: Array<{ tripId: string; segmentId: string; title: string }>;
+    updated?: Array<{ tripId: string; segmentId: string; title: string; action: "merge" | "replace" }>;
+  }> {
     return this.request("/emails/apply", {
       method: "POST",
       body: JSON.stringify(input),

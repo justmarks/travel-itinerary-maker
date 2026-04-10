@@ -384,6 +384,219 @@ describe("Email Routes", () => {
     });
   });
 
+  describe("scan-vs-itinerary matching", () => {
+    async function createJapanTrip() {
+      const res = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-06-25",
+          endDate: "2026-07-05",
+        });
+      return res.body.id as string;
+    }
+
+    async function addSegment(
+      tripId: string,
+      date: string,
+      body: Record<string, unknown>,
+    ) {
+      const res = await request(app)
+        .post(`/api/v1/trips/${tripId}/segments`)
+        .send({ date, ...body });
+      return res.body;
+    }
+
+    it("classifies an already-present segment as 'duplicate'", async () => {
+      const tripId = await createJapanTrip();
+      // Pre-add the exact flight that will be scanned
+      await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "SEA → NRT",
+        startTime: "10:30",
+        carrier: "AS",
+        routeCode: "AS123",
+        departureCity: "Seattle",
+        arrivalCity: "Tokyo",
+        seatNumber: "14A",
+        confirmationCode: "ABCDEF",
+      });
+
+      const res = await request(app).post("/api/v1/emails/scan").send({});
+      const flight = res.body.results[0].parsedSegments[0];
+      expect(flight.match?.status).toBe("duplicate");
+      expect(flight.match?.existingSegmentId).toBeDefined();
+    });
+
+    it("classifies a partially-matching segment as 'enrichment' with newFields", async () => {
+      const tripId = await createJapanTrip();
+      // Pre-add flight WITHOUT seat/carrier — scan should enrich with those
+      await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "SEA → NRT",
+        routeCode: "AS123",
+        departureCity: "Seattle",
+        arrivalCity: "Tokyo",
+      });
+
+      const res = await request(app).post("/api/v1/emails/scan").send({});
+      const flight = res.body.results[0].parsedSegments[0];
+      expect(flight.match?.status).toBe("enrichment");
+      expect(flight.match?.newFields).toEqual(
+        expect.arrayContaining(["startTime", "carrier", "seatNumber", "confirmationCode"]),
+      );
+    });
+
+    it("classifies a segment with differing field values as 'conflict'", async () => {
+      const tripId = await createJapanTrip();
+      // Existing flight has different departure time
+      await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "SEA → NRT",
+        startTime: "08:00",
+        routeCode: "AS123",
+        departureCity: "Seattle",
+        arrivalCity: "Tokyo",
+      });
+
+      const res = await request(app).post("/api/v1/emails/scan").send({});
+      const flight = res.body.results[0].parsedSegments[0];
+      expect(flight.match?.status).toBe("conflict");
+      const startTimeDiff = flight.match?.conflictFields?.find(
+        (d: { field: string }) => d.field === "startTime",
+      );
+      expect(startTimeDiff).toBeDefined();
+      expect(startTimeDiff.existing).toBe("08:00");
+      expect(startTimeDiff.parsed).toBe("10:30");
+    });
+
+    it("classifies an unrelated segment as 'new'", async () => {
+      const tripId = await createJapanTrip();
+      // Add an unrelated hotel; flight scan should be "new"
+      await addSegment(tripId, "2026-06-26", {
+        type: "hotel",
+        title: "Andaz Tokyo",
+        venueName: "Andaz Tokyo",
+      });
+
+      const res = await request(app).post("/api/v1/emails/scan").send({});
+      const flight = res.body.results[0].parsedSegments[0];
+      expect(flight.match?.status).toBe("new");
+      expect(flight.match?.existingSegmentId).toBeUndefined();
+    });
+
+    it("merge action fills empty fields on existing segment without overwriting", async () => {
+      const tripId = await createJapanTrip();
+      const existing = await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "SEA → NRT",
+        startTime: "10:30",
+        routeCode: "AS123",
+        departureCity: "Seattle",
+        arrivalCity: "Tokyo",
+      });
+
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → NRT changed",
+              date: "2026-06-26",
+              startTime: "10:30",
+              carrier: "AS",
+              routeCode: "AS123",
+              seatNumber: "14A",
+              confirmationCode: "ABCDEF",
+              confidence: "high",
+              tripId,
+              emailId: "msg-001",
+              action: "merge",
+              existingSegmentId: existing.id,
+            },
+          ],
+        });
+
+      const tripRes = await request(app).get(`/api/v1/trips/${tripId}`);
+      const day = tripRes.body.days.find((d: { date: string }) => d.date === "2026-06-26");
+      expect(day.segments).toHaveLength(1);
+      const seg = day.segments[0];
+      // Empty fields filled in
+      expect(seg.carrier).toBe("AS");
+      expect(seg.seatNumber).toBe("14A");
+      expect(seg.confirmationCode).toBe("ABCDEF");
+      // Existing non-empty fields preserved
+      expect(seg.title).toBe("SEA → NRT");
+    });
+
+    it("replace action overwrites existing field values", async () => {
+      const tripId = await createJapanTrip();
+      const existing = await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "SEA → NRT (old)",
+        startTime: "08:00",
+        routeCode: "AS123",
+      });
+
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → NRT",
+              date: "2026-06-26",
+              startTime: "10:30",
+              routeCode: "AS123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-001",
+              action: "replace",
+              existingSegmentId: existing.id,
+            },
+          ],
+        });
+
+      const tripRes = await request(app).get(`/api/v1/trips/${tripId}`);
+      const day = tripRes.body.days.find((d: { date: string }) => d.date === "2026-06-26");
+      expect(day.segments).toHaveLength(1);
+      expect(day.segments[0].title).toBe("SEA → NRT");
+      expect(day.segments[0].startTime).toBe("10:30");
+    });
+
+    it("create action still adds a new segment even when existingSegmentId is present", async () => {
+      const tripId = await createJapanTrip();
+      const existing = await addSegment(tripId, "2026-06-26", {
+        type: "flight",
+        title: "Existing flight",
+        routeCode: "AS123",
+      });
+
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "Second flight",
+              date: "2026-06-26",
+              routeCode: "AS123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-001",
+              action: "create",
+              existingSegmentId: existing.id, // should be ignored
+            },
+          ],
+        });
+
+      const tripRes = await request(app).get(`/api/v1/trips/${tripId}`);
+      const day = tripRes.body.days.find((d: { date: string }) => d.date === "2026-06-26");
+      expect(day.segments).toHaveLength(2);
+    });
+  });
+
   describe("POST /api/v1/emails/dismiss/:emailId", () => {
     it("marks email as skipped", async () => {
       const res = await request(app)

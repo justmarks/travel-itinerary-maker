@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import type { EmailScanResult, ParsedSegment, GmailLabel } from "@travel-app/shared";
+import type {
+  EmailScanResult,
+  ParsedSegment,
+  GmailLabel,
+  SegmentMatchStatus,
+  ApplyAction,
+} from "@travel-app/shared";
 import {
   useScanEmails,
   useApplyParsedSegments,
@@ -55,10 +61,41 @@ const CONFIDENCE_STYLES: Record<string, string> = {
   low: "border-red-300 bg-red-50 text-red-700",
 };
 
+const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
+  new: "border-blue-300 bg-blue-50 text-blue-700",
+  enrichment: "border-violet-300 bg-violet-50 text-violet-700",
+  conflict: "border-orange-300 bg-orange-50 text-orange-700",
+  duplicate: "border-zinc-300 bg-zinc-100 text-zinc-600",
+};
+
+const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
+  new: "New",
+  enrichment: "Adds details",
+  conflict: "Conflict",
+  duplicate: "Already in trip",
+};
+
+/** Default action to propose when loading a scan result for the user. */
+function defaultActionFor(status: SegmentMatchStatus): ApplyAction {
+  switch (status) {
+    case "enrichment":
+      return "merge";
+    case "conflict":
+      return "merge"; // safer default — user can switch to replace or create
+    case "duplicate":
+      return "create"; // irrelevant, deselected by default
+    case "new":
+    default:
+      return "create";
+  }
+}
+
 interface SegmentSelection extends ParsedSegment {
   emailId: string;
   selected: boolean;
   assignedTripId: string;
+  action: ApplyAction;
+  existingSegmentId?: string;
 }
 
 type ScanStep = "loading" | "config" | "scanning" | "results" | "applying" | "done" | "error";
@@ -134,11 +171,17 @@ export function EmailScanDialog({
       const sels: SegmentSelection[] = [];
       for (const result of scanResults) {
         for (const seg of result.parsedSegments) {
+          const matchStatus: SegmentMatchStatus = seg.match?.status ?? "new";
+          // Default selection: skip duplicates + low-confidence. User can opt in.
+          const defaultSelected =
+            matchStatus !== "duplicate" && seg.confidence !== "low";
           sels.push({
             ...seg,
             emailId: result.emailId,
-            selected: seg.confidence !== "low",
+            selected: defaultSelected,
             assignedTripId: seg.suggestedTripId || tripId || "",
+            action: defaultActionFor(matchStatus),
+            existingSegmentId: seg.match?.existingSegmentId,
           });
         }
       }
@@ -267,6 +310,12 @@ export function EmailScanDialog({
     );
   };
 
+  const setActionForSegment = (index: number, action: ApplyAction) => {
+    setSelections((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, action } : s)),
+    );
+  };
+
   /** Create a new trip and auto-assign all unassigned segments within its date range */
   const handleCreateTrip = async () => {
     if (!newTripTitle || !newTripStart || !newTripEnd) return;
@@ -338,10 +387,15 @@ export function EmailScanDialog({
         confidence: s.confidence,
         tripId: s.assignedTripId,
         emailId: s.emailId,
+        action: s.action,
+        existingSegmentId:
+          s.action === "merge" || s.action === "replace"
+            ? s.existingSegmentId
+            : undefined,
       }));
 
       const res = await applySegments.mutateAsync({ segments: resolvedSegments });
-      setAppliedCount(res.created.length);
+      setAppliedCount(res.created.length + (res.updated?.length ?? 0));
 
       // Dismiss emails that had segments but none were selected
       const appliedEmailIds = new Set(toApply.map((s) => s.emailId));
@@ -387,6 +441,16 @@ export function EmailScanDialog({
   // Split selections into main (medium/high) and low-confidence
   const mainSelections = selections.filter((s) => s.confidence !== "low");
   const lowSelections = selections.filter((s) => s.confidence === "low");
+
+  // Counts by match status (for summary bar)
+  const matchCounts = selections.reduce(
+    (acc, s) => {
+      const status: SegmentMatchStatus = s.match?.status ?? "new";
+      acc[status] = (acc[status] ?? 0) + 1;
+      return acc;
+    },
+    {} as Record<SegmentMatchStatus, number>,
+  );
 
   return (
     <Dialog
@@ -519,22 +583,34 @@ export function EmailScanDialog({
               <>
                 {/* Summary bar */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  {travelResults.length > 0 && (
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      {travelResults.length} with travel
+                  {matchCounts.new > 0 && (
+                    <span className="flex items-center gap-1.5 text-blue-700">
+                      <Plus className="h-4 w-4" />
+                      {matchCounts.new} new
+                    </span>
+                  )}
+                  {matchCounts.enrichment > 0 && (
+                    <span className="flex items-center gap-1.5 text-violet-700">
+                      <CheckCircle2 className="h-4 w-4" />
+                      {matchCounts.enrichment} with details
+                    </span>
+                  )}
+                  {matchCounts.conflict > 0 && (
+                    <span className="flex items-center gap-1.5 text-orange-700">
+                      <AlertCircle className="h-4 w-4" />
+                      {matchCounts.conflict} conflict{matchCounts.conflict !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {matchCounts.duplicate > 0 && (
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <MinusCircle className="h-4 w-4" />
+                      {matchCounts.duplicate} already present
                     </span>
                   )}
                   {noTravelResults.length > 0 && (
                     <span className="flex items-center gap-1.5 text-muted-foreground">
                       <MinusCircle className="h-4 w-4" />
                       {noTravelResults.length} skipped
-                    </span>
-                  )}
-                  {lowSelections.length > 0 && (
-                    <span className="flex items-center gap-1.5 text-muted-foreground">
-                      <AlertCircle className="h-4 w-4" />
-                      {lowSelections.length} low confidence
                     </span>
                   )}
                   {errorMessage && (
@@ -640,6 +716,7 @@ export function EmailScanDialog({
                             trips={trips || []}
                             onToggle={toggleSelection}
                             onSetTrip={setTripForSegment}
+                            onSetAction={setActionForSegment}
                             onRequestNewTrip={() => setShowNewTripForm(true)}
                           />
                         );
@@ -678,6 +755,7 @@ export function EmailScanDialog({
                                 trips={trips || []}
                                 onToggle={toggleSelection}
                                 onSetTrip={setTripForSegment}
+                                onSetAction={setActionForSegment}
                                 onRequestNewTrip={() => setShowNewTripForm(true)}
                               />
                             );
@@ -797,6 +875,7 @@ function SegmentCard({
   trips,
   onToggle,
   onSetTrip,
+  onSetAction,
   onRequestNewTrip,
 }: {
   seg: SegmentSelection;
@@ -805,9 +884,12 @@ function SegmentCard({
   trips: Array<{ id: string; title: string; startDate: string }>;
   onToggle: (idx: number) => void;
   onSetTrip: (idx: number, tripId: string) => void;
+  onSetAction: (idx: number, action: ApplyAction) => void;
   onRequestNewTrip: () => void;
 }) {
   const email = results.find((r) => r.emailId === seg.emailId);
+  const matchStatus: SegmentMatchStatus = seg.match?.status ?? "new";
+  const hasExistingMatch = Boolean(seg.existingSegmentId);
 
   const handleTripChange = (value: string) => {
     if (value === "__create_new__") {
@@ -845,6 +927,15 @@ function SegmentCard({
               variant="outline"
               className={cn(
                 "text-[10px]",
+                MATCH_STATUS_STYLES[matchStatus],
+              )}
+            >
+              {MATCH_STATUS_LABEL[matchStatus]}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px]",
                 CONFIDENCE_STYLES[seg.confidence],
               )}
             >
@@ -869,6 +960,61 @@ function SegmentCard({
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {email.subject}
             </p>
+          )}
+
+          {/* Match details: new fields being added / conflicting fields */}
+          {hasExistingMatch && (matchStatus === "enrichment" || matchStatus === "conflict") && (
+            <div className="mt-1.5 space-y-1 rounded border border-dashed border-muted-foreground/20 bg-muted/30 p-1.5 text-[11px]">
+              {seg.match?.newFields && seg.match.newFields.length > 0 && (
+                <div>
+                  <span className="font-medium text-violet-700">Adds: </span>
+                  <span className="text-muted-foreground">
+                    {seg.match.newFields.join(", ")}
+                  </span>
+                </div>
+              )}
+              {seg.match?.conflictFields && seg.match.conflictFields.length > 0 && (
+                <div className="space-y-0.5">
+                  <span className="font-medium text-orange-700">Conflicts:</span>
+                  {seg.match.conflictFields.map((diff) => (
+                    <div key={diff.field} className="pl-2 text-muted-foreground">
+                      <span className="font-mono text-[10px]">{diff.field}:</span>{" "}
+                      <span className="line-through">{String(diff.existing ?? "—")}</span>
+                      {" → "}
+                      <span className="text-foreground">{String(diff.parsed ?? "—")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action selector: only meaningful when an existing match is available */}
+          {seg.selected && hasExistingMatch && matchStatus !== "new" && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {(["merge", "replace", "create"] as const).map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  onClick={() => onSetAction(index, a)}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[10px] transition-colors",
+                    seg.action === a
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
+                  )}
+                  title={
+                    a === "merge"
+                      ? "Fill empty fields from email; keep existing values"
+                      : a === "replace"
+                        ? "Overwrite existing fields with email data"
+                        : "Add as a new separate segment"
+                  }
+                >
+                  {a === "merge" ? "Merge" : a === "replace" ? "Replace" : "Add new"}
+                </button>
+              ))}
+            </div>
           )}
 
           {seg.selected && (
