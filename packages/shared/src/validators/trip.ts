@@ -238,7 +238,7 @@ export const parsedSegmentSchema = z.object({
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
   labelFilter: z.string().optional(),
-  maxResults: z.number().int().min(1).max(100).optional(),
+  maxResults: z.number().int().min(1).max(500).optional(),
   newerThanDays: z.number().int().min(1).max(730).optional(),
 });
 

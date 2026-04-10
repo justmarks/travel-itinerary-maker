@@ -45,6 +45,11 @@ IMPORTANT RULES:
 - **HOTELS**: The cost "amount" should be the ROOM RATE only (nightly or total room charge), NOT including fees like parking, resort fees, or taxes. Put the room type (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View") and any fees/extras (parking, resort fee, breakfast) in the "details" string so the user can see them separately.
 - **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).
 - **AIRLINE EMAILS**: Be sure to parse emails from ALL airlines including Hawaiian Airlines, Alaska Airlines, Delta, United, American, Southwest, JetBlue, Spirit, Frontier, and international carriers. Itinerary changes, schedule changes, and booking confirmations are all travel-related. Look for flight numbers, dates, times, and routes even if the email format is unusual.
+- **YEAR INFERENCE**: If a date in the email body does not include a year (e.g. "Wednesday, April 15" or "Apr 15"), you MUST infer the year from the "Email received date" provided in the user message — NEVER default to the current real-world year or a training-data year. Use this rule:
+  1. Start with the year of the email received date.
+  2. If the resulting date (month + day) is more than 7 days BEFORE the email received date, add one year (the trip is in the following year).
+  3. Otherwise keep the email-received year.
+  For example: if the email was received on 2026-01-15 and mentions "Wednesday, April 15", the correct date is 2026-04-15 (same year, since April 15 is after January 15). If the email was received on 2026-11-15 and mentions "Friday, January 20", the correct date is 2027-01-20 (next year, since January 20 has already passed in 2026).
 - Only include fields that are actually present in the email. Do not guess or fabricate data.
 - For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
 
@@ -72,12 +77,23 @@ export class EmailParser {
   /**
    * Parse an email and return extracted travel segments.
    * Returns empty array if no travel content is found.
+   *
+   * `receivedAt` should be the email's Date header (ISO string). It's used as
+   * the anchor for inferring missing years on dates mentioned in the body.
    */
   async parseEmail(email: {
     subject: string;
     from: string;
     body: string;
+    receivedAt?: string;
   }): Promise<ParsedSegment[]> {
+    // Anchor year inference on the email's received date, not today's date.
+    // Falling back to "now" is OK but should rarely happen in real scans.
+    const anchor = email.receivedAt ? new Date(email.receivedAt) : new Date();
+    const receivedLine = isNaN(anchor.getTime())
+      ? `Email received date: unknown`
+      : `Email received date: ${anchor.toISOString().slice(0, 10)} (year=${anchor.getUTCFullYear()})`;
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
@@ -85,7 +101,7 @@ export class EmailParser {
       messages: [
         {
           role: "user",
-          content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
+          content: `${receivedLine}\nSubject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
         },
       ],
     });

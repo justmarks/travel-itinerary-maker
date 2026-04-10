@@ -39,25 +39,82 @@ export class GmailScanner {
     }));
   }
 
-  /** Search for travel confirmation emails */
-  async scanEmails(options: GmailScanOptions = {}): Promise<RawEmail[]> {
-    const { labelFilter, maxResults = 25, newerThanDays = 365 } = options;
-
-    const age = `newer_than:${newerThanDays}d`;
-    let query: string;
-    if (labelFilter) {
-      query = `label:${labelFilter} ${age}`;
-    } else {
-      query = `subject:(confirmation OR booking OR reservation OR itinerary OR e-ticket OR receipt) ${age}`;
+  /**
+   * Resolve a label filter (which may be a label name, label ID, or system label
+   * like INBOX) to a concrete Gmail label ID. Returns null if it can't be found.
+   */
+  private async resolveLabelId(labelFilter: string): Promise<string | null> {
+    // System labels and existing label IDs pass through unchanged.
+    // Gmail label IDs look like "Label_1234567890123456789" or system names
+    // like "INBOX", "STARRED", "SENT", "IMPORTANT", "TRASH", "SPAM".
+    const SYSTEM_LABELS = new Set([
+      "INBOX", "STARRED", "SENT", "IMPORTANT", "TRASH", "SPAM",
+      "DRAFT", "UNREAD", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+      "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
+    ]);
+    if (SYSTEM_LABELS.has(labelFilter) || labelFilter.startsWith("Label_")) {
+      return labelFilter;
     }
 
-    const listRes = await this.gmail.users.messages.list({
+    // Otherwise look it up by name (case-insensitive, nested labels supported).
+    const all = await this.listLabels();
+    const lower = labelFilter.trim().toLowerCase();
+    const match =
+      all.find((l) => l.name.toLowerCase() === lower) ||
+      all.find((l) => l.name.toLowerCase().endsWith("/" + lower));
+    return match ? match.id : null;
+  }
+
+  /** Search for travel confirmation emails */
+  async scanEmails(options: GmailScanOptions = {}): Promise<RawEmail[]> {
+    const { labelFilter, maxResults = 100, newerThanDays = 365 } = options;
+
+    const age = `newer_than:${newerThanDays}d`;
+    const listParams: gmail_v1.Params$Resource$Users$Messages$List = {
       userId: "me",
-      q: query,
       maxResults,
-    });
+    };
+
+    if (labelFilter) {
+      // Resolve the label to an ID and use the labelIds parameter instead of
+      // baking it into the query string. This is the only reliable way to
+      // match labels with spaces, slashes, or other special characters.
+      const labelId = await this.resolveLabelId(labelFilter);
+      if (!labelId) {
+        console.warn(
+          `Gmail scanner: label "${labelFilter}" not found in user's Gmail labels. Returning 0 emails.`,
+        );
+        return [];
+      }
+      listParams.labelIds = [labelId];
+      listParams.q = age; // still constrain by age, but no subject/sender filter
+      console.log(
+        `Gmail search: labelIds=[${labelId}] (resolved from "${labelFilter}"), q="${age}"`,
+      );
+    } else {
+      // Exclude obvious non-travel receipts that crowd out real travel emails.
+      const excludes =
+        "-from:(amazon.com OR uber.com OR lyft.com OR doordash.com OR grubhub.com OR instacart.com OR paypal.com OR venmo.com)";
+      // Subject keywords OR known travel sender domains — catches emails like
+      // Hawaiian Airlines even when their subject is a generic "receipt".
+      const subjectTerms =
+        "subject:(confirmation OR booking OR reservation OR itinerary OR e-ticket OR eticket OR \"boarding pass\" OR flight OR hotel OR check-in)";
+      const travelSenders =
+        "from:(airlines OR airline OR flight OR hotel OR marriott OR hilton OR hyatt OR airbnb OR vrbo OR expedia OR booking.com OR kayak OR united OR delta OR american OR southwest OR alaska OR hawaiian OR jetblue OR frontier OR spirit OR lufthansa OR klm OR british-airways OR airfrance OR emirates OR qatar)";
+      listParams.q = `(${subjectTerms} OR ${travelSenders}) ${excludes} ${age}`;
+      console.log(`Gmail search query: ${listParams.q}`);
+    }
+
+    const listRes = await this.gmail.users.messages.list(listParams);
 
     const messageIds = listRes.data.messages || [];
+    console.log(
+      `Gmail messages.list returned ${messageIds.length} message IDs` +
+        (listRes.data.resultSizeEstimate !== undefined
+          ? ` (resultSizeEstimate=${listRes.data.resultSizeEstimate})`
+          : ""),
+    );
+
     const emails: RawEmail[] = [];
 
     for (const msg of messageIds) {
@@ -67,6 +124,11 @@ export class GmailScanner {
       } catch (err) {
         console.error(`Failed to fetch email ${msg.id}:`, err);
       }
+    }
+
+    // Log every email subject we pulled so skipped/missing ones are obvious.
+    for (const e of emails) {
+      console.log(`  FOUND: "${e.subject}" from ${e.from} (${e.receivedAt})`);
     }
 
     return emails;
@@ -81,7 +143,10 @@ export class GmailScanner {
     });
 
     const msg = res.data;
-    if (!msg.payload) return null;
+    if (!msg.payload) {
+      console.log(`SKIP: email ${messageId} (no MIME payload)`);
+      return null;
+    }
 
     const headers = msg.payload.headers || [];
     const getHeader = (name: string) =>
@@ -92,7 +157,12 @@ export class GmailScanner {
     const date = getHeader("Date");
 
     const bodyText = this.extractBody(msg.payload);
-    if (!bodyText.trim()) return null;
+    if (!bodyText.trim()) {
+      console.log(
+        `SKIP: "${subject}" from ${from} (empty body — no text/plain or text/html content)`,
+      );
+      return null;
+    }
 
     return {
       id: msg.id!,
@@ -126,8 +196,11 @@ export class GmailScanner {
     const parts: { plain: string[]; html: string[] } = { plain: [], html: [] };
     this.collectTextParts(payload, parts);
 
-    // Prefer plain text, fall back to HTML conversion
-    if (parts.plain.length > 0) return parts.plain.join("\n");
+    // Prefer plain text, but fall back to HTML if the plain-text parts exist
+    // but are empty/whitespace (common for marketing-style HTML emails that
+    // include a blank text/plain fallback part).
+    const joinedPlain = parts.plain.join("\n").trim();
+    if (joinedPlain.length > 0) return parts.plain.join("\n");
     if (parts.html.length > 0) return this.htmlToText(parts.html.join("\n"));
     return "";
   }

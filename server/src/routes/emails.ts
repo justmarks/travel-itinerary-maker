@@ -289,14 +289,40 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       // Scan Gmail for new emails
       const scanner = new GmailScanner(req.accessToken || "");
+      const effectiveMaxResults = maxResults ?? 100;
       const rawEmails = await scanner.scanEmails({
         labelFilter,
-        maxResults: maxResults ?? 25,
+        maxResults: effectiveMaxResults,
         newerThanDays: newerThanDays ?? 365,
       });
 
-      // Filter to truly new emails (not in processedEmails at all)
-      const newEmails = rawEmails.filter((e) => !processedMap.has(e.id));
+      console.log(
+        `Gmail returned ${rawEmails.length} emails (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+      );
+      if (rawEmails.length >= effectiveMaxResults) {
+        console.warn(
+          `  NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
+        );
+      }
+
+      // Filter to truly new emails (not in processedEmails at all).
+      // Log skipped ones with the reason so the user can see what happened.
+      const newEmails = rawEmails.filter((e) => {
+        const prior = processedMap.get(e.id);
+        if (!prior) return true;
+        const reason =
+          prior.parseStatus === "mapped"
+            ? "already applied to a trip"
+            : prior.parseStatus === "skipped"
+              ? "previously dismissed / no travel content"
+              : prior.parseStatus === "parsed"
+                ? "already parsed, pending review"
+                : prior.parseStatus === "failed"
+                  ? "previously failed"
+                  : `already processed (${prior.parseStatus})`;
+        console.log(`SKIP: "${e.subject}" (${reason})`);
+        return false;
+      });
 
       // If no new emails to parse, just return pending results
       if (newEmails.length === 0) {
@@ -329,8 +355,13 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             subject: email.subject,
             from: email.from,
             body: email.bodyText,
+            receivedAt: email.receivedAt,
           });
-          console.log(`  → ${segments.length} segments extracted`);
+          if (segments.length === 0) {
+            console.log(`SKIP: "${email.subject}" (no travel content detected)`);
+          } else {
+            console.log(`  → ${segments.length} segments extracted`);
+          }
 
           // Auto-match segments to trips by date
           const matchedSegments = segments.map((seg) => {
@@ -373,12 +404,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             createdAt: new Date().toISOString(),
           });
         } catch (err: unknown) {
-          console.error(`Failed to parse email ${email.id}:`, err);
-
-          // Detect billing / auth errors from Anthropic
+          // Detect billing / auth / overloaded errors from Anthropic
           const errMsg = err instanceof Error ? err.message : String(err);
           const errObj = err as Record<string, unknown>;
           const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
+          const errType = typeof errObj.type === "string" ? errObj.type : "";
           const isBillingError =
             errMsg.includes("credit balance") ||
             errMsg.includes("billing") ||
@@ -389,12 +419,34 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             errMsg.includes("authentication") ||
             errMsg.includes("invalid x-api-key") ||
             errMsg.includes("api_key");
+          const isOverloadedError =
+            errStatus === 529 ||
+            errStatus === 503 ||
+            errType === "overloaded_error" ||
+            errMsg.includes("overloaded") ||
+            errMsg.includes("Overloaded");
 
-          if (isBillingError || isAuthError) {
-            const code = isBillingError ? "ANTHROPIC_BILLING" : "ANTHROPIC_AUTH";
+          // Overloaded errors are transient — log a short message, not the full stack
+          if (isOverloadedError) {
+            console.warn(
+              `  AI service overloaded — halting scan. Email "${email.subject}" will be retried on next scan.`,
+            );
+          } else {
+            console.error(`Failed to parse email ${email.id}:`, err);
+          }
+
+          if (isBillingError || isAuthError || isOverloadedError) {
+            const code = isBillingError
+              ? "ANTHROPIC_BILLING"
+              : isAuthError
+                ? "ANTHROPIC_AUTH"
+                : "ANTHROPIC_OVERLOADED";
             const userMessage = isBillingError
               ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
-              : "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY.";
+              : isAuthError
+                ? "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY."
+                : "The AI service is temporarily overloaded. Please try scanning again in a few minutes.";
+            const httpStatus = isBillingError ? 402 : isAuthError ? 401 : 503;
 
             // Save any results we parsed so far before the error
             if (newProcessedEmails.length > 0) {
@@ -403,7 +455,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
             // Return pending + whatever we parsed before error
             const allResults = [...pendingResults, ...newResults];
-            res.status(402).json({
+            res.status(httpStatus).json({
               error: userMessage,
               code,
               emailsFound: newEmails.length,
