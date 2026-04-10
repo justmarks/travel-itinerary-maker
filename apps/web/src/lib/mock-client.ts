@@ -1087,6 +1087,7 @@ export class MockApiClient extends ApiClient {
           segmentId: s.id,
           category: s.type,
           description: s.title,
+          city: s.city?.trim() || day.city?.trim() || undefined,
           amount: s.cost!.amount,
           currency: s.cost!.currency,
           amountUsd: convertToUsd(s.cost!.amount, s.cost!.currency),

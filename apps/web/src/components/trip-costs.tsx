@@ -10,6 +10,34 @@ function fmtUsd(amount: number) {
   })}`;
 }
 
+// Human-readable labels for the segment-type "activity" shown in the
+// cost table. Kept in sync with SegmentType in packages/shared/src/types/trip.ts.
+const CATEGORY_LABELS: Record<string, string> = {
+  flight: "Flight",
+  train: "Train",
+  car_rental: "Car Rental",
+  car_service: "Car Service",
+  other_transport: "Transport",
+  hotel: "Hotel",
+  activity: "Activity",
+  restaurant_breakfast: "Breakfast",
+  restaurant_brunch: "Brunch",
+  restaurant_lunch: "Lunch",
+  restaurant_dinner: "Dinner",
+  tour: "Tour",
+  cruise: "Cruise",
+};
+
+function categoryLabel(category: string): string {
+  return (
+    CATEGORY_LABELS[category] ??
+    category
+      .split("_")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ")
+  );
+}
+
 export function TripCosts({ tripId }: { tripId: string }) {
   const { data, isLoading } = useCostSummary(tripId);
 
@@ -27,18 +55,33 @@ export function TripCosts({ tripId }: { tripId: string }) {
         <p className="text-sm text-muted-foreground">No costs recorded yet.</p>
       ) : (
         <>
-          <div className="flex flex-col gap-1.5 text-sm">
+          <div className="flex flex-col gap-2 text-sm">
             {data.items.map((item) => {
               const isForeign =
                 item.amountUsd !== undefined && item.currency !== "USD";
+              const label = categoryLabel(item.category);
+              // Primary line: "City: Activity" (e.g. "Palermo: Car Rental").
+              // When no city is known, fall back to just the activity label.
+              const primary = item.city ? `${item.city}: ${label}` : label;
+              // Secondary line: the segment title if it adds information
+              // beyond the category label alone (e.g. hotel name, provider).
+              const showSubtitle =
+                item.description &&
+                item.description.trim().toLowerCase() !==
+                  label.toLowerCase();
               return (
                 <div
                   key={item.segmentId}
                   className="flex items-start justify-between gap-2"
                 >
-                  <span className="truncate text-muted-foreground">
-                    {item.description}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{primary}</div>
+                    {showSubtitle && (
+                      <div className="truncate text-xs text-muted-foreground">
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
                   <span className="shrink-0 text-right font-medium tabular-nums">
                     {item.amountUsd !== undefined
                       ? fmtUsd(item.amountUsd)

@@ -464,6 +464,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     const items: Array<{
       category: string;
       description: string;
+      city?: string;
       amount: number;
       currency: string;
       amountUsd?: number;
@@ -475,9 +476,13 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       for (const seg of day.segments) {
         if (seg.cost) {
           const amountUsd = convertToUsd(seg.cost.amount, seg.cost.currency);
+          // Prefer the segment's own city; fall back to the trip day's city
+          // so the cost table can render "City: Activity" entries.
+          const city = seg.city?.trim() || day.city?.trim() || undefined;
           items.push({
             category: seg.type,
             description: seg.title,
+            city,
             amount: seg.cost.amount,
             currency: seg.cost.currency,
             amountUsd,

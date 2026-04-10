@@ -119,6 +119,12 @@ export interface UserSettings {
 export interface CostSummaryItem {
   category: string;
   description: string;
+  /**
+   * City associated with this cost line. Preferred source is the segment's
+   * own `city` field; falls back to the containing TripDay's city. Used by
+   * the UI to render "City: Description" in the cost table.
+   */
+  city?: string;
   /** Raw amount as recorded on the segment (in its original currency) */
   amount: number;
   /** Original currency code (e.g. "USD", "EUR", "JPY") */
