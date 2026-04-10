@@ -12,6 +12,10 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  GmailLabel,
+  EmailScanResult,
+  EmailScanRequest,
+  ApplyParsedSegmentsInput,
 } from "@travel-app/shared";
 
 function uid() {
@@ -51,6 +55,8 @@ const SAMPLE_TRIPS: Trip[] = [
             routeCode: "JL006",
             confirmationCode: "JLXYZ12",
             seatNumber: "31A, 31B",
+            cabinClass: "Economy",
+            baggageInfo: "2 checked bags included",
             cost: { amount: 1250, currency: "USD", details: "Economy" },
             source: "email_confirmed",
             needsReview: false,
@@ -79,6 +85,7 @@ const SAMPLE_TRIPS: Trip[] = [
             city: "Tokyo",
             startTime: "16:00",
             endTime: "11:00",
+            endDate: "2025-11-18",
             breakfastIncluded: false,
             confirmationCode: "SGBH-44821",
             cost: { amount: 180, currency: "USD", details: "Superior Twin × 4 nights" },
@@ -315,6 +322,8 @@ const SAMPLE_TRIPS: Trip[] = [
             startTime: "10:30",
             confirmationCode: "JLXYZ13",
             seatNumber: "31A, 31B",
+            cabinClass: "Economy",
+            baggageInfo: "2 checked bags included",
             cost: { amount: 1250, currency: "USD", details: "Economy" },
             source: "email_confirmed",
             needsReview: false,
@@ -1176,6 +1185,90 @@ export class MockApiClient extends ApiClient {
       }
     }
     return Promise.reject(new Error("Shared trip not found"));
+  }
+
+  // ─── Email Scanning ──────────────────────────────────────
+
+  override getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
+    return Promise.resolve({ results: [] });
+  }
+
+  override getGmailLabels(): Promise<GmailLabel[]> {
+    return Promise.resolve([
+      { id: "INBOX", name: "INBOX", type: "system" },
+      { id: "STARRED", name: "STARRED", type: "system" },
+      { id: "Label_1", name: "Travel", type: "user" },
+      { id: "Label_2", name: "Receipts", type: "user" },
+    ]);
+  }
+
+  override scanEmails(
+    _input?: EmailScanRequest,
+  ): Promise<{ results: never[]; message: string }> {
+    // In demo mode, pretend no new emails to process
+    return Promise.resolve({
+      results: [],
+      message: "No new emails to process (demo mode)",
+    });
+  }
+
+  override applyParsedSegments(
+    input: ApplyParsedSegmentsInput,
+  ): Promise<{ created: Array<{ tripId: string; segmentId: string; title: string }> }> {
+    const created: Array<{ tripId: string; segmentId: string; title: string }> = [];
+    for (const seg of input.segments) {
+      const trip = this.trips.get(seg.tripId);
+      if (!trip) continue;
+      const day = trip.days.find((d) => d.date === seg.date);
+      if (!day) continue;
+      const segmentId = `seg-${uid()}`;
+      day.segments.push({
+        id: segmentId,
+        type: seg.type,
+        title: seg.title,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+        venueName: seg.venueName,
+        address: seg.address,
+        city: seg.city,
+        url: seg.url || undefined,
+        confirmationCode: seg.confirmationCode,
+        provider: seg.provider,
+        departureCity: seg.departureCity,
+        arrivalCity: seg.arrivalCity,
+        carrier: seg.carrier,
+        routeCode: seg.routeCode,
+        partySize: seg.partySize,
+        creditCardHold: seg.creditCardHold,
+        seatNumber: seg.seatNumber,
+        cabinClass: seg.cabinClass,
+        baggageInfo: seg.baggageInfo,
+        contactName: seg.contactName,
+        phone: seg.phone,
+        breakfastIncluded: seg.breakfastIncluded,
+        cost: seg.cost,
+        source: "email_auto",
+        sourceEmailId: seg.emailId,
+        needsReview: true,
+        sortOrder: day.segments.length,
+      });
+      created.push({ tripId: seg.tripId, segmentId, title: seg.title });
+    }
+    return Promise.resolve({ created });
+  }
+
+  override getProcessedEmails(): Promise<Array<{
+    gmailMessageId: string;
+    subject?: string;
+    fromAddress?: string;
+    parseStatus: string;
+    createdAt: string;
+  }>> {
+    return Promise.resolve([]);
+  }
+
+  override dismissEmail(_emailId: string): Promise<{ status: string }> {
+    return Promise.resolve({ status: "dismissed" });
   }
 
   // ─── Export ─────────────────────────────────────────────

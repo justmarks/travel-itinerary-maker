@@ -15,6 +15,10 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  EmailScanResult,
+  GmailLabel,
+  ApplyParsedSegmentsInput,
+  EmailScanRequest,
 } from "@travel-app/shared";
 import type {
   TripSummary,
@@ -34,6 +38,8 @@ export const queryKeys = {
   todos: (tripId: string) => ["trips", tripId, "todos"] as const,
   shares: (tripId: string) => ["trips", tripId, "shares"] as const,
   shared: (token: string) => ["shared", token] as const,
+  gmailLabels: ["gmail", "labels"] as const,
+  processedEmails: ["emails", "processed"] as const,
 };
 
 // ─── Trip Queries ─────────────────────────────────────────
@@ -282,5 +288,68 @@ export function useSharedTrip(token: string) {
   return useQuery({
     queryKey: queryKeys.shared(token),
     queryFn: () => client.getSharedTrip(token),
+  });
+}
+
+// ─── Email Scanning ──────────────────────────────────────
+
+export function usePendingEmails(enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.processedEmails,
+    queryFn: () => client.getPendingEmails(),
+    enabled,
+  });
+}
+
+export function useGmailLabels(enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.gmailLabels,
+    queryFn: () => client.getGmailLabels(),
+    enabled,
+  });
+}
+
+export function useScanEmails() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input?: EmailScanRequest) => client.scanEmails(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
+export function useApplyParsedSegments() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ApplyParsedSegmentsInput) =>
+      client.applyParsedSegments(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
+export function useProcessedEmails() {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.processedEmails,
+    queryFn: () => client.getProcessedEmails(),
+  });
+}
+
+export function useDismissEmail() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (emailId: string) => client.dismissEmail(emailId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
   });
 }

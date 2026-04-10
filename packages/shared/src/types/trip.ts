@@ -53,9 +53,12 @@ export interface Segment {
   cancellationDeadline?: string; // ISO date "YYYY-MM-DD" — when CC hold must be cancelled by
   phone?: string;
   // Hotel-specific
+  endDate?: string; // Check-out date for hotels (YYYY-MM-DD)
   breakfastIncluded?: boolean;
   // Flight-specific
   seatNumber?: string; // e.g. "14A, 14B"
+  cabinClass?: string; // e.g. "Economy", "Business", "First", "Premium Economy"
+  baggageInfo?: string; // e.g. "1 checked bag included", "No checked bags - $35/bag"
   // Car service specific
   contactName?: string; // driver / pickup contact name
   // Cost embedded in segment
@@ -126,4 +129,54 @@ export interface CostSummary {
   items: CostSummaryItem[];
   totalsByCurrency: Record<string, number>;
   totalUsd?: number;
+}
+
+/** A segment parsed from an email by Claude AI */
+export interface ParsedSegment {
+  type: SegmentType;
+  title: string;
+  date: string; // YYYY-MM-DD
+  startTime?: string;
+  endTime?: string;
+  venueName?: string;
+  address?: string;
+  city?: string;
+  url?: string;
+  confirmationCode?: string;
+  provider?: string;
+  departureCity?: string;
+  arrivalCity?: string;
+  carrier?: string;
+  routeCode?: string;
+  partySize?: number;
+  creditCardHold?: boolean;
+  cancellationDeadline?: string;
+  phone?: string;
+  endDate?: string;
+  breakfastIncluded?: boolean;
+  seatNumber?: string;
+  cabinClass?: string;
+  baggageInfo?: string;
+  contactName?: string;
+  cost?: SegmentCost;
+  confidence: "high" | "medium" | "low";
+  suggestedTripId?: string;
+}
+
+/** Result of scanning and parsing a single email */
+export interface EmailScanResult {
+  emailId: string;
+  subject: string;
+  from: string;
+  receivedAt: string;
+  parsedSegments: ParsedSegment[];
+  parseStatus: "success" | "no_travel_content" | "failed";
+  error?: string;
+}
+
+/** Gmail label info */
+export interface GmailLabel {
+  id: string;
+  name: string;
+  type: "system" | "user";
 }

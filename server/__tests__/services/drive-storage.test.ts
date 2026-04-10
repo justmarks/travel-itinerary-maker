@@ -265,7 +265,7 @@ describe("DriveStorage", () => {
     it("returns defaults when no settings file exists", async () => {
       const settings = await storage.getSettings();
       expect(settings).toEqual({
-        emailScanIntervalMinutes: 15,
+        emailScanIntervalMinutes: 1440,
         notificationsEnabled: true,
       });
     });

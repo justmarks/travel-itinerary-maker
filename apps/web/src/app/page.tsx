@@ -1,6 +1,7 @@
 "use client";
 
 import { CreateTripDialog } from "@/components/create-trip-dialog";
+import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { TripList } from "@/components/trip-list";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
@@ -17,6 +18,7 @@ export default function Home() {
               <h1 className="text-2xl font-bold">My Trips</h1>
             </div>
             <div className="flex items-center gap-2">
+              <EmailScanDialog />
               <CreateTripDialog />
               <UserMenu />
             </div>

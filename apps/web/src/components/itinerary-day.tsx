@@ -7,6 +7,7 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
+import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
   Plane,
   Train,
@@ -39,6 +40,7 @@ import { cn } from "@/lib/utils";
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
 const FLIGHT_TYPES = new Set(["flight"]);
+const CAR_RENTAL_TYPES = new Set(["car_rental"]);
 const CAR_SERVICE_TYPES = new Set(["car_service"]);
 
 function fmt12h(t?: string) {
@@ -95,6 +97,7 @@ function SegmentRow({
   tripId?: string;
   readOnly?: boolean;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const deleteSegment = useDeleteSegment(tripId ?? "");
   const confirmSegment = useConfirmSegment(tripId ?? "");
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
@@ -103,6 +106,7 @@ function SegmentRow({
   const isRestaurant = RESTAURANT_TYPES.has(segment.type);
   const isHotel = HOTEL_TYPES.has(segment.type);
   const isFlight = FLIGHT_TYPES.has(segment.type);
+  const isCarRental = CAR_RENTAL_TYPES.has(segment.type);
   const isCarService = CAR_SERVICE_TYPES.has(segment.type);
 
   const startTime = fmt12h(segment.startTime);
@@ -152,10 +156,25 @@ function SegmentRow({
                 {startTime && <span>Check-in {startTime}</span>}
                 {startTime && endTime && <span className="mx-1">·</span>}
                 {endTime && <span>Check-out {endTime}</span>}
+                {segment.endDate && (
+                  <>
+                    <span className="mx-1">·</span>
+                    <span>Out {fmtDate(segment.endDate)}</span>
+                  </>
+                )}
               </>
+            ) : isCarRental ? (
+              <span>{startTime || endTime}</span>
             ) : (
               <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
             )}
+          </div>
+        )}
+        {/* Hotel checkout date (when no times shown) */}
+        {isHotel && !startTime && !endTime && segment.endDate && (
+          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>Check-out {fmtDate(segment.endDate)}</span>
           </div>
         )}
 
@@ -185,11 +204,18 @@ function SegmentRow({
           </p>
         )}
 
-        {/* Seat numbers (flights) */}
-        {isFlight && segment.seatNumber && (
+        {/* Cabin class, seats, baggage (flights) */}
+        {isFlight && (segment.seatNumber || segment.cabinClass) && (
           <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Armchair className="h-3 w-3 shrink-0" />
-            Seats: {segment.seatNumber}
+            {segment.cabinClass && <span>{segment.cabinClass}</span>}
+            {segment.cabinClass && segment.seatNumber && <span>·</span>}
+            {segment.seatNumber && <span>Seats: {segment.seatNumber}</span>}
+          </p>
+        )}
+        {isFlight && segment.baggageInfo && (
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {segment.baggageInfo}
           </p>
         )}
 
@@ -254,34 +280,51 @@ function SegmentRow({
 
       {/* Actions */}
       {!readOnly && tripId && (
-        <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
-          {segment.needsReview && (
+        <>
+          <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover/seg:opacity-100">
+            {segment.needsReview && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-green-600 hover:text-green-700"
+                title="Confirm"
+                onClick={() => confirmSegment.mutate(segment.id)}
+                disabled={confirmSegment.isPending}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-green-600 hover:text-green-700"
-              title="Confirm"
-              onClick={() => confirmSegment.mutate(segment.id)}
-              disabled={confirmSegment.isPending}
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              title="Edit"
+              onClick={() => setEditOpen(true)}
             >
-              <CheckCircle2 className="h-3.5 w-3.5" />
+              <Pencil className="h-3.5 w-3.5" />
             </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-            title="Delete"
-            onClick={() => {
-              if (confirm(`Delete "${segment.title}"?`)) {
-                deleteSegment.mutate(segment.id);
-              }
-            }}
-            disabled={deleteSegment.isPending}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              title="Delete"
+              onClick={() => {
+                if (confirm(`Delete "${segment.title}"?`)) {
+                  deleteSegment.mutate(segment.id);
+                }
+              }}
+              disabled={deleteSegment.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <EditSegmentDialog
+            tripId={tripId}
+            segment={segment}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+          />
+        </>
       )}
     </div>
   );

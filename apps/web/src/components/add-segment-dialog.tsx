@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useCreateSegment } from "@travel-app/api-client";
 import type { SegmentType } from "@travel-app/shared";
 import {
@@ -11,34 +11,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Plus } from "lucide-react";
-
-const SEGMENT_TYPE_LABELS: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
-  car_service: "Car Service",
-  other_transport: "Other Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-  tour: "Tour",
-  cruise: "Cruise",
-};
-
-const SEGMENT_TYPES = Object.keys(SEGMENT_TYPE_LABELS);
+import {
+  SegmentFormFields,
+  EMPTY_FORM_STATE,
+  type SegmentFormState,
+} from "@/components/segment-form-fields";
 
 export function AddSegmentDialog({
   tripId,
@@ -48,54 +26,50 @@ export function AddSegmentDialog({
   date: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<string>("activity");
-  const [title, setTitle] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [venueName, setVenueName] = useState("");
-  const [url, setUrl] = useState("");
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [costAmount, setCostAmount] = useState("");
-  const [costCurrency, setCostCurrency] = useState("USD");
-  const [costDetails, setCostDetails] = useState("");
+  const [form, setForm] = useState<SegmentFormState>({ ...EMPTY_FORM_STATE });
 
   const createSegment = useCreateSegment(tripId);
 
-  const reset = () => {
-    setType("activity");
-    setTitle("");
-    setStartTime("");
-    setEndTime("");
-    setVenueName("");
-    setUrl("");
-    setConfirmationCode("");
-    setCostAmount("");
-    setCostCurrency("USD");
-    setCostDetails("");
-  };
+  const handleChange = useCallback((patch: Partial<SegmentFormState>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const reset = () => setForm({ ...EMPTY_FORM_STATE });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const cost =
-      costAmount && parseFloat(costAmount) > 0
+      form.costAmount && parseFloat(form.costAmount) > 0
         ? {
-            amount: parseFloat(costAmount),
-            currency: costCurrency,
-            details: costDetails || undefined,
+            amount: parseFloat(form.costAmount),
+            currency: form.costCurrency,
+            details: form.costDetails || undefined,
           }
         : undefined;
 
     createSegment.mutate(
       {
         date,
-        type: type as SegmentType,
-        title,
-        startTime: startTime || undefined,
-        endTime: endTime || undefined,
-        venueName: venueName || undefined,
-        url: url || undefined,
-        confirmationCode: confirmationCode || undefined,
+        type: form.type as SegmentType,
+        title: form.title,
+        startTime: form.startTime || undefined,
+        endTime: form.endTime || undefined,
+        venueName: form.venueName || undefined,
+        address: form.address || undefined,
+        city: form.city || undefined,
+        url: form.url || undefined,
+        confirmationCode: form.confirmationCode || undefined,
+        provider: form.provider || undefined,
+        departureCity: form.departureCity || undefined,
+        arrivalCity: form.arrivalCity || undefined,
+        carrier: form.carrier || undefined,
+        routeCode: form.routeCode || undefined,
+        partySize: form.partySize ? parseInt(form.partySize, 10) : undefined,
+        creditCardHold: form.creditCardHold || undefined,
+        endDate: form.endDate || undefined,
+        cabinClass: form.cabinClass || undefined,
+        baggageInfo: form.baggageInfo || undefined,
         cost,
       },
       {
@@ -115,131 +89,18 @@ export function AddSegmentDialog({
           Add
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add segment</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SEGMENT_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {SEGMENT_TYPE_LABELS[t]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seg-title">Title</Label>
-              <Input
-                id="seg-title"
-                placeholder="e.g. Hilton Garden Inn"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                autoFocus
-              />
-            </div>
-          </div>
+          <SegmentFormFields
+            form={form}
+            onChange={handleChange}
+            idPrefix="add"
+          />
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="seg-start">Start time</Label>
-              <Input
-                id="seg-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seg-end">End time</Label>
-              <Input
-                id="seg-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="seg-venue">Venue</Label>
-              <Input
-                id="seg-venue"
-                placeholder="Optional"
-                value={venueName}
-                onChange={(e) => setVenueName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seg-conf">Confirmation #</Label>
-              <Input
-                id="seg-conf"
-                placeholder="Optional"
-                value={confirmationCode}
-                onChange={(e) => setConfirmationCode(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="seg-url">URL</Label>
-            <Input
-              id="seg-url"
-              type="url"
-              placeholder="https://..."
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="seg-cost">Cost</Label>
-              <Input
-                id="seg-cost"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={costAmount}
-                onChange={(e) => setCostAmount(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Currency</Label>
-              <Select value={costCurrency} onValueChange={setCostCurrency}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="EUR">EUR</SelectItem>
-                  <SelectItem value="GBP">GBP</SelectItem>
-                  <SelectItem value="points">Points</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seg-cost-details">Details</Label>
-              <Input
-                id="seg-cost-details"
-                placeholder="e.g. Economy"
-                value={costDetails}
-                onChange={(e) => setCostDetails(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
@@ -249,7 +110,7 @@ export function AddSegmentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={!title.trim() || createSegment.isPending}
+              disabled={!form.title.trim() || createSegment.isPending}
             >
               {createSegment.isPending ? "Adding..." : "Add Segment"}
             </Button>

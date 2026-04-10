@@ -12,17 +12,20 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.86.1",
     "@travel-app/shared": "workspace:*",
     "cors": "^2.8.5",
     "dotenv": "^17.4.1",
     "express": "^5.1.0",
     "googleapis": "^148.0.0",
+    "html-to-text": "^9.0.5",
     "nanoid": "^5.1.0",
     "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/html-to-text": "^9.0.4",
     "@types/jest": "^29.5.0",
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",

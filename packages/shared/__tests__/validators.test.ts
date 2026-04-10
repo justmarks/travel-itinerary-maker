@@ -3,6 +3,7 @@ import {
   updateTripSchema,
   segmentSchema,
   createSegmentSchema,
+  updateSegmentSchema,
   tripDaySchema,
   todoSchema,
   createTodoSchema,
@@ -295,6 +296,44 @@ describe("createSegmentSchema", () => {
   });
 });
 
+describe("updateSegmentSchema", () => {
+  it("accepts partial updates", () => {
+    const result = updateSegmentSchema.safeParse({ title: "Updated Title" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts empty object (no-op update)", () => {
+    const result = updateSegmentSchema.safeParse({});
+    expect(result.success).toBe(true);
+  });
+
+  it("validates time format on update", () => {
+    const result = updateSegmentSchema.safeParse({ startTime: "1:35PM" });
+    expect(result.success).toBe(false);
+  });
+
+  it("allows updating cost", () => {
+    const result = updateSegmentSchema.safeParse({
+      cost: { amount: 500, currency: "EUR", details: "Suite upgrade" },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("allows updating flight-specific fields", () => {
+    const result = updateSegmentSchema.safeParse({
+      seatNumber: "14A, 14B",
+      cabinClass: "Business",
+      baggageInfo: "2 checked bags included",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("allows updating needsReview", () => {
+    const result = updateSegmentSchema.safeParse({ needsReview: true });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("createTodoSchema", () => {
   it("validates with category", () => {
     const result = createTodoSchema.safeParse({
@@ -363,7 +402,7 @@ describe("createShareSchema", () => {
 describe("userSettingsSchema", () => {
   it("validates default settings", () => {
     const result = userSettingsSchema.safeParse({
-      emailScanIntervalMinutes: 15,
+      emailScanIntervalMinutes: 1440,
       notificationsEnabled: true,
     });
     expect(result.success).toBe(true);

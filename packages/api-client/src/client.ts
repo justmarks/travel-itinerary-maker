@@ -11,6 +11,10 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  EmailScanResult,
+  GmailLabel,
+  ApplyParsedSegmentsInput,
+  EmailScanRequest,
 } from "@travel-app/shared";
 
 export interface TripSummary {
@@ -255,6 +259,50 @@ export class ApiClient {
     }
     return res.text();
   }
+
+  // ─── Email Scanning ─────────────────────────────────────
+
+  getGmailLabels(): Promise<GmailLabel[]> {
+    return this.request("/emails/labels");
+  }
+
+  getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
+    return this.request("/emails/pending");
+  }
+
+  scanEmails(input?: EmailScanRequest): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
+    return this.request("/emails/scan", {
+      method: "POST",
+      body: JSON.stringify(input ?? {}),
+    });
+  }
+
+  applyParsedSegments(
+    input: ApplyParsedSegmentsInput,
+  ): Promise<{ created: Array<{ tripId: string; segmentId: string; title: string }> }> {
+    return this.request("/emails/apply", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  getProcessedEmails(): Promise<Array<{
+    gmailMessageId: string;
+    subject?: string;
+    fromAddress?: string;
+    parseStatus: string;
+    createdAt: string;
+  }>> {
+    return this.request("/emails/processed");
+  }
+
+  dismissEmail(emailId: string): Promise<{ status: string }> {
+    return this.request(`/emails/dismiss/${emailId}`, {
+      method: "POST",
+    });
+  }
+
+  // ─── Export ─────────────────────────────────────────────
 
   async exportOneNote(
     tripId: string,

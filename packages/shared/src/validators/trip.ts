@@ -65,6 +65,9 @@ export const segmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
   cost: segmentCostSchema.optional(),
   source: z.enum(SEGMENT_SOURCES),
   sourceEmailId: z.string().optional(),
@@ -149,8 +152,23 @@ export const createSegmentSchema = z.object({
   routeCode: z.string().optional(),
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
+  endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
+  seatNumber: z.string().optional(),
+  contactName: z.string().optional(),
+  phone: z.string().optional(),
+  breakfastIncluded: z.boolean().optional(),
   cost: segmentCostSchema.optional(),
 });
+
+/** Schema for updating a segment (all fields optional — partial update) */
+export const updateSegmentSchema = createSegmentSchema.extend({
+  // Additional fields editable on existing segments (not at creation)
+  cancellationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
+  needsReview: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).optional(),
+}).partial();
 
 /** Schema for creating a todo */
 export const createTodoSchema = z.object({
@@ -181,9 +199,62 @@ export const userSettingsSchema = z.object({
   notificationsEnabled: z.boolean(),
 });
 
+/** Schema for a segment parsed from email by Claude AI */
+export const parsedSegmentSchema = z.object({
+  type: z.enum(SEGMENT_TYPES),
+  title: z.string().min(1),
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD"),
+  startTime: z.string().regex(timeRegex).optional(),
+  endTime: z.string().regex(timeRegex).optional(),
+  venueName: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  url: z.string().url().optional().or(z.literal("")),
+  confirmationCode: z.string().optional(),
+  provider: z.string().optional(),
+  departureCity: z.string().optional(),
+  arrivalCity: z.string().optional(),
+  carrier: z.string().optional(),
+  routeCode: z.string().optional(),
+  partySize: z.number().int().min(1).optional(),
+  creditCardHold: z.boolean().optional(),
+  cancellationDeadline: z.string().regex(isoDateRegex).optional(),
+  phone: z.string().optional(),
+  endDate: z.string().regex(isoDateRegex).optional(),
+  breakfastIncluded: z.boolean().optional(),
+  seatNumber: z.string().optional(),
+  cabinClass: z.string().optional(),
+  baggageInfo: z.string().optional(),
+  contactName: z.string().optional(),
+  cost: segmentCostSchema.optional(),
+  confidence: z.enum(["high", "medium", "low"]),
+  suggestedTripId: z.string().optional(),
+});
+
+/** Schema for triggering an email scan */
+export const emailScanRequestSchema = z.object({
+  tripId: z.string().optional(),
+  labelFilter: z.string().optional(),
+  maxResults: z.number().int().min(1).max(100).optional(),
+  newerThanDays: z.number().int().min(1).max(730).optional(),
+});
+
+/** Schema for applying parsed segments to trips */
+export const applyParsedSegmentsSchema = z.object({
+  segments: z.array(
+    parsedSegmentSchema.extend({
+      tripId: z.string().min(1),
+      emailId: z.string().min(1),
+    }),
+  ).min(1),
+});
+
 export type CreateTripInput = z.infer<typeof createTripSchema>;
 export type UpdateTripInput = z.infer<typeof updateTripSchema>;
 export type CreateSegmentInput = z.infer<typeof createSegmentSchema>;
+export type UpdateSegmentInput = z.infer<typeof updateSegmentSchema>;
 export type CreateTodoInput = z.infer<typeof createTodoSchema>;
 export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;
+export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
+export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;

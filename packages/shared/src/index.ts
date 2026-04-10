@@ -14,6 +14,9 @@ export type {
   UserSettings,
   CostSummary,
   CostSummaryItem,
+  ParsedSegment,
+  EmailScanResult,
+  GmailLabel,
 } from "./types/trip";
 
 // Validators
@@ -27,10 +30,14 @@ export {
   createTripSchema,
   updateTripSchema,
   createSegmentSchema,
+  updateSegmentSchema,
   createTodoSchema,
   updateTodoSchema,
   createShareSchema,
   userSettingsSchema,
+  parsedSegmentSchema,
+  emailScanRequestSchema,
+  applyParsedSegmentsSchema,
   SEGMENT_TYPES,
   TRIP_STATUSES,
   SEGMENT_SOURCES,
@@ -42,9 +49,12 @@ export type {
   CreateTripInput,
   UpdateTripInput,
   CreateSegmentInput,
+  UpdateSegmentInput,
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  EmailScanRequest,
+  ApplyParsedSegmentsInput,
 } from "./validators/trip";
 
 // Utilities
