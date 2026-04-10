@@ -11,6 +11,7 @@ import {
   generateDateRange,
   getDayOfWeek,
   findOverlappingTrips,
+  convertToUsd,
   type Trip,
   type TripDay,
   type Segment,
@@ -465,6 +466,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       description: string;
       amount: number;
       currency: string;
+      amountUsd?: number;
       details?: string;
       segmentId: string;
     }> = [];
@@ -472,11 +474,13 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     for (const day of trip.days) {
       for (const seg of day.segments) {
         if (seg.cost) {
+          const amountUsd = convertToUsd(seg.cost.amount, seg.cost.currency);
           items.push({
             category: seg.type,
             description: seg.title,
             amount: seg.cost.amount,
             currency: seg.cost.currency,
+            amountUsd,
             details: seg.cost.details,
             segmentId: seg.id,
           });
@@ -485,12 +489,22 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     const totalsByCurrency: Record<string, number> = {};
+    let totalUsd = 0;
+    let anyUsd = false;
     for (const item of items) {
       totalsByCurrency[item.currency] =
         (totalsByCurrency[item.currency] ?? 0) + item.amount;
+      if (item.amountUsd !== undefined) {
+        totalUsd += item.amountUsd;
+        anyUsd = true;
+      }
     }
 
-    res.json({ items, totalsByCurrency });
+    res.json({
+      items,
+      totalsByCurrency,
+      ...(anyUsd ? { totalUsd } : {}),
+    });
   });
 
   // ─── TODOs ──────────────────────────────────────────────

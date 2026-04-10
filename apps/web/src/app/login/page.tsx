@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
-import { useDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Plane, AlertCircle, Info } from "lucide-react";
 
@@ -13,7 +11,6 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export default function LoginPage() {
-  const isDemo = useDemoMode();
   const { isAuthenticated, isLoading, login } = useAuth();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -58,15 +55,15 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    // In demo mode, skip login and go straight to dashboard
-    if (isDemo) {
-      router.replace("/?demo=true");
-      return;
-    }
+    // Note: we intentionally do NOT redirect when isDemo flips to true here.
+    // The "Try with demo data" button is a plain anchor that does a hard
+    // navigation, so the destination page mounts fresh with ?demo=true in
+    // the URL from the start. Redirecting here would race against that
+    // hard nav and cause a flicker through several intermediate routes.
     if (!isLoading && isAuthenticated) {
       router.replace("/");
     }
-  }, [isDemo, isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
     return (
@@ -130,12 +127,19 @@ export default function LoginPage() {
           </svg>
           Sign in with Google
         </Button>
-        <Link
-          href="/?demo=true"
+        {/*
+          Plain <a> tag (not next/link) on purpose: we want a full page
+          reload so the next page mounts with ?demo=true in the URL from
+          the start, avoiding any RequireAuth → /login → / flicker loop.
+          Relative href "../?demo=true" works in both dev and the GitHub
+          Pages build (which uses basePath=/travel-itinerary-maker).
+        */}
+        <a
+          href="../?demo=true"
           className="block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
         >
           Try with demo data
-        </Link>
+        </a>
       </div>
     </main>
   );

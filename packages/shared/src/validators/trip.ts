@@ -240,6 +240,13 @@ export const emailScanRequestSchema = z.object({
   labelFilter: z.string().optional(),
   maxResults: z.number().int().min(1).max(500).optional(),
   newerThanDays: z.number().int().min(1).max(730).optional(),
+  /**
+   * When true, re-parse emails even if they were previously marked as
+   * "skipped", "failed", or "parsed". Does not re-parse emails already
+   * "mapped" to a trip. Used to recover from stuck state after fixing
+   * parser bugs.
+   */
+  forceRescan: z.boolean().optional(),
 });
 
 /** Schema for applying parsed segments to trips */

@@ -1,4 +1,5 @@
 import { ApiClient } from "@travel-app/api-client";
+import { convertToUsd } from "@travel-app/shared";
 import type { TripSummary, CostSummaryResponse } from "@travel-app/api-client";
 import type {
   Trip,
@@ -1088,17 +1089,28 @@ export class MockApiClient extends ApiClient {
           description: s.title,
           amount: s.cost!.amount,
           currency: s.cost!.currency,
+          amountUsd: convertToUsd(s.cost!.amount, s.cost!.currency),
           details: s.cost?.details,
         })),
     );
 
     const totalsByCurrency: Record<string, number> = {};
+    let totalUsd = 0;
+    let anyUsd = false;
     for (const item of items) {
       totalsByCurrency[item.currency] =
         (totalsByCurrency[item.currency] ?? 0) + item.amount;
+      if (item.amountUsd !== undefined) {
+        totalUsd += item.amountUsd;
+        anyUsd = true;
+      }
     }
 
-    return Promise.resolve({ items, totalsByCurrency });
+    return Promise.resolve({
+      items,
+      totalsByCurrency,
+      ...(anyUsd ? { totalUsd } : {}),
+    });
   }
 
   // ─── Todos ───────────────────────────────────────────────

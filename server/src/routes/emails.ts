@@ -258,7 +258,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return;
       }
 
-      const { tripId, labelFilter, maxResults, newerThanDays } = parsed.data;
+      const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
       const storage = getStorage(req);
 
       // Load all processed email records
@@ -305,11 +305,35 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         );
       }
 
-      // Filter to truly new emails (not in processedEmails at all).
-      // Log skipped ones with the reason so the user can see what happened.
+      // Filter which emails to (re)parse. Default policy:
+      //   - never seen before  → parse
+      //   - prior "failed"     → retry automatically (a previous code bug or
+      //                          transient error may have blocked it)
+      //   - prior "skipped"    → do NOT retry unless forceRescan is set
+      //   - prior "parsed"     → already have results, skip (pending)
+      //   - prior "mapped"     → already applied to a trip, skip
+      // When forceRescan=true, retry ALL prior statuses except "mapped"
+      // (already applied). Log skipped ones with the reason.
       const newEmails = rawEmails.filter((e) => {
         const prior = processedMap.get(e.id);
         if (!prior) return true;
+
+        if (forceRescan) {
+          if (prior.parseStatus === "mapped") {
+            console.log(`SKIP: "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
+            return false;
+          }
+          console.log(`RETRY: "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
+          return true;
+        }
+
+        // Auto-retry prior failed status — previous attempt errored and the
+        // code that caused it may have been fixed since.
+        if (prior.parseStatus === "failed") {
+          console.log(`RETRY: "${e.subject}" (previously failed — retrying)`);
+          return true;
+        }
+
         const reason =
           prior.parseStatus === "mapped"
             ? "already applied to a trip"
@@ -317,9 +341,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               ? "previously dismissed / no travel content"
               : prior.parseStatus === "parsed"
                 ? "already parsed, pending review"
-                : prior.parseStatus === "failed"
-                  ? "previously failed"
-                  : `already processed (${prior.parseStatus})`;
+                : `already processed (${prior.parseStatus})`;
         console.log(`SKIP: "${e.subject}" (${reason})`);
         return false;
       });
@@ -351,16 +373,29 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       for (const email of newEmails) {
         try {
           console.log(`Parsing email: "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
-          const segments = await parser.parseEmail({
+          const { segments, invalidCount, rawItemCount } = await parser.parseEmail({
             subject: email.subject,
             from: email.from,
             body: email.bodyText,
             receivedAt: email.receivedAt,
           });
-          if (segments.length === 0) {
-            console.log(`SKIP: "${email.subject}" (no travel content detected)`);
-          } else {
+
+          // Three outcomes:
+          //   1. Segments extracted → success
+          //   2. Claude returned items but ALL failed Zod validation → retryable failure
+          //   3. Claude returned no items at all → genuine "no travel content" (skipped)
+          const hasTravel = segments.length > 0;
+          const validationFailedEverything =
+            !hasTravel && rawItemCount > 0 && invalidCount > 0;
+
+          if (hasTravel) {
             console.log(`  → ${segments.length} segments extracted`);
+          } else if (validationFailedEverything) {
+            console.warn(
+              `  PARSE FAILURE: "${email.subject}" — Claude returned ${rawItemCount} items but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
+            );
+          } else {
+            console.log(`SKIP: "${email.subject}" (no travel content detected)`);
           }
 
           // Auto-match segments to trips by date
@@ -374,24 +409,41 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               : seg;
           });
 
-          const hasTravel = segments.length > 0;
           const scanResult: EmailScanResult = {
             emailId: email.id,
             subject: email.subject,
             from: email.from,
             receivedAt: email.receivedAt,
             parsedSegments: matchedSegments,
-            parseStatus: hasTravel ? "success" : "no_travel_content",
+            parseStatus: hasTravel
+              ? "success"
+              : validationFailedEverything
+                ? "failed"
+                : "no_travel_content",
+            ...(validationFailedEverything
+              ? {
+                  error: `Claude returned ${rawItemCount} item(s) but none passed schema validation. See server logs for details.`,
+                }
+              : {}),
           };
 
           if (hasTravel) {
+            newResults.push(scanResult);
+          } else if (validationFailedEverything) {
+            // Surface to the UI so the user knows it was attempted.
             newResults.push(scanResult);
           } else {
             noTravelResults.push(scanResult);
           }
 
-          // Save to processedEmails — travel emails get "parsed" status with saved results,
-          // no-travel emails get "skipped" status
+          // Remove any prior record for this email — we're about to replace it.
+          const idx = processedEmails.findIndex((p) => p.gmailMessageId === email.id);
+          if (idx !== -1) processedEmails.splice(idx, 1);
+
+          // Save to processedEmails. Status rules:
+          //   - success (travel extracted)            → "parsed"  (saved with results)
+          //   - all validation failed                 → "failed"  (retryable, no results)
+          //   - no travel at all                      → "skipped" (sticky, no retry)
           newProcessedEmails.push({
             gmailMessageId: email.id,
             gmailThreadId: email.threadId,
@@ -399,7 +451,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             fromAddress: email.from,
             receivedAt: email.receivedAt,
             parsedType: hasTravel ? segments[0].type : undefined,
-            parseStatus: hasTravel ? "parsed" : "skipped",
+            parseStatus: hasTravel
+              ? "parsed"
+              : validationFailedEverything
+                ? "failed"
+                : "skipped",
             rawParseResult: hasTravel ? scanResult : undefined,
             createdAt: new Date().toISOString(),
           });

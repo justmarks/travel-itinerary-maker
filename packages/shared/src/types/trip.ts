@@ -119,8 +119,16 @@ export interface UserSettings {
 export interface CostSummaryItem {
   category: string;
   description: string;
+  /** Raw amount as recorded on the segment (in its original currency) */
   amount: number;
+  /** Original currency code (e.g. "USD", "EUR", "JPY") */
   currency: string;
+  /**
+   * Amount converted to USD using static FX rates. Undefined for currencies
+   * with no conversion rate (e.g. "points" or unknown codes). The UI should
+   * fall back to showing the raw amount for items without amountUsd.
+   */
+  amountUsd?: number;
   details?: string;
   segmentId: string;
 }
@@ -128,6 +136,11 @@ export interface CostSummaryItem {
 export interface CostSummary {
   items: CostSummaryItem[];
   totalsByCurrency: Record<string, number>;
+  /**
+   * Sum of amountUsd across all items that had a conversion rate.
+   * Items in currencies without a rate (e.g. points) are NOT included here
+   * and will still appear in totalsByCurrency.
+   */
   totalUsd?: number;
 }
 

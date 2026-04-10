@@ -45,46 +45,60 @@ jest.mock("../../src/services/gmail-scanner", () => {
   };
 });
 
-// Mock the EmailParser
+// Mock the EmailParser. parseEmail now returns a richer object:
+// { segments, invalidCount, rawItemCount } so the route can distinguish
+// "no travel content" from "validation failure".
 jest.mock("../../src/services/email-parser", () => {
   return {
     EmailParser: jest.fn().mockImplementation(() => ({
       parseEmail: jest.fn().mockImplementation(
         (email: { subject: string }) => {
           if (email.subject.includes("Alaska Airlines")) {
-            return Promise.resolve([
-              {
-                type: "flight",
-                title: "SEA → NRT",
-                date: "2026-06-26",
-                startTime: "10:30",
-                carrier: "AS",
-                routeCode: "AS123",
-                departureCity: "Seattle",
-                arrivalCity: "Tokyo",
-                seatNumber: "14A",
-                confirmationCode: "ABCDEF",
-                confidence: "high",
-              },
-            ]);
+            return Promise.resolve({
+              segments: [
+                {
+                  type: "flight",
+                  title: "SEA → NRT",
+                  date: "2026-06-26",
+                  startTime: "10:30",
+                  carrier: "AS",
+                  routeCode: "AS123",
+                  departureCity: "Seattle",
+                  arrivalCity: "Tokyo",
+                  seatNumber: "14A",
+                  confirmationCode: "ABCDEF",
+                  confidence: "high",
+                },
+              ],
+              invalidCount: 0,
+              rawItemCount: 1,
+            });
           }
           if (email.subject.includes("Hilton")) {
-            return Promise.resolve([
-              {
-                type: "hotel",
-                title: "Hilton Tokyo Bay",
-                date: "2026-06-26",
-                venueName: "Hilton Tokyo Bay",
-                city: "Tokyo",
-                confirmationCode: "HLT789",
-                breakfastIncluded: true,
-                cost: { amount: 850, currency: "USD" },
-                confidence: "high",
-              },
-            ]);
+            return Promise.resolve({
+              segments: [
+                {
+                  type: "hotel",
+                  title: "Hilton Tokyo Bay",
+                  date: "2026-06-26",
+                  venueName: "Hilton Tokyo Bay",
+                  city: "Tokyo",
+                  confirmationCode: "HLT789",
+                  breakfastIncluded: true,
+                  cost: { amount: 850, currency: "USD" },
+                  confidence: "high",
+                },
+              ],
+              invalidCount: 0,
+              rawItemCount: 1,
+            });
           }
           // Newsletter - no travel content
-          return Promise.resolve([]);
+          return Promise.resolve({
+            segments: [],
+            invalidCount: 0,
+            rawItemCount: 0,
+          });
         },
       ),
     })),
