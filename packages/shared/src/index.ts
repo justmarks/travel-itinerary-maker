@@ -15,6 +15,9 @@ export type {
   CostSummary,
   CostSummaryItem,
   ParsedSegment,
+  SegmentMatch,
+  SegmentMatchStatus,
+  SegmentFieldDiff,
   EmailScanResult,
   GmailLabel,
 } from "./types/trip";
@@ -36,6 +39,8 @@ export {
   createShareSchema,
   userSettingsSchema,
   parsedSegmentSchema,
+  segmentMatchSchema,
+  segmentFieldDiffSchema,
   emailScanRequestSchema,
   applyParsedSegmentsSchema,
   SEGMENT_TYPES,
@@ -43,6 +48,8 @@ export {
   SEGMENT_SOURCES,
   TODO_CATEGORIES,
   SHARE_PERMISSIONS,
+  SEGMENT_MATCH_STATUSES,
+  APPLY_ACTIONS,
 } from "./validators/trip";
 
 export type {
@@ -55,6 +62,7 @@ export type {
   CreateShareInput,
   EmailScanRequest,
   ApplyParsedSegmentsInput,
+  ApplyAction,
 } from "./validators/trip";
 
 // Utilities

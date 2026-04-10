@@ -131,6 +131,27 @@ export interface CostSummary {
   totalUsd?: number;
 }
 
+/** Classification of a parsed segment vs. existing itinerary */
+export type SegmentMatchStatus = "new" | "duplicate" | "enrichment" | "conflict";
+
+/** A single field that differs between parsed and existing segments */
+export interface SegmentFieldDiff {
+  field: string;
+  existing?: string | number | boolean;
+  parsed?: string | number | boolean;
+}
+
+/** Result of matching a parsed segment against an existing itinerary segment */
+export interface SegmentMatch {
+  status: SegmentMatchStatus;
+  existingSegmentId?: string;
+  existingTripId?: string;
+  /** Fields present on the parsed segment but missing on the existing one */
+  newFields?: string[];
+  /** Fields where parsed and existing disagree on a non-empty value */
+  conflictFields?: SegmentFieldDiff[];
+}
+
 /** A segment parsed from an email by Claude AI */
 export interface ParsedSegment {
   type: SegmentType;
@@ -161,6 +182,8 @@ export interface ParsedSegment {
   cost?: SegmentCost;
   confidence: "high" | "medium" | "low";
   suggestedTripId?: string;
+  /** Populated by scan response — how this segment compares to the itinerary */
+  match?: SegmentMatch;
 }
 
 /** Result of scanning and parsing a single email */
