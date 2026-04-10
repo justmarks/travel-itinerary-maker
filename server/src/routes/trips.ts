@@ -11,6 +11,7 @@ import {
   generateDateRange,
   getDayOfWeek,
   findOverlappingTrips,
+  convertToUsd,
   type Trip,
   type TripDay,
   type Segment,
@@ -338,12 +339,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       let found: Segment | undefined;
+      let currentDay: TripDay | undefined;
       for (const day of trip.days) {
-        found = day.segments.find((s) => s.id === (req.params.segId as string));
-        if (found) break;
+        const seg = day.segments.find(
+          (s) => s.id === (req.params.segId as string),
+        );
+        if (seg) {
+          found = seg;
+          currentDay = day;
+          break;
+        }
       }
 
-      if (!found) {
+      if (!found || !currentDay) {
         res.status(404).json({ error: "Segment not found" });
         return;
       }
@@ -355,8 +363,25 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
+      const { date: newDate, ...segmentUpdates } = parsed.data;
+
+      if (newDate && newDate !== currentDay.date) {
+        const targetDay = trip.days.find((d) => d.date === newDate);
+        if (!targetDay) {
+          res
+            .status(400)
+            .json({ error: "Target date is outside this trip's range" });
+          return;
+        }
+        currentDay.segments = currentDay.segments.filter(
+          (s) => s.id !== found!.id,
+        );
+        found.sortOrder = targetDay.segments.length;
+        targetDay.segments.push(found);
+      }
+
       // Apply validated updates (immutable fields protected by schema — id/source/sourceEmailId not in updateSegmentSchema)
-      for (const [key, value] of Object.entries(parsed.data)) {
+      for (const [key, value] of Object.entries(segmentUpdates)) {
         (found as unknown as Record<string, unknown>)[key] = value;
       }
 
@@ -439,8 +464,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     const items: Array<{
       category: string;
       description: string;
+      city?: string;
       amount: number;
       currency: string;
+      amountUsd?: number;
       details?: string;
       segmentId: string;
     }> = [];
@@ -448,11 +475,17 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     for (const day of trip.days) {
       for (const seg of day.segments) {
         if (seg.cost) {
+          const amountUsd = convertToUsd(seg.cost.amount, seg.cost.currency);
+          // Prefer the segment's own city; fall back to the trip day's city
+          // so the cost table can render "City: Activity" entries.
+          const city = seg.city?.trim() || day.city?.trim() || undefined;
           items.push({
             category: seg.type,
             description: seg.title,
+            city,
             amount: seg.cost.amount,
             currency: seg.cost.currency,
+            amountUsd,
             details: seg.cost.details,
             segmentId: seg.id,
           });
@@ -461,12 +494,22 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     const totalsByCurrency: Record<string, number> = {};
+    let totalUsd = 0;
+    let anyUsd = false;
     for (const item of items) {
       totalsByCurrency[item.currency] =
         (totalsByCurrency[item.currency] ?? 0) + item.amount;
+      if (item.amountUsd !== undefined) {
+        totalUsd += item.amountUsd;
+        anyUsd = true;
+      }
     }
 
-    res.json({ items, totalsByCurrency });
+    res.json({
+      items,
+      totalsByCurrency,
+      ...(anyUsd ? { totalUsd } : {}),
+    });
   });
 
   // ─── TODOs ──────────────────────────────────────────────

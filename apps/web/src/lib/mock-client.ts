@@ -1,4 +1,5 @@
 import { ApiClient } from "@travel-app/api-client";
+import { convertToUsd } from "@travel-app/shared";
 import type { TripSummary, CostSummaryResponse } from "@travel-app/api-client";
 import type {
   Trip,
@@ -1026,16 +1027,29 @@ export class MockApiClient extends ApiClient {
   override updateSegment(
     tripId: string,
     segmentId: string,
-    input: Partial<Segment>,
+    input: Partial<Segment> & { date?: string },
   ): Promise<Segment> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { date: newDate, ...segmentUpdates } = input;
     for (const day of trip.days) {
       const seg = day.segments.find((s) => s.id === segmentId);
-      if (seg) {
-        Object.assign(seg, input);
-        return Promise.resolve(structuredClone(seg));
+      if (!seg) continue;
+
+      if (newDate && newDate !== day.date) {
+        const targetDay = trip.days.find((d) => d.date === newDate);
+        if (!targetDay) {
+          return Promise.reject(
+            new Error("Target date is outside this trip's range"),
+          );
+        }
+        day.segments = day.segments.filter((s) => s.id !== segmentId);
+        seg.sortOrder = targetDay.segments.length;
+        targetDay.segments.push(seg);
       }
+
+      Object.assign(seg, segmentUpdates);
+      return Promise.resolve(structuredClone(seg));
     }
     return Promise.reject(new Error("Segment not found"));
   }
@@ -1073,19 +1087,31 @@ export class MockApiClient extends ApiClient {
           segmentId: s.id,
           category: s.type,
           description: s.title,
+          city: s.city?.trim() || day.city?.trim() || undefined,
           amount: s.cost!.amount,
           currency: s.cost!.currency,
+          amountUsd: convertToUsd(s.cost!.amount, s.cost!.currency),
           details: s.cost?.details,
         })),
     );
 
     const totalsByCurrency: Record<string, number> = {};
+    let totalUsd = 0;
+    let anyUsd = false;
     for (const item of items) {
       totalsByCurrency[item.currency] =
         (totalsByCurrency[item.currency] ?? 0) + item.amount;
+      if (item.amountUsd !== undefined) {
+        totalUsd += item.amountUsd;
+        anyUsd = true;
+      }
     }
 
-    return Promise.resolve({ items, totalsByCurrency });
+    return Promise.resolve({
+      items,
+      totalsByCurrency,
+      ...(anyUsd ? { totalUsd } : {}),
+    });
   }
 
   // ─── Todos ───────────────────────────────────────────────

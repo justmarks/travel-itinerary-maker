@@ -32,6 +32,11 @@ export interface TripSummary {
 export interface CostSummaryResponse {
   items: CostSummaryItem[];
   totalsByCurrency: Record<string, number>;
+  /**
+   * Grand total converted to USD. Only includes items whose currency has a
+   * supported FX rate. Undefined if no items had a USD conversion available.
+   */
+  totalUsd?: number;
 }
 
 export interface SharedTripResponse {

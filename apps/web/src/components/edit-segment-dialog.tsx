@@ -17,10 +17,14 @@ import {
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 
-function segmentToFormState(segment: Segment): SegmentFormState {
+function segmentToFormState(
+  segment: Segment,
+  date: string,
+): SegmentFormState {
   return {
     type: segment.type,
     title: segment.title,
+    date,
     startTime: segment.startTime ?? "",
     endTime: segment.endTime ?? "",
     venueName: segment.venueName ?? "",
@@ -51,16 +55,19 @@ function segmentToFormState(segment: Segment): SegmentFormState {
 export function EditSegmentDialog({
   tripId,
   segment,
+  date,
   open,
   onOpenChange,
 }: {
   tripId: string;
   segment: Segment;
+  /** The date of the TripDay that currently contains this segment. */
+  date: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const [form, setForm] = useState<SegmentFormState>(
-    segmentToFormState(segment),
+    segmentToFormState(segment, date),
   );
 
   const updateSegment = useUpdateSegment(tripId);
@@ -68,9 +75,9 @@ export function EditSegmentDialog({
   // Reset form when segment changes or dialog re-opens
   useEffect(() => {
     if (open) {
-      setForm(segmentToFormState(segment));
+      setForm(segmentToFormState(segment, date));
     }
-  }, [open, segment]);
+  }, [open, segment, date]);
 
   const handleChange = useCallback((patch: Partial<SegmentFormState>) => {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -99,6 +106,10 @@ export function EditSegmentDialog({
       confirmationCode: form.confirmationCode || undefined,
       cost,
     };
+
+    if (form.date && form.date !== date) {
+      updates.date = form.date;
+    }
 
     // Flight: no venue/city/address, use carrier as "Airline"
     if (flags.isFlight) {

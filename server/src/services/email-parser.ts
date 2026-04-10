@@ -21,8 +21,8 @@ Each item in the array must be a JSON object with these fields:
 - "address": street address (if available)
 - "confirmationCode": booking confirmation number (if available)
 - "provider": booking provider or airline/company name (if available)
-- "carrier": airline or transport carrier code (if applicable, e.g. "AS" for Alaska Airlines)
-- "routeCode": flight number or route (e.g. "AS123")
+- "carrier": full airline or transport carrier NAME, not a code. For example: "Delta" (NOT "DL"), "Alaska Airlines" (NOT "AS"), "American Airlines" (NOT "AA"), "United" (NOT "UA"), "Hawaiian Airlines" (NOT "HA"), "Southwest", "JetBlue", "British Airways", "Lufthansa", etc. If only a 2-letter code appears in the email, expand it to the full airline name.
+- "routeCode": ONLY the flight number digits, no airline prefix. For example: "359" (NOT "DL359"), "101" (NOT "AS101"), "2410" (NOT "AA2410"). Strip any letter prefix that matches the airline code.
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
 - "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger.
@@ -39,11 +39,18 @@ Each item in the array must be a JSON object with these fields:
 IMPORTANT RULES:
 - One booking = one segment. If an email has a flight with 4 passengers and 4 seat numbers, return ONE flight segment with all seats in "seatNumber" and partySize=4.
 - **CAR RENTALS**: Return TWO separate segments — one for PICKUP and one for DROPOFF:
-  - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only.
-  - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment.
+  - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only. ALWAYS populate the "city" field with the pickup city (same city that appears in the title). If the pickup location is an airport, also put the airport name/code in "venueName" (e.g. "Lihue Airport (LIH)") and the city in "city".
+  - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment. ALWAYS populate the "city" field with the dropoff city.
+  - Car rental cost: The cost "amount" should be the BASE RENTAL RATE only — the total for the car itself BEFORE taxes, airport concession fees, vehicle license fees, customer facility charges, or any other surcharges. Do NOT include tax lines in the amount. Put the car class/type (e.g. "Midsize SUV", "Full-size") in "details". If taxes and fees are shown as a separate total, mention them briefly in "details" (e.g. "+$120 taxes & fees") but keep them out of "amount".
+- **HOTEL CHECK-IN/CHECK-OUT TIMES**: If the email explicitly states a check-in time (e.g. "Check-in: 4:00 PM") or check-out time (e.g. "Check-out by 11:00 AM"), use those values for "startTime" (check-in) and "endTime" (check-out). Do NOT use timestamps from booking confirmation metadata, email headers, or ISO datetime fields that look like the time the email was sent — those are not real hotel policy times. If no explicit check-in/check-out time is stated in the visible email body, omit "startTime" and "endTime" entirely and the server will apply standard hotel defaults.
 - **HOTELS**: The cost "amount" should be the ROOM RATE only (nightly or total room charge), NOT including fees like parking, resort fees, or taxes. Put the room type (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View") and any fees/extras (parking, resort fee, breakfast) in the "details" string so the user can see them separately.
 - **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).
 - **AIRLINE EMAILS**: Be sure to parse emails from ALL airlines including Hawaiian Airlines, Alaska Airlines, Delta, United, American, Southwest, JetBlue, Spirit, Frontier, and international carriers. Itinerary changes, schedule changes, and booking confirmations are all travel-related. Look for flight numbers, dates, times, and routes even if the email format is unusual.
+- **YEAR INFERENCE**: If a date in the email body does not include a year (e.g. "Wednesday, April 15" or "Apr 15"), you MUST infer the year from the "Email received date" provided in the user message — NEVER default to the current real-world year or a training-data year. Use this rule:
+  1. Start with the year of the email received date.
+  2. If the resulting date (month + day) is more than 7 days BEFORE the email received date, add one year (the trip is in the following year).
+  3. Otherwise keep the email-received year.
+  For example: if the email was received on 2026-01-15 and mentions "Wednesday, April 15", the correct date is 2026-04-15 (same year, since April 15 is after January 15). If the email was received on 2026-11-15 and mentions "Friday, January 20", the correct date is 2027-01-20 (next year, since January 20 has already passed in 2026).
 - Only include fields that are actually present in the email. Do not guess or fabricate data.
 - For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
 
@@ -70,13 +77,28 @@ export class EmailParser {
 
   /**
    * Parse an email and return extracted travel segments.
-   * Returns empty array if no travel content is found.
+   *
+   * Returns a richer result than just segments so the caller can tell the
+   * difference between "Claude said this email has no travel content" and
+   * "Claude returned segments but they all failed validation". The latter is
+   * a retryable failure; the former should not be retried.
+   *
+   * `receivedAt` should be the email's Date header (ISO string). It's used as
+   * the anchor for inferring missing years on dates mentioned in the body.
    */
   async parseEmail(email: {
     subject: string;
     from: string;
     body: string;
-  }): Promise<ParsedSegment[]> {
+    receivedAt?: string;
+  }): Promise<{ segments: ParsedSegment[]; invalidCount: number; rawItemCount: number }> {
+    // Anchor year inference on the email's received date, not today's date.
+    // Falling back to "now" is OK but should rarely happen in real scans.
+    const anchor = email.receivedAt ? new Date(email.receivedAt) : new Date();
+    const receivedLine = isNaN(anchor.getTime())
+      ? `Email received date: unknown`
+      : `Email received date: ${anchor.toISOString().slice(0, 10)} (year=${anchor.getUTCFullYear()})`;
+
     const response = await this.client.messages.create({
       model: this.model,
       max_tokens: 4096,
@@ -84,7 +106,7 @@ export class EmailParser {
       messages: [
         {
           role: "user",
-          content: `Subject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
+          content: `${receivedLine}\nSubject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
         },
       ],
     });
@@ -128,6 +150,37 @@ export class EmailParser {
   }
 
   /**
+   * Normalize a URL string. Returns undefined if it isn't a valid HTTP(S) URL
+   * that Zod's `.url()` validator will accept. This prevents a garbage url
+   * value from disqualifying the whole segment during Zod validation.
+   */
+  private normalizeUrl(url: unknown): string | undefined {
+    if (typeof url !== "string") return undefined;
+    const trimmed = url.trim();
+    if (!trimmed) return undefined;
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        return undefined;
+      }
+      return parsed.toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Apply sensible defaults to hotel segments when the email doesn't state
+   * explicit check-in / check-out times. Industry-standard defaults: 15:00
+   * check-in and 11:00 check-out. The user can edit later.
+   */
+  private applyHotelDefaults(item: Record<string, unknown>): void {
+    if (item.type !== "hotel") return;
+    if (!item.startTime) item.startTime = "15:00";
+    if (!item.endTime) item.endTime = "11:00";
+  }
+
+  /**
    * Normalize cost field so Zod validation doesn't silently strip it.
    * Handles: string amounts ("547.20", "$547.20"), missing currency, etc.
    */
@@ -160,23 +213,32 @@ export class EmailParser {
   }
 
   /** Parse and validate Claude's JSON response */
-  private parseResponse(text: string): ParsedSegment[] {
+  private parseResponse(text: string): { segments: ParsedSegment[]; invalidCount: number; rawItemCount: number } {
     try {
       // Extract JSON array from response (handle markdown code blocks)
       let jsonStr = text.trim();
       const jsonMatch = jsonStr.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return [];
+      if (!jsonMatch) return { segments: [], invalidCount: 0, rawItemCount: 0 };
       jsonStr = jsonMatch[0];
 
       const raw = JSON.parse(jsonStr);
-      if (!Array.isArray(raw)) return [];
+      if (!Array.isArray(raw)) return { segments: [], invalidCount: 0, rawItemCount: 0 };
 
       // Validate each segment with Zod, keeping only valid ones
       const segments: ParsedSegment[] = [];
+      let invalidCount = 0;
       for (const item of raw) {
         // Normalize time fields before validation
         if (item.startTime) item.startTime = this.normalizeTime(item.startTime);
         if (item.endTime) item.endTime = this.normalizeTime(item.endTime);
+
+        // Normalize URL — strip anything that isn't a valid http(s) URL
+        // so it doesn't disqualify the entire segment during Zod validation.
+        item.url = this.normalizeUrl(item.url);
+
+        // Apply sensible hotel defaults when check-in/check-out times aren't
+        // stated in the email body (standard 15:00 / 11:00).
+        this.applyHotelDefaults(item);
 
         // Log raw cost data for debugging
         if (item.cost) {
@@ -208,6 +270,7 @@ export class EmailParser {
           if (retry.success) {
             segments.push(retry.data as ParsedSegment);
           } else {
+            invalidCount++;
             console.warn(
               "Skipping invalid parsed segment:",
               retry.error.issues,
@@ -216,10 +279,10 @@ export class EmailParser {
         }
       }
 
-      return segments;
+      return { segments, invalidCount, rawItemCount: raw.length };
     } catch (err) {
       console.error("Failed to parse Claude response:", err);
-      return [];
+      return { segments: [], invalidCount: 0, rawItemCount: 0 };
     }
   }
 }

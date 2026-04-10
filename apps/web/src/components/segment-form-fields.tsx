@@ -84,6 +84,7 @@ export function getTypeFlags(type: string) {
 export interface SegmentFormState {
   type: string;
   title: string;
+  date: string;
   startTime: string;
   endTime: string;
   venueName: string;
@@ -113,6 +114,7 @@ export interface SegmentFormState {
 export const EMPTY_FORM_STATE: SegmentFormState = {
   type: "activity",
   title: "",
+  date: "",
   startTime: "",
   endTime: "",
   venueName: "",
@@ -201,7 +203,7 @@ export function SegmentFormFields({
 
   return (
     <div className="space-y-4">
-      {/* ── Type + Title ── */}
+      {/* ── Type + Date ── */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Type</Label>
@@ -211,21 +213,32 @@ export function SegmentFormFields({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-title`}>Title</Label>
+          <Label htmlFor={`${idPrefix}-date`}>Date</Label>
           <Input
-            id={`${idPrefix}-title`}
-            placeholder={
-              isFlight ? "e.g. SEA → NRT" :
-              isHotel ? "e.g. Hilton Garden Inn" :
-              isRestaurant ? "e.g. Canlis" :
-              isCarRental ? "e.g. National - Lihue" :
-              "e.g. City Walking Tour"
-            }
-            value={form.title}
-            onChange={(e) => onChange({ title: e.target.value })}
-            autoFocus
+            id={`${idPrefix}-date`}
+            type="date"
+            value={form.date}
+            onChange={(e) => onChange({ date: e.target.value })}
           />
         </div>
+      </div>
+
+      {/* ── Title ── */}
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-title`}>Title</Label>
+        <Input
+          id={`${idPrefix}-title`}
+          placeholder={
+            isFlight ? "e.g. SEA → NRT" :
+            isHotel ? "e.g. Hilton Garden Inn" :
+            isRestaurant ? "e.g. Canlis" :
+            isCarRental ? "e.g. National - Lihue" :
+            "e.g. City Walking Tour"
+          }
+          value={form.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          autoFocus
+        />
       </div>
 
       {/* ── Flight fields: Route, Airline, Flight #, Cabin, Seats, Baggage ── */}

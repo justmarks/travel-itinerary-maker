@@ -74,7 +74,14 @@ export {
   findOverlappingTrips,
 } from "./utils/dates";
 export type { DateRange } from "./utils/dates";
-export { formatCurrency, getCurrencySymbol, sumByCurrency } from "./utils/currency";
+export {
+  formatCurrency,
+  getCurrencySymbol,
+  sumByCurrency,
+  convertToUsd,
+  hasUsdRate,
+} from "./utils/currency";
 export { generateId } from "./utils/ids";
+export { formatFlightLabel } from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";

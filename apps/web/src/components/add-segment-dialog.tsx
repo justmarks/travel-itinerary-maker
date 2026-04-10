@@ -26,7 +26,10 @@ export function AddSegmentDialog({
   date: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<SegmentFormState>({ ...EMPTY_FORM_STATE });
+  const [form, setForm] = useState<SegmentFormState>({
+    ...EMPTY_FORM_STATE,
+    date,
+  });
 
   const createSegment = useCreateSegment(tripId);
 
@@ -34,7 +37,7 @@ export function AddSegmentDialog({
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const reset = () => setForm({ ...EMPTY_FORM_STATE });
+  const reset = () => setForm({ ...EMPTY_FORM_STATE, date });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +53,7 @@ export function AddSegmentDialog({
 
     createSegment.mutate(
       {
-        date,
+        date: form.date || date,
         type: form.type as SegmentType,
         title: form.title,
         startTime: form.startTime || undefined,

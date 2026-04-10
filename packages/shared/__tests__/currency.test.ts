@@ -17,8 +17,13 @@ describe("formatCurrency", () => {
     expect(formatCurrency(318500, "points")).toBe("318,500 pts");
   });
 
+  it("formats CHF with its symbol", () => {
+    // CHF symbol has a trailing space so it reads "CHF 100.00"
+    expect(formatCurrency(100, "CHF")).toBe("CHF 100.00");
+  });
+
   it("handles unknown currency by using code as symbol", () => {
-    expect(formatCurrency(100, "CHF")).toBe("CHF100.00");
+    expect(formatCurrency(100, "XYZ")).toBe("XYZ100.00");
   });
 
   it("formats zero", () => {
@@ -31,8 +36,12 @@ describe("getCurrencySymbol", () => {
     expect(getCurrencySymbol("USD")).toBe("$");
   });
 
+  it("returns ¥ for JPY", () => {
+    expect(getCurrencySymbol("JPY")).toBe("¥");
+  });
+
   it("returns currency code for unknown", () => {
-    expect(getCurrencySymbol("JPY")).toBe("JPY");
+    expect(getCurrencySymbol("XYZ")).toBe("XYZ");
   });
 });
 

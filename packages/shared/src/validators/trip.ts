@@ -168,6 +168,9 @@ export const updateSegmentSchema = createSegmentSchema.extend({
   cancellationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
   needsReview: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  // Segments are stored inside TripDay, not on the segment itself. Accepting
+  // `date` here lets a PUT move a segment to a different day in one call.
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
 }).partial();
 
 /** Schema for creating a todo */
@@ -257,8 +260,15 @@ export const parsedSegmentSchema = z.object({
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
   labelFilter: z.string().optional(),
-  maxResults: z.number().int().min(1).max(100).optional(),
+  maxResults: z.number().int().min(1).max(500).optional(),
   newerThanDays: z.number().int().min(1).max(730).optional(),
+  /**
+   * When true, re-parse emails even if they were previously marked as
+   * "skipped", "failed", or "parsed". Does not re-parse emails already
+   * "mapped" to a trip. Used to recover from stuck state after fixing
+   * parser bugs.
+   */
+  forceRescan: z.boolean().optional(),
 });
 
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;

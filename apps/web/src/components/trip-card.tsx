@@ -77,7 +77,7 @@ export function TripCard({ trip }: { trip: TripSummary }) {
   };
 
   return (
-    <Card className="group relative transition-shadow hover:shadow-md">
+    <Card className="group relative flex h-full flex-col transition-shadow hover:shadow-md">
       {!renaming && (
         <Link href={tripHref} className="absolute inset-0 z-0" />
       )}
@@ -126,12 +126,15 @@ export function TripCard({ trip }: { trip: TripSummary }) {
               </Button>
             </form>
           ) : (
-            <CardTitle className="text-lg">{trip.title}</CardTitle>
+            // Reserve space for up to 2 lines so dates always sit in the
+            // same vertical position across cards regardless of title length.
+            <CardTitle
+              className="line-clamp-2 min-h-[3.5rem] text-lg leading-tight"
+              title={trip.title}
+            >
+              {trip.title}
+            </CardTitle>
           )}
-          <CardDescription className="flex items-center gap-1">
-            <Calendar className="h-3.5 w-3.5" />
-            {formatDateRange(trip.startDate, trip.endDate)}
-          </CardDescription>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -164,8 +167,12 @@ export function TripCard({ trip }: { trip: TripSummary }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-3">
+      <CardContent className="mt-auto space-y-3">
+        <CardDescription className="flex items-center gap-1">
+          <Calendar className="h-3.5 w-3.5" />
+          {formatDateRange(trip.startDate, trip.endDate)}
+        </CardDescription>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Badge variant="secondary" className={statusColors[trip.status]}>
             {trip.status}
           </Badge>

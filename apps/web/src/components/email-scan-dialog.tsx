@@ -120,6 +120,7 @@ export function EmailScanDialog({
   const [appliedCount, setAppliedCount] = useState(0);
   const [showSkipped, setShowSkipped] = useState(false);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
+  const [forceRescan, setForceRescan] = useState(false);
 
   // Inline new-trip creation
   const [showNewTripForm, setShowNewTripForm] = useState(false);
@@ -251,6 +252,7 @@ export function EmailScanDialog({
       const input: Record<string, unknown> = {};
       if (tripId) input.tripId = tripId;
       if (selectedLabel && selectedLabel !== "__all__") input.labelFilter = selectedLabel;
+      if (forceRescan) input.forceRescan = true;
 
       const res = await scanEmails.mutateAsync(input);
 
@@ -268,11 +270,18 @@ export function EmailScanDialog({
       const status = apiErr.status;
       const body = apiErr.body;
 
-      // If we got partial results with a billing error, show them
-      if (status === 402 && body?.results && body.results.length > 0) {
+      // If we got partial results with a billing or overloaded error, show them
+      if (
+        (status === 402 || status === 503) &&
+        body?.results &&
+        body.results.length > 0
+      ) {
         loadResultsIntoState(body.results);
         setErrorMessage(
-          body.error || "AI service needs credits. You can still process the segments that were already parsed.",
+          body.error ||
+            (status === 503
+              ? "The AI service is temporarily overloaded. Please try scanning again in a few minutes. You can still process the segments that were already parsed."
+              : "AI service needs credits. You can still process the segments that were already parsed."),
         );
         setStep("results");
         return;
@@ -281,6 +290,10 @@ export function EmailScanDialog({
       if (status === 403 && body?.code === "GMAIL_SCOPE_REQUIRED") {
         setErrorMessage(
           "Gmail access is required. Please sign out and sign back in, granting Gmail permissions when prompted.",
+        );
+      } else if (status === 503 && body?.code === "ANTHROPIC_OVERLOADED") {
+        setErrorMessage(
+          "The AI service is temporarily overloaded. Please try scanning again in a few minutes.",
         );
       } else if (status === 402) {
         const found = body?.emailsFound ? ` (${body.emailsFound} emails found)` : "";
@@ -546,6 +559,21 @@ export function EmailScanDialog({
                   </p>
                 </div>
               )}
+
+              <label className="flex items-start gap-2 rounded-md border border-border p-2.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={forceRescan}
+                  onChange={(e) => setForceRescan(e.target.checked)}
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer"
+                />
+                <div className="space-y-0.5">
+                  <p className="font-medium text-foreground">Re-parse previously processed emails</p>
+                  <p className="text-muted-foreground">
+                    Retries emails that were previously skipped, failed, or already parsed. Use this to recover after fixing a parser bug. Emails already applied to trips are not re-parsed.
+                  </p>
+                </div>
+              </label>
             </div>
 
             <DialogFooter>
