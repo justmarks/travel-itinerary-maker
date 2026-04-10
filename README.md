@@ -109,12 +109,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **173 tests** across 10 test suites.
+Current coverage: **198 tests** across 10 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 96 | Validators, date utils, currency formatting, markdown export, IDs, overlap detection |
-| `server` | 77 | Route CRUD, sharing, costs, export, email scanning, DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 104 | Validators, date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
+| `server` | 94 | Route CRUD, sharing, costs, export, email scanning + match detection, DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -167,17 +167,20 @@ Base URL: `/api/v1`
 | `POST` | `/trips/:id/segments` | Add a segment to a day |
 | `PUT` | `/trips/:id/segments/:segId` | Update a segment |
 | `DELETE` | `/trips/:id/segments/:segId` | Delete a segment |
-| `GET` | `/trips/:id/costs` | Aggregated cost summary |
+| `POST` | `/trips/:id/segments/:segId/confirm` | Mark an auto-parsed segment as reviewed |
+| `GET` | `/trips/:id/costs` | Aggregated cost summary (USD-normalized) |
 | `POST` | `/trips/:id/todos` | Add a TODO |
 | `PUT` | `/trips/:id/todos/:todoId` | Update a TODO |
 | `DELETE` | `/trips/:id/todos/:todoId` | Delete a TODO |
 | `POST` | `/trips/:id/share` | Create a share link |
+| `GET` | `/trips/:id/shares` | List share links for a trip |
 | `DELETE` | `/trips/:id/shares/:shareId` | Revoke a share link |
 | `GET` | `/shared/:token` | View a shared trip (public) |
 | `GET` | `/trips/:id/export/markdown` | Export as Markdown |
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 | `GET` | `/emails/labels` | List Gmail labels for scan filtering |
 | `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
+| `GET` | `/emails/pending` | Return pending parse results from the last scan |
 | `POST` | `/emails/apply` | Add parsed segments to a trip |
 | `GET` | `/emails/processed` | List previously processed emails |
 | `POST` | `/emails/dismiss/:emailId` | Dismiss an email (skip on re-scan) |
@@ -192,15 +195,20 @@ The app scans your Gmail for travel confirmation emails and uses Claude AI to ex
 3. The backend searches Gmail for travel-related keywords (confirmation, booking, reservation, itinerary, e-ticket)
 4. Each email body is sent to Claude AI, which extracts segments (flights, hotels, restaurants, activities, etc.) as structured JSON
 5. Extracted segments are validated with Zod and auto-matched to existing trips by date
-6. You review the results, select which segments to add, and assign them to trips
-7. Added segments appear with a yellow "Review" badge — click the green checkmark to confirm
+6. Each parsed segment is compared against the existing itinerary and classified as **new**, **duplicate**, **enrichment** (fills empty fields), or **conflict** (disagrees on a non-empty field) so you can review and decide what to apply
+7. You review the results, select which segments to add, and assign them to trips
+8. Added segments appear with a yellow "Review" badge — click the green checkmark to confirm
 
 **Requirements:**
 - Gmail API enabled in your Google Cloud project
 - `ANTHROPIC_API_KEY` set in `server/.env` (Claude API key from [Anthropic](https://console.anthropic.com/))
 - User must grant Gmail read permission during OAuth sign-in
 
-**Deduplication:** Processed email IDs are tracked, so re-scanning skips already-handled emails. Dismissed emails are also skipped.
+**Deduplication and recovery:**
+- Processed email IDs are tracked, so re-scanning skips already-handled emails
+- Dismissed emails are also skipped on subsequent scans
+- Emails that previously failed Zod validation are auto-retried on the next scan
+- A "Re-parse previously processed emails" toggle in the scan dialog forces a full re-scan (except for emails already applied to a trip)
 
 ## Demo Mode
 
