@@ -475,6 +475,42 @@ describe("Segment routes", () => {
     expect(res.body.cost.amount).toBe(1200);
   });
 
+  it("relocates a segment to a different day when date is updated", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "hotel", title: "Hotel" });
+
+    const segId = createRes.body.id;
+
+    const moveRes = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${segId}`)
+      .send({ date: "2025-12-20" });
+
+    expect(moveRes.status).toBe(200);
+
+    const tripRes = await request(app).get(`/api/v1/trips/${tripId}`);
+    const day19 = tripRes.body.days.find(
+      (d: { date: string }) => d.date === "2025-12-19",
+    );
+    const day20 = tripRes.body.days.find(
+      (d: { date: string }) => d.date === "2025-12-20",
+    );
+    expect(day19.segments.find((s: { id: string }) => s.id === segId)).toBeUndefined();
+    expect(day20.segments.find((s: { id: string }) => s.id === segId)).toBeTruthy();
+  });
+
+  it("rejects relocating a segment to a date outside the trip range", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({ date: "2025-12-19", type: "hotel", title: "Hotel" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ date: "2026-01-15" });
+
+    expect(res.status).toBe(400);
+  });
+
   it("rejects segment update with invalid time format", async () => {
     const createRes = await request(app)
       .post(`/api/v1/trips/${tripId}/segments`)

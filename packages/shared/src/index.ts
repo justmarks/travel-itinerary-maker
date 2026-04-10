@@ -68,5 +68,6 @@ export {
 export type { DateRange } from "./utils/dates";
 export { formatCurrency, getCurrencySymbol, sumByCurrency } from "./utils/currency";
 export { generateId } from "./utils/ids";
+export { formatFlightLabel } from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";

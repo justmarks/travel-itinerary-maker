@@ -21,8 +21,8 @@ Each item in the array must be a JSON object with these fields:
 - "address": street address (if available)
 - "confirmationCode": booking confirmation number (if available)
 - "provider": booking provider or airline/company name (if available)
-- "carrier": airline or transport carrier code (if applicable, e.g. "AS" for Alaska Airlines)
-- "routeCode": flight number or route (e.g. "AS123")
+- "carrier": full airline or transport carrier NAME, not a code. For example: "Delta" (NOT "DL"), "Alaska Airlines" (NOT "AS"), "American Airlines" (NOT "AA"), "United" (NOT "UA"), "Hawaiian Airlines" (NOT "HA"), "Southwest", "JetBlue", "British Airways", "Lufthansa", etc. If only a 2-letter code appears in the email, expand it to the full airline name.
+- "routeCode": ONLY the flight number digits, no airline prefix. For example: "359" (NOT "DL359"), "101" (NOT "AS101"), "2410" (NOT "AA2410"). Strip any letter prefix that matches the airline code.
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
 - "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger.
@@ -41,6 +41,7 @@ IMPORTANT RULES:
 - **CAR RENTALS**: Return TWO separate segments — one for PICKUP and one for DROPOFF:
   - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only.
   - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment.
+  - Car rental cost: The cost "amount" should be the BASE RENTAL RATE only — the total for the car itself BEFORE taxes, airport concession fees, vehicle license fees, customer facility charges, or any other surcharges. Do NOT include tax lines in the amount. Put the car class/type (e.g. "Midsize SUV", "Full-size") in "details". If taxes and fees are shown as a separate total, mention them briefly in "details" (e.g. "+$120 taxes & fees") but keep them out of "amount".
 - **HOTELS**: The cost "amount" should be the ROOM RATE only (nightly or total room charge), NOT including fees like parking, resort fees, or taxes. Put the room type (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View") and any fees/extras (parking, resort fee, breakfast) in the "details" string so the user can see them separately.
 - **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).
 - **AIRLINE EMAILS**: Be sure to parse emails from ALL airlines including Hawaiian Airlines, Alaska Airlines, Delta, United, American, Southwest, JetBlue, Spirit, Frontier, and international carriers. Itinerary changes, schedule changes, and booking confirmations are all travel-related. Look for flight numbers, dates, times, and routes even if the email format is unusual.

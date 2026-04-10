@@ -168,6 +168,9 @@ export const updateSegmentSchema = createSegmentSchema.extend({
   cancellationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD").optional(),
   needsReview: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  // Segments are stored inside TripDay, not on the segment itself. Accepting
+  // `date` here lets a PUT move a segment to a different day in one call.
+  date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
 }).partial();
 
 /** Schema for creating a todo */

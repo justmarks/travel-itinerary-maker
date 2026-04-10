@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatFlightLabel } from "@travel-app/shared";
 import type { TripDay, Segment } from "@travel-app/shared";
 import {
   useDeleteSegment,
@@ -90,10 +91,12 @@ const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
 
 function SegmentRow({
   segment,
+  date,
   tripId,
   readOnly,
 }: {
   segment: Segment;
+  date: string;
   tripId?: string;
   readOnly?: boolean;
 }) {
@@ -112,6 +115,11 @@ function SegmentRow({
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
 
+  const flightLabel = isFlight ? formatFlightLabel(segment) : "";
+  const titleText = flightLabel
+    ? `${segment.title} (${flightLabel})`
+    : segment.title;
+
   return (
     <div className="group/seg flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
       <div className={cn("mt-0.5 shrink-0", config.color)}>
@@ -128,23 +136,22 @@ function SegmentRow({
               rel="noopener noreferrer"
               className="font-medium leading-snug hover:underline"
             >
-              {segment.title}
+              {titleText}
             </a>
           ) : (
-            <span className="font-medium leading-snug">{segment.title}</span>
+            <span className="font-medium leading-snug">{titleText}</span>
           )}
-          {segment.needsReview && (
+          {segment.needsReview ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 px-2 py-0.5 text-xs text-amber-600">
               <AlertCircle className="h-3 w-3" />
               Review
             </span>
-          )}
-          {segment.source === "email_confirmed" && (
+          ) : segment.source === "email_confirmed" ? (
             <span className="inline-flex items-center gap-1 rounded-full border border-green-300 px-2 py-0.5 text-xs text-green-600">
               <CheckCircle2 className="h-3 w-3" />
               Confirmed
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Time */}
@@ -195,12 +202,13 @@ function SegmentRow({
           )}
         </div>
 
-        {/* Route info (flights / trains / transport) */}
+        {/* Route info (flights / trains / transport).
+            For flights, the airline + number already live in the title. */}
         {segment.departureCity && segment.arrivalCity && (
           <p className="mt-1 text-sm text-muted-foreground">
             {segment.departureCity} → {segment.arrivalCity}
-            {segment.carrier && ` · ${segment.carrier}`}
-            {segment.routeCode && ` ${segment.routeCode}`}
+            {!isFlight && segment.carrier && ` · ${segment.carrier}`}
+            {!isFlight && segment.routeCode && ` ${segment.routeCode}`}
           </p>
         )}
 
@@ -321,6 +329,7 @@ function SegmentRow({
           <EditSegmentDialog
             tripId={tripId}
             segment={segment}
+            date={date}
             open={editOpen}
             onOpenChange={setEditOpen}
           />
@@ -455,6 +464,7 @@ export function ItineraryDay({
             <SegmentRow
               key={seg.id}
               segment={seg}
+              date={day.date}
               tripId={tripId}
               readOnly={readOnly}
             />

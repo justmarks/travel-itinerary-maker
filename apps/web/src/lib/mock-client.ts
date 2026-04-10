@@ -1026,16 +1026,29 @@ export class MockApiClient extends ApiClient {
   override updateSegment(
     tripId: string,
     segmentId: string,
-    input: Partial<Segment>,
+    input: Partial<Segment> & { date?: string },
   ): Promise<Segment> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { date: newDate, ...segmentUpdates } = input;
     for (const day of trip.days) {
       const seg = day.segments.find((s) => s.id === segmentId);
-      if (seg) {
-        Object.assign(seg, input);
-        return Promise.resolve(structuredClone(seg));
+      if (!seg) continue;
+
+      if (newDate && newDate !== day.date) {
+        const targetDay = trip.days.find((d) => d.date === newDate);
+        if (!targetDay) {
+          return Promise.reject(
+            new Error("Target date is outside this trip's range"),
+          );
+        }
+        day.segments = day.segments.filter((s) => s.id !== segmentId);
+        seg.sortOrder = targetDay.segments.length;
+        targetDay.segments.push(seg);
       }
+
+      Object.assign(seg, segmentUpdates);
+      return Promise.resolve(structuredClone(seg));
     }
     return Promise.reject(new Error("Segment not found"));
   }

@@ -338,12 +338,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       let found: Segment | undefined;
+      let currentDay: TripDay | undefined;
       for (const day of trip.days) {
-        found = day.segments.find((s) => s.id === (req.params.segId as string));
-        if (found) break;
+        const seg = day.segments.find(
+          (s) => s.id === (req.params.segId as string),
+        );
+        if (seg) {
+          found = seg;
+          currentDay = day;
+          break;
+        }
       }
 
-      if (!found) {
+      if (!found || !currentDay) {
         res.status(404).json({ error: "Segment not found" });
         return;
       }
@@ -355,8 +362,25 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
+      const { date: newDate, ...segmentUpdates } = parsed.data;
+
+      if (newDate && newDate !== currentDay.date) {
+        const targetDay = trip.days.find((d) => d.date === newDate);
+        if (!targetDay) {
+          res
+            .status(400)
+            .json({ error: "Target date is outside this trip's range" });
+          return;
+        }
+        currentDay.segments = currentDay.segments.filter(
+          (s) => s.id !== found!.id,
+        );
+        found.sortOrder = targetDay.segments.length;
+        targetDay.segments.push(found);
+      }
+
       // Apply validated updates (immutable fields protected by schema — id/source/sourceEmailId not in updateSegmentSchema)
-      for (const [key, value] of Object.entries(parsed.data)) {
+      for (const [key, value] of Object.entries(segmentUpdates)) {
         (found as unknown as Record<string, unknown>)[key] = value;
       }
 
