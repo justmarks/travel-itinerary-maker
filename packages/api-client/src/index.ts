@@ -3,6 +3,7 @@ export type {
   TripSummary,
   CostSummaryResponse,
   SharedTripResponse,
+  XlsxImportResponse,
 } from "./client";
 export { ApiClientProvider, useApiClient } from "./provider";
 export {
@@ -12,6 +13,7 @@ export {
   useCreateTrip,
   useUpdateTrip,
   useDeleteTrip,
+  useImportXlsxTrip,
   useUpdateDay,
   useSegments,
   useCreateSegment,

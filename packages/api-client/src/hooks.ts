@@ -19,6 +19,7 @@ import type {
   GmailLabel,
   ApplyParsedSegmentsInput,
   EmailScanRequest,
+  XlsxImportRequest,
 } from "@travel-app/shared";
 import type {
   TripSummary,
@@ -97,6 +98,21 @@ export function useDeleteTrip() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (tripId: string) => client.deleteTrip(tripId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+    },
+  });
+}
+
+/**
+ * Mutation for importing a full trip from an XLSX workbook. On success,
+ * invalidates the trips list so the new trip appears in the dashboard.
+ */
+export function useImportXlsxTrip() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: XlsxImportRequest) => client.importXlsxTrip(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.trips });
     },
