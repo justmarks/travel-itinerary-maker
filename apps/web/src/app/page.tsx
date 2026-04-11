@@ -2,6 +2,7 @@
 
 import { CreateTripDialog } from "@/components/create-trip-dialog";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
+import { XlsxImportDialog } from "@/components/xlsx-import-dialog";
 import { TripList } from "@/components/trip-list";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
@@ -19,6 +20,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <EmailScanDialog />
+              <XlsxImportDialog />
               <CreateTripDialog />
               <UserMenu />
             </div>

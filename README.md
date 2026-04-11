@@ -20,6 +20,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Export** — download itineraries as Markdown or OneNote-compatible HTML
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
+- **XLSX import** — one-shot import a complete trip from a OneNote-exported workbook (itinerary + costs sheets)
 
 ## Tech Stack
 
@@ -109,12 +110,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **198 tests** across 10 test suites.
+Current coverage: **228 tests** across 11 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 104 | Validators, date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
-| `server` | 94 | Route CRUD, sharing, costs, export, email scanning + match detection, DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 109 | Validators, date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
+| `server` | 119 | Route CRUD, sharing, costs, export, email scanning + match detection, DriveStorage, TokenStore, ShareRegistry, XLSX trip importer (parser + import route) |
 
 ## Google OAuth Setup
 
@@ -161,6 +162,7 @@ Base URL: `/api/v1`
 | `POST` | `/auth/google` | Exchange Google auth code for tokens |
 | `GET` | `/trips` | List all trips |
 | `POST` | `/trips` | Create a new trip |
+| `POST` | `/trips/import-xlsx` | One-shot import a full trip from a OneNote-exported XLSX workbook |
 | `GET` | `/trips/:id` | Get trip with days and segments |
 | `PUT` | `/trips/:id` | Update trip metadata |
 | `DELETE` | `/trips/:id` | Delete a trip |
