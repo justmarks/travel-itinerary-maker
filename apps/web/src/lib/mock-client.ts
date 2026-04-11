@@ -16,6 +16,7 @@ import type {
   GmailLabel,
   EmailScanResult,
   EmailScanRequest,
+  HtmlImportRequest,
   ApplyParsedSegmentsInput,
 } from "@travel-app/shared";
 
@@ -1235,6 +1236,23 @@ export class MockApiClient extends ApiClient {
     return Promise.resolve({
       results: [],
       message: "No new emails to process (demo mode)",
+    });
+  }
+
+  override importHtmlEmail(
+    _input: HtmlImportRequest,
+  ): Promise<{ result: EmailScanResult }> {
+    // In demo mode, pretend nothing was extracted from the HTML blob.
+    // The real endpoint hits Claude; demo stays offline.
+    return Promise.resolve({
+      result: {
+        emailId: `html-import-demo-${uid()}`,
+        subject: _input.subject || "(HTML import — demo)",
+        from: _input.from || "(unknown sender)",
+        receivedAt: _input.receivedAt || now(),
+        parsedSegments: [],
+        parseStatus: "no_travel_content",
+      },
     });
   }
 

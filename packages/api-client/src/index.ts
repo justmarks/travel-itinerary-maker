@@ -30,6 +30,7 @@ export {
   useGmailLabels,
   usePendingEmails,
   useScanEmails,
+  useImportHtmlEmail,
   useApplyParsedSegments,
   useProcessedEmails,
   useDismissEmail,

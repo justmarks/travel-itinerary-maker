@@ -13,6 +13,7 @@ import {
   segmentCostSchema,
   tripSchema,
   userSettingsSchema,
+  htmlImportRequestSchema,
 } from "../src/validators/trip";
 
 describe("segmentCostSchema", () => {
@@ -421,6 +422,44 @@ describe("userSettingsSchema", () => {
     const result = userSettingsSchema.safeParse({
       emailScanIntervalMinutes: 1,
       notificationsEnabled: true,
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("htmlImportRequestSchema", () => {
+  it("accepts a minimal payload with only html", () => {
+    const result = htmlImportRequestSchema.safeParse({
+      html: "<html><body>Hotel confirmation</body></html>",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts full optional metadata", () => {
+    const result = htmlImportRequestSchema.safeParse({
+      html: "<p>booking</p>",
+      subject: "Your hotel booking",
+      from: "noreply@hotel.example",
+      receivedAt: "2026-04-10T12:00:00.000Z",
+      tripId: "trip-1",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty html", () => {
+    const result = htmlImportRequestSchema.safeParse({ html: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-string html field", () => {
+    const result = htmlImportRequestSchema.safeParse({ html: 123 });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an invalid receivedAt datetime", () => {
+    const result = htmlImportRequestSchema.safeParse({
+      html: "<p>hi</p>",
+      receivedAt: "not a datetime",
     });
     expect(result.success).toBe(false);
   });

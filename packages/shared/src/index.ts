@@ -42,6 +42,7 @@ export {
   segmentMatchSchema,
   segmentFieldDiffSchema,
   emailScanRequestSchema,
+  htmlImportRequestSchema,
   applyParsedSegmentsSchema,
   SEGMENT_TYPES,
   TRIP_STATUSES,
@@ -61,6 +62,7 @@ export type {
   UpdateTodoInput,
   CreateShareInput,
   EmailScanRequest,
+  HtmlImportRequest,
   ApplyParsedSegmentsInput,
   ApplyAction,
 } from "./validators/trip";
