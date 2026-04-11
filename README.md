@@ -232,14 +232,24 @@ Version is auto-incremented on merge to main via GitHub Actions.
 
 ## Roadmap
 
+**Completed:**
+
 - [x] **Phase 1** — Foundation: monorepo, types, Zod schemas, Express API, tests
 - [x] **Phase 2** — Core UI: Next.js web app, itinerary table, segment cards, inline editing
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
-- [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing
-- [ ] **Phase 6** — Sharing & notifications: push notifications for shared trip updates
-- [ ] **Phase 7** — Mobile app: Expo + React Native for Android
-- [ ] **Phase 8** — Polish: OneNote export, visual timeline, PDF export, Google Calendar sync
+- [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
+
+**Up next:**
+
+- [ ] **Debt payoff batch** — tests for public shared route, Gmail scanner label resolution + body extraction, email parser fixture tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
+- [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
+- [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
+- [ ] **Google Calendar sync** — manually initiated, two-way, deduped in both directions
+- [ ] **UX iteration** — tabular view, accessibility pass, keyboard navigation
+- [ ] **PDF export** — thin shim over existing Markdown export
+- [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
+- [ ] **Later** — FCM push notifications, OneNote polish, visual timeline
 
 ## License
 
