@@ -310,6 +310,24 @@ export const emailScanRequestSchema = z.object({
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;
 export type ApplyAction = (typeof APPLY_ACTIONS)[number];
 
+/**
+ * Schema for importing a full trip from an XLSX workbook export. The caller
+ * sends a base64-encoded file body; the server decodes, parses, and creates
+ * a new trip with all segments in one call.
+ */
+export const xlsxImportRequestSchema = z.object({
+  /** Base64-encoded contents of the .xlsx file */
+  fileBase64: z.string().min(1, "fileBase64 is required"),
+  /**
+   * Optional trip title override. If omitted, the server derives a title
+   * from the provided filename (stripping the extension) or falls back to
+   * "Imported Trip".
+   */
+  title: z.string().min(1).optional(),
+  /** Original filename, used to derive a trip title if none is supplied */
+  filename: z.string().optional(),
+});
+
 /** Schema for applying parsed segments to trips */
 export const applyParsedSegmentsSchema = z.object({
   segments: z.array(
@@ -334,3 +352,4 @@ export type CreateShareInput = z.infer<typeof createShareSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
 export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
+export type XlsxImportRequest = z.infer<typeof xlsxImportRequestSchema>;

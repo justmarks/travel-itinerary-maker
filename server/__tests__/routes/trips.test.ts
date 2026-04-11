@@ -918,3 +918,123 @@ describe("Export routes", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("POST /api/v1/trips/import-xlsx", () => {
+  const fs = require("fs") as typeof import("fs");
+  const path = require("path") as typeof import("path");
+
+  const loadFixture = (name: string): string =>
+    fs
+      .readFileSync(
+        path.join(__dirname, "..", "fixtures", name),
+      )
+      .toString("base64");
+
+  it("rejects a payload with no fileBase64", async () => {
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a payload with invalid base64 / non-xlsx content", async () => {
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({ fileBase64: Buffer.from("not a real xlsx").toString("base64") });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/parse|xlsx/i);
+  });
+
+  it("creates a full trip from the Christmas 2025 fixture", async () => {
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({
+        fileBase64: loadFixture("christmas-2025.xlsx"),
+        filename: "Christmas 2025.xlsx",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.trip).toBeDefined();
+    expect(res.body.trip.title).toBe("Christmas 2025");
+    expect(res.body.trip.startDate).toBe("2025-12-19");
+    expect(res.body.trip.endDate).toBe("2025-12-30");
+    expect(res.body.trip.days).toHaveLength(12);
+    expect(res.body.trip.status).toBe("planning");
+
+    // Day 1 — Seattle, outbound flight, PNR "XTWLTR"
+    const day1 = res.body.trip.days[0];
+    expect(day1.city).toMatch(/Seattle/i);
+    const flight = day1.segments.find((s: { type: string }) => s.type === "flight");
+    expect(flight).toBeDefined();
+    expect(flight.confirmationCode).toBe("XTWLTR");
+
+    // Every imported segment should have needsReview=true so the user can
+    // review and confirm after import.
+    for (const day of res.body.trip.days) {
+      for (const seg of day.segments) {
+        expect(seg.needsReview).toBe(true);
+      }
+    }
+  });
+
+  it("creates a full trip from the Summer 2025 fixture", async () => {
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({
+        fileBase64: loadFixture("summer-2025.xlsx"),
+        filename: "Summer 2025.xlsx",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.trip.title).toBe("Summer 2025");
+    expect(res.body.trip.startDate).toBe("2025-06-10");
+    expect(res.body.trip.endDate).toBe("2025-06-27");
+    expect(res.body.trip.days).toHaveLength(18);
+  });
+
+  it("honors an explicit title override", async () => {
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({
+        fileBase64: loadFixture("christmas-2025.xlsx"),
+        filename: "whatever.xlsx",
+        title: "Holiday Europe Trip",
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.trip.title).toBe("Holiday Europe Trip");
+  });
+
+  it("persists the imported trip so it's retrievable via GET /trips/:id", async () => {
+    const createRes = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({
+        fileBase64: loadFixture("christmas-2025.xlsx"),
+        filename: "Christmas 2025.xlsx",
+      });
+    expect(createRes.status).toBe(201);
+    const tripId = createRes.body.trip.id;
+
+    const getRes = await request(app).get(`/api/v1/trips/${tripId}`);
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.id).toBe(tripId);
+    expect(getRes.body.days).toHaveLength(12);
+  });
+
+  it("returns 409 when the imported date range overlaps an existing trip", async () => {
+    // Pre-create a trip that overlaps with the Christmas 2025 fixture
+    await request(app).post("/api/v1/trips").send({
+      title: "Existing",
+      startDate: "2025-12-20",
+      endDate: "2025-12-22",
+    });
+
+    const res = await request(app)
+      .post("/api/v1/trips/import-xlsx")
+      .send({
+        fileBase64: loadFixture("christmas-2025.xlsx"),
+        filename: "Christmas 2025.xlsx",
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/overlap/i);
+  });
+});
