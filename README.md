@@ -22,6 +22,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Export** — download itineraries as Markdown, OneNote-compatible HTML, or PDF
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
+- **HTML import** — paste or upload a saved `.html` email and run it through the same parser (unblocks non-Gmail users)
 
 ## Tech Stack
 
@@ -111,12 +112,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **249 tests** across 16 test suites.
+Current coverage: **264 tests** across 17 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
 | `packages/shared` | 116 | Validators, date utils, currency formatting, markdown + OneNote export, ID generation, segment label formatting, overlap detection |
-| `server` | 133 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
+| `server` | 148 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML import pipeline, `EmailParser.htmlToText`, auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -184,6 +185,7 @@ Base URL: `/api/v1`
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 | `GET` | `/emails/labels` | List Gmail labels for scan filtering |
 | `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
+| `POST` | `/emails/import-html` | Parse a raw HTML email through the same Claude pipeline |
 | `GET` | `/emails/pending` | Return pending parse results from the last scan |
 | `POST` | `/emails/apply` | Add parsed segments to a trip |
 | `GET` | `/emails/processed` | List previously processed emails |
@@ -263,12 +265,12 @@ The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedi
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
 - [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
 - [x] **Phase 6** — UX & export: PDF export (pdfkit), Google Calendar sync (create/update/delete), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready)
+- [x] **HTML import** — paste or upload a saved `.html` email and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
 
 **Up next:**
 
 - [ ] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys (see Known Limitations above)
-- [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Map view tab** — plot hotels, activities, and restaurants as pins on an interactive map; draw routes between transport segments; reuses existing city/address data on segments
 - [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)

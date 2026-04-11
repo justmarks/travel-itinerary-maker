@@ -19,6 +19,7 @@ import type {
   GmailLabel,
   ApplyParsedSegmentsInput,
   EmailScanRequest,
+  HtmlImportRequest,
 } from "@travel-app/shared";
 import type {
   TripSummary,
@@ -316,6 +317,17 @@ export function useScanEmails() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input?: EmailScanRequest) => client.scanEmails(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
+export function useImportHtmlEmail() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: HtmlImportRequest) => client.importHtmlEmail(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
     },
