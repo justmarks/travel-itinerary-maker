@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import {
   emailScanRequestSchema,
+  htmlImportRequestSchema,
   applyParsedSegmentsSchema,
   generateId,
   isDateInRange,
@@ -853,6 +854,164 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         });
         return;
       }
+      res.status(500).json({ error: message });
+    }
+  });
+
+  /**
+   * POST /emails/import-html
+   * Import a raw HTML email (e.g. a saved `.html` file or pasted HTML source),
+   * run it through the same Claude parser used for Gmail scanning, and drop
+   * the resulting segments into the pending review queue alongside Gmail
+   * results. This unblocks users whose mailboxes we can't scan directly.
+   *
+   * The request synthesizes a processed-email record with a synthetic id
+   * ("html-import-<timestamp>-<rand>") so the normal /emails/apply flow can
+   * mark it as "mapped" once the user applies the segments.
+   */
+  router.post("/import-html", async (req: Request, res: Response) => {
+    try {
+      const parsed = htmlImportRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      if (!config.anthropic.apiKey) {
+        res.status(500).json({ error: "Anthropic API key not configured" });
+        return;
+      }
+
+      const { html, subject, from, receivedAt, tripId } = parsed.data;
+      const storage = getStorage(req);
+
+      // Run the HTML through the parser using the same pipeline as Gmail.
+      const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
+      let segments: ParsedSegment[] = [];
+      let invalidCount = 0;
+      let rawItemCount = 0;
+      try {
+        const result = await parser.parseHtml({
+          html,
+          subject,
+          from,
+          receivedAt,
+        });
+        segments = result.segments;
+        invalidCount = result.invalidCount;
+        rawItemCount = result.rawItemCount;
+      } catch (err: unknown) {
+        // Surface Anthropic billing / auth / overloaded errors the same way
+        // the scan route does so the UI can show a user-friendly message.
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const errObj = err as Record<string, unknown>;
+        const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
+        const errType = typeof errObj.type === "string" ? errObj.type : "";
+        const isBillingError =
+          errMsg.includes("credit balance") ||
+          errMsg.includes("billing") ||
+          errMsg.includes("too low") ||
+          (errStatus === 400 && errMsg.includes("credit"));
+        const isAuthError =
+          errStatus === 401 ||
+          errMsg.includes("authentication") ||
+          errMsg.includes("invalid x-api-key") ||
+          errMsg.includes("api_key");
+        const isOverloadedError =
+          errStatus === 529 ||
+          errStatus === 503 ||
+          errType === "overloaded_error" ||
+          errMsg.includes("overloaded") ||
+          errMsg.includes("Overloaded");
+
+        if (isBillingError || isAuthError || isOverloadedError) {
+          const code = isBillingError
+            ? "ANTHROPIC_BILLING"
+            : isAuthError
+              ? "ANTHROPIC_AUTH"
+              : "ANTHROPIC_OVERLOADED";
+          const userMessage = isBillingError
+            ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
+            : isAuthError
+              ? "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY."
+              : "The AI service is temporarily overloaded. Please try importing again in a few minutes.";
+          const httpStatus = isBillingError ? 402 : isAuthError ? 401 : 503;
+          res.status(httpStatus).json({ error: userMessage, code });
+          return;
+        }
+
+        console.error("POST /emails/import-html parser error:", err);
+        res.status(500).json({ error: errMsg || "HTML parse failed" });
+        return;
+      }
+
+      // Auto-match extracted segments to trips by date (or to the caller's
+      // hinted trip if provided) and classify against existing itinerary.
+      const trips = await storage.listTrips();
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
+      const matchedSegments = segments.map((seg) => {
+        const matchingTrip = tripId
+          ? tripsById.get(tripId)
+          : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+        if (!matchingTrip) {
+          return { ...seg, match: { status: "new" as const } };
+        }
+        const match = matchParsedAgainstTrip(seg, matchingTrip);
+        return { ...seg, suggestedTripId: matchingTrip.id, match };
+      });
+
+      const hasTravel = matchedSegments.length > 0;
+      const validationFailedEverything =
+        !hasTravel && rawItemCount > 0 && invalidCount > 0;
+
+      const emailId = `html-import-${Date.now()}-${generateId()}`;
+      const now = new Date().toISOString();
+      const result: EmailScanResult = {
+        emailId,
+        subject: subject || "(HTML import)",
+        from: from || "(unknown sender)",
+        receivedAt: receivedAt || now,
+        parsedSegments: matchedSegments,
+        parseStatus: hasTravel
+          ? "success"
+          : validationFailedEverything
+            ? "failed"
+            : "no_travel_content",
+        ...(validationFailedEverything
+          ? {
+              error: `Claude returned ${rawItemCount} item(s) but none passed schema validation. See server logs for details.`,
+            }
+          : {}),
+      };
+
+      // Persist the synthetic processed-email record so /emails/apply can
+      // later mark it as "mapped" using the same code path as Gmail results.
+      // We only store a pending result when we actually extracted segments —
+      // no-travel imports don't need to linger in the pending queue.
+      if (hasTravel) {
+        const processedEmails = await storage.getProcessedEmails();
+        processedEmails.push({
+          gmailMessageId: emailId,
+          gmailThreadId: undefined,
+          subject: result.subject,
+          fromAddress: result.from,
+          receivedAt: result.receivedAt,
+          parsedType: matchedSegments[0].type,
+          parseStatus: "parsed",
+          rawParseResult: result,
+          createdAt: now,
+        });
+        await storage.saveProcessedEmails(processedEmails);
+      }
+
+      console.log(
+        `HTML import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
+      );
+
+      res.status(201).json({ result });
+    } catch (err) {
+      console.error("POST /emails/import-html error:", err);
+      const message = err instanceof Error ? err.message : "HTML import failed";
       res.status(500).json({ error: message });
     }
   });

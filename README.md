@@ -20,6 +20,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Export** — download itineraries as Markdown or OneNote-compatible HTML
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
+- **HTML import** — paste or upload a saved `.html` email and run it through the same parser (unblocks non-Gmail users)
 
 ## Tech Stack
 
@@ -109,12 +110,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **198 tests** across 10 test suites.
+Current coverage: **227 tests** across 11 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 104 | Validators, date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
-| `server` | 94 | Route CRUD, sharing, costs, export, email scanning + match detection, DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 109 | Validators (including HTML import), date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
+| `server` | 118 | Route CRUD, sharing, costs, export, email scanning + match detection, HTML import pipeline, `EmailParser.htmlToText`, DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -180,6 +181,7 @@ Base URL: `/api/v1`
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 | `GET` | `/emails/labels` | List Gmail labels for scan filtering |
 | `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
+| `POST` | `/emails/import-html` | Parse a raw HTML email through the same Claude pipeline |
 | `GET` | `/emails/pending` | Return pending parse results from the last scan |
 | `POST` | `/emails/apply` | Add parsed segments to a trip |
 | `GET` | `/emails/processed` | List previously processed emails |
@@ -239,11 +241,11 @@ Version is auto-incremented on merge to main via GitHub Actions.
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
 - [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
+- [x] **HTML import** — paste or upload a saved `.html` email and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
 
 **Up next:**
 
 - [ ] **Debt payoff batch** — tests for public shared route, Gmail scanner label resolution + body extraction, email parser fixture tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
-- [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Google Calendar sync** — manually initiated, two-way, deduped in both directions
 - [ ] **UX iteration** — tabular view, accessibility pass, keyboard navigation

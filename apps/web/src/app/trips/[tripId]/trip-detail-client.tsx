@@ -28,6 +28,7 @@ import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
+import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useDemoHref } from "@/lib/demo";
@@ -365,6 +366,7 @@ export default function TripDetailClient({
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+            <HtmlImportDialog tripId={trip.id} triggerLabel="Import HTML" />
             <ExportMenu tripId={trip.id} />
             <UserMenu />
           </div>

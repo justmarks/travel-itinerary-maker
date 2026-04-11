@@ -256,6 +256,33 @@ export const parsedSegmentSchema = z.object({
   match: segmentMatchSchema.optional(),
 });
 
+/**
+ * Schema for importing a raw HTML email (or HTML blob) and running it through
+ * the same parser used for Gmail scanning. Unblocks users who have travel
+ * confirmations in mailboxes we can't scan directly (e.g. work accounts that
+ * don't grant Gmail API access). The caller may optionally provide metadata
+ * from the original email (subject/from/receivedAt) to improve year inference
+ * and help the user identify the result in the review queue.
+ */
+export const htmlImportRequestSchema = z.object({
+  /** Raw HTML content of the email (full document or just the body). */
+  html: z.string().min(1, "HTML content is required"),
+  /** Optional subject line from the original email. */
+  subject: z.string().optional(),
+  /** Optional sender address from the original email. */
+  from: z.string().optional(),
+  /**
+   * Optional ISO datetime the email was received. Used as the anchor date for
+   * year inference. If omitted, falls back to the server's current time.
+   */
+  receivedAt: z.string().datetime().optional(),
+  /**
+   * Optional trip hint — when set, all parsed segments are matched against
+   * this trip instead of being auto-matched by date range.
+   */
+  tripId: z.string().optional(),
+});
+
 /** Schema for triggering an email scan */
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
@@ -296,4 +323,5 @@ export type CreateTodoInput = z.infer<typeof createTodoSchema>;
 export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
+export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
