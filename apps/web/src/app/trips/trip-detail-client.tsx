@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useTrip,
   useUpdateTrip,
@@ -25,6 +26,8 @@ import {
 import {
   ArrowLeft,
   Calendar,
+  CalendarCheck,
+  CalendarPlus,
   MapPin,
   Pencil,
   Check,
@@ -431,6 +434,86 @@ function NeedsReviewBanner({
   );
 }
 
+function CalendarSyncButton({
+  trip,
+}: {
+  trip: {
+    id: string;
+    days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
+  };
+}) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const isSynced = trip.days
+    .flatMap((d) => d.segments)
+    .some((s) => s.calendarEventId);
+
+  const syncedCount = trip.days
+    .flatMap((d) => d.segments)
+    .filter((s) => s.calendarEventId).length;
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setMessage(null);
+    try {
+      const result = await client.syncCalendar(trip.id);
+      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      const total = result.created + result.updated;
+      setMessage(
+        result.failed > 0
+          ? `${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`
+          : `${total} event${total !== 1 ? "s" : ""} synced`,
+      );
+    } catch {
+      setMessage("Sync failed — check that Calendar access is granted.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleUnsync = async () => {
+    setSyncing(true);
+    setMessage(null);
+    try {
+      const result = await client.unsyncCalendar(trip.id);
+      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      setMessage(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
+    } catch {
+      setMessage("Failed to remove calendar events.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={syncing}
+        onClick={isSynced ? handleUnsync : handleSync}
+      >
+        {isSynced ? (
+          <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+        ) : (
+          <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+        )}
+        {syncing
+          ? isSynced
+            ? "Removing…"
+            : "Syncing…"
+          : isSynced
+            ? `Synced (${syncedCount})`
+            : "Sync to Calendar"}
+      </Button>
+      {message && <p className="text-xs text-muted-foreground">{message}</p>}
+    </div>
+  );
+}
+
 type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos";
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -490,6 +573,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+            <CalendarSyncButton trip={trip} />
             <TripActionsMenu
               tripId={trip.id}
               onImportEmail={() => setHtmlImportOpen(true)}

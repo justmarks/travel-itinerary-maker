@@ -86,6 +86,8 @@ export interface Segment {
   contactName?: string; // driver / pickup contact name
   // Cost embedded in segment
   cost?: SegmentCost;
+  // Google Calendar sync
+  calendarEventId?: string;
   // Source tracking
   source: SegmentSource;
   sourceEmailId?: string;

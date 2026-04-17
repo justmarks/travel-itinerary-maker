@@ -1787,4 +1787,47 @@ export class MockApiClient extends ApiClient {
     // no-op. The actual "download" is the print-to-PDF dialog above.
     return new Blob([], { type: "application/pdf" });
   }
+
+  // ─── Calendar Sync ──────────────────────────────────────
+
+  override syncCalendar(
+    tripId: string,
+  ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+
+    let created = 0;
+    let updated = 0;
+    for (const day of trip.days) {
+      for (const segment of day.segments) {
+        if (segment.calendarEventId) {
+          updated++;
+        } else {
+          segment.calendarEventId = `mock-event-${segment.id}`;
+          created++;
+        }
+      }
+    }
+    this.trips.set(tripId, trip);
+    return Promise.resolve({ created, updated, failed: 0, calendarId: "primary" });
+  }
+
+  override unsyncCalendar(
+    tripId: string,
+  ): Promise<{ removed: number; failed: number }> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+
+    let removed = 0;
+    for (const day of trip.days) {
+      for (const segment of day.segments) {
+        if (segment.calendarEventId) {
+          delete segment.calendarEventId;
+          removed++;
+        }
+      }
+    }
+    this.trips.set(tripId, trip);
+    return Promise.resolve({ removed, failed: 0 });
+  }
 }
