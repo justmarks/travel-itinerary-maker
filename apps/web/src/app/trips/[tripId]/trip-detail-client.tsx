@@ -21,6 +21,7 @@ import {
   Download,
   FileText,
   BookOpen,
+  FileDown,
   AlertCircle,
   AlertTriangle,
 } from "lucide-react";
@@ -264,6 +265,15 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBlobDirect(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function ExportMenu({ tripId }: { tripId: string }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
@@ -292,6 +302,18 @@ function ExportMenu({ tripId }: { tripId: string }) {
     }
   };
 
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      const blob = await client.exportPdf(tripId);
+      downloadBlobDirect(blob, "itinerary.pdf");
+    } catch {
+      alert("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -308,6 +330,10 @@ function ExportMenu({ tripId }: { tripId: string }) {
         <DropdownMenuItem onClick={handleExportOneNote}>
           <BookOpen className="mr-2 h-4 w-4" />
           OneNote (.html)
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportPdf}>
+          <FileDown className="mr-2 h-4 w-4" />
+          PDF (.pdf)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

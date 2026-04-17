@@ -883,4 +883,38 @@ describe("Export routes", () => {
     expect(res.text).toContain("<h1>Christmas 2025</h1>");
     expect(res.text).not.toContain("Cost Summary");
   });
+
+  it("exports to PDF", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/pdf`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+    expect(res.headers["content-disposition"]).toContain("Christmas 2025.pdf");
+    // PDF files start with the %PDF magic bytes
+    expect(res.body.toString().startsWith("%PDF") || res.text.startsWith("%PDF")).toBe(true);
+  });
+
+  it("exports PDF without costs", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/pdf?exclude=costs`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+  });
+
+  it("exports PDF without todos", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/pdf?exclude=todos`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("application/pdf");
+  });
+
+  it("returns 404 for PDF export of non-existent trip", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/does-not-exist/export/pdf`,
+    );
+    expect(res.status).toBe(404);
+  });
 });
