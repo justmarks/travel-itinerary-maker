@@ -248,6 +248,24 @@ export class ApiClient {
     return this.request(`/shared/${token}`);
   }
 
+  // ─── Calendar Sync ──────────────────────────────────────
+
+  syncCalendar(
+    tripId: string,
+    calendarId?: string,
+  ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
+    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "POST" });
+  }
+
+  unsyncCalendar(
+    tripId: string,
+    calendarId?: string,
+  ): Promise<{ removed: number; failed: number }> {
+    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "DELETE" });
+  }
+
   // ─── Export ─────────────────────────────────────────────
 
   async exportMarkdown(
