@@ -450,8 +450,8 @@ export default function TripDetailClient({
           );
         })()}
 
-        {/* Tab navigation */}
-        <div className="mb-6 flex gap-0 border-b border-gray-200">
+        {/* Tab navigation — hidden when printing */}
+        <div className="mb-6 flex gap-0 border-b border-gray-200 print-hidden">
           {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
             <button
               key={tab}

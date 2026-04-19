@@ -249,8 +249,8 @@ export function TimelineView({ trip }: { trip: Trip }) {
 
   return (
     <div>
-      {/* Toggle */}
-      <div className="flex justify-end mb-3">
+      {/* Toggle — hidden when printing */}
+      <div className="flex justify-end mb-3 print-hidden">
         <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
           {(["grouped", "chrono"] as const).map((m) => (
             <button
@@ -271,9 +271,9 @@ export function TimelineView({ trip }: { trip: Trip }) {
 
       {/* Timeline card */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto timeline-scroll">
           <div
-            className="grid"
+            className="grid timeline-grid"
             style={{ gridTemplateColumns: gridCols, minWidth: "max-content", width: "100%" }}
           >
             {/* Day header row */}
