@@ -21,12 +21,14 @@ import {
   Download,
   FileText,
   BookOpen,
+  FileDown,
   AlertCircle,
   AlertTriangle,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
+import { TimelineView } from "@/components/timeline-view";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
@@ -264,6 +266,15 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBlobDirect(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function ExportMenu({ tripId }: { tripId: string }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
@@ -292,6 +303,18 @@ function ExportMenu({ tripId }: { tripId: string }) {
     }
   };
 
+  const handleExportPdf = async () => {
+    setExporting(true);
+    try {
+      const blob = await client.exportPdf(tripId);
+      downloadBlobDirect(blob, "itinerary.pdf");
+    } catch {
+      alert("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -309,10 +332,23 @@ function ExportMenu({ tripId }: { tripId: string }) {
           <BookOpen className="mr-2 h-4 w-4" />
           OneNote (.html)
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportPdf}>
+          <FileDown className="mr-2 h-4 w-4" />
+          PDF (.pdf)
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
+type Tab = "itinerary" | "timeline" | "costs" | "todos";
+
+const TAB_LABELS: Record<Tab, string> = {
+  itinerary: "Itinerary",
+  timeline:  "Timeline",
+  costs:     "Costs",
+  todos:     "To-do",
+};
 
 export default function TripDetailClient({
   params,
@@ -322,6 +358,7 @@ export default function TripDetailClient({
   const { tripId } = use(params);
   const { data: trip, isLoading, error } = useTrip(tripId);
   const homeHref = useDemoHref("/");
+  const [activeTab, setActiveTab] = useState<Tab>("itinerary");
 
   if (isLoading) {
     return (
@@ -413,27 +450,56 @@ export default function TripDetailClient({
           );
         })()}
 
-        {/* Body */}
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
-
-          {/* Day-by-day itinerary */}
-          <div className="flex flex-col gap-8">
-            {trip.days.map((day) => (
-              <ItineraryDay key={day.date} day={day} tripId={trip.id} />
-            ))}
-          </div>
-
-          {/* Sidebar */}
-          <div className="flex flex-col gap-6">
-            <div className="rounded-xl border p-5">
-              <TripTodos tripId={trip.id} todos={trip.todos} />
-            </div>
-            <div className="rounded-xl border p-5">
-              <TripCosts tripId={trip.id} />
-            </div>
-          </div>
-
+        {/* Tab navigation — hidden when printing */}
+        <div className="mb-6 flex gap-0 border-b border-gray-200 print-hidden">
+          {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={cn(
+                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                activeTab === tab
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-900",
+              )}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
         </div>
+
+        {/* Tab content */}
+        {activeTab === "itinerary" && (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
+            <div className="flex flex-col gap-8">
+              {trip.days.map((day) => (
+                <ItineraryDay key={day.date} day={day} tripId={trip.id} />
+              ))}
+            </div>
+            <div className="flex flex-col gap-6">
+              <div className="rounded-xl border p-5">
+                <TripTodos tripId={trip.id} todos={trip.todos} />
+              </div>
+              <div className="rounded-xl border p-5">
+                <TripCosts tripId={trip.id} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "timeline" && <TimelineView trip={trip} />}
+
+        {activeTab === "costs" && (
+          <div className="rounded-xl border p-6">
+            <TripCosts tripId={trip.id} />
+          </div>
+        )}
+
+        {activeTab === "todos" && (
+          <div className="rounded-xl border p-6">
+            <TripTodos tripId={trip.id} todos={trip.todos} />
+          </div>
+        )}
       </div>
     </main>
     </RequireAuth>
