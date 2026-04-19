@@ -69,6 +69,7 @@ export const segmentSchema = z.object({
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
   cost: segmentCostSchema.optional(),
+  calendarEventId: z.string().optional(),
   source: z.enum(SEGMENT_SOURCES),
   sourceEmailId: z.string().optional(),
   needsReview: z.boolean(),
