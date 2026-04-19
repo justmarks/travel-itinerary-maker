@@ -41,7 +41,38 @@
   .tab:hover { color: #111827; }
   .tab.active { color: #111827; border-bottom-color: #111827; }
 
-  /* ── Timeline grid ──────────────────────────────────────── */
+  /* ── View toggle ─────────────────────────────────────────── */
+  .view-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+  }
+  .view-toggle {
+    display: inline-flex;
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .toggle-btn {
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    transition: background .15s, color .15s, box-shadow .15s;
+  }
+  .toggle-btn:hover { color: #374151; }
+  .toggle-btn.active {
+    background: #fff;
+    color: #111827;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+
+  /* ── Timeline grid (grouped view) ──────────────────────── */
   .timeline-wrap {
     background: #fff;
     border: 1px solid #e5e7eb;
@@ -53,7 +84,6 @@
 
   .timeline-grid {
     display: grid;
-    /* col 0: labels (fixed width); cols 1-N: days */
     grid-template-columns: 130px repeat(7, minmax(120px, 1fr));
     min-width: max-content;
     width: 100%;
@@ -163,12 +193,10 @@
     border: 1px solid #fecdd3;
   }
 
-  /* ── Hotel spanning bar ─────────────────────────────────── */
-  /* Hotel row cells are handled specially: the bar is absolutely
-     positioned across the day columns it covers via JS */
+  /* ── Hotel spanning bar (grouped view) ──────────────────── */
   .hotel-bar-container {
     position: relative;
-    height: 44px; /* matches a pill */
+    height: 44px;
   }
   .hotel-bar {
     position: absolute;
@@ -215,6 +243,58 @@
     border-radius: 3px;
     flex-shrink: 0;
   }
+
+  /* ── Chronological view ──────────────────────────────────── */
+  .chrono-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    min-width: 500px;
+  }
+
+  .chrono-day-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #f3f4f6;
+    padding: 12px;
+  }
+  .chrono-day-label .day-name { font-size: 13px; font-weight: 700; color: #111827; }
+  .chrono-day-label .day-date { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .chrono-day-label .day-city { font-size: 11px; color: #6b7280; margin-top: 1px; font-weight: 500; }
+
+  .chrono-day-content {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: flex-start;
+    align-content: flex-start;
+    min-height: 52px;
+  }
+  /* pills in chrono view sit inline */
+  .chrono-day-content .pill {
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  /* muted "continuing at hotel" chip */
+  .hotel-continue {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #92400e;
+    background: #fffbeb;
+    border: 1px dashed #fcd34d;
+    border-radius: 5px;
+    padding: 4px 9px;
+    opacity: 0.75;
+    flex-shrink: 0;
+  }
 </style>
 </head>
 <body>
@@ -233,8 +313,16 @@
     <button class="tab">To-do</button>
   </div>
 
-  <!-- Timeline -->
-  <div class="timeline-wrap">
+  <!-- View toggle -->
+  <div class="view-controls">
+    <div class="view-toggle">
+      <button class="toggle-btn active" id="btn-grouped" onclick="switchView('grouped')">Group by type</button>
+      <button class="toggle-btn" id="btn-chrono" onclick="switchView('chrono')">Chronological</button>
+    </div>
+  </div>
+
+  <!-- ── GROUPED VIEW ─────────────────────────────────────── -->
+  <div id="view-grouped" class="timeline-wrap">
     <div class="timeline-scroll">
       <div class="timeline-grid" id="grid">
 
@@ -281,7 +369,6 @@
           <span class="row-icon">✈</span>
           <span class="row-name">Transport</span>
         </div>
-        <!-- Apr 10 -->
         <div class="section-cell row-transport">
           <div class="pill pill-transport">
             <span class="pill-title">JL006 · JFK → NRT</span>
@@ -292,11 +379,8 @@
             <span class="pill-sub">NRT → Shinjuku · 14:15</span>
           </div>
         </div>
-        <!-- Apr 11 -->
         <div class="section-cell row-transport"></div>
-        <!-- Apr 12 -->
         <div class="section-cell row-transport"></div>
-        <!-- Apr 13 -->
         <div class="section-cell row-transport">
           <div class="pill pill-transport">
             <span class="pill-title">Nozomi 15 · Tokyo → Kyoto</span>
@@ -307,11 +391,8 @@
             <span class="pill-sub">Pick-up · 15:00</span>
           </div>
         </div>
-        <!-- Apr 14 -->
         <div class="section-cell row-transport"></div>
-        <!-- Apr 15 -->
         <div class="section-cell row-transport"></div>
-        <!-- Apr 16 -->
         <div class="section-cell row-transport">
           <div class="pill pill-transport">
             <span class="pill-title">Nozomi · Kyoto → Tokyo</span>
@@ -324,7 +405,6 @@
           <span class="row-icon">🏨</span>
           <span class="row-name">Hotel</span>
         </div>
-        <!-- Hotel cells: bar is drawn via JS -->
         <div class="section-cell row-hotel" id="h-0"></div>
         <div class="section-cell row-hotel" id="h-1"></div>
         <div class="section-cell row-hotel" id="h-2"></div>
@@ -338,18 +418,15 @@
           <span class="row-icon">🎯</span>
           <span class="row-name">Activities</span>
         </div>
-        <!-- Apr 10 -->
         <div class="section-cell row-activity">
           <div class="empty-hint">—</div>
         </div>
-        <!-- Apr 11 -->
         <div class="section-cell row-activity">
           <div class="pill pill-activity">
             <span class="pill-title">Senso-ji Temple</span>
             <span class="pill-sub">09:00–11:30 · Asakusa</span>
           </div>
         </div>
-        <!-- Apr 12 -->
         <div class="section-cell row-activity">
           <div class="pill pill-activity">
             <span class="pill-title">teamLab Borderless</span>
@@ -360,14 +437,12 @@
             <span class="pill-sub">16:00 · Harajuku</span>
           </div>
         </div>
-        <!-- Apr 13 -->
         <div class="section-cell row-activity">
           <div class="pill pill-activity">
             <span class="pill-title">Tsukiji Outer Market</span>
             <span class="pill-sub">08:00</span>
           </div>
         </div>
-        <!-- Apr 14 -->
         <div class="section-cell row-activity">
           <div class="pill pill-activity">
             <span class="pill-title">Fushimi Inari Taisha</span>
@@ -378,7 +453,6 @@
             <span class="pill-sub">11:00 · "Kyoto's Kitchen"</span>
           </div>
         </div>
-        <!-- Apr 15 -->
         <div class="section-cell row-activity">
           <div class="pill pill-activity">
             <span class="pill-title">Arashiyama Bamboo</span>
@@ -389,7 +463,6 @@
             <span class="pill-sub">13:00 · Golden Pavilion</span>
           </div>
         </div>
-        <!-- Apr 16 -->
         <div class="section-cell row-activity">
           <div class="empty-hint">—</div>
         </div>
@@ -399,33 +472,27 @@
           <span class="row-icon">🍽</span>
           <span class="row-name">Dining</span>
         </div>
-        <!-- Apr 10 -->
         <div class="section-cell row-dining">
           <div class="empty-hint">—</div>
         </div>
-        <!-- Apr 11 -->
         <div class="section-cell row-dining">
           <div class="pill pill-dining">
             <span class="pill-title">Ichiran Ramen</span>
             <span class="pill-sub">19:00 · Dinner · party of 2</span>
           </div>
         </div>
-        <!-- Apr 12 -->
         <div class="section-cell row-dining">
           <div class="empty-hint">—</div>
         </div>
-        <!-- Apr 13 -->
         <div class="section-cell row-dining">
           <div class="empty-hint">—</div>
         </div>
-        <!-- Apr 14 -->
         <div class="section-cell row-dining">
           <div class="pill pill-dining">
             <span class="pill-title">Mizai</span>
             <span class="pill-sub">19:00 · Dinner · kaiseki</span>
           </div>
         </div>
-        <!-- Apr 15 -->
         <div class="section-cell row-dining">
           <div class="pill pill-dining">
             <span class="pill-title">Nishiki Waffle</span>
@@ -436,7 +503,6 @@
             <span class="pill-sub">18:30 · Dinner</span>
           </div>
         </div>
-        <!-- Apr 16 -->
         <div class="section-cell row-dining">
           <div class="empty-hint">—</div>
         </div>
@@ -444,7 +510,6 @@
       </div><!-- /grid -->
     </div><!-- /scroll -->
 
-    <!-- Legend -->
     <div class="legend">
       <div class="legend-item">
         <div class="legend-dot" style="background:#bfdbfe;border:1px solid #93c5fd"></div>
@@ -463,27 +528,104 @@
         Dining
       </div>
     </div>
-  </div>
+  </div><!-- /view-grouped -->
 
-</div>
+  <!-- ── CHRONOLOGICAL VIEW ─────────────────────────────────── -->
+  <div id="view-chrono" class="timeline-wrap" style="display:none">
+    <div class="timeline-scroll">
+      <div class="chrono-grid" id="chrono-grid">
+        <!-- built by JS on first switch -->
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#bfdbfe;border:1px solid #93c5fd"></div>
+        Transport
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fde68a;border:1px solid #fcd34d"></div>
+        Hotel
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#a7f3d0;border:1px solid #6ee7b7"></div>
+        Activity
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fecdd3;border:1px solid #fda4af"></div>
+        Dining
+      </div>
+    </div>
+  </div><!-- /view-chrono -->
+
+</div><!-- /page -->
 
 <script>
-  // ── Draw hotel spanning bars ──────────────────────────────
-  // Hotels defined as { label, sub, checkIn (0-based day idx), checkOut }
+  // ── Shared data ───────────────────────────────────────────
   const hotels = [
-    { label: "Shinjuku Granbell Hotel", sub: "Apr 10 – Apr 13 · 3 nights", start: 0, end: 2 },
-    { label: "The Thousand Kyoto",      sub: "Apr 13 – Apr 16 · 3 nights", start: 3, end: 5 },
+    { label: "Shinjuku Granbell Hotel", nights: "3 nights · Apr 10–13", start: 0, end: 2 },
+    { label: "The Thousand Kyoto",      nights: "3 nights · Apr 13–16", start: 3, end: 5 },
   ];
 
+  // Segments per day, sorted by time, with type and icon
+  const dayData = [
+    {
+      name: "Thu", date: "Apr 10", city: "Tokyo",
+      segments: [
+        { type: "transport", icon: "✈", title: "JL006 · JFK → NRT",       sub: "11:30 · Japan Airlines",     time: "11:30" },
+        { type: "transport", icon: "🚌", title: "Limousine Bus",             sub: "NRT → Shinjuku · 14:15",    time: "14:15" },
+      ],
+    },
+    {
+      name: "Fri", date: "Apr 11", city: "Tokyo",
+      segments: [
+        { type: "activity", icon: "⛩", title: "Senso-ji Temple",            sub: "09:00–11:30 · Asakusa",     time: "09:00" },
+        { type: "dining",   icon: "🍜", title: "Ichiran Ramen",              sub: "19:00 · Dinner · party of 2", time: "19:00" },
+      ],
+    },
+    {
+      name: "Sat", date: "Apr 12", city: "Tokyo",
+      segments: [
+        { type: "activity", icon: "🎨", title: "teamLab Borderless",         sub: "10:00–14:00 · #TLB-90341",  time: "10:00" },
+        { type: "activity", icon: "🚦", title: "Shibuya Crossing",            sub: "16:00 · Harajuku",           time: "16:00" },
+      ],
+    },
+    {
+      name: "Sun", date: "Apr 13", city: "Tokyo → Kyoto",
+      segments: [
+        { type: "activity", icon: "🐟", title: "Tsukiji Outer Market",       sub: "08:00",                      time: "08:00" },
+        { type: "transport", icon: "🚅", title: "Nozomi 15 · Tokyo → Kyoto", sub: "12:00–14:24 · Shinkansen",   time: "12:00" },
+        { type: "transport", icon: "🚗", title: "Times Car Rental",           sub: "Pick-up · 15:00",            time: "15:00" },
+      ],
+    },
+    {
+      name: "Mon", date: "Apr 14", city: "Kyoto",
+      segments: [
+        { type: "activity", icon: "⛩", title: "Fushimi Inari Taisha",        sub: "07:00 · Fushimi Ward",       time: "07:00" },
+        { type: "activity", icon: "🏮", title: "Nishiki Market",              sub: "11:00 · Kyoto's Kitchen",    time: "11:00" },
+        { type: "dining",   icon: "🍱", title: "Mizai",                       sub: "19:00 · Dinner · kaiseki",   time: "19:00" },
+      ],
+    },
+    {
+      name: "Tue", date: "Apr 15", city: "Kyoto",
+      segments: [
+        { type: "activity", icon: "🎋", title: "Arashiyama Bamboo",           sub: "09:00",                      time: "09:00" },
+        { type: "dining",   icon: "🧇", title: "Nishiki Waffle",              sub: "10:00 · Brunch",             time: "10:00" },
+        { type: "activity", icon: "🏯", title: "Kinkaku-ji",                  sub: "13:00 · Golden Pavilion",    time: "13:00" },
+        { type: "dining",   icon: "🍶", title: "Gion Karyo",                  sub: "18:30 · Dinner",             time: "18:30" },
+      ],
+    },
+    {
+      name: "Wed", date: "Apr 16", city: "Tokyo",
+      segments: [
+        { type: "transport", icon: "🚅", title: "Nozomi · Kyoto → Tokyo",    sub: "09:30 · JR Shinkansen",      time: "09:30" },
+      ],
+    },
+  ];
+
+  // ── Grouped view: draw hotel spanning bars ────────────────
   function drawHotels() {
     const cells = Array.from({ length: 7 }, (_, i) => document.getElementById(`h-${i}`));
-    const grid  = document.getElementById("grid");
 
-    // We'll use a single overlay approach: measure cell positions relative to
-    // the first cell, then draw absolutely-positioned bars over the hotel row.
-    const rowEl = cells[0].parentElement; // the grid itself
-
-    // Give cells relative height
     cells.forEach(c => { c.style.minHeight = "52px"; c.style.position = "relative"; });
 
     hotels.forEach(h => {
@@ -491,8 +633,6 @@
       const endCell   = cells[h.end];
       if (!startCell || !endCell) return;
 
-      // We'll inject the bar into the start cell and size it to span to endCell
-      // using getBoundingClientRect delta — works even after scroll reflow.
       const bar = document.createElement("div");
       bar.className = "hotel-bar pill-hotel";
       bar.style.cssText = `
@@ -515,10 +655,9 @@
         pointer-events: auto;
         cursor: default;
       `;
-      bar.innerHTML = `<span>🏨</span><span class="pill-title">${h.label}</span><span class="pill-sub" style="opacity:.7;font-size:10.5px">${h.sub}</span>`;
+      bar.innerHTML = `<span>🏨</span><span class="pill-title">${h.label}</span><span class="pill-sub" style="opacity:.7;font-size:10.5px">${h.nights}</span>`;
       startCell.appendChild(bar);
 
-      // Resize after layout
       requestAnimationFrame(() => {
         const s = startCell.getBoundingClientRect();
         const e = endCell.getBoundingClientRect();
@@ -528,11 +667,109 @@
     });
   }
 
-  // Re-measure on resize
   window.addEventListener("resize", () => {
     document.querySelectorAll(".hotel-bar").forEach(el => el.remove());
     drawHotels();
   });
+
+  // ── Chronological view builder ────────────────────────────
+  let chronoBuilt = false;
+
+  function buildChronoView() {
+    const grid = document.getElementById("chrono-grid");
+
+    // Header row
+    const hLabel = document.createElement("div");
+    hLabel.className = "th label-col";
+    hLabel.style.cssText = "font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:10px 12px;";
+    hLabel.textContent = "Day";
+
+    const hContent = document.createElement("div");
+    hContent.className = "th";
+    hContent.style.cssText = "font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;background:#f9fafb;border-bottom:1px solid #e5e7eb;padding:10px 12px;";
+    hContent.textContent = "Events in order";
+
+    grid.appendChild(hLabel);
+    grid.appendChild(hContent);
+
+    dayData.forEach((day, i) => {
+      // Build hotel items for this day
+      const hotelItems = [];
+      hotels.forEach(h => {
+        if (i === h.start) {
+          hotelItems.push({ kind: "checkin", label: h.label, nights: h.nights });
+        } else if (i > h.start && i <= h.end) {
+          hotelItems.push({ kind: "continue", label: h.label });
+        }
+      });
+
+      // Day label cell
+      const labelEl = document.createElement("div");
+      labelEl.className = "chrono-day-label";
+      labelEl.innerHTML = `
+        <div class="day-name">${day.name}</div>
+        <div class="day-date">${day.date}</div>
+        <div class="day-city">${day.city}</div>
+      `;
+
+      // Day content cell
+      const contentEl = document.createElement("div");
+      contentEl.className = "chrono-day-content";
+
+      // Hotel chips first (check-in as full pill, continuation as muted chip)
+      hotelItems.forEach(h => {
+        if (h.kind === "checkin") {
+          const el = document.createElement("div");
+          el.className = "pill pill-hotel";
+          el.innerHTML = `<span class="pill-title">🏨 ${h.label}</span><span class="pill-sub">Check in · ${h.nights}</span>`;
+          contentEl.appendChild(el);
+        } else {
+          const el = document.createElement("div");
+          el.className = "hotel-continue";
+          el.textContent = `🏨 ${h.label}`;
+          contentEl.appendChild(el);
+        }
+      });
+
+      // Segments in time order
+      const typeClass = { transport: "pill-transport", activity: "pill-activity", dining: "pill-dining" };
+
+      day.segments.forEach(s => {
+        const el = document.createElement("div");
+        el.className = `pill ${typeClass[s.type] || "pill-activity"}`;
+        el.innerHTML = `<span class="pill-title">${s.icon} ${s.title}</span><span class="pill-sub">${s.sub}</span>`;
+        contentEl.appendChild(el);
+      });
+
+      if (hotelItems.length === 0 && day.segments.length === 0) {
+        const hint = document.createElement("div");
+        hint.className = "empty-hint";
+        hint.textContent = "—";
+        contentEl.appendChild(hint);
+      }
+
+      grid.appendChild(labelEl);
+      grid.appendChild(contentEl);
+    });
+  }
+
+  // ── View toggle ───────────────────────────────────────────
+  function switchView(mode) {
+    const grouped = document.getElementById("view-grouped");
+    const chrono  = document.getElementById("view-chrono");
+    const btnG    = document.getElementById("btn-grouped");
+    const btnC    = document.getElementById("btn-chrono");
+
+    grouped.style.display = mode === "grouped" ? "" : "none";
+    chrono.style.display  = mode === "chrono"  ? "" : "none";
+    btnG.classList.toggle("active", mode === "grouped");
+    btnC.classList.toggle("active", mode === "chrono");
+
+    if (mode === "chrono" && !chronoBuilt) {
+      buildChronoView();
+      chronoBuilt = true;
+    }
+  }
 
   drawHotels();
 </script>
