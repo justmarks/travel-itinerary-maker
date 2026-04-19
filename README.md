@@ -248,6 +248,9 @@ Version is auto-incremented on merge to main via GitHub Actions.
 - [ ] **Debt payoff batch** — tests for public shared route, Gmail scanner label resolution + body extraction, email parser fixture tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
+- [ ] **Map view tab** — plot hotels, activities, and restaurants as pins on an interactive map; draw routes between transport segments; reuses existing city/address data on segments
+- [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)
+- [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
 - [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
 
