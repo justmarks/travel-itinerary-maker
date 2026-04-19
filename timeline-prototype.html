@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Timeline View — Japan Adventure</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f9fafb;
+    color: #111827;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  /* ── Page shell ─────────────────────────────────────────── */
+  .page { max-width: 1100px; margin: 0 auto; }
+
+  .trip-header { margin-bottom: 24px; }
+  .trip-title  { font-size: 22px; font-weight: 700; }
+  .trip-dates  { font-size: 13px; color: #6b7280; margin-top: 4px; }
+
+  /* ── Tabs ───────────────────────────────────────────────── */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #e5e7eb; margin-bottom: 24px; }
+  .tab {
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    transition: color .15s, border-color .15s;
+  }
+  .tab:hover { color: #111827; }
+  .tab.active { color: #111827; border-bottom-color: #111827; }
+
+  /* ── Timeline grid ──────────────────────────────────────── */
+  .timeline-wrap {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .timeline-scroll { overflow-x: auto; }
+
+  .timeline-grid {
+    display: grid;
+    /* col 0: labels (fixed width); cols 1-N: days */
+    grid-template-columns: 130px repeat(7, minmax(120px, 1fr));
+    min-width: max-content;
+    width: 100%;
+  }
+
+  /* ── Header row ─────────────────────────────────────────── */
+  .th {
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #6b7280;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  .th.label-col {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    border-right: 1px solid #e5e7eb;
+  }
+  .th.day-col { text-align: center; border-right: 1px solid #f3f4f6; }
+  .th.day-col .day-name { font-size: 13px; font-weight: 700; color: #111827; }
+  .th.day-col .day-date { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+  .th.day-col .day-city { font-size: 11px; color: #6b7280; margin-top: 1px; font-weight: 500; }
+
+  /* ── Section rows ───────────────────────────────────────── */
+  .section-row-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #fff;
+    border-right: 1px solid #e5e7eb;
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .section-row-label .row-icon { font-size: 14px; line-height: 1; margin-top: 1px; }
+  .section-row-label .row-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .section-cell {
+    padding: 8px 6px;
+    border-bottom: 1px solid #f3f4f6;
+    border-right: 1px solid #f3f4f6;
+    vertical-align: top;
+    min-height: 48px;
+    position: relative;
+  }
+
+  /* alternating row bg */
+  .row-transport .section-cell  { background: #fafbff; }
+  .row-hotel     .section-cell  { background: #fdfcfa; }
+  .row-activity  .section-cell  { background: #fafffe; }
+  .row-dining    .section-cell  { background: #fffafa; }
+
+  /* ── Pills ──────────────────────────────────────────────── */
+  .pill {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-radius: 6px;
+    padding: 5px 7px;
+    font-size: 11.5px;
+    margin-bottom: 4px;
+    cursor: default;
+    transition: filter .15s;
+    line-height: 1.35;
+  }
+  .pill:hover { filter: brightness(.95); }
+  .pill:last-child { margin-bottom: 0; }
+
+  .pill-title { font-weight: 600; }
+  .pill-sub   { opacity: .75; font-size: 10.5px; }
+
+  /* transport */
+  .pill-transport {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+  }
+  /* hotel — spanning bar */
+  .pill-hotel {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fde68a;
+  }
+  /* activity */
+  .pill-activity {
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+  }
+  /* dining */
+  .pill-dining {
+    background: #fff1f2;
+    color: #9f1239;
+    border: 1px solid #fecdd3;
+  }
+
+  /* ── Hotel spanning bar ─────────────────────────────────── */
+  /* Hotel row cells are handled specially: the bar is absolutely
+     positioned across the day columns it covers via JS */
+  .hotel-bar-container {
+    position: relative;
+    height: 44px; /* matches a pill */
+  }
+  .hotel-bar {
+    position: absolute;
+    top: 0; bottom: 0;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ── Empty cell hint ────────────────────────────────────── */
+  .empty-hint {
+    font-size: 10px;
+    color: #d1d5db;
+    text-align: center;
+    padding-top: 10px;
+  }
+
+  /* ── Legend ─────────────────────────────────────────────── */
+  .legend {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    border-top: 1px solid #f3f4f6;
+    background: #f9fafb;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #6b7280;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="trip-header">
+    <div class="trip-title">Japan Adventure</div>
+    <div class="trip-dates">Apr 10 – Apr 16, 2025 · 7 days</div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab">Itinerary</button>
+    <button class="tab active">Timeline</button>
+    <button class="tab">Costs</button>
+    <button class="tab">To-do</button>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline-wrap">
+    <div class="timeline-scroll">
+      <div class="timeline-grid" id="grid">
+
+        <!-- ── Header ── -->
+        <div class="th label-col"></div>
+        <div class="th day-col">
+          <div class="day-name">Thu</div>
+          <div class="day-date">Apr 10</div>
+          <div class="day-city">Tokyo</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Fri</div>
+          <div class="day-date">Apr 11</div>
+          <div class="day-city">Tokyo</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Sat</div>
+          <div class="day-date">Apr 12</div>
+          <div class="day-city">Tokyo</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Sun</div>
+          <div class="day-date">Apr 13</div>
+          <div class="day-city">Tokyo → Kyoto</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Mon</div>
+          <div class="day-date">Apr 14</div>
+          <div class="day-city">Kyoto</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Tue</div>
+          <div class="day-date">Apr 15</div>
+          <div class="day-city">Kyoto</div>
+        </div>
+        <div class="th day-col">
+          <div class="day-name">Wed</div>
+          <div class="day-date">Apr 16</div>
+          <div class="day-city">Tokyo</div>
+        </div>
+
+        <!-- ── Transport row ── -->
+        <div class="section-row-label row-transport">
+          <span class="row-icon">✈</span>
+          <span class="row-name">Transport</span>
+        </div>
+        <!-- Apr 10 -->
+        <div class="section-cell row-transport">
+          <div class="pill pill-transport">
+            <span class="pill-title">JL006 · JFK → NRT</span>
+            <span class="pill-sub">11:30 · Japan Airlines</span>
+          </div>
+          <div class="pill pill-transport">
+            <span class="pill-title">Limousine Bus</span>
+            <span class="pill-sub">NRT → Shinjuku · 14:15</span>
+          </div>
+        </div>
+        <!-- Apr 11 -->
+        <div class="section-cell row-transport"></div>
+        <!-- Apr 12 -->
+        <div class="section-cell row-transport"></div>
+        <!-- Apr 13 -->
+        <div class="section-cell row-transport">
+          <div class="pill pill-transport">
+            <span class="pill-title">Nozomi 15 · Tokyo → Kyoto</span>
+            <span class="pill-sub">12:00–14:24 · JR Shinkansen</span>
+          </div>
+          <div class="pill pill-transport">
+            <span class="pill-title">Times Car Rental</span>
+            <span class="pill-sub">Pick-up · 15:00</span>
+          </div>
+        </div>
+        <!-- Apr 14 -->
+        <div class="section-cell row-transport"></div>
+        <!-- Apr 15 -->
+        <div class="section-cell row-transport"></div>
+        <!-- Apr 16 -->
+        <div class="section-cell row-transport">
+          <div class="pill pill-transport">
+            <span class="pill-title">Nozomi · Kyoto → Tokyo</span>
+            <span class="pill-sub">09:30 · JR Shinkansen</span>
+          </div>
+        </div>
+
+        <!-- ── Hotel row ── -->
+        <div class="section-row-label row-hotel">
+          <span class="row-icon">🏨</span>
+          <span class="row-name">Hotel</span>
+        </div>
+        <!-- Hotel cells: bar is drawn via JS -->
+        <div class="section-cell row-hotel" id="h-0"></div>
+        <div class="section-cell row-hotel" id="h-1"></div>
+        <div class="section-cell row-hotel" id="h-2"></div>
+        <div class="section-cell row-hotel" id="h-3"></div>
+        <div class="section-cell row-hotel" id="h-4"></div>
+        <div class="section-cell row-hotel" id="h-5"></div>
+        <div class="section-cell row-hotel" id="h-6"></div>
+
+        <!-- ── Activities row ── -->
+        <div class="section-row-label row-activity">
+          <span class="row-icon">🎯</span>
+          <span class="row-name">Activities</span>
+        </div>
+        <!-- Apr 10 -->
+        <div class="section-cell row-activity">
+          <div class="empty-hint">—</div>
+        </div>
+        <!-- Apr 11 -->
+        <div class="section-cell row-activity">
+          <div class="pill pill-activity">
+            <span class="pill-title">Senso-ji Temple</span>
+            <span class="pill-sub">09:00–11:30 · Asakusa</span>
+          </div>
+        </div>
+        <!-- Apr 12 -->
+        <div class="section-cell row-activity">
+          <div class="pill pill-activity">
+            <span class="pill-title">teamLab Borderless</span>
+            <span class="pill-sub">10:00–14:00 · #TLB-90341</span>
+          </div>
+          <div class="pill pill-activity">
+            <span class="pill-title">Shibuya Crossing</span>
+            <span class="pill-sub">16:00 · Harajuku</span>
+          </div>
+        </div>
+        <!-- Apr 13 -->
+        <div class="section-cell row-activity">
+          <div class="pill pill-activity">
+            <span class="pill-title">Tsukiji Outer Market</span>
+            <span class="pill-sub">08:00</span>
+          </div>
+        </div>
+        <!-- Apr 14 -->
+        <div class="section-cell row-activity">
+          <div class="pill pill-activity">
+            <span class="pill-title">Fushimi Inari Taisha</span>
+            <span class="pill-sub">07:00 · Fushimi Ward</span>
+          </div>
+          <div class="pill pill-activity">
+            <span class="pill-title">Nishiki Market</span>
+            <span class="pill-sub">11:00 · "Kyoto's Kitchen"</span>
+          </div>
+        </div>
+        <!-- Apr 15 -->
+        <div class="section-cell row-activity">
+          <div class="pill pill-activity">
+            <span class="pill-title">Arashiyama Bamboo</span>
+            <span class="pill-sub">09:00</span>
+          </div>
+          <div class="pill pill-activity">
+            <span class="pill-title">Kinkaku-ji</span>
+            <span class="pill-sub">13:00 · Golden Pavilion</span>
+          </div>
+        </div>
+        <!-- Apr 16 -->
+        <div class="section-cell row-activity">
+          <div class="empty-hint">—</div>
+        </div>
+
+        <!-- ── Dining row ── -->
+        <div class="section-row-label row-dining">
+          <span class="row-icon">🍽</span>
+          <span class="row-name">Dining</span>
+        </div>
+        <!-- Apr 10 -->
+        <div class="section-cell row-dining">
+          <div class="empty-hint">—</div>
+        </div>
+        <!-- Apr 11 -->
+        <div class="section-cell row-dining">
+          <div class="pill pill-dining">
+            <span class="pill-title">Ichiran Ramen</span>
+            <span class="pill-sub">19:00 · Dinner · party of 2</span>
+          </div>
+        </div>
+        <!-- Apr 12 -->
+        <div class="section-cell row-dining">
+          <div class="empty-hint">—</div>
+        </div>
+        <!-- Apr 13 -->
+        <div class="section-cell row-dining">
+          <div class="empty-hint">—</div>
+        </div>
+        <!-- Apr 14 -->
+        <div class="section-cell row-dining">
+          <div class="pill pill-dining">
+            <span class="pill-title">Mizai</span>
+            <span class="pill-sub">19:00 · Dinner · kaiseki</span>
+          </div>
+        </div>
+        <!-- Apr 15 -->
+        <div class="section-cell row-dining">
+          <div class="pill pill-dining">
+            <span class="pill-title">Nishiki Waffle</span>
+            <span class="pill-sub">10:00 · Brunch</span>
+          </div>
+          <div class="pill pill-dining">
+            <span class="pill-title">Gion Karyo</span>
+            <span class="pill-sub">18:30 · Dinner</span>
+          </div>
+        </div>
+        <!-- Apr 16 -->
+        <div class="section-cell row-dining">
+          <div class="empty-hint">—</div>
+        </div>
+
+      </div><!-- /grid -->
+    </div><!-- /scroll -->
+
+    <!-- Legend -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#bfdbfe;border:1px solid #93c5fd"></div>
+        Transport
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fde68a;border:1px solid #fcd34d"></div>
+        Hotel
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#a7f3d0;border:1px solid #6ee7b7"></div>
+        Activity
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background:#fecdd3;border:1px solid #fda4af"></div>
+        Dining
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── Draw hotel spanning bars ──────────────────────────────
+  // Hotels defined as { label, sub, checkIn (0-based day idx), checkOut }
+  const hotels = [
+    { label: "Shinjuku Granbell Hotel", sub: "Apr 10 – Apr 13 · 3 nights", start: 0, end: 2 },
+    { label: "The Thousand Kyoto",      sub: "Apr 13 – Apr 16 · 3 nights", start: 3, end: 5 },
+  ];
+
+  function drawHotels() {
+    const cells = Array.from({ length: 7 }, (_, i) => document.getElementById(`h-${i}`));
+    const grid  = document.getElementById("grid");
+
+    // We'll use a single overlay approach: measure cell positions relative to
+    // the first cell, then draw absolutely-positioned bars over the hotel row.
+    const rowEl = cells[0].parentElement; // the grid itself
+
+    // Give cells relative height
+    cells.forEach(c => { c.style.minHeight = "52px"; c.style.position = "relative"; });
+
+    hotels.forEach(h => {
+      const startCell = cells[h.start];
+      const endCell   = cells[h.end];
+      if (!startCell || !endCell) return;
+
+      // We'll inject the bar into the start cell and size it to span to endCell
+      // using getBoundingClientRect delta — works even after scroll reflow.
+      const bar = document.createElement("div");
+      bar.className = "hotel-bar pill-hotel";
+      bar.style.cssText = `
+        position: absolute;
+        top: 8px; bottom: 8px;
+        left: 6px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        gap: 6px;
+        font-size: 11.5px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        z-index: 1;
+        background: #fef3c7;
+        color: #92400e;
+        border: 1px solid #fde68a;
+        pointer-events: auto;
+        cursor: default;
+      `;
+      bar.innerHTML = `<span>🏨</span><span class="pill-title">${h.label}</span><span class="pill-sub" style="opacity:.7;font-size:10.5px">${h.sub}</span>`;
+      startCell.appendChild(bar);
+
+      // Resize after layout
+      requestAnimationFrame(() => {
+        const s = startCell.getBoundingClientRect();
+        const e = endCell.getBoundingClientRect();
+        const width = (e.right - 6) - (s.left + 6);
+        bar.style.width = `${width}px`;
+      });
+    });
+  }
+
+  // Re-measure on resize
+  window.addEventListener("resize", () => {
+    document.querySelectorAll(".hotel-bar").forEach(el => el.remove());
+    drawHotels();
+  });
+
+  drawHotels();
+</script>
+</body>
+</html>
