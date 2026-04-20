@@ -79,3 +79,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  /* Preserve background colours on all elements */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide interactive chrome */
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* Timeline: let the grid stretch to fill the page width */
+  .timeline-scroll {
+    overflow: visible !important;
+  }
+
+  .timeline-grid {
+    min-width: unset !important;
+    font-size: 9px !important;
+  }
+
+  /* Sticky labels don't make sense on paper — reset to flow */
+  .timeline-grid .sticky {
+    position: static !important;
+  }
+}
