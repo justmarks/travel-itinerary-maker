@@ -321,8 +321,8 @@ export function HtmlImportDialog({
           {triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] w-[50vw] max-w-[50vw] flex-col overflow-hidden sm:max-w-[50vw]">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileCode2 className="h-5 w-5" />
             Import email
@@ -335,7 +335,7 @@ export function HtmlImportDialog({
         </DialogHeader>
 
         {step === "input" && (
-          <div className="space-y-4 py-2">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4 py-2">
             <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={fileInputRef}
@@ -399,20 +399,19 @@ export function HtmlImportDialog({
               </div>
             </div>
 
-            <div>
+            <div className="flex min-h-0 flex-1 flex-col">
               <label className="mb-1 block text-xs font-medium text-zinc-600">
                 Email source ({format.toUpperCase()})
               </label>
               <Textarea
                 value={content}
                 onChange={(e) => handlePaste(e.target.value)}
-                rows={10}
                 placeholder={
                   format === "eml"
                     ? "From: ...\nSubject: ...\n\nbody"
                     : "<html>...</html>"
                 }
-                className="font-mono text-xs"
+                className="min-h-0 flex-1 resize-none font-mono text-xs"
               />
               <p className="mt-1 text-xs text-zinc-500">
                 {content.length.toLocaleString()} characters
@@ -420,10 +419,10 @@ export function HtmlImportDialog({
             </div>
 
             {errorMessage && (
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="shrink-0 text-sm text-red-600">{errorMessage}</p>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0 border-t pt-3">
               <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
@@ -445,7 +444,8 @@ export function HtmlImportDialog({
         )}
 
         {step === "results" && result && (
-          <div className="space-y-4 py-2">
+          <div className="flex min-h-0 flex-1 flex-col py-2">
+            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
             {result.parsedSegments.length === 0 ? (
               <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -539,11 +539,13 @@ export function HtmlImportDialog({
               </>
             )}
 
+            </div>
+
             {errorMessage && (
-              <p className="text-sm text-red-600">{errorMessage}</p>
+              <p className="shrink-0 text-sm text-red-600">{errorMessage}</p>
             )}
 
-            <DialogFooter>
+            <DialogFooter className="shrink-0 border-t pt-3">
               <Button variant="ghost" onClick={() => setStep("input")}>
                 Back
               </Button>
