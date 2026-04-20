@@ -405,7 +405,7 @@ export default function TripDetailClient({
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
-            <HtmlImportDialog tripId={trip.id} triggerLabel="Import HTML" />
+            <HtmlImportDialog tripId={trip.id} triggerLabel="Import email" />
             <ExportMenu tripId={trip.id} />
             <UserMenu />
           </div>

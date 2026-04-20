@@ -58,6 +58,7 @@ const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
 };
 
 type ImportStep = "input" | "parsing" | "results" | "applying" | "done" | "error";
+type ImportFormat = "html" | "eml";
 
 interface SegmentSelection extends ParsedSegment {
   emailId: string;
@@ -65,6 +66,25 @@ interface SegmentSelection extends ParsedSegment {
   assignedTripId: string;
   action: ApplyAction;
   existingSegmentId?: string;
+}
+
+/**
+ * Sniff whether the pasted/uploaded content looks like an EML (RFC 822)
+ * file vs raw HTML. EML files start with MIME headers like "From: ",
+ * "Subject: ", "MIME-Version: " etc. HTML almost always starts with a
+ * doctype, <html> tag, or some visible tag.
+ */
+function sniffFormat(content: string): ImportFormat {
+  const head = content.trimStart().slice(0, 500);
+  // Header-style lines at the top — treat as EML.
+  if (
+    /^(from|to|subject|date|message-id|mime-version|content-type|received|return-path|delivered-to|reply-to):\s/im.test(
+      head,
+    )
+  ) {
+    return "eml";
+  }
+  return "html";
 }
 
 function defaultActionFor(status: SegmentMatchStatus | undefined): ApplyAction {
@@ -87,7 +107,7 @@ function defaultActionFor(status: SegmentMatchStatus | undefined): ApplyAction {
  */
 export function HtmlImportDialog({
   tripId,
-  triggerLabel = "Import HTML",
+  triggerLabel = "Import email",
   triggerVariant = "outline",
   triggerSize = "sm",
 }: {
@@ -98,7 +118,8 @@ export function HtmlImportDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<ImportStep>("input");
-  const [html, setHtml] = useState("");
+  const [content, setContent] = useState("");
+  const [format, setFormat] = useState<ImportFormat>("html");
   const [subject, setSubject] = useState("");
   const [fromAddress, setFromAddress] = useState("");
   const [receivedAt, setReceivedAt] = useState("");
@@ -114,7 +135,8 @@ export function HtmlImportDialog({
 
   const resetState = useCallback(() => {
     setStep("input");
-    setHtml("");
+    setContent("");
+    setFormat("html");
     setSubject("");
     setFromAddress("");
     setReceivedAt("");
@@ -141,8 +163,19 @@ export function HtmlImportDialog({
       if (!file) return;
       try {
         const text = await file.text();
-        setHtml(text);
-        if (!subject) setSubject(file.name.replace(/\.html?$/i, ""));
+        setContent(text);
+        // Prefer the explicit extension; fall back to content sniffing.
+        const isEml = /\.eml$/i.test(file.name);
+        const isHtml = /\.html?$/i.test(file.name);
+        const detected: ImportFormat = isEml
+          ? "eml"
+          : isHtml
+            ? "html"
+            : sniffFormat(text);
+        setFormat(detected);
+        if (!subject) {
+          setSubject(file.name.replace(/\.(html?|eml)$/i, ""));
+        }
       } catch (err) {
         console.error("Failed to read file:", err);
         setErrorMessage("Failed to read file");
@@ -151,16 +184,26 @@ export function HtmlImportDialog({
     [subject],
   );
 
+  const handlePaste = useCallback((value: string) => {
+    setContent(value);
+    // Auto-detect when the user pastes — they may drop in either format.
+    if (value.trim()) {
+      setFormat(sniffFormat(value));
+    }
+  }, []);
+
   const handleImport = useCallback(async () => {
-    if (!html.trim()) {
-      setErrorMessage("Paste HTML or upload an .html file first.");
+    if (!content.trim()) {
+      setErrorMessage("Paste an email or upload an .html / .eml file first.");
       return;
     }
     setStep("parsing");
     setErrorMessage("");
     try {
       const response = await importMutation.mutateAsync({
-        html,
+        ...(format === "eml"
+          ? { eml: content }
+          : { html: content }),
         subject: subject || undefined,
         from: fromAddress || undefined,
         receivedAt: receivedAt
@@ -192,7 +235,7 @@ export function HtmlImportDialog({
       }
       setStep("error");
     }
-  }, [html, subject, fromAddress, receivedAt, tripId, importMutation]);
+  }, [content, format, subject, fromAddress, receivedAt, tripId, importMutation]);
 
   const toggleSelection = useCallback((index: number) => {
     setSelections((prev) =>
@@ -282,12 +325,12 @@ export function HtmlImportDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileCode2 className="h-5 w-5" />
-            Import HTML email
+            Import email
           </DialogTitle>
           <DialogDescription>
-            Paste the HTML source of a travel confirmation email (or upload a
-            saved <code>.html</code> file). The same Claude parser used for
-            Gmail scans will extract segments from it.
+            Paste a travel confirmation email (or upload a saved{" "}
+            <code>.html</code> or <code>.eml</code> file). The same Claude
+            parser used for Gmail scans will extract segments from it.
           </DialogDescription>
         </DialogHeader>
 
@@ -297,7 +340,7 @@ export function HtmlImportDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".html,.htm,text/html"
+                accept=".html,.htm,.eml,text/html,message/rfc822"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -308,11 +351,19 @@ export function HtmlImportDialog({
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload className="mr-2 h-4 w-4" />
-                Upload .html file
+                Upload .html / .eml file
               </Button>
               <span className="text-xs text-zinc-500">
-                or paste HTML below
+                or paste the email source below
               </span>
+              {content.trim() && (
+                <Badge
+                  variant="outline"
+                  className="ml-auto text-xs uppercase tracking-wide"
+                >
+                  Detected: {format}
+                </Badge>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -350,17 +401,21 @@ export function HtmlImportDialog({
 
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">
-                HTML source
+                Email source ({format.toUpperCase()})
               </label>
               <Textarea
-                value={html}
-                onChange={(e) => setHtml(e.target.value)}
+                value={content}
+                onChange={(e) => handlePaste(e.target.value)}
                 rows={10}
-                placeholder="<html>...</html>"
+                placeholder={
+                  format === "eml"
+                    ? "From: ...\nSubject: ...\n\nbody"
+                    : "<html>...</html>"
+                }
                 className="font-mono text-xs"
               />
               <p className="mt-1 text-xs text-zinc-500">
-                {html.length.toLocaleString()} characters
+                {content.length.toLocaleString()} characters
               </p>
             </div>
 
@@ -372,8 +427,8 @@ export function HtmlImportDialog({
               <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleImport} disabled={!html.trim()}>
-                Parse HTML
+              <Button onClick={handleImport} disabled={!content.trim()}>
+                Parse {format.toUpperCase()}
               </Button>
             </DialogFooter>
           </div>
@@ -383,7 +438,8 @@ export function HtmlImportDialog({
           <div className="flex flex-col items-center gap-3 py-10">
             <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
             <p className="text-sm text-zinc-600">
-              Parsing HTML with Claude — this takes a few seconds…
+              Parsing {format.toUpperCase()} with Claude — this takes a few
+              seconds…
             </p>
           </div>
         )}
@@ -394,8 +450,8 @@ export function HtmlImportDialog({
               <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>
-                  No travel content detected in this HTML. Try a different
-                  email or double-check the HTML source.
+                  No travel content detected in this {format.toUpperCase()}.
+                  Try a different email or double-check the source.
                 </span>
               </div>
             ) : (

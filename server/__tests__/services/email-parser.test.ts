@@ -482,3 +482,160 @@ describe("EmailParser.htmlToText", () => {
     expect(out).toContain("here (https://palazzo.example/b/ABC123456)");
   });
 });
+
+describe("EmailParser.emlToEmail", () => {
+  it("parses a simple text/plain EML with all headers", async () => {
+    const eml = [
+      "From: Alice <alice@example.com>",
+      "To: bob@example.com",
+      "Subject: Your booking",
+      "Date: Mon, 15 Jun 2026 14:30:00 +0000",
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Hotel confirmed. Check-in June 15.",
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.subject).toBe("Your booking");
+    expect(out.from).toBe("Alice <alice@example.com>");
+    expect(out.body).toContain("Hotel confirmed");
+    expect(out.body).toContain("Check-in June 15");
+    expect(out.receivedAt).toBe("2026-06-15T14:30:00.000Z");
+  });
+
+  it("prefers the text/html part of a multipart message and strips HTML", async () => {
+    const boundary = "----boundary";
+    const eml = [
+      "From: noreply@hotel.example",
+      "Subject: Reservation",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      "Plain fallback body",
+      "",
+      `--${boundary}`,
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<html><body><p>Reservation <strong>ABC123</strong></p></body></html>",
+      "",
+      `--${boundary}--`,
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.body).toContain("Reservation ABC123");
+    expect(out.body).not.toContain("<strong>");
+    expect(out.body).not.toContain("Plain fallback body");
+  });
+
+  it("decodes quoted-printable body content", async () => {
+    const eml = [
+      "From: hotel@example.com",
+      "Subject: Total due",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: quoted-printable",
+      "",
+      "Total: =E2=82=AC540.00 for 3 nights",
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.body).toContain("\u20ac540.00");
+  });
+
+  it("decodes base64-encoded body content", async () => {
+    // "Confirmation code: XYZ789" in base64
+    const base64Body = Buffer.from("Confirmation code: XYZ789\r\n").toString(
+      "base64",
+    );
+    const eml = [
+      "From: a@b.com",
+      "Subject: Booking",
+      "Content-Type: text/plain; charset=utf-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      base64Body,
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.body).toContain("Confirmation code: XYZ789");
+  });
+
+  it("decodes RFC 2047 encoded-word subject lines", async () => {
+    const eml = [
+      "From: a@b.com",
+      "Subject: =?UTF-8?B?UGFsYXp6byBOYXRvbGkg4oCT?= booking",
+      "",
+      "body",
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.subject).toContain("Palazzo Natoli");
+  });
+
+  it("falls back to a placeholder subject when missing", async () => {
+    const eml = "From: a@b.com\r\n\r\nbody\r\n";
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.subject).toBe("(EML import — no subject)");
+  });
+
+  it("falls back to a placeholder sender when From header is missing", async () => {
+    const eml = "Subject: Stuff\r\n\r\nbody\r\n";
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.from).toBe("(unknown sender)");
+  });
+
+  it("returns undefined receivedAt when Date header is absent", async () => {
+    const eml = "From: a@b.com\r\nSubject: s\r\n\r\nbody\r\n";
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.receivedAt).toBeUndefined();
+  });
+
+  it("accepts a Buffer as input", async () => {
+    const eml = Buffer.from(
+      "From: a@b.com\r\nSubject: From buffer\r\n\r\nhi\r\n",
+      "utf-8",
+    );
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.subject).toBe("From buffer");
+  });
+
+  it("handles a realistic hotel confirmation EML with HTML body", async () => {
+    const boundary = "=_boundary_42";
+    const eml = [
+      "From: Palazzo Natoli <noreply@palazzo.example>",
+      "To: traveler@example.com",
+      "Subject: Booking confirmation ABC123456",
+      "Date: Fri, 15 May 2026 09:00:00 +0000",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      "<html><body>",
+      "<h1>Booking Confirmation</h1>",
+      "<table>",
+      "<tr><td>Check-in</td><td>June 15, 2026</td></tr>",
+      "<tr><td>Check-out</td><td>June 18, 2026</td></tr>",
+      "<tr><td>Total</td><td>&euro;540.00</td></tr>",
+      "</table>",
+      "</body></html>",
+      "",
+      `--${boundary}--`,
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    expect(out.subject).toBe("Booking confirmation ABC123456");
+    expect(out.from).toContain("palazzo.example");
+    expect(out.receivedAt).toBe("2026-05-15T09:00:00.000Z");
+    expect(out.body).toContain("Check-in June 15, 2026");
+    expect(out.body).toContain("Check-out June 18, 2026");
+    expect(out.body).toContain("\u20ac540.00");
+  });
+});

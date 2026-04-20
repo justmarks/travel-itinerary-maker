@@ -882,24 +882,50 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return;
       }
 
-      const { html, subject, from, receivedAt, tripId } = parsed.data;
+      const { html, eml, subject, from, receivedAt, tripId } = parsed.data;
       const storage = getStorage(req);
+      const isEmlImport = Boolean(eml);
 
-      // Run the HTML through the parser using the same pipeline as Gmail.
+      // Run through the parser using the same pipeline as Gmail.
       const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
       let segments: ParsedSegment[] = [];
       let invalidCount = 0;
       let rawItemCount = 0;
+      // Extracted EML metadata (surfaced in the result so the UI can show
+      // the decoded subject/from even when the caller didn't provide them).
+      let effectiveSubject = subject;
+      let effectiveFrom = from;
+      let effectiveReceivedAt = receivedAt;
       try {
-        const result = await parser.parseHtml({
-          html,
-          subject,
-          from,
-          receivedAt,
-        });
-        segments = result.segments;
-        invalidCount = result.invalidCount;
-        rawItemCount = result.rawItemCount;
+        if (isEmlImport) {
+          // Pre-extract EML headers so the pending-review record reflects
+          // the decoded values (subject/from) even when the caller didn't
+          // supply them. The parseEml call below will re-extract internally,
+          // but we need these values here for the EmailScanResult envelope.
+          const extracted = await EmailParser.emlToEmail(eml!);
+          effectiveSubject = subject?.trim() || extracted.subject;
+          effectiveFrom = from?.trim() || extracted.from;
+          effectiveReceivedAt = receivedAt || extracted.receivedAt;
+          const result = await parser.parseEml({
+            eml: eml!,
+            subject,
+            from,
+            receivedAt,
+          });
+          segments = result.segments;
+          invalidCount = result.invalidCount;
+          rawItemCount = result.rawItemCount;
+        } else {
+          const result = await parser.parseHtml({
+            html: html!,
+            subject,
+            from,
+            receivedAt,
+          });
+          segments = result.segments;
+          invalidCount = result.invalidCount;
+          rawItemCount = result.rawItemCount;
+        }
       } catch (err: unknown) {
         // Surface Anthropic billing / auth / overloaded errors the same way
         // the scan route does so the UI can show a user-friendly message.
@@ -964,13 +990,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const validationFailedEverything =
         !hasTravel && rawItemCount > 0 && invalidCount > 0;
 
-      const emailId = `html-import-${Date.now()}-${generateId()}`;
+      const emailId = `${isEmlImport ? "eml" : "html"}-import-${Date.now()}-${generateId()}`;
       const now = new Date().toISOString();
       const result: EmailScanResult = {
         emailId,
-        subject: subject || "(HTML import)",
-        from: from || "(unknown sender)",
-        receivedAt: receivedAt || now,
+        subject:
+          effectiveSubject || (isEmlImport ? "(EML import)" : "(HTML import)"),
+        from: effectiveFrom || "(unknown sender)",
+        receivedAt: effectiveReceivedAt || now,
         parsedSegments: matchedSegments,
         parseStatus: hasTravel
           ? "success"
@@ -1005,7 +1032,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
 
       console.log(
-        `HTML import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
+        `${isEmlImport ? "EML" : "HTML"} import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
       );
 
       res.status(201).json({ result });

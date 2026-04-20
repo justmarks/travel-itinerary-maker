@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { simpleParser } from "mailparser";
 import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
 import type { ParsedSegment } from "@travel-app/shared";
 
@@ -198,6 +199,82 @@ export class EmailParser {
       from: input.from || "(unknown sender)",
       body,
       receivedAt: input.receivedAt,
+    });
+  }
+
+  /**
+   * Parse a raw EML file (RFC 822 / MIME source) into a normalized email
+   * shape. Decodes MIME headers (subject, from, date), picks the richest body
+   * part available (prefers text/html and strips to text, otherwise uses
+   * text/plain), and decodes any quoted-printable / base64 transfer encoding
+   * along the way. Falls back to generic placeholders when headers are
+   * missing so the downstream Claude prompt is still well-formed.
+   */
+  static async emlToEmail(eml: string | Buffer): Promise<{
+    subject: string;
+    from: string;
+    body: string;
+    receivedAt?: string;
+  }> {
+    const parsed = await simpleParser(eml);
+
+    const subject = (parsed.subject || "").trim();
+
+    let fromAddr = "";
+    if (parsed.from?.value?.length) {
+      const first = parsed.from.value[0];
+      const name = (first.name || "").trim();
+      const address = (first.address || "").trim();
+      fromAddr = name && address ? `${name} <${address}>` : address || name;
+    } else if (parsed.from?.text) {
+      fromAddr = parsed.from.text.trim();
+    }
+
+    // Prefer HTML body, otherwise plain text. mailparser gives us the
+    // richest available form; we run the HTML through htmlToText so the
+    // downstream pipeline receives plain text either way.
+    let body = "";
+    if (typeof parsed.html === "string" && parsed.html.trim()) {
+      body = EmailParser.htmlToText(parsed.html);
+    } else if (typeof parsed.text === "string" && parsed.text.trim()) {
+      body = parsed.text
+        .split(/\r?\n/)
+        .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
+    } else if (typeof parsed.textAsHtml === "string") {
+      body = EmailParser.htmlToText(parsed.textAsHtml);
+    }
+
+    const receivedAt = parsed.date ? parsed.date.toISOString() : undefined;
+
+    return {
+      subject: subject || "(EML import — no subject)",
+      from: fromAddr || "(unknown sender)",
+      body,
+      receivedAt,
+    };
+  }
+
+  /**
+   * Parse a raw EML blob (a saved `.eml` file or raw MIME source) by
+   * extracting headers + the richest body part and running it through the
+   * same pipeline as Gmail-scanned emails. The caller's optional metadata
+   * takes precedence over the values pulled from the EML headers so users
+   * can override a mangled/empty subject etc.
+   */
+  async parseEml(input: {
+    eml: string | Buffer;
+    subject?: string;
+    from?: string;
+    receivedAt?: string;
+  }): Promise<{ segments: ParsedSegment[]; invalidCount: number; rawItemCount: number }> {
+    const extracted = await EmailParser.emlToEmail(input.eml);
+    return this.parseEmail({
+      subject: input.subject?.trim() || extracted.subject,
+      from: input.from?.trim() || extracted.from,
+      body: extracted.body,
+      receivedAt: input.receivedAt || extracted.receivedAt,
     });
   }
 

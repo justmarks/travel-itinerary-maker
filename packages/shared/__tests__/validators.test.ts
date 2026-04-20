@@ -463,6 +463,31 @@ describe("htmlImportRequestSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a minimal payload with only eml", () => {
+    const result = htmlImportRequestSchema.safeParse({
+      eml: "From: a@b.com\r\nSubject: s\r\n\r\nbody",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects empty eml", () => {
+    const result = htmlImportRequestSchema.safeParse({ eml: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a payload with neither html nor eml", () => {
+    const result = htmlImportRequestSchema.safeParse({ subject: "s" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a payload with both html and eml", () => {
+    const result = htmlImportRequestSchema.safeParse({
+      html: "<p>hi</p>",
+      eml: "From: a@b.com\r\n\r\nbody",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("tripSchema (full trip validation)", () => {

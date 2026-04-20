@@ -131,18 +131,62 @@ jest.mock("../../src/services/email-parser", () => {
     });
   };
 
+  // Static method: lightweight EML header extractor the route calls before
+  // delegating to parseEml. We implement a minimal parser here so route tests
+  // can feed synthetic EML strings without taking a full mailparser dep.
+  const emlToEmailImpl = (eml: string | Buffer) => {
+    const src = typeof eml === "string" ? eml : eml.toString("utf-8");
+    const headerBlockEnd = src.search(/\r?\n\r?\n/);
+    const headerBlock = headerBlockEnd > -1 ? src.slice(0, headerBlockEnd) : src;
+    const bodyBlock = headerBlockEnd > -1 ? src.slice(headerBlockEnd).replace(/^\r?\n\r?\n/, "") : "";
+    const getHeader = (name: string) => {
+      const re = new RegExp(`^${name}:\\s*(.+)$`, "im");
+      const m = headerBlock.match(re);
+      return m ? m[1].trim() : "";
+    };
+    const subject = getHeader("Subject") || "(EML import — no subject)";
+    const from = getHeader("From") || "(unknown sender)";
+    const dateHdr = getHeader("Date");
+    let receivedAt: string | undefined;
+    if (dateHdr) {
+      const d = new Date(dateHdr);
+      if (!isNaN(d.getTime())) receivedAt = d.toISOString();
+    }
+    return Promise.resolve({
+      subject,
+      from,
+      body: bodyBlock.trim(),
+      receivedAt,
+    });
+  };
+
+  const EmailParserMock = jest.fn().mockImplementation(() => ({
+    parseEmail: jest.fn().mockImplementation(parseImpl),
+    parseHtml: jest
+      .fn()
+      .mockImplementation(
+        (input: { html: string; subject?: string; from?: string; receivedAt?: string }) =>
+          parseImpl({
+            subject: input.subject || "(HTML import — no subject)",
+          }),
+      ),
+    parseEml: jest
+      .fn()
+      .mockImplementation(
+        async (input: { eml: string | Buffer; subject?: string; from?: string; receivedAt?: string }) => {
+          const extracted = await emlToEmailImpl(input.eml);
+          return parseImpl({
+            subject: input.subject?.trim() || extracted.subject,
+          });
+        },
+      ),
+  })) as unknown as jest.Mock & { emlToEmail: typeof emlToEmailImpl };
+  // Attach the static helper so route code calling `EmailParser.emlToEmail`
+  // resolves through the mock.
+  (EmailParserMock as unknown as { emlToEmail: typeof emlToEmailImpl }).emlToEmail = emlToEmailImpl;
+
   return {
-    EmailParser: jest.fn().mockImplementation(() => ({
-      parseEmail: jest.fn().mockImplementation(parseImpl),
-      parseHtml: jest
-        .fn()
-        .mockImplementation(
-          (input: { html: string; subject?: string; from?: string; receivedAt?: string }) =>
-            parseImpl({
-              subject: input.subject || "(HTML import — no subject)",
-            }),
-        ),
-    })),
+    EmailParser: EmailParserMock,
   };
 });
 
@@ -859,6 +903,105 @@ describe("Email Routes", () => {
       const record = processed.find((e) => e.gmailMessageId === emailId);
       expect(record?.parseStatus).toBe("mapped");
       expect(record?.rawParseResult).toBeUndefined();
+    });
+
+    it("rejects a payload with neither html nor eml", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ subject: "orphan" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a payload with both html and eml", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ html: "<p>hi</p>", eml: "From: a@b.com\r\n\r\nbody" });
+      expect(res.status).toBe(400);
+    });
+
+    it("parses an EML payload and extracts segments", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "Date: Fri, 15 May 2026 09:00:00 +0000",
+        "",
+        "Palazzo Natoli booking body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("success");
+      expect(res.body.result.parsedSegments).toHaveLength(1);
+      expect(res.body.result.parsedSegments[0].type).toBe("hotel");
+      expect(res.body.result.emailId).toMatch(/^eml-import-/);
+    });
+
+    it("surfaces subject/from/receivedAt decoded from EML headers when caller omits them", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "Date: Fri, 15 May 2026 09:00:00 +0000",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.subject).toBe("Palazzo Natoli confirmation");
+      expect(res.body.result.from).toBe("reservations@palazzo.example");
+      expect(res.body.result.receivedAt).toBe("2026-05-15T09:00:00.000Z");
+    });
+
+    it("caller-provided subject/from override EML headers", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          eml,
+          subject: "Palazzo override subject",
+          from: "manual@override.example",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.subject).toBe("Palazzo override subject");
+      expect(res.body.result.from).toBe("manual@override.example");
+    });
+
+    it("persists an EML import under an eml-import-* emailId", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+      expect(res.status).toBe(201);
+      const emailId = res.body.result.emailId;
+      expect(emailId).toMatch(/^eml-import-/);
+
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record?.parseStatus).toBe("parsed");
+      expect(record?.subject).toBe("Palazzo Natoli confirmation");
     });
   });
 });
