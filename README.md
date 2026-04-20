@@ -10,14 +10,16 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 ## Features
 
-- **Day-by-day itinerary view** — 8-column table (city, day, date, transport, lodging, activities, lunch, dinner) with inline segment cards
+- **Day-by-day itinerary view** — inline segment cards with editing, per-segment costs, and confirmation codes
+- **Timeline view** — Hipmunk-style Gantt grid; toggle between swimlane rows (Transport / Hotel / Activities / Dining) and a single chronological row; hotel stays render as spanning bars; prints cleanly
 - **Google OAuth** — sign in with your Google account; no separate credentials needed
 - **Google Drive storage** — trip data stored as JSON in your own Drive (you own your data)
 - **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs
-- **Embedded costs** — each segment card shows cost and booking details inline, with an on-demand cost summary view
+- **Embedded costs** — each segment card shows cost and booking details inline, with a dedicated Costs tab
 - **TODO tracking** — categorized checklist for meals, activities, research, and logistics
+- **Google Calendar sync** — push trip segments to Google Calendar as events; re-sync updates existing events; unsync removes them
 - **Sharing** — generate share links with configurable visibility (costs, TODOs)
-- **Export** — download itineraries as Markdown or OneNote-compatible HTML
+- **Export** — download itineraries as Markdown, OneNote-compatible HTML, or PDF
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 
@@ -151,6 +153,8 @@ Current coverage: **198 tests** across 10 test suites.
 | `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
+| `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
 
 ## API Overview
 
@@ -239,17 +243,18 @@ Version is auto-incremented on merge to main via GitHub Actions.
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
 - [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
+- [x] **Phase 6** — UX & export: PDF export (pdfkit), Google Calendar sync (create/update/delete), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready)
 
 **Up next:**
 
 - [ ] **Debt payoff batch** — tests for public shared route, Gmail scanner label resolution + body extraction, email parser fixture tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
-- [ ] **Google Calendar sync** — manually initiated, two-way, deduped in both directions
-- [ ] **UX iteration** — tabular view, accessibility pass, keyboard navigation
-- [ ] **PDF export** — thin shim over existing Markdown export
+- [ ] **Map view tab** — plot hotels, activities, and restaurants as pins on an interactive map; draw routes between transport segments; reuses existing city/address data on segments
+- [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)
+- [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
 - [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
-- [ ] **Later** — FCM push notifications, OneNote polish, visual timeline
+- [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
 
 ## License
 
