@@ -48,60 +48,145 @@ jest.mock("../../src/services/gmail-scanner", () => {
 // Mock the EmailParser. parseEmail now returns a richer object:
 // { segments, invalidCount, rawItemCount } so the route can distinguish
 // "no travel content" from "validation failure".
+//
+// We also implement parseHtml here because /emails/import-html delegates
+// to parser.parseHtml. The mock version triages on the subject field — the
+// subject is how tests specify "pretend this HTML is a hotel confirmation".
 jest.mock("../../src/services/email-parser", () => {
-  return {
-    EmailParser: jest.fn().mockImplementation(() => ({
-      parseEmail: jest.fn().mockImplementation(
-        (email: { subject: string }) => {
-          if (email.subject.includes("Alaska Airlines")) {
-            return Promise.resolve({
-              segments: [
-                {
-                  type: "flight",
-                  title: "SEA → NRT",
-                  date: "2026-06-26",
-                  startTime: "10:30",
-                  carrier: "AS",
-                  routeCode: "AS123",
-                  departureCity: "Seattle",
-                  arrivalCity: "Tokyo",
-                  seatNumber: "14A",
-                  confirmationCode: "ABCDEF",
-                  confidence: "high",
-                },
-              ],
-              invalidCount: 0,
-              rawItemCount: 1,
-            });
-          }
-          if (email.subject.includes("Hilton")) {
-            return Promise.resolve({
-              segments: [
-                {
-                  type: "hotel",
-                  title: "Hilton Tokyo Bay",
-                  date: "2026-06-26",
-                  venueName: "Hilton Tokyo Bay",
-                  city: "Tokyo",
-                  confirmationCode: "HLT789",
-                  breakfastIncluded: true,
-                  cost: { amount: 850, currency: "USD" },
-                  confidence: "high",
-                },
-              ],
-              invalidCount: 0,
-              rawItemCount: 1,
-            });
-          }
-          // Newsletter - no travel content
-          return Promise.resolve({
-            segments: [],
-            invalidCount: 0,
-            rawItemCount: 0,
+  const parseImpl = (email: { subject: string }) => {
+    if (email.subject.includes("Alaska Airlines")) {
+      return Promise.resolve({
+        segments: [
+          {
+            type: "flight",
+            title: "SEA → NRT",
+            date: "2026-06-26",
+            startTime: "10:30",
+            carrier: "AS",
+            routeCode: "AS123",
+            departureCity: "Seattle",
+            arrivalCity: "Tokyo",
+            seatNumber: "14A",
+            confirmationCode: "ABCDEF",
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Hilton")) {
+      return Promise.resolve({
+        segments: [
+          {
+            type: "hotel",
+            title: "Hilton Tokyo Bay",
+            date: "2026-06-26",
+            venueName: "Hilton Tokyo Bay",
+            city: "Tokyo",
+            confirmationCode: "HLT789",
+            breakfastIncluded: true,
+            cost: { amount: 850, currency: "USD" },
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Palazzo")) {
+      // Used by HTML import tests — pretend the HTML described this hotel.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "hotel",
+            title: "Palazzo Natoli",
+            date: "2026-06-15",
+            venueName: "Palazzo Natoli",
+            city: "Palermo",
+            confirmationCode: "PLZ001",
+            endDate: "2026-06-18",
+            cost: { amount: 540, currency: "EUR" },
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Invalid")) {
+      // Used by HTML import tests — pretend Claude returned items but all
+      // failed Zod validation, so we can verify the "failed" status path.
+      return Promise.resolve({
+        segments: [],
+        invalidCount: 2,
+        rawItemCount: 2,
+      });
+    }
+    // Newsletter / generic HTML - no travel content
+    return Promise.resolve({
+      segments: [],
+      invalidCount: 0,
+      rawItemCount: 0,
+    });
+  };
+
+  // Static method: lightweight EML header extractor the route calls before
+  // delegating to parseEml. We implement a minimal parser here so route tests
+  // can feed synthetic EML strings without taking a full mailparser dep.
+  const emlToEmailImpl = (eml: string | Buffer) => {
+    const src = typeof eml === "string" ? eml : eml.toString("utf-8");
+    const headerBlockEnd = src.search(/\r?\n\r?\n/);
+    const headerBlock = headerBlockEnd > -1 ? src.slice(0, headerBlockEnd) : src;
+    const bodyBlock = headerBlockEnd > -1 ? src.slice(headerBlockEnd).replace(/^\r?\n\r?\n/, "") : "";
+    const getHeader = (name: string) => {
+      const re = new RegExp(`^${name}:\\s*(.+)$`, "im");
+      const m = headerBlock.match(re);
+      return m ? m[1].trim() : "";
+    };
+    const subject = getHeader("Subject") || "(EML import — no subject)";
+    const from = getHeader("From") || "(unknown sender)";
+    const dateHdr = getHeader("Date");
+    let receivedAt: string | undefined;
+    if (dateHdr) {
+      const d = new Date(dateHdr);
+      if (!isNaN(d.getTime())) receivedAt = d.toISOString();
+    }
+    return Promise.resolve({
+      subject,
+      from,
+      body: bodyBlock.trim(),
+      receivedAt,
+    });
+  };
+
+  const EmailParserMock = jest.fn().mockImplementation(() => ({
+    parseEmail: jest.fn().mockImplementation(parseImpl),
+    parseHtml: jest
+      .fn()
+      .mockImplementation(
+        (input: { html: string; subject?: string; from?: string; receivedAt?: string }) =>
+          parseImpl({
+            subject: input.subject || "(HTML import — no subject)",
+          }),
+      ),
+    parseEml: jest
+      .fn()
+      .mockImplementation(
+        async (input: { eml: string | Buffer; subject?: string; from?: string; receivedAt?: string }) => {
+          const extracted = await emlToEmailImpl(input.eml);
+          return parseImpl({
+            subject: input.subject?.trim() || extracted.subject,
           });
         },
       ),
-    })),
+  })) as unknown as jest.Mock & { emlToEmail: typeof emlToEmailImpl };
+  // Attach the static helper so route code calling `EmailParser.emlToEmail`
+  // resolves through the mock.
+  (EmailParserMock as unknown as { emlToEmail: typeof emlToEmailImpl }).emlToEmail = emlToEmailImpl;
+
+  return {
+    EmailParser: EmailParserMock,
   };
 });
 
@@ -638,6 +723,285 @@ describe("Email Routes", () => {
       const dismissed = processed.find((e) => e.gmailMessageId === "msg-001");
       expect(dismissed?.parseStatus).toBe("skipped");
       expect(dismissed?.rawParseResult).toBeUndefined();
+    });
+  });
+
+  describe("POST /api/v1/emails/import-html", () => {
+    it("rejects a request with missing html", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects empty html", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ html: "" });
+      expect(res.status).toBe(400);
+    });
+
+    it("parses HTML and returns extracted segments", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<html><body>Palazzo Natoli booking</body></html>",
+          subject: "Palazzo Natoli confirmation",
+          from: "reservations@palazzo.example",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result).toBeDefined();
+      expect(res.body.result.parseStatus).toBe("success");
+      expect(res.body.result.parsedSegments).toHaveLength(1);
+      expect(res.body.result.parsedSegments[0].type).toBe("hotel");
+      expect(res.body.result.parsedSegments[0].title).toBe("Palazzo Natoli");
+      expect(res.body.result.parsedSegments[0].city).toBe("Palermo");
+      expect(res.body.result.emailId).toMatch(/^html-import-/);
+    });
+
+    it("persists a synthetic processed email record so /emails/apply can close it", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo Natoli</p>",
+          subject: "Palazzo Natoli confirmation",
+        });
+      expect(res.status).toBe(201);
+      const emailId = res.body.result.emailId;
+
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record).toBeDefined();
+      expect(record?.parseStatus).toBe("parsed");
+      expect(record?.rawParseResult).toBeDefined();
+      expect(record?.subject).toBe("Palazzo Natoli confirmation");
+    });
+
+    it("auto-matches parsed segments to a trip when the date falls in range", async () => {
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-10",
+        endDate: "2026-06-20",
+      });
+      const tripId = tripRes.body.id;
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo booking</p>",
+          subject: "Palazzo Natoli confirmation",
+        });
+      expect(res.status).toBe(201);
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.suggestedTripId).toBe(tripId);
+      expect(seg.match?.status).toBe("new");
+    });
+
+    it("honors an explicit tripId hint from the caller", async () => {
+      // Trip A's dates overlap the parsed segment; trip B's do not. With
+      // auto-matching the segment would be suggested for trip A, but the
+      // caller can override by passing tripId=trip-B.
+      const a = await request(app).post("/api/v1/trips").send({
+        title: "Trip A",
+        startDate: "2026-06-10",
+        endDate: "2026-06-20",
+      });
+      const b = await request(app).post("/api/v1/trips").send({
+        title: "Trip B",
+        startDate: "2026-08-01",
+        endDate: "2026-08-10",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo</p>",
+          subject: "Palazzo Natoli confirmation",
+          tripId: b.body.id,
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(b.body.id);
+      // Sanity check: trip A exists and has overlapping dates
+      expect(a.body.id).toBeDefined();
+    });
+
+    it("returns no_travel_content when the HTML has nothing to extract", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Just a newsletter</p>",
+          subject: "Weekly Newsletter",
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("no_travel_content");
+      expect(res.body.result.parsedSegments).toHaveLength(0);
+
+      // no-travel imports should NOT be persisted as pending records
+      const processed = await storage.getProcessedEmails();
+      expect(
+        processed.some(
+          (e) => e.gmailMessageId === res.body.result.emailId,
+        ),
+      ).toBe(false);
+    });
+
+    it("marks the import as failed when all parsed items fail validation", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Something</p>",
+          subject: "Invalid email blob",
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("failed");
+      expect(res.body.result.error).toBeDefined();
+    });
+
+    it("lets /emails/apply consume an HTML import via its synthetic emailId", async () => {
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-10",
+        endDate: "2026-06-20",
+      });
+      const tripId = tripRes.body.id;
+
+      const importRes = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo</p>",
+          subject: "Palazzo Natoli confirmation",
+        });
+      expect(importRes.status).toBe(201);
+      const seg = importRes.body.result.parsedSegments[0];
+      const emailId = importRes.body.result.emailId;
+
+      const applyRes = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: seg.type,
+              title: seg.title,
+              date: seg.date,
+              city: seg.city,
+              venueName: seg.venueName,
+              confirmationCode: seg.confirmationCode,
+              endDate: seg.endDate,
+              cost: seg.cost,
+              confidence: seg.confidence,
+              tripId,
+              emailId,
+            },
+          ],
+        });
+      expect(applyRes.status).toBe(201);
+      expect(applyRes.body.created).toHaveLength(1);
+
+      // The synthetic processed-email record should now be "mapped"
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record?.parseStatus).toBe("mapped");
+      expect(record?.rawParseResult).toBeUndefined();
+    });
+
+    it("rejects a payload with neither html nor eml", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ subject: "orphan" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a payload with both html and eml", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ html: "<p>hi</p>", eml: "From: a@b.com\r\n\r\nbody" });
+      expect(res.status).toBe(400);
+    });
+
+    it("parses an EML payload and extracts segments", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "Date: Fri, 15 May 2026 09:00:00 +0000",
+        "",
+        "Palazzo Natoli booking body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("success");
+      expect(res.body.result.parsedSegments).toHaveLength(1);
+      expect(res.body.result.parsedSegments[0].type).toBe("hotel");
+      expect(res.body.result.emailId).toMatch(/^eml-import-/);
+    });
+
+    it("surfaces subject/from/receivedAt decoded from EML headers when caller omits them", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "Date: Fri, 15 May 2026 09:00:00 +0000",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.subject).toBe("Palazzo Natoli confirmation");
+      expect(res.body.result.from).toBe("reservations@palazzo.example");
+      expect(res.body.result.receivedAt).toBe("2026-05-15T09:00:00.000Z");
+    });
+
+    it("caller-provided subject/from override EML headers", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          eml,
+          subject: "Palazzo override subject",
+          from: "manual@override.example",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.subject).toBe("Palazzo override subject");
+      expect(res.body.result.from).toBe("manual@override.example");
+    });
+
+    it("persists an EML import under an eml-import-* emailId", async () => {
+      const eml = [
+        "From: reservations@palazzo.example",
+        "Subject: Palazzo Natoli confirmation",
+        "",
+        "body",
+        "",
+      ].join("\r\n");
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({ eml });
+      expect(res.status).toBe(201);
+      const emailId = res.body.result.emailId;
+      expect(emailId).toMatch(/^eml-import-/);
+
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record?.parseStatus).toBe("parsed");
+      expect(record?.subject).toBe("Palazzo Natoli confirmation");
     });
   });
 });

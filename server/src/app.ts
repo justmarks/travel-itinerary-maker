@@ -29,7 +29,10 @@ export function createApp(options: AppOptions): express.Express {
   const { mode, storage } = options;
 
   app.use(cors({ origin: config.corsOrigin }));
-  app.use(express.json());
+  // Raised from the 100kb default so users can paste/upload full .eml or
+  // .html email sources (which commonly run 100-500kb with embedded styles
+  // and base64 images).
+  app.use(express.json({ limit: "10mb" }));
 
   // Root — friendly landing for browser visits
   app.get("/", (_req, res) => {

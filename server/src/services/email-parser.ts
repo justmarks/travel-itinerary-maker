@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { simpleParser } from "mailparser";
 import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
 import type { ParsedSegment } from "@travel-app/shared";
 
@@ -86,6 +87,197 @@ export class EmailParser {
    * `receivedAt` should be the email's Date header (ISO string). It's used as
    * the anchor for inferring missing years on dates mentioned in the body.
    */
+  /**
+   * Strip HTML markup into plain text suitable for sending to Claude.
+   *
+   * Exposed as a static method so tests can exercise it directly and so
+   * routes/services can reuse the same normalization as `parseHtml`. It's
+   * intentionally simple — it's not a real HTML parser, just enough:
+   * - removes <script>/<style>/<head> blocks entirely
+   * - keeps the href of anchors inline as "text (url)" so booking URLs survive
+   * - converts <br>, </p>, </div>, </tr>, </li> into newlines
+   * - strips all remaining tags
+   * - decodes a handful of common HTML entities
+   * - collapses runs of whitespace
+   */
+  static htmlToText(html: string): string {
+    if (!html) return "";
+    let text = html;
+
+    // Drop script/style/head wholesale — they're never useful for parsing.
+    text = text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ");
+    text = text.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+    text = text.replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, " ");
+    text = text.replace(/<!--[\s\S]*?-->/g, " ");
+
+    // HTML treats raw newlines/tabs inside text as regular whitespace. Collapse
+    // them to spaces up front so pretty-printed source doesn't end up with
+    // every word on its own line later. We reintroduce newlines explicitly
+    // only at block-level boundaries (<br>, </p>, </tr>, etc).
+    text = text.replace(/[\r\n\t]+/g, " ");
+
+    // Preserve href info so Claude can see booking links.
+    text = text.replace(
+      /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi,
+      (_m, href: string, inner: string) => {
+        const innerText = inner.replace(/<[^>]+>/g, "").trim();
+        if (!innerText) return href;
+        if (innerText === href) return href;
+        return `${innerText} (${href})`;
+      },
+    );
+
+    // Block-level tags → newlines so paragraphs/rows don't run together.
+    // Note: <td>/<th> are intentionally NOT here — stripping their tags
+    // leaves a space, which keeps table cells on the same row. Only </tr>
+    // ends a row.
+    text = text.replace(/<br\b[^>]*\/?>/gi, "\n");
+    text = text.replace(/<\/(p|div|tr|li|h[1-6]|section|article)>/gi, "\n");
+
+    // Strip remaining tags, leaving a space so adjacent words don't collide.
+    text = text.replace(/<[^>]+>/g, " ");
+
+    // Decode common HTML entities.
+    const entityMap: Record<string, string> = {
+      "&nbsp;": " ",
+      "&amp;": "&",
+      "&lt;": "<",
+      "&gt;": ">",
+      "&quot;": '"',
+      "&#39;": "'",
+      "&apos;": "'",
+      "&mdash;": "—",
+      "&ndash;": "–",
+      "&rsquo;": "’",
+      "&lsquo;": "‘",
+      "&ldquo;": "“",
+      "&rdquo;": "”",
+      "&hellip;": "…",
+      "&copy;": "©",
+      "&reg;": "®",
+      "&trade;": "™",
+      "&euro;": "€",
+      "&pound;": "£",
+      "&yen;": "¥",
+      "&cent;": "¢",
+    };
+    text = text.replace(/&[a-z]+;|&#39;/gi, (match) => entityMap[match] ?? match);
+    // Numeric entities (decimal + hex).
+    text = text.replace(/&#(\d+);/g, (_m, code: string) =>
+      String.fromCodePoint(parseInt(code, 10)),
+    );
+    text = text.replace(/&#x([0-9a-f]+);/gi, (_m, code: string) =>
+      String.fromCodePoint(parseInt(code, 16)),
+    );
+
+    // Collapse whitespace but keep paragraph breaks.
+    text = text
+      .split(/\n/)
+      .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+      .filter((line) => line.length > 0)
+      .join("\n");
+
+    return text;
+  }
+
+  /**
+   * Parse a raw HTML blob (e.g. a saved `.html` email or pasted HTML source)
+   * by stripping it to plain text and running it through the same pipeline
+   * as Gmail-scanned emails. The caller may provide optional subject/from/
+   * receivedAt metadata from the original email. When omitted, the parser
+   * uses generic placeholders so Claude still gets a well-formed prompt.
+   */
+  async parseHtml(input: {
+    html: string;
+    subject?: string;
+    from?: string;
+    receivedAt?: string;
+  }): Promise<{ segments: ParsedSegment[]; invalidCount: number; rawItemCount: number }> {
+    const body = EmailParser.htmlToText(input.html);
+    return this.parseEmail({
+      subject: input.subject || "(HTML import — no subject)",
+      from: input.from || "(unknown sender)",
+      body,
+      receivedAt: input.receivedAt,
+    });
+  }
+
+  /**
+   * Parse a raw EML file (RFC 822 / MIME source) into a normalized email
+   * shape. Decodes MIME headers (subject, from, date), picks the richest body
+   * part available (prefers text/html and strips to text, otherwise uses
+   * text/plain), and decodes any quoted-printable / base64 transfer encoding
+   * along the way. Falls back to generic placeholders when headers are
+   * missing so the downstream Claude prompt is still well-formed.
+   */
+  static async emlToEmail(eml: string | Buffer): Promise<{
+    subject: string;
+    from: string;
+    body: string;
+    receivedAt?: string;
+  }> {
+    const parsed = await simpleParser(eml);
+
+    const subject = (parsed.subject || "").trim();
+
+    let fromAddr = "";
+    if (parsed.from?.value?.length) {
+      const first = parsed.from.value[0];
+      const name = (first.name || "").trim();
+      const address = (first.address || "").trim();
+      fromAddr = name && address ? `${name} <${address}>` : address || name;
+    } else if (parsed.from?.text) {
+      fromAddr = parsed.from.text.trim();
+    }
+
+    // Prefer HTML body, otherwise plain text. mailparser gives us the
+    // richest available form; we run the HTML through htmlToText so the
+    // downstream pipeline receives plain text either way.
+    let body = "";
+    if (typeof parsed.html === "string" && parsed.html.trim()) {
+      body = EmailParser.htmlToText(parsed.html);
+    } else if (typeof parsed.text === "string" && parsed.text.trim()) {
+      body = parsed.text
+        .split(/\r?\n/)
+        .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
+        .filter((line) => line.length > 0)
+        .join("\n");
+    } else if (typeof parsed.textAsHtml === "string") {
+      body = EmailParser.htmlToText(parsed.textAsHtml);
+    }
+
+    const receivedAt = parsed.date ? parsed.date.toISOString() : undefined;
+
+    return {
+      subject: subject || "(EML import — no subject)",
+      from: fromAddr || "(unknown sender)",
+      body,
+      receivedAt,
+    };
+  }
+
+  /**
+   * Parse a raw EML blob (a saved `.eml` file or raw MIME source) by
+   * extracting headers + the richest body part and running it through the
+   * same pipeline as Gmail-scanned emails. The caller's optional metadata
+   * takes precedence over the values pulled from the EML headers so users
+   * can override a mangled/empty subject etc.
+   */
+  async parseEml(input: {
+    eml: string | Buffer;
+    subject?: string;
+    from?: string;
+    receivedAt?: string;
+  }): Promise<{ segments: ParsedSegment[]; invalidCount: number; rawItemCount: number }> {
+    const extracted = await EmailParser.emlToEmail(input.eml);
+    return this.parseEmail({
+      subject: input.subject?.trim() || extracted.subject,
+      from: input.from?.trim() || extracted.from,
+      body: extracted.body,
+      receivedAt: input.receivedAt || extracted.receivedAt,
+    });
+  }
+
   async parseEmail(email: {
     subject: string;
     from: string;

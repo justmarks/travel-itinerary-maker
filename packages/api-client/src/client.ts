@@ -15,6 +15,7 @@ import type {
   GmailLabel,
   ApplyParsedSegmentsInput,
   EmailScanRequest,
+  HtmlImportRequest,
 } from "@travel-app/shared";
 
 export interface TripSummary {
@@ -279,6 +280,13 @@ export class ApiClient {
     return this.request("/emails/scan", {
       method: "POST",
       body: JSON.stringify(input ?? {}),
+    });
+  }
+
+  importHtmlEmail(input: HtmlImportRequest): Promise<{ result: EmailScanResult }> {
+    return this.request("/emails/import-html", {
+      method: "POST",
+      body: JSON.stringify(input),
     });
   }
 
