@@ -17,22 +17,34 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
    * Client sends the authorization code from Google Sign-In.
    */
   router.post("/google", async (req: Request, res: Response) => {
-    const { code } = req.body;
+    const { code, redirectUri, codeVerifier } = req.body as {
+      code: unknown;
+      redirectUri?: string;
+      codeVerifier?: string;
+    };
     if (!code) {
       res.status(400).json({ error: "Authorization code is required" });
       return;
     }
 
     try {
+      // Web clients use @react-oauth/google popup flow, which sets redirect_uri
+      // to "postmessage". Native clients (e.g. mobile) pass their own URI and an
+      // optional PKCE code verifier in the request body.
+      const resolvedRedirectUri = typeof redirectUri === "string" && redirectUri
+        ? redirectUri
+        : "postmessage";
+
       const oauth2Client = new google.auth.OAuth2(
         config.google.clientId,
         config.google.clientSecret,
-        // The frontend uses @react-oauth/google popup flow, which sets
-        // redirect_uri to "postmessage". The token exchange must match.
-        "postmessage",
+        resolvedRedirectUri,
       );
 
-      const { tokens } = await oauth2Client.getToken(code);
+      const { tokens } = await oauth2Client.getToken({
+        code: String(code),
+        ...(codeVerifier ? { codeVerifier } : {}),
+      });
       oauth2Client.setCredentials(tokens);
 
       // Get user info
