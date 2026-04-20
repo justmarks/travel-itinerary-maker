@@ -29,6 +29,7 @@ import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
+import { MapView } from "@/components/map-view";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
@@ -341,11 +342,12 @@ function ExportMenu({ tripId }: { tripId: string }) {
   );
 }
 
-type Tab = "itinerary" | "timeline" | "costs" | "todos";
+type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos";
 
 const TAB_LABELS: Record<Tab, string> = {
   itinerary: "Itinerary",
   timeline:  "Timeline",
+  map:       "Map",
   costs:     "Costs",
   todos:     "To-do",
 };
@@ -488,6 +490,8 @@ export default function TripDetailClient({
         )}
 
         {activeTab === "timeline" && <TimelineView trip={trip} />}
+
+        {activeTab === "map" && <MapView trip={trip} />}
 
         {activeTab === "costs" && (
           <div className="rounded-xl border p-6">
