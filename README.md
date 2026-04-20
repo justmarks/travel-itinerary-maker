@@ -109,12 +109,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **198 tests** across 10 test suites.
+Current coverage: **249 tests** across 16 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 104 | Validators, date utils, currency formatting (including USD FX conversion), markdown export, IDs, overlap detection, segment matching |
-| `server` | 94 | Route CRUD, sharing, costs, export, email scanning + match detection, DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 116 | Validators, date utils, currency formatting, markdown + OneNote export, ID generation, segment label formatting, overlap detection |
+| `server` | 133 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -242,7 +242,7 @@ Version is auto-incremented on merge to main via GitHub Actions.
 
 **Up next:**
 
-- [ ] **Debt payoff batch** — tests for public shared route, Gmail scanner label resolution + body extraction, email parser fixture tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
+- [ ] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Google Calendar sync** — manually initiated, two-way, deduped in both directions
