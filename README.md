@@ -230,6 +230,25 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 
 Version is auto-incremented on merge to main via GitHub Actions.
 
+## Known Limitations
+
+### In-memory TokenStore and ShareRegistry
+
+`TokenStore` and `ShareRegistry` (in `server/src/services/`) are currently held in process memory. This means:
+
+- **On redeploy or server restart**, all stored refresh tokens and share links are lost. Users will need to re-authenticate, and any existing share links will stop resolving.
+- **On Railway free-tier sleep cycles**, the server process restarts on first request, wiping both stores.
+
+The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedicated app folder), the same way trip data is persisted. Until that's done, share links and seamless token refresh are best-effort in production.
+
+**Plan to harden:**
+
+1. Add `DriveTokenStore` and `DriveShareRegistry` implementations alongside the existing in-memory classes.
+2. On write, serialize to a known Drive file (`token-store.json` / `share-registry.json` in the app's root Drive folder).
+3. On read, lazy-load from Drive with a short in-process TTL cache to avoid a Drive API call on every request.
+4. Wire them into `server/src/index.ts` behind an env flag (`PERSIST_TOKEN_STORE=true`) so local dev keeps the fast in-memory path.
+5. Add integration tests using a Drive API mock (or a dedicated test Drive folder).
+
 ## Roadmap
 
 **Completed:**
@@ -243,6 +262,7 @@ Version is auto-incremented on merge to main via GitHub Actions.
 **Up next:**
 
 - [ ] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
+- [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys (see Known Limitations above)
 - [ ] **HTML import** — parse a saved `.html` email through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Google Calendar sync** — manually initiated, two-way, deduped in both directions
