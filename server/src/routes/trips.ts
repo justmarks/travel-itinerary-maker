@@ -754,5 +754,33 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     },
   );
 
+  router.get(
+    "/:tripId/export/pdf",
+    async (req: Request, res: Response) => {
+      const storage = getStorage(req);
+      const { generateTripPdf } = await import("../utils/pdf-generator");
+      const trip = await storage.getTrip(req.params.tripId as string);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const excludeCosts = req.query.exclude?.toString().includes("costs");
+      const excludeTodos = req.query.exclude?.toString().includes("todos");
+
+      const pdfBuffer = await generateTripPdf(trip, {
+        includeCosts: !excludeCosts,
+        includeTodos: !excludeTodos,
+      });
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${trip.title.replace(/[^a-zA-Z0-9 ]/g, "")}.pdf"`,
+      );
+      res.send(pdfBuffer);
+    },
+  );
+
   return router;
 }
