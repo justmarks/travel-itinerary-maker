@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Travel Itinerary Maker</title>
+    <script>
+      // SPA redirect for GitHub Pages — forwards any unknown path to
+      // index.html with the path encoded in the query string, where the
+      // recovery script in <head> restores it via history.replaceState so
+      // the Next.js router can render the right route.
+      // Based on https://github.com/rafgraph/spa-github-pages
+      (function () {
+        // basePath "/travel-itinerary-maker" = 1 path segment to keep.
+        var pathSegmentsToKeep = 1;
+        var l = window.location;
+        l.replace(
+          l.protocol +
+            "//" +
+            l.hostname +
+            (l.port ? ":" + l.port : "") +
+            l.pathname
+              .split("/")
+              .slice(0, 1 + pathSegmentsToKeep)
+              .join("/") +
+            "/?/" +
+            l.pathname
+              .slice(1)
+              .split("/")
+              .slice(pathSegmentsToKeep)
+              .join("/")
+              .replace(/&/g, "~and~") +
+            (l.search ? "&" + l.search.slice(1).replace(/&/g, "~and~") : "") +
+            l.hash,
+        );
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
