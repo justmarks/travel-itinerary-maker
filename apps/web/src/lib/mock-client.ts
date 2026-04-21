@@ -1130,7 +1130,11 @@ export class MockApiClient extends ApiClient {
         targetDay.segments.push(seg);
       }
 
+      const wasNeedsReview = seg.needsReview;
       Object.assign(seg, segmentUpdates);
+      if (wasNeedsReview && seg.needsReview === false) {
+        seg.source = "email_confirmed";
+      }
       return Promise.resolve(structuredClone(seg));
     }
     return Promise.reject(new Error("Segment not found"));
@@ -1154,6 +1158,27 @@ export class MockApiClient extends ApiClient {
       needsReview: false,
       source: "email_confirmed",
     });
+  }
+
+  override confirmAllSegments(
+    tripId: string,
+  ): Promise<{ confirmed: number }> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+    let confirmed = 0;
+    for (const day of trip.days) {
+      for (const segment of day.segments) {
+        if (segment.needsReview) {
+          segment.needsReview = false;
+          segment.source = "email_confirmed";
+          confirmed += 1;
+        }
+      }
+    }
+    if (confirmed > 0) {
+      trip.updatedAt = new Date().toISOString();
+    }
+    return Promise.resolve({ confirmed });
   }
 
   // ─── Costs ───────────────────────────────────────────────

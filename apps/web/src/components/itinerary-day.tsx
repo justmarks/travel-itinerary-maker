@@ -353,10 +353,10 @@ function EditableCity({
   const updateDay = useUpdateDay(tripId);
 
   const save = () => {
-    updateDay.mutate(
-      { date, city: value },
-      { onSuccess: () => setEditing(false) },
-    );
+    setEditing(false);
+    if (value !== city) {
+      updateDay.mutate({ date, city: value });
+    }
   };
 
   if (editing) {
