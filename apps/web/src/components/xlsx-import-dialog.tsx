@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useImportXlsxTrip, ApiError } from "@travel-app/api-client";
 import {
@@ -46,10 +46,26 @@ function formatDate(iso: string) {
   });
 }
 
-export function XlsxImportDialog() {
+export function XlsxImportDialog({
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: {
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
   const router = useRouter();
   const importXlsx = useImportXlsxTrip();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      if (controlledOnOpenChange) controlledOnOpenChange(v);
+      else setUncontrolledOpen(v);
+    },
+    [controlledOnOpenChange],
+  );
   const [file, setFile] = useState<File | null>(null);
   const [titleOverride, setTitleOverride] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -135,12 +151,14 @@ export function XlsxImportDialog() {
         if (!v) resetState();
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <FileSpreadsheet className="mr-2 h-4 w-4" />
-          Import XLSX
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Import XLSX
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Import trip from XLSX</DialogTitle>

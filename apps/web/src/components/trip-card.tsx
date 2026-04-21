@@ -141,7 +141,7 @@ export function TripCard({ trip }: { trip: TripSummary }) {
             <Button
               variant="ghost"
               size="icon"
-              className="relative z-10 h-8 w-8"
+              className="relative z-10 -mt-1 h-8 w-8"
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
