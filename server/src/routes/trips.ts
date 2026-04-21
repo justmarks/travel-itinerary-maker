@@ -7,6 +7,7 @@ import {
   createTodoSchema,
   updateTodoSchema,
   createShareSchema,
+  xlsxImportRequestSchema,
   generateId,
   generateDateRange,
   getDayOfWeek,
@@ -18,6 +19,12 @@ import {
 } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
+import {
+  XlsxTripImporter,
+  extractYearHint,
+  shiftWorkbookYears,
+  type ParsedWorkbookSegment,
+} from "../services/xlsx-importer";
 
 export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -112,6 +119,177 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
     await storage.saveTrip(trip);
     res.status(201).json(trip);
+  });
+
+  // ─── XLSX import (one-shot) ─────────────────────────────
+  //
+  // Accepts a base64-encoded .xlsx workbook exported from OneNote (or any
+  // workbook following the same layout: Itinerary sheet with columns
+  // City / Day / Date / Transport / Lodging / Lunch / Dinner, plus a
+  // Costs sheet). Parses the workbook deterministically and creates a
+  // full trip with all days + segments in a single call. The user can
+  // edit or delete the result afterward via the normal UI.
+  router.post("/import-xlsx", async (req: Request, res: Response) => {
+    const storage = getStorage(req);
+    const parsed = xlsxImportRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(parsed.data.fileBase64, "base64");
+      if (buffer.length === 0) {
+        throw new Error("Decoded buffer is empty");
+      }
+    } catch (err) {
+      res.status(400).json({
+        error: "Invalid base64 file data",
+        details: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    const importer = new XlsxTripImporter();
+    let parsedBook;
+    try {
+      parsedBook = await importer.parseWorkbook(buffer);
+    } catch (err) {
+      res.status(400).json({
+        error: "Failed to parse XLSX file",
+        details: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    // Derive a title: explicit override > filename (minus extension) > default
+    const title =
+      parsed.data.title ||
+      (parsed.data.filename
+        ? parsed.data.filename.replace(/\.(xlsx|xls)$/i, "").trim()
+        : "") ||
+      parsedBook.title ||
+      "Imported Trip";
+
+    // Excel stores dates with a year, but when a user types a year-less
+    // date like "June 15" into a cell Excel defaults to the current year
+    // at entry time. If the trip title or filename names a specific year
+    // that doesn't match the year on the parsed dates, shift every date
+    // to the hinted year. Prefer the explicit title over the filename.
+    const yearHint =
+      extractYearHint(parsed.data.title) ??
+      extractYearHint(parsed.data.filename) ??
+      extractYearHint(parsedBook.title);
+    if (yearHint && parsedBook.startDate) {
+      const parsedStartYear = Number(parsedBook.startDate.slice(0, 4));
+      if (
+        Number.isFinite(parsedStartYear) &&
+        parsedStartYear !== yearHint
+      ) {
+        parsedBook = shiftWorkbookYears(parsedBook, yearHint - parsedStartYear);
+      }
+    }
+
+    // Guard: reject if the date range overlaps an existing trip
+    const existingTrips = await storage.listTrips();
+    const overlapping = findOverlappingTrips(existingTrips, {
+      startDate: parsedBook.startDate,
+      endDate: parsedBook.endDate,
+    });
+    if (overlapping.length > 0) {
+      res.status(409).json({
+        error: "Date range overlaps with an existing trip",
+        overlappingTrips: overlapping.map((t) => ({
+          id: t.id,
+          title: t.title,
+          startDate: t.startDate,
+          endDate: t.endDate,
+        })),
+      });
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    // Build a full days array from the parsed workbook. Fill in any gaps
+    // in the date range (shouldn't happen for well-formed inputs, but we
+    // want the resulting trip to always span contiguous dates).
+    const parsedByDate = new Map(parsedBook.days.map((d) => [d.date, d]));
+    const days: TripDay[] = generateDateRange(
+      parsedBook.startDate,
+      parsedBook.endDate,
+    ).map((date) => {
+      const source = parsedByDate.get(date);
+      if (!source) {
+        return {
+          date,
+          dayOfWeek: getDayOfWeek(date),
+          city: "",
+          segments: [],
+        };
+      }
+      const segments: Segment[] = source.segments.map(
+        (s: ParsedWorkbookSegment, idx: number): Segment => ({
+          id: generateId(),
+          type: s.type,
+          title: s.title,
+          ...(s.startTime ? { startTime: s.startTime } : {}),
+          ...(s.endTime ? { endTime: s.endTime } : {}),
+          ...(s.venueName ? { venueName: s.venueName } : {}),
+          ...(s.address ? { address: s.address } : {}),
+          ...(s.phone ? { phone: s.phone } : {}),
+          ...(s.confirmationCode ? { confirmationCode: s.confirmationCode } : {}),
+          ...(s.partySize !== undefined ? { partySize: s.partySize } : {}),
+          ...(s.creditCardHold ? { creditCardHold: true } : {}),
+          ...(s.cost ? { cost: s.cost } : {}),
+          source: "manual",
+          needsReview: true,
+          sortOrder: idx,
+        }),
+      );
+      return {
+        date,
+        dayOfWeek: source.dayOfWeek || getDayOfWeek(date),
+        city: source.city,
+        segments,
+      };
+    });
+
+    const trip: Trip = {
+      id: generateId(),
+      title,
+      startDate: parsedBook.startDate,
+      endDate: parsedBook.endDate,
+      status: "planning",
+      days,
+      todos: [],
+      shares: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await storage.saveTrip(trip);
+    res.status(201).json({
+      trip,
+      warnings: parsedBook.warnings,
+      unmatchedCosts: parsedBook.costs.filter((c) => {
+        // A cost is "unmatched" if no hotel segment in the created trip
+        // picked it up. We only track lodging attachment today; everything
+        // else remains in this list so the caller can show it separately.
+        if (!/^Hotel in /i.test(c.category)) return true;
+        const anyAttached = trip.days.some((d) =>
+          d.segments.some(
+            (s) =>
+              s.type === "hotel" &&
+              s.cost &&
+              s.cost.amount === c.amount &&
+              s.cost.currency === c.currency,
+          ),
+        );
+        return !anyAttached;
+      }),
+    });
   });
 
   router.get("/:tripId", async (req: Request, res: Response) => {

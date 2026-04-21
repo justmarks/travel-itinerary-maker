@@ -44,6 +44,7 @@ export {
   emailScanRequestSchema,
   htmlImportRequestSchema,
   applyParsedSegmentsSchema,
+  xlsxImportRequestSchema,
   SEGMENT_TYPES,
   TRIP_STATUSES,
   SEGMENT_SOURCES,
@@ -65,6 +66,7 @@ export type {
   HtmlImportRequest,
   ApplyParsedSegmentsInput,
   ApplyAction,
+  XlsxImportRequest,
 } from "./validators/trip";
 
 // Utilities

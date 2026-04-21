@@ -16,7 +16,19 @@ import type {
   ApplyParsedSegmentsInput,
   EmailScanRequest,
   HtmlImportRequest,
+  XlsxImportRequest,
 } from "@travel-app/shared";
+
+export interface XlsxImportResponse {
+  trip: Trip;
+  warnings: string[];
+  unmatchedCosts: Array<{
+    category: string;
+    amount: number;
+    currency: string;
+    details?: string;
+  }>;
+}
 
 export interface TripSummary {
   id: string;
@@ -122,6 +134,13 @@ export class ApiClient {
 
   deleteTrip(tripId: string): Promise<void> {
     return this.request(`/trips/${tripId}`, { method: "DELETE" });
+  }
+
+  importXlsxTrip(input: XlsxImportRequest): Promise<XlsxImportResponse> {
+    return this.request("/trips/import-xlsx", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
   }
 
   // ─── Days ───────────────────────────────────────────────

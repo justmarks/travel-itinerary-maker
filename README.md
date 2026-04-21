@@ -23,6 +23,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 - **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same Claude parser (unblocks non-Gmail users)
+- **XLSX import** — one-shot import a complete trip from a OneNote-exported workbook (itinerary + costs sheets)
 
 ## Tech Stack
 
@@ -112,12 +113,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **302 tests** across 17 test suites.
+Current coverage: **341 tests** across 17 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 125 | Validators (incl. `html` / `eml` import schema branch), date utils, currency formatting, markdown + OneNote export, ID generation, segment label formatting, overlap detection |
-| `server` | 177 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 130 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, ID generation, segment label formatting, overlap detection, segment matching |
+| `server` | 211 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (parser + year-hint inference + year shift + import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -166,6 +167,7 @@ Base URL: `/api/v1`
 | `POST` | `/auth/google` | Exchange Google auth code for tokens |
 | `GET` | `/trips` | List all trips |
 | `POST` | `/trips` | Create a new trip |
+| `POST` | `/trips/import-xlsx` | One-shot import a full trip from a OneNote-exported XLSX workbook |
 | `GET` | `/trips/:id` | Get trip with days and segments |
 | `PUT` | `/trips/:id` | Update trip metadata |
 | `DELETE` | `/trips/:id` | Delete a trip |

@@ -1,6 +1,10 @@
 import { ApiClient } from "@travel-app/api-client";
 import { convertToUsd } from "@travel-app/shared";
-import type { TripSummary, CostSummaryResponse } from "@travel-app/api-client";
+import type {
+  TripSummary,
+  CostSummaryResponse,
+  XlsxImportResponse,
+} from "@travel-app/api-client";
 import type {
   Trip,
   Segment,
@@ -18,6 +22,7 @@ import type {
   EmailScanRequest,
   HtmlImportRequest,
   ApplyParsedSegmentsInput,
+  XlsxImportRequest,
 } from "@travel-app/shared";
 
 function uid() {
@@ -962,6 +967,81 @@ export class MockApiClient extends ApiClient {
   override deleteTrip(tripId: string): Promise<void> {
     this.trips.delete(tripId);
     return Promise.resolve();
+  }
+
+  override importXlsxTrip(
+    input: XlsxImportRequest,
+  ): Promise<XlsxImportResponse> {
+    // In demo mode we don't actually parse the workbook — just synthesize a
+    // believable imported trip so the UI can navigate to it.
+    const id = `demo-${uid()}`;
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() + 30);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 4);
+    const startDate = start.toISOString().slice(0, 10);
+    const endDate = end.toISOString().slice(0, 10);
+
+    const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const days: TripDay[] = [];
+    for (
+      let d = new Date(start);
+      d <= end;
+      d.setDate(d.getDate() + 1)
+    ) {
+      days.push({
+        date: d.toISOString().slice(0, 10),
+        dayOfWeek: DAY_NAMES[d.getDay()],
+        city: "Demo City",
+        segments: [],
+      });
+    }
+
+    const baseTitle =
+      input.title ??
+      (input.filename ? input.filename.replace(/\.xlsx$/i, "") : "Imported Trip");
+
+    // Drop a representative auto-imported flight onto day 1 so the UI isn't empty.
+    if (days[0]) {
+      days[0].segments.push({
+        id: `seg-${uid()}`,
+        type: "flight",
+        title: "SEA → Demo",
+        startTime: "08:00",
+        departureCity: "Seattle",
+        arrivalCity: "Demo City",
+        carrier: "Demo Air",
+        routeCode: "DA100",
+        confirmationCode: "DEMO01",
+        cost: { amount: 450, currency: "USD" },
+        source: "manual",
+        needsReview: true,
+        sortOrder: 0,
+      });
+    }
+
+    const trip: Trip = {
+      id,
+      title: baseTitle,
+      startDate,
+      endDate,
+      status: "planning",
+      days,
+      todos: [],
+      shares: [],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    this.trips.set(id, trip);
+
+    return Promise.resolve({
+      trip: structuredClone(trip),
+      warnings: [
+        "Demo mode: XLSX contents were not actually parsed — this is a sample trip.",
+      ],
+      unmatchedCosts: [],
+    });
   }
 
   // ─── Days ────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
   tripSchema,
   userSettingsSchema,
   htmlImportRequestSchema,
+  xlsxImportRequestSchema,
 } from "../src/validators/trip";
 
 describe("segmentCostSchema", () => {
@@ -536,5 +537,41 @@ describe("tripSchema (full trip validation)", () => {
       updatedAt: "2025-08-18T21:08:00.000Z",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("xlsxImportRequestSchema", () => {
+  it("accepts a minimal payload with just fileBase64", () => {
+    const result = xlsxImportRequestSchema.safeParse({
+      fileBase64: "UEsDBBQAAAAIAA==",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an optional title override and filename", () => {
+    const result = xlsxImportRequestSchema.safeParse({
+      fileBase64: "UEsDBBQAAAAIAA==",
+      title: "Christmas 2025",
+      filename: "Christmas 2025.xlsx",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty fileBase64", () => {
+    const result = xlsxImportRequestSchema.safeParse({ fileBase64: "" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects when fileBase64 is missing", () => {
+    const result = xlsxImportRequestSchema.safeParse({ title: "Trip" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an empty title when provided", () => {
+    const result = xlsxImportRequestSchema.safeParse({
+      fileBase64: "UEsDBBQAAAAIAA==",
+      title: "",
+    });
+    expect(result.success).toBe(false);
   });
 });
