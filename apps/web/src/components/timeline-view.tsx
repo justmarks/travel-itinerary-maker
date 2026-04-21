@@ -78,8 +78,11 @@ function extractHotels(days: TripDay[]): HotelBar[] {
       let endDayIdx = dayIdx;
       if (s.endDate) {
         const found = days.findIndex((d) => d.date === s.endDate);
-        // endDate is checkout day; bar covers up to the night before
-        endDayIdx = found > 0 ? found - 1 : days.length - 1;
+        // endDate is checkout day; bar covers up to the night before.
+        // If endDate is not in the trip range, fall back to a single-day bar
+        // rather than extending across the whole trip — that would overlap
+        // later hotels and scramble the grid.
+        if (found > 0) endDayIdx = found - 1;
       }
       bars.push({ segment: s, startDayIdx: dayIdx, endDayIdx });
     });
@@ -160,8 +163,15 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
   let idx = 0;
 
   sorted.forEach((hotel) => {
+    // Clamp so overlapping/out-of-range hotels cannot push this row past
+    // `days.length` cells — that would wrap and misalign every row below it.
+    const start = Math.max(hotel.startDayIdx, idx);
+    const end = Math.min(Math.max(hotel.endDayIdx, start), days.length - 1);
+    const span = end - start + 1;
+    if (span <= 0) return;
+
     // Empty cells before this hotel
-    while (idx < hotel.startDayIdx) {
+    while (idx < start) {
       cells.push(
         <div
           key={`he-${idx}`}
@@ -171,7 +181,6 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       idx++;
     }
     // Spanning hotel cell
-    const span = hotel.endDayIdx - hotel.startDayIdx + 1;
     const h = hotel.segment;
     const name = h.venueName ?? h.title;
     cells.push(
@@ -189,7 +198,7 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
         </div>
       </div>,
     );
-    idx = hotel.endDayIdx + 1;
+    idx = end + 1;
   });
 
   // Empty cells after last hotel
