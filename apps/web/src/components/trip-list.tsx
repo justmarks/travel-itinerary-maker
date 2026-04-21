@@ -1,28 +1,42 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTrips } from "@travel-app/api-client";
 import { TripCard } from "./trip-card";
 import { Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+function todayISO(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function TripList() {
   const { data: trips, isLoading, error } = useTrips();
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [showPast, setShowPast] = useState(false);
 
-  const completedCount = useMemo(
-    () => trips?.filter((t) => t.status === "completed").length ?? 0,
-    [trips],
+  const today = useMemo(() => todayISO(), []);
+
+  const isPast = useCallback(
+    (t: { endDate: string; status: string }) =>
+      t.status === "completed" || t.endDate < today,
+    [today],
+  );
+
+  const pastCount = useMemo(
+    () => trips?.filter(isPast).length ?? 0,
+    [trips, isPast],
   );
 
   const visibleTrips = useMemo(() => {
     if (!trips) return [];
-    const filtered = showCompleted
-      ? trips
-      : trips.filter((t) => t.status !== "completed");
+    const filtered = showPast ? trips : trips.filter((t) => !isPast(t));
     // Ascending by startDate (ISO YYYY-MM-DD sorts lexicographically)
     return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [trips, showCompleted]);
+  }, [trips, showPast, isPast]);
 
   if (isLoading) {
     return (
@@ -66,10 +80,10 @@ export function TripList() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <Plane className="mb-4 h-12 w-12 text-muted-foreground/50" />
           <h3 className="text-lg font-medium">No upcoming trips</h3>
-          {completedCount > 0 && (
+          {pastCount > 0 && (
             <p className="mt-1 text-sm text-muted-foreground">
-              You have {completedCount} completed{" "}
-              {completedCount === 1 ? "trip" : "trips"} hidden.
+              You have {pastCount} past {pastCount === 1 ? "trip" : "trips"}{" "}
+              hidden.
             </p>
           )}
         </div>
@@ -81,16 +95,16 @@ export function TripList() {
         </div>
       )}
 
-      {completedCount > 0 && (
+      {pastCount > 0 && (
         <div className="flex justify-center pt-2">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowCompleted((v) => !v)}
+            onClick={() => setShowPast((v) => !v)}
           >
-            {showCompleted
-              ? `Hide completed trips (${completedCount})`
-              : `Show completed trips (${completedCount})`}
+            {showPast
+              ? `Hide past trips (${pastCount})`
+              : `Show past trips (${pastCount})`}
           </Button>
         </div>
       )}

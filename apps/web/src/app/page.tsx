@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CreateTripDialog } from "@/components/create-trip-dialog";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
@@ -7,9 +8,24 @@ import { XlsxImportDialog } from "@/components/xlsx-import-dialog";
 import { TripList } from "@/components/trip-list";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
-import { Plane } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  FileCode2,
+  FileSpreadsheet,
+  MoreHorizontal,
+  Plane,
+} from "lucide-react";
 
 export default function Home() {
+  const [htmlImportOpen, setHtmlImportOpen] = useState(false);
+  const [xlsxImportOpen, setXlsxImportOpen] = useState(false);
+
   return (
     <RequireAuth>
       <main className="min-h-screen p-8">
@@ -20,10 +36,39 @@ export default function Home() {
               <h1 className="text-2xl font-bold">My Trips</h1>
             </div>
             <div className="flex items-center gap-2">
-              <EmailScanDialog />
-              <HtmlImportDialog />
-              <XlsxImportDialog />
+              <EmailScanDialog triggerSize="default" />
               <CreateTripDialog />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="More actions"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setHtmlImportOpen(true)}>
+                    <FileCode2 className="mr-2 h-4 w-4" />
+                    Import email
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setXlsxImportOpen(true)}>
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Import XLSX
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <HtmlImportDialog
+                hideTrigger
+                open={htmlImportOpen}
+                onOpenChange={setHtmlImportOpen}
+              />
+              <XlsxImportDialog
+                hideTrigger
+                open={xlsxImportOpen}
+                onOpenChange={setXlsxImportOpen}
+              />
               <UserMenu />
             </div>
           </div>

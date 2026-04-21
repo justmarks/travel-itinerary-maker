@@ -110,13 +110,27 @@ export function HtmlImportDialog({
   triggerLabel = "Import email",
   triggerVariant = "outline",
   triggerSize = "sm",
+  hideTrigger = false,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   tripId?: string;
   triggerLabel?: string;
   triggerVariant?: "outline" | "default" | "ghost";
   triggerSize?: "sm" | "default" | "lg";
+  hideTrigger?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = useCallback(
+    (v: boolean) => {
+      if (controlledOnOpenChange) controlledOnOpenChange(v);
+      else setUncontrolledOpen(v);
+    },
+    [controlledOnOpenChange],
+  );
   const [step, setStep] = useState<ImportStep>("input");
   const [content, setContent] = useState("");
   const [format, setFormat] = useState<ImportFormat>("html");
@@ -315,12 +329,14 @@ export function HtmlImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant={triggerVariant} size={triggerSize}>
-          <FileCode2 className="mr-2 h-4 w-4" />
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant={triggerVariant} size={triggerSize}>
+            <FileCode2 className="mr-2 h-4 w-4" />
+            {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="flex max-h-[85vh] w-[50vw] max-w-[50vw] flex-col overflow-hidden sm:max-w-[50vw]">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">

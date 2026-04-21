@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCreateTrip } from "@travel-app/api-client";
 import { ApiError } from "@travel-app/api-client";
+import { useDemoMode } from "@/lib/demo";
 import {
   Dialog,
   DialogContent,
@@ -23,12 +25,14 @@ interface OverlapInfo {
 }
 
 export function CreateTripDialog() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const createTrip = useCreateTrip();
+  const isDemo = useDemoMode();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,12 +40,15 @@ export function CreateTripDialog() {
     createTrip.mutate(
       { title, startDate, endDate },
       {
-        onSuccess: () => {
+        onSuccess: (trip) => {
           setOpen(false);
           setTitle("");
           setStartDate("");
           setEndDate("");
           setOverlapError(null);
+          router.push(
+            isDemo ? `/trips/${trip.id}?demo=true` : `/trips/${trip.id}`,
+          );
         },
         onError: (error) => {
           if (error instanceof ApiError && error.status === 409) {
