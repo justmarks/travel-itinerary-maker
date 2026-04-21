@@ -42,9 +42,6 @@ jobs:
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
 
-      - name: Copy index.html to 404.html for SPA routing
-        run: cp apps/web/out/index.html apps/web/out/404.html
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
