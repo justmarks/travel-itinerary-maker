@@ -20,6 +20,7 @@ export {
   useUpdateSegment,
   useDeleteSegment,
   useConfirmSegment,
+  useConfirmAllSegments,
   useCostSummary,
   useTodos,
   useCreateTodo,

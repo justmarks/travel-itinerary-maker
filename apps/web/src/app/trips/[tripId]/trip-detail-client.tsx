@@ -2,7 +2,13 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { useTrip, useUpdateTrip, useApiClient, ApiError } from "@travel-app/api-client";
+import {
+  useTrip,
+  useUpdateTrip,
+  useApiClient,
+  useConfirmAllSegments,
+  ApiError,
+} from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -56,11 +62,12 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
   const updateTrip = useUpdateTrip(tripId);
 
   const save = () => {
-    if (!value.trim()) return;
-    updateTrip.mutate(
-      { title: value.trim() },
-      { onSuccess: () => setEditing(false) },
-    );
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setEditing(false);
+    if (trimmed !== title) {
+      updateTrip.mutate({ title: trimmed });
+    }
   };
 
   if (editing) {
@@ -343,6 +350,41 @@ function ExportMenu({ tripId }: { tripId: string }) {
   );
 }
 
+function NeedsReviewBanner({
+  trip,
+}: {
+  trip: {
+    id: string;
+    days: Array<{ segments: Array<{ needsReview: boolean }> }>;
+  };
+}) {
+  const confirmAll = useConfirmAllSegments(trip.id);
+  const reviewCount = trip.days.reduce(
+    (sum, d) => sum + d.segments.filter((s) => s.needsReview).length,
+    0,
+  );
+  if (reviewCount === 0) return null;
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
+      <span className="flex-1 min-w-0">
+        <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
+        Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
+      </span>
+      <Button
+        size="sm"
+        variant="outline"
+        className="border-amber-400 bg-white text-amber-900 hover:bg-amber-100"
+        onClick={() => confirmAll.mutate()}
+        disabled={confirmAll.isPending}
+      >
+        <Check className="mr-1.5 h-3.5 w-3.5" />
+        Confirm all
+      </Button>
+    </div>
+  );
+}
+
 type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos";
 
 const TAB_LABELS: Record<Tab, string> = {
@@ -437,22 +479,7 @@ export default function TripDetailClient({
         </div>
 
         {/* Needs-review banner */}
-        {(() => {
-          const reviewCount = trip.days.reduce(
-            (sum, d) => sum + d.segments.filter((s) => s.needsReview).length,
-            0,
-          );
-          if (reviewCount === 0) return null;
-          return (
-            <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>
-                <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
-                Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
-              </span>
-            </div>
-          );
-        })()}
+        <NeedsReviewBanner trip={trip} />
 
         {/* Tab navigation — hidden when printing */}
         <div className="mb-6 flex gap-0 border-b border-gray-200 print-hidden">

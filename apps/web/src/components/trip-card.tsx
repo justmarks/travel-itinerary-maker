@@ -67,13 +67,12 @@ export function TripCard({ trip }: { trip: TripSummary }) {
   };
 
   const handleRename = () => {
-    if (!newTitle.trim()) return;
-    updateTrip.mutate(
-      { title: newTitle.trim() },
-      {
-        onSuccess: () => setRenaming(false),
-      },
-    );
+    const trimmed = newTitle.trim();
+    if (!trimmed) return;
+    setRenaming(false);
+    if (trimmed !== trip.title) {
+      updateTrip.mutate({ title: trimmed });
+    }
   };
 
   return (

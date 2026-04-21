@@ -162,10 +162,13 @@ export function EditSegmentDialog({
       updates.phone = form.phone || undefined;
     }
 
-    updateSegment.mutate(
-      updates as Parameters<typeof updateSegment.mutate>[0],
-      { onSuccess: () => onOpenChange(false) },
-    );
+    // Editing a review-flagged segment implicitly confirms it.
+    if (segment.needsReview) {
+      updates.needsReview = false;
+    }
+
+    onOpenChange(false);
+    updateSegment.mutate(updates as Parameters<typeof updateSegment.mutate>[0]);
   };
 
   return (

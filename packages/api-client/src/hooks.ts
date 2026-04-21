@@ -87,7 +87,36 @@ export function useUpdateTrip(tripId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateTripInput) => client.updateTrip(tripId, input),
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.trips });
+      const prevTrip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      const prevTrips = queryClient.getQueryData<TripSummary[]>(
+        queryKeys.trips,
+      );
+      if (prevTrip) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prevTrip,
+          ...input,
+        });
+      }
+      if (prevTrips) {
+        queryClient.setQueryData<TripSummary[]>(
+          queryKeys.trips,
+          prevTrips.map((t) => (t.id === tripId ? { ...t, ...input } : t)),
+        );
+      }
+      return { prevTrip, prevTrips };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prevTrip) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prevTrip);
+      }
+      if (ctx?.prevTrips) {
+        queryClient.setQueryData(queryKeys.trips, ctx.prevTrips);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.trips });
     },
@@ -128,7 +157,25 @@ export function useUpdateDay(tripId: string) {
   return useMutation({
     mutationFn: (input: { date: string; city: string }) =>
       client.updateDay(tripId, input.date, { city: input.city }),
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (prev) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prev,
+          days: prev.days.map((d) =>
+            d.date === input.date ? { ...d, city: input.city } : d,
+          ),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
     },
   });
@@ -171,7 +218,29 @@ export function useUpdateSegment(tripId: string) {
       const { segmentId, ...data } = input;
       return client.updateSegment(tripId, segmentId, data);
     },
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (prev) {
+        const { segmentId, ...patch } = input;
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prev,
+          days: prev.days.map((d) => ({
+            ...d,
+            segments: d.segments.map((s) =>
+              s.id === segmentId ? { ...s, ...patch } : s,
+            ),
+          })),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs(tripId) });
@@ -199,7 +268,65 @@ export function useConfirmSegment(tripId: string) {
   return useMutation({
     mutationFn: (segmentId: string) =>
       client.confirmSegment(tripId, segmentId),
-    onSuccess: () => {
+    onMutate: async (segmentId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (prev) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prev,
+          days: prev.days.map((d) => ({
+            ...d,
+            segments: d.segments.map((s) =>
+              s.id === segmentId
+                ? { ...s, needsReview: false, source: "email_confirmed" }
+                : s,
+            ),
+          })),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
+    },
+  });
+}
+
+export function useConfirmAllSegments(tripId: string) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.confirmAllSegments(tripId),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (prev) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prev,
+          days: prev.days.map((d) => ({
+            ...d,
+            segments: d.segments.map((s) =>
+              s.needsReview
+                ? { ...s, needsReview: false, source: "email_confirmed" }
+                : s,
+            ),
+          })),
+        });
+      }
+      return { prev };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prev) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
     },

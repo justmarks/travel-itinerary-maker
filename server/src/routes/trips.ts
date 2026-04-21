@@ -563,8 +563,16 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       // Apply validated updates (immutable fields protected by schema — id/source/sourceEmailId not in updateSegmentSchema)
+      const wasNeedsReview = found.needsReview;
       for (const [key, value] of Object.entries(segmentUpdates)) {
         (found as unknown as Record<string, unknown>)[key] = value;
+      }
+
+      // Clearing the review flag is treated as a confirmation — mirror the
+      // behavior of POST /segments/:id/confirm so editing a review-flagged
+      // segment also updates its source.
+      if (wasNeedsReview && found.needsReview === false) {
+        found.source = "email_confirmed";
       }
 
       trip.updatedAt = new Date().toISOString();
@@ -630,6 +638,35 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(found);
+    },
+  );
+
+  router.post(
+    "/:tripId/segments/confirm-all",
+    async (req: Request, res: Response) => {
+      const storage = getStorage(req);
+      const trip = await storage.getTrip(req.params.tripId as string);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      let confirmed = 0;
+      for (const day of trip.days) {
+        for (const segment of day.segments) {
+          if (segment.needsReview) {
+            segment.needsReview = false;
+            segment.source = "email_confirmed";
+            confirmed += 1;
+          }
+        }
+      }
+
+      if (confirmed > 0) {
+        trip.updatedAt = new Date().toISOString();
+        await storage.saveTrip(trip);
+      }
+      res.json({ confirmed });
     },
   );
 

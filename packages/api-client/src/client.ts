@@ -207,6 +207,12 @@ export class ApiClient {
     });
   }
 
+  confirmAllSegments(tripId: string): Promise<{ confirmed: number }> {
+    return this.request(`/trips/${tripId}/segments/confirm-all`, {
+      method: "POST",
+    });
+  }
+
   // ─── Costs ──────────────────────────────────────────────
 
   getCostSummary(tripId: string): Promise<CostSummaryResponse> {
