@@ -15,6 +15,11 @@ export interface ParsedWorkbookSegment {
   venueName?: string;
   address?: string;
   phone?: string;
+  city?: string;
+  departureCity?: string;
+  arrivalCity?: string;
+  /** Check-out date for hotels (YYYY-MM-DD) */
+  endDate?: string;
   confirmationCode?: string;
   partySize?: number;
   creditCardHold?: boolean;
@@ -226,6 +231,35 @@ interface DayBucket {
   rows: RawRow[];
 }
 
+/**
+ * Normalise a city cell value. Users often write "Budapest/" on one row and
+ * "Istanbul" on the next to show a travel day crossing between two cities;
+ * we strip leading/trailing slashes and internal whitespace so the combined
+ * value is a clean single-slash list.
+ */
+function cleanCityFragment(raw: string): string {
+  return raw
+    .replace(/^[\s/]+|[\s/]+$/g, "")
+    .replace(/\s*\/\s*/g, "/")
+    .trim();
+}
+
+/** Append a new city fragment to an existing city list, de-duping pieces
+ *  and collapsing to a single `/` separator. */
+function mergeCityFragment(existing: string, incoming: string): string {
+  const add = cleanCityFragment(incoming);
+  if (!add) return existing;
+  const base = cleanCityFragment(existing);
+  if (!base) return add;
+  const parts = base.split("/").map((p) => p.trim()).filter(Boolean);
+  for (const piece of add.split("/").map((p) => p.trim()).filter(Boolean)) {
+    if (!parts.some((p) => p.toLowerCase() === piece.toLowerCase())) {
+      parts.push(piece);
+    }
+  }
+  return parts.join("/");
+}
+
 function groupByDay(rows: RawRow[]): DayBucket[] {
   const buckets: DayBucket[] = [];
   let current: DayBucket | null = null;
@@ -236,15 +270,15 @@ function groupByDay(rows: RawRow[]): DayBucket[] {
       current = {
         date: row.cDate,
         dayOfWeek: row.B || "",
-        city: row.A || "",
+        city: cleanCityFragment(row.A || ""),
         rows: [row],
       };
       buckets.push(current);
     } else if (current) {
       // If this row has a city in col A but no date, treat it as a city update
       // for the same day (e.g. Dec 24 "Berlin/" → "Cotswolds")
-      if (row.A && !current.city.includes(row.A)) {
-        current.city = current.city ? `${current.city}/${row.A}` : row.A;
+      if (row.A) {
+        current.city = mergeCityFragment(current.city, row.A);
       }
       current.rows.push(row);
     }
@@ -372,6 +406,113 @@ function hasCreditCardHold(text: string): boolean {
   return /\bCC\b/.test(text);
 }
 
+/** A small IATA airport-code → city lookup for the routes we see most
+ *  often. This isn't exhaustive — the inference chain falls back to the
+ *  day's city / next day's city when a code isn't in the table. */
+const AIRPORT_CODES: Record<string, string> = {
+  SEA: "Seattle",
+  SFO: "San Francisco",
+  LAX: "Los Angeles",
+  JFK: "New York",
+  EWR: "Newark",
+  LGA: "New York",
+  BOS: "Boston",
+  ORD: "Chicago",
+  IAD: "Washington",
+  DCA: "Washington",
+  MIA: "Miami",
+  LHR: "London",
+  LGW: "London",
+  STN: "London",
+  LCY: "London",
+  CDG: "Paris",
+  ORY: "Paris",
+  FRA: "Frankfurt",
+  MUC: "Munich",
+  BER: "Berlin",
+  AMS: "Amsterdam",
+  BRU: "Brussels",
+  DUB: "Dublin",
+  EDI: "Edinburgh",
+  MAN: "Manchester",
+  ZRH: "Zurich",
+  GVA: "Geneva",
+  VIE: "Vienna",
+  PRG: "Prague",
+  BCN: "Barcelona",
+  MAD: "Madrid",
+  LIS: "Lisbon",
+  FCO: "Rome",
+  CIA: "Rome",
+  MXP: "Milan",
+  LIN: "Milan",
+  VCE: "Venice",
+  NAP: "Naples",
+  ATH: "Athens",
+  IST: "Istanbul",
+  HND: "Tokyo",
+  NRT: "Tokyo",
+  KIX: "Osaka",
+  SYD: "Sydney",
+  MEL: "Melbourne",
+  YVR: "Vancouver",
+  YYZ: "Toronto",
+  MEX: "Mexico City",
+  GRU: "São Paulo",
+  EZE: "Buenos Aires",
+  CPT: "Cape Town",
+  JNB: "Johannesburg",
+  DXB: "Dubai",
+  SIN: "Singapore",
+  HKG: "Hong Kong",
+  PEK: "Beijing",
+  PVG: "Shanghai",
+};
+
+/**
+ * Look for an "XXX-YYY" style airport-code pair in the text. Returns the
+ * pair if both look like IATA codes (3 uppercase letters). We check against
+ * the lookup table to avoid matching generic 3-letter runs in titles.
+ */
+function extractAirportCodes(text: string):
+  | { from: string; to: string; fromCity?: string; toCity?: string }
+  | undefined {
+  const match = text.match(/\b([A-Z]{3})\s*[-–→]+\s*([A-Z]{3})\b/);
+  if (!match) return undefined;
+  const from = match[1]!;
+  const to = match[2]!;
+  // Only treat as airports if at least one side is a known IATA code — this
+  // guards against matching three-letter abbreviations elsewhere in the text.
+  if (!(from in AIRPORT_CODES) && !(to in AIRPORT_CODES)) return undefined;
+  return {
+    from,
+    to,
+    fromCity: AIRPORT_CODES[from],
+    toCity: AIRPORT_CODES[to],
+  };
+}
+
+/**
+ * Pull a trailing destination city out of titles like "Flight to Dublin",
+ * "Train to Milan", "Drive to Cotswolds". Returns the captured city or
+ * undefined if the pattern doesn't match.
+ */
+function extractDestinationFromTitle(title: string): string | undefined {
+  const match = title.match(/\bto\s+([A-Z][\w'’]*(?:[\s-][A-Z][\w'’]*)*)/);
+  return match ? match[1]!.trim() : undefined;
+}
+
+function isTransportType(type: SegmentType): boolean {
+  return (
+    type === "flight" ||
+    type === "train" ||
+    type === "car_rental" ||
+    type === "car_service" ||
+    type === "cruise" ||
+    type === "other_transport"
+  );
+}
+
 /* ── Segment builders ──────────────────────────────────── */
 
 function classifyTransport(blockText: string): SegmentType {
@@ -455,9 +596,15 @@ function buildMealOrActivity(
   const looksLikeActivity = /\b(tour|museum|colosseum|duomo|book of kells|distillery|gallery|park|castle)\b/i.test(text) && partySize === undefined;
   const type: SegmentType = looksLikeActivity ? "activity" : defaultMealType;
 
+  // For restaurants, the cleaned title is the restaurant name — surface it as
+  // the venue so the UI can render it as a venue link. Activities keep just
+  // a title since "venue" doesn't really apply to e.g. "Colosseum tour".
+  const isRestaurant = type === "restaurant_lunch" || type === "restaurant_dinner";
+
   return {
     type,
     title,
+    venueName: isRestaurant && title ? title : undefined,
     startTime,
     partySize,
     creditCardHold: creditCardHold || undefined,
@@ -654,39 +801,54 @@ export class XlsxTripImporter {
 
     const days: ParsedWorkbookDay[] = buckets.map((bucket) => {
       const segments: ParsedWorkbookSegment[] = [];
+      const dayCity = bucket.city || "";
 
-      // Column D — transport sub-blocks
+      // Column D — transport sub-blocks. Transport doesn't inherit the day's
+      // city directly; it gets populated downstream via airport-code lookup
+      // and day-to-day context (see enrichTransportCities below).
       const transportBlocks = collectColumnBlocks(bucket.rows, "D");
       for (const block of transportBlocks) {
         segments.push(buildTransportSegment(block));
       }
 
-      // Column E — lodging sub-blocks
+      // Column E — lodging sub-blocks. Auto-populate the day's city so the
+      // hotel card surfaces the location even when the address is missing.
       const lodgingBlocks = collectColumnBlocks(bucket.rows, "E");
       for (const block of lodgingBlocks) {
-        segments.push(buildLodgingSegment(block));
+        const seg = buildLodgingSegment(block);
+        if (dayCity) seg.city = dayCity;
+        segments.push(seg);
       }
 
       // Column F — lunch / midday activities (each cell = its own segment)
       for (const cell of collectAtomicCells(bucket.rows, "F")) {
-        segments.push(buildMealOrActivity(cell, "restaurant_lunch"));
+        const seg = buildMealOrActivity(cell, "restaurant_lunch");
+        if (dayCity) seg.city = dayCity;
+        segments.push(seg);
       }
 
       // Column G — dinner / evening activities
       for (const cell of collectAtomicCells(bucket.rows, "G")) {
-        segments.push(buildMealOrActivity(cell, "restaurant_dinner"));
+        const seg = buildMealOrActivity(cell, "restaurant_dinner");
+        if (dayCity) seg.city = dayCity;
+        segments.push(seg);
       }
 
       return {
         date: bucket.date,
         dayOfWeek: bucket.dayOfWeek || "",
-        city: bucket.city || "",
+        city: dayCity,
         segments,
       };
     });
 
     // Ensure days are sorted ascending by date
     days.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Cross-day enrichment passes — must run after the sort so day indices
+    // reflect chronological order.
+    enrichTransportCities(days);
+    inferHotelCheckoutDates(days);
 
     // Find costs sheet
     const costsSheet = workbook.worksheets.find((s) => /cost/i.test(s.name));
@@ -710,6 +872,112 @@ export class XlsxTripImporter {
       costs,
       warnings,
     };
+  }
+}
+
+/**
+ * Populate departure/arrival cities on every transport segment. The
+ * inference chain walks from most specific to least:
+ *
+ *   1. "SEA-LHR" style airport-code pair in the raw text
+ *   2. "Flight to Dublin" / "Train to Milan" — capture destination from title
+ *   3. Day-to-day context — use the day's city as departure, and the next
+ *      day's city (when it differs) as arrival.
+ *
+ * Existing values (if ever set by a future parser) are always preserved.
+ */
+function enrichTransportCities(days: ParsedWorkbookDay[]): void {
+  // Pre-compute the first city we see on or after each index, which lets
+  // same-day transport (e.g. a morning flight when the day's city is already
+  // the arrival city) still find a sensible departure from the previous day.
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i]!;
+    const prevDay = i > 0 ? days[i - 1] : undefined;
+    const nextDay = i + 1 < days.length ? days[i + 1] : undefined;
+
+    for (const seg of day.segments) {
+      if (!isTransportType(seg.type)) continue;
+
+      // 1. Airport codes
+      const codes = extractAirportCodes(seg.rawText || seg.title);
+      if (codes) {
+        if (!seg.departureCity) {
+          seg.departureCity = codes.fromCity || codes.from;
+        }
+        if (!seg.arrivalCity) {
+          seg.arrivalCity = codes.toCity || codes.to;
+        }
+      }
+
+      // 2. "to <destination>" in the title
+      if (!seg.arrivalCity) {
+        const dest = extractDestinationFromTitle(seg.title);
+        if (dest) seg.arrivalCity = dest;
+      }
+
+      // 3. Day-to-day context
+      if (!seg.departureCity) {
+        // Prefer this day's city; fall back to prev day's city for early
+        // transfers (e.g. an airport transfer on arrival morning).
+        seg.departureCity = day.city || prevDay?.city || undefined;
+      }
+      if (!seg.arrivalCity && nextDay && nextDay.city && nextDay.city !== day.city) {
+        seg.arrivalCity = nextDay.city;
+      }
+    }
+  }
+}
+
+/**
+ * For each hotel segment, infer `endDate` (check-out) from the day of the
+ * next hotel with a different venue name. If the hotel is the last one in
+ * the trip, use the trip's final day as the check-out date.
+ *
+ * Same-venue hotels appearing on consecutive days are treated as the same
+ * stay — we leave `endDate` alone on the earlier occurrences and only set
+ * it once we find a different venue (or reach the end of the trip).
+ */
+function inferHotelCheckoutDates(days: ParsedWorkbookDay[]): void {
+  interface HotelRef {
+    day: ParsedWorkbookDay;
+    seg: ParsedWorkbookSegment;
+  }
+  const hotels: HotelRef[] = [];
+  for (const day of days) {
+    for (const seg of day.segments) {
+      if (seg.type === "hotel") hotels.push({ day, seg });
+    }
+  }
+
+  if (hotels.length === 0 || days.length === 0) return;
+  const tripEnd = days[days.length - 1]!.date;
+
+  for (let i = 0; i < hotels.length; i++) {
+    const current = hotels[i]!;
+    if (current.seg.endDate) continue; // already set — respect it
+
+    // Find the next hotel with a different venueName. A same-venue hotel on
+    // a later day is a continuation of the same stay, not a new booking.
+    const currentVenue = (current.seg.venueName || current.seg.title || "")
+      .trim()
+      .toLowerCase();
+    let nextDifferent: HotelRef | undefined;
+    for (let j = i + 1; j < hotels.length; j++) {
+      const candidateVenue = (hotels[j]!.seg.venueName || hotels[j]!.seg.title || "")
+        .trim()
+        .toLowerCase();
+      if (candidateVenue !== currentVenue) {
+        nextDifferent = hotels[j];
+        break;
+      }
+    }
+
+    if (nextDifferent) {
+      current.seg.endDate = nextDifferent.day.date;
+    } else {
+      // Last hotel of the trip — check out on the final day.
+      current.seg.endDate = tripEnd;
+    }
   }
 }
 

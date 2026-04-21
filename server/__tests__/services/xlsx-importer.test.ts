@@ -201,6 +201,174 @@ describe("XlsxTripImporter", () => {
     });
   });
 
+  describe("enrichment — hotel/restaurant/activity city", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("christmas-2025.xlsx"));
+    });
+
+    it("auto-populates city on hotel segments from the day's city", () => {
+      const day = parsed.days.find((d) => d.date === "2025-12-20")!;
+      const hotel = day.segments.find((s) => s.type === "hotel")!;
+      expect(hotel.city).toMatch(/Prague/i);
+      expect(hotel.city).toBe(day.city);
+    });
+
+    it("auto-populates city on restaurants and activities", () => {
+      for (const day of parsed.days) {
+        if (!day.city) continue;
+        const dayScopedSegs = day.segments.filter(
+          (s) =>
+            s.type === "restaurant_lunch" ||
+            s.type === "restaurant_dinner" ||
+            s.type === "activity",
+        );
+        for (const seg of dayScopedSegs) {
+          expect(seg.city).toBe(day.city);
+        }
+      }
+    });
+  });
+
+  describe("enrichment — restaurant venue names", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("summer-2025.xlsx"));
+    });
+
+    it("sets venueName on restaurant segments from the cleaned title", () => {
+      const day = parsed.days.find((d) => d.date === "2025-06-12")!;
+      const armando = day.segments.find((s) => /Armando/i.test(s.title));
+      expect(armando).toBeDefined();
+      expect(armando!.type).toBe("restaurant_dinner");
+      expect(armando!.venueName).toBe(armando!.title);
+      expect(armando!.venueName).toMatch(/Armando/i);
+    });
+
+    it("does not set venueName on activity segments", () => {
+      const activities = parsed.days.flatMap((d) =>
+        d.segments.filter((s) => s.type === "activity"),
+      );
+      // At least one activity must exist in the fixture; none should carry venueName
+      expect(activities.length).toBeGreaterThan(0);
+      for (const act of activities) {
+        expect(act.venueName).toBeUndefined();
+      }
+    });
+  });
+
+  describe("enrichment — transport departure/arrival cities", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("summer-2025.xlsx"));
+    });
+
+    it("infers the destination from a 'to <city>' title", () => {
+      const day = parsed.days.find((d) => d.date === "2025-06-10")!;
+      const flight = day.segments.find((s) => s.type === "flight")!;
+      // Title is "Flight to Dublin (2LVPEF)" → arrival = Dublin
+      expect(flight.arrivalCity).toMatch(/Dublin/i);
+      // Departure falls back to the day's city (Seattle)
+      expect(flight.departureCity).toMatch(/Seattle/i);
+    });
+
+    it("populates departure/arrival on train segments", () => {
+      const trainDay = parsed.days.find((d) =>
+        d.segments.some((s) => /Train to Milan/i.test(s.title)),
+      )!;
+      const train = trainDay.segments.find((s) => /Train to Milan/i.test(s.title))!;
+      expect(train.arrivalCity).toMatch(/Milan/i);
+      expect(train.departureCity).toBeDefined();
+    });
+  });
+
+  describe("multi-city days", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("christmas-2025.xlsx"));
+    });
+
+    it("joins multi-row city values with a single slash (never double)", () => {
+      for (const day of parsed.days) {
+        if (!day.city) continue;
+        expect(day.city).not.toMatch(/\/\//);
+        expect(day.city).not.toMatch(/^\//);
+        expect(day.city).not.toMatch(/\/$/);
+      }
+    });
+
+    it("de-dupes repeated city names in a single day's city string", () => {
+      for (const day of parsed.days) {
+        if (!day.city) continue;
+        const parts = day.city.split("/").map((p) => p.trim().toLowerCase());
+        const unique = new Set(parts);
+        expect(unique.size).toBe(parts.length);
+      }
+    });
+  });
+
+  describe("enrichment — hotel checkout dates", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("summer-2025.xlsx"));
+    });
+
+    it("sets hotel endDate to the day of the next hotel with a different venue", () => {
+      // Collect all hotel segments in chronological order
+      interface HotelInfo {
+        date: string;
+        venueName?: string;
+        endDate?: string;
+      }
+      const hotels: HotelInfo[] = [];
+      for (const d of parsed.days) {
+        for (const s of d.segments) {
+          if (s.type === "hotel") {
+            hotels.push({
+              date: d.date,
+              venueName: s.venueName,
+              endDate: s.endDate,
+            });
+          }
+        }
+      }
+      expect(hotels.length).toBeGreaterThan(0);
+
+      // Every hotel should have an endDate inferred
+      for (const h of hotels) {
+        expect(h.endDate).toBeDefined();
+        expect(h.endDate! >= h.date).toBe(true);
+      }
+
+      // Last hotel checks out on the final trip day
+      const last = hotels[hotels.length - 1]!;
+      expect(last.endDate).toBe(parsed.endDate);
+
+      // Consecutive hotels with DIFFERENT venue names should have the later
+      // hotel's date as the earlier hotel's endDate.
+      for (let i = 0; i < hotels.length - 1; i++) {
+        const a = hotels[i]!;
+        const b = hotels[i + 1]!;
+        if (
+          (a.venueName || "").toLowerCase() !==
+          (b.venueName || "").toLowerCase()
+        ) {
+          expect(a.endDate).toBe(b.date);
+        }
+      }
+    });
+  });
+
   describe("error handling", () => {
     it("throws a descriptive error when the buffer is not a valid XLSX", async () => {
       const importer = new XlsxTripImporter();
