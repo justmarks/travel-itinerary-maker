@@ -231,6 +231,35 @@ interface DayBucket {
   rows: RawRow[];
 }
 
+/**
+ * Normalise a city cell value. Users often write "Budapest/" on one row and
+ * "Istanbul" on the next to show a travel day crossing between two cities;
+ * we strip leading/trailing slashes and internal whitespace so the combined
+ * value is a clean single-slash list.
+ */
+function cleanCityFragment(raw: string): string {
+  return raw
+    .replace(/^[\s/]+|[\s/]+$/g, "")
+    .replace(/\s*\/\s*/g, "/")
+    .trim();
+}
+
+/** Append a new city fragment to an existing city list, de-duping pieces
+ *  and collapsing to a single `/` separator. */
+function mergeCityFragment(existing: string, incoming: string): string {
+  const add = cleanCityFragment(incoming);
+  if (!add) return existing;
+  const base = cleanCityFragment(existing);
+  if (!base) return add;
+  const parts = base.split("/").map((p) => p.trim()).filter(Boolean);
+  for (const piece of add.split("/").map((p) => p.trim()).filter(Boolean)) {
+    if (!parts.some((p) => p.toLowerCase() === piece.toLowerCase())) {
+      parts.push(piece);
+    }
+  }
+  return parts.join("/");
+}
+
 function groupByDay(rows: RawRow[]): DayBucket[] {
   const buckets: DayBucket[] = [];
   let current: DayBucket | null = null;
@@ -241,15 +270,15 @@ function groupByDay(rows: RawRow[]): DayBucket[] {
       current = {
         date: row.cDate,
         dayOfWeek: row.B || "",
-        city: row.A || "",
+        city: cleanCityFragment(row.A || ""),
         rows: [row],
       };
       buckets.push(current);
     } else if (current) {
       // If this row has a city in col A but no date, treat it as a city update
       // for the same day (e.g. Dec 24 "Berlin/" → "Cotswolds")
-      if (row.A && !current.city.includes(row.A)) {
-        current.city = current.city ? `${current.city}/${row.A}` : row.A;
+      if (row.A) {
+        current.city = mergeCityFragment(current.city, row.A);
       }
       current.rows.push(row);
     }

@@ -288,6 +288,33 @@ describe("XlsxTripImporter", () => {
     });
   });
 
+  describe("multi-city days", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("christmas-2025.xlsx"));
+    });
+
+    it("joins multi-row city values with a single slash (never double)", () => {
+      for (const day of parsed.days) {
+        if (!day.city) continue;
+        expect(day.city).not.toMatch(/\/\//);
+        expect(day.city).not.toMatch(/^\//);
+        expect(day.city).not.toMatch(/\/$/);
+      }
+    });
+
+    it("de-dupes repeated city names in a single day's city string", () => {
+      for (const day of parsed.days) {
+        if (!day.city) continue;
+        const parts = day.city.split("/").map((p) => p.trim().toLowerCase());
+        const unique = new Set(parts);
+        expect(unique.size).toBe(parts.length);
+      }
+    });
+  });
+
   describe("enrichment — hotel checkout dates", () => {
     let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
 
