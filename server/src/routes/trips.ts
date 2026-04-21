@@ -21,6 +21,8 @@ import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import {
   XlsxTripImporter,
+  extractYearHint,
+  shiftWorkbookYears,
   type ParsedWorkbookSegment,
 } from "../services/xlsx-importer";
 
@@ -169,6 +171,25 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         : "") ||
       parsedBook.title ||
       "Imported Trip";
+
+    // Excel stores dates with a year, but when a user types a year-less
+    // date like "June 15" into a cell Excel defaults to the current year
+    // at entry time. If the trip title or filename names a specific year
+    // that doesn't match the year on the parsed dates, shift every date
+    // to the hinted year. Prefer the explicit title over the filename.
+    const yearHint =
+      extractYearHint(parsed.data.title) ??
+      extractYearHint(parsed.data.filename) ??
+      extractYearHint(parsedBook.title);
+    if (yearHint && parsedBook.startDate) {
+      const parsedStartYear = Number(parsedBook.startDate.slice(0, 4));
+      if (
+        Number.isFinite(parsedStartYear) &&
+        parsedStartYear !== yearHint
+      ) {
+        parsedBook = shiftWorkbookYears(parsedBook, yearHint - parsedStartYear);
+      }
+    }
 
     // Guard: reject if the date range overlaps an existing trip
     const existingTrips = await storage.listTrips();

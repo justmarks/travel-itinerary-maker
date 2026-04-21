@@ -65,6 +65,13 @@ export function XlsxImportDialog() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0] ?? null;
     setFile(selected);
+    // Default the trip name to the workbook's filename (sans extension).
+    // Only overwrite if the user hasn't already typed something; preserve
+    // their input if they've picked a file, edited the title, then swapped
+    // files.
+    if (selected && !titleOverride.trim()) {
+      setTitleOverride(selected.name.replace(/\.(xlsx|xls)$/i, "").trim());
+    }
     setErrorMessage(null);
     setOverlapError(null);
   };

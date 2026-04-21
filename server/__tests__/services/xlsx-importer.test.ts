@@ -1,6 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { XlsxTripImporter } from "../../src/services/xlsx-importer";
+import {
+  XlsxTripImporter,
+  extractYearHint,
+  shiftWorkbookYears,
+} from "../../src/services/xlsx-importer";
+import type { ParsedWorkbook } from "../../src/services/xlsx-importer";
 
 const FIXTURE_DIR = path.join(__dirname, "..", "fixtures");
 
@@ -202,5 +207,79 @@ describe("XlsxTripImporter", () => {
       const bogus = Buffer.from("this is not xlsx");
       await expect(importer.parseWorkbook(bogus)).rejects.toThrow();
     });
+  });
+});
+
+describe("extractYearHint", () => {
+  it("pulls a year out of a trip title", () => {
+    expect(extractYearHint("Summer 2025")).toBe(2025);
+    expect(extractYearHint("Christmas 2026 trip")).toBe(2026);
+    expect(extractYearHint("2024 Italy")).toBe(2024);
+  });
+
+  it("pulls a year out of a filename", () => {
+    expect(extractYearHint("Summer 2025.xlsx")).toBe(2025);
+    expect(extractYearHint("trip-2027.xlsx")).toBe(2027);
+  });
+
+  it("returns undefined when no year is present", () => {
+    expect(extractYearHint("Summer trip")).toBeUndefined();
+    expect(extractYearHint("")).toBeUndefined();
+    expect(extractYearHint(undefined)).toBeUndefined();
+    expect(extractYearHint(null)).toBeUndefined();
+  });
+
+  it("ignores numbers that look like confirmation codes", () => {
+    // 4-digit segment embedded in a longer digit run shouldn't match.
+    expect(extractYearHint("XTWLTR-20250912345")).toBeUndefined();
+    expect(extractYearHint("Room 2145")).toBeUndefined();
+  });
+
+  it("rejects years outside 1900-2099", () => {
+    expect(extractYearHint("Trip 1850")).toBeUndefined();
+    expect(extractYearHint("Trip 2150")).toBeUndefined();
+  });
+});
+
+describe("shiftWorkbookYears", () => {
+  const sampleBook: ParsedWorkbook = {
+    title: "Sample",
+    startDate: "2026-06-15",
+    endDate: "2026-06-18",
+    days: [
+      { date: "2026-06-15", dayOfWeek: "Mon", city: "Paris", segments: [] },
+      { date: "2026-06-16", dayOfWeek: "Tue", city: "Paris", segments: [] },
+      { date: "2026-06-18", dayOfWeek: "Thu", city: "Rome", segments: [] },
+    ],
+    costs: [],
+    warnings: [],
+  };
+
+  it("is a no-op when delta is 0", () => {
+    const out = shiftWorkbookYears(sampleBook, 0);
+    expect(out).toBe(sampleBook);
+  });
+
+  it("shifts start, end, and day dates by negative delta", () => {
+    const out = shiftWorkbookYears(sampleBook, -1);
+    expect(out.startDate).toBe("2025-06-15");
+    expect(out.endDate).toBe("2025-06-18");
+    expect(out.days.map((d) => d.date)).toEqual([
+      "2025-06-15",
+      "2025-06-16",
+      "2025-06-18",
+    ]);
+  });
+
+  it("shifts by positive delta", () => {
+    const out = shiftWorkbookYears(sampleBook, 2);
+    expect(out.startDate).toBe("2028-06-15");
+    expect(out.endDate).toBe("2028-06-18");
+  });
+
+  it("does not mutate the input workbook", () => {
+    shiftWorkbookYears(sampleBook, -1);
+    expect(sampleBook.startDate).toBe("2026-06-15");
+    expect(sampleBook.days[0]!.date).toBe("2026-06-15");
   });
 });

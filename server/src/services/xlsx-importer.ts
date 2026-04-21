@@ -48,6 +48,46 @@ export interface ParsedWorkbook {
   warnings: string[];
 }
 
+/**
+ * Pull a 4-digit year out of a piece of free text (usually a trip title or
+ * filename). Returns the first plausible match or `undefined` if none.
+ *
+ * We only accept years in the range 1900-2099 to avoid pulling numbers like
+ * confirmation codes or hotel room numbers. The year must be delimited by a
+ * non-digit boundary so "Room 2145" doesn't match as 2145.
+ */
+export function extractYearHint(text: string | undefined | null): number | undefined {
+  if (!text) return undefined;
+  const match = text.match(/(?:^|[^\d])((?:19|20)\d{2})(?:[^\d]|$)/);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  return Number.isFinite(year) ? year : undefined;
+}
+
+/**
+ * Shift every date in a parsed workbook by `deltaYears`. Used when we
+ * detect that ExcelJS inferred the wrong year (e.g. the workbook has
+ * year-less cells that defaulted to the current year at entry time, but
+ * the trip title or filename names a different year).
+ */
+export function shiftWorkbookYears(
+  book: ParsedWorkbook,
+  deltaYears: number,
+): ParsedWorkbook {
+  if (deltaYears === 0) return book;
+  const shift = (iso: string) => {
+    const y = Number(iso.slice(0, 4));
+    if (!Number.isFinite(y)) return iso;
+    return `${String(y + deltaYears).padStart(4, "0")}${iso.slice(4)}`;
+  };
+  return {
+    ...book,
+    startDate: shift(book.startDate),
+    endDate: shift(book.endDate),
+    days: book.days.map((d) => ({ ...d, date: shift(d.date) })),
+  };
+}
+
 /* ─────────────────────────────────────────────────────────
  * Low-level row reader
  *   Converts the raw ExcelJS worksheet into a column-keyed

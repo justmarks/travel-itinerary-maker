@@ -113,12 +113,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **332 tests** across 17 test suites.
+Current coverage: **341 tests** across 17 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
 | `packages/shared` | 130 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, ID generation, segment label formatting, overlap detection, segment matching |
-| `server` | 202 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (parser + import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
+| `server` | 211 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (parser + year-hint inference + year shift + import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
