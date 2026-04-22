@@ -11,7 +11,7 @@ type Category = "transport" | "hotel" | "activity" | "dining";
 const TRANSPORT_TYPES = new Set<SegmentType>([
   "flight", "train", "car_rental", "car_service", "other_transport",
 ]);
-const ACTIVITY_TYPES = new Set<SegmentType>(["activity", "tour", "cruise"]);
+const ACTIVITY_TYPES = new Set<SegmentType>(["activity", "tour", "cruise", "show"]);
 const DINING_TYPES = new Set<SegmentType>([
   "restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner",
 ]);
@@ -34,6 +34,7 @@ const SEGMENT_ICON: Record<SegmentType, string> = {
   activity:             "🎯",
   tour:                 "🗺️",
   cruise:               "🚢",
+  show:                 "🎭",
   restaurant_breakfast: "☀️",
   restaurant_brunch:    "🥞",
   restaurant_lunch:     "🥗",

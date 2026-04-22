@@ -46,6 +46,7 @@ function formatSegmentForTable(segment: Segment): string {
     case "activity":
     case "tour":
     case "cruise":
+    case "show":
     default: {
       const aName = segment.url
         ? `[${segment.venueName || segment.title}](${segment.url})`
@@ -109,6 +110,7 @@ export function tripToMarkdown(trip: Trip, options: ExportOptions = {}): string 
       "activity",
       "tour",
       "cruise",
+      "show",
     ])
       .map(formatSegmentForTable)
       .join("<br>");

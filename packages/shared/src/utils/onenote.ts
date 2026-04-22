@@ -44,6 +44,7 @@ function formatSegmentCell(segment: Segment): string {
     case "activity":
     case "tour":
     case "cruise":
+    case "show":
     default: {
       parts.push(segment.venueName || segment.title);
       if (segment.startTime) parts.push(segment.startTime);
@@ -147,6 +148,7 @@ export function tripToOneNoteHtml(
       "activity",
       "tour",
       "cruise",
+      "show",
     ]);
     const lunchSegs = getSegmentsByType(day.segments, [
       "restaurant_breakfast",
