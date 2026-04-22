@@ -52,6 +52,7 @@ const TYPE_LABELS: Record<string, string> = {
   other_transport: "Transport",
   hotel: "Hotel",
   activity: "Activity",
+  show: "Show",
   restaurant_breakfast: "Breakfast",
   restaurant_brunch: "Brunch",
   restaurant_lunch: "Lunch",
@@ -82,6 +83,7 @@ export function segmentToEvent(
       summary = carrier ? `${carrier}${route ? ": " + route : ""}` : `${label}: ${segment.title}`;
       const desc: string[] = [];
       if (route) desc.push(route);
+      if (segment.coach) desc.push(`Coach: ${segment.coach}`);
       if (segment.seatNumber) desc.push(`Seat: ${segment.seatNumber}`);
       if (segment.cabinClass) desc.push(`Class: ${segment.cabinClass}`);
       if (segment.baggageInfo) desc.push(`Baggage: ${segment.baggageInfo}`);
@@ -108,6 +110,37 @@ export function segmentToEvent(
       location = segment.address || segment.city || day.city;
       start = dateTime(day.date, segment.startTime);
       end = dateTime(segment.endDate ?? addDays(day.date, 1), segment.endTime);
+      break;
+    }
+
+    case "cruise":
+    case "car_rental": {
+      // Multi-day events when endDate is set. Cruise events span embarkation
+      // through disembarkation; car rentals span pickup through return.
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      if (segment.type === "cruise") {
+        const route = [segment.departureCity, segment.arrivalCity]
+          .filter(Boolean)
+          .join(" → ");
+        if (route) desc.push(route);
+      }
+      if (segment.address) desc.push(segment.address);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      if (segment.endDate) {
+        start = dateTime(day.date, segment.startTime);
+        end = dateTime(segment.endDate, segment.endTime);
+      } else {
+        start = dateTime(day.date, segment.startTime);
+        end = segment.endTime
+          ? dateTime(day.date, segment.endTime)
+          : segment.startTime
+            ? dateTime(day.date, addHoursToTime(segment.startTime, 2))
+            : { date: addDays(day.date, 1) };
+      }
       break;
     }
 
@@ -141,6 +174,8 @@ export function segmentToEvent(
       if (segment.address) desc.push(segment.address);
       if (segment.type === "car_service" && segment.contactName)
         desc.push(`Driver: ${segment.contactName}`);
+      if (segment.type === "show" && segment.seatNumber)
+        desc.push(`Seat: ${segment.seatNumber}`);
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;

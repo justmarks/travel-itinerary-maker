@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import type { StorageProvider, StorageResolver } from "../services/storage";
+import { createCalendarSyncRateLimiter } from "../middleware/rate-limit";
 
 export interface CalendarRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -16,6 +17,7 @@ export function createCalendarRoutes(
       : () => resolveStorage;
 
   const router = Router();
+  const syncRateLimiter = createCalendarSyncRateLimiter();
 
   /**
    * POST /trips/:tripId/calendar/sync
@@ -23,7 +25,7 @@ export function createCalendarRoutes(
    * Creates new events for un-synced segments; updates existing ones.
    * Responds with counts and persists calendarEventId on each segment.
    */
-  router.post("/:tripId/calendar/sync", async (req: Request, res: Response) => {
+  router.post("/:tripId/calendar/sync", syncRateLimiter, async (req: Request, res: Response) => {
     const storage = getStorage(req);
     const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {
@@ -61,7 +63,7 @@ export function createCalendarRoutes(
    * Remove all previously synced calendar events for this trip
    * and clear calendarEventId from every segment.
    */
-  router.delete("/:tripId/calendar/sync", async (req: Request, res: Response) => {
+  router.delete("/:tripId/calendar/sync", syncRateLimiter, async (req: Request, res: Response) => {
     const storage = getStorage(req);
     const trip = await storage.getTrip(req.params.tripId as string);
     if (!trip) {

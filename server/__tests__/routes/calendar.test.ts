@@ -238,4 +238,108 @@ describe("segmentToEvent", () => {
     expect(event.description).toContain("Party of 2");
     expect(event.description).toContain("Credit card hold required");
   });
+
+  it("maps a cruise segment with endDate as a multi-day event", async () => {
+    const { segmentToEvent } = await import("../../src/services/google-calendar");
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Barcelona", segments: [] };
+    const segment = {
+      id: "s4",
+      type: "cruise" as const,
+      title: "Mediterranean Cruise",
+      venueName: "MSC Seaside",
+      departureCity: "Barcelona",
+      arrivalCity: "Civitavecchia",
+      startTime: "16:00",
+      endDate: "2026-06-17",
+      confirmationCode: "MSC-7741",
+      source: "manual" as const,
+      needsReview: false,
+      sortOrder: 0,
+    };
+
+    const event = segmentToEvent(segment, day, "Test Trip");
+
+    expect(event.summary).toBe("Cruise: MSC Seaside");
+    expect(event.start).toEqual({ dateTime: "2026-06-10T16:00:00" });
+    expect(event.end).toEqual({ date: "2026-06-17" });
+    expect(event.description).toContain("Barcelona → Civitavecchia");
+    expect(event.description).toContain("MSC-7741");
+  });
+
+  it("maps a car_rental segment with endDate as a multi-day event", async () => {
+    const { segmentToEvent } = await import("../../src/services/google-calendar");
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Kyoto", segments: [] };
+    const segment = {
+      id: "s5",
+      type: "car_rental" as const,
+      title: "Car Rental · Toyota Aqua",
+      venueName: "Times Car Rental Kyoto Station",
+      city: "Kyoto",
+      startTime: "15:00",
+      endTime: "10:00",
+      endDate: "2026-06-13",
+      confirmationCode: "TCR-7741",
+      source: "manual" as const,
+      needsReview: false,
+      sortOrder: 0,
+    };
+
+    const event = segmentToEvent(segment, day, "Test Trip");
+
+    expect(event.summary).toBe("Car Rental: Times Car Rental Kyoto Station");
+    expect(event.start).toEqual({ dateTime: "2026-06-10T15:00:00" });
+    expect(event.end).toEqual({ dateTime: "2026-06-13T10:00:00" });
+    expect(event.description).toContain("TCR-7741");
+  });
+
+  it("maps a show segment with seat number", async () => {
+    const { segmentToEvent } = await import("../../src/services/google-calendar");
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Tokyo", segments: [] };
+    const segment = {
+      id: "s6",
+      type: "show" as const,
+      title: "Kabuki Evening Performance",
+      venueName: "Kabuki-za Theatre",
+      address: "4-12-15 Ginza, Chuo City",
+      startTime: "18:00",
+      endTime: "21:00",
+      seatNumber: "Tier 2, Row B · 14-15",
+      source: "manual" as const,
+      needsReview: false,
+      sortOrder: 0,
+    };
+
+    const event = segmentToEvent(segment, day, "Test Trip");
+
+    expect(event.summary).toBe("Show: Kabuki-za Theatre");
+    expect(event.start).toEqual({ dateTime: "2026-06-10T18:00:00" });
+    expect(event.end).toEqual({ dateTime: "2026-06-10T21:00:00" });
+    expect(event.description).toContain("Tier 2, Row B · 14-15");
+  });
+
+  it("includes train coach in description", async () => {
+    const { segmentToEvent } = await import("../../src/services/google-calendar");
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Tokyo", segments: [] };
+    const segment = {
+      id: "s7",
+      type: "train" as const,
+      title: "Shinkansen Tokyo → Kyoto",
+      departureCity: "Tokyo Station",
+      arrivalCity: "Kyoto Station",
+      carrier: "JR",
+      routeCode: "Nozomi 15",
+      coach: "Car 7",
+      seatNumber: "12A, 12B",
+      startTime: "12:00",
+      endTime: "14:24",
+      source: "manual" as const,
+      needsReview: false,
+      sortOrder: 0,
+    };
+
+    const event = segmentToEvent(segment, day, "Test Trip");
+
+    expect(event.description).toContain("Coach: Car 7");
+    expect(event.description).toContain("Seat: 12A, 12B");
+  });
 });
