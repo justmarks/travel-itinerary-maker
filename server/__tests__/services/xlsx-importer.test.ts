@@ -376,6 +376,104 @@ describe("XlsxTripImporter", () => {
       await expect(importer.parseWorkbook(bogus)).rejects.toThrow();
     });
   });
+
+  /*
+   * Both "Summer 2022" and "Summer 2023" fixtures use the alternate OneNote
+   * column layout:
+   *   A = city   B = date (or bare day-of-month)   C = day-of-week
+   * The parser must auto-detect this and carry year/month forward when column
+   * B switches from a full date to a bare integer after the first week.
+   */
+  describe("Summer 2022 fixture (B=date column, day-of-month shorthand)", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("summer-2022.xlsx"));
+    });
+
+    it("parses the date range without throwing", () => {
+      // First row has a full date in column B; start date must come from there.
+      expect(parsed.startDate).toMatch(/^\d{4}-07-03$/);
+      expect(parsed.days.length).toBeGreaterThan(10);
+    });
+
+    it("carries year/month forward when column B holds a bare day-of-month", () => {
+      // July 3-6 are full Date cells; July 7 onwards is the bare integer 7,
+      // 8, 9, … — all must still group correctly.
+      const dayOfMonths = parsed.days
+        .map((d) => Number(d.date.slice(8, 10)))
+        .filter((n) => Number.isFinite(n));
+      // Consecutive days should step by 1 (possibly with month rollover).
+      for (let i = 1; i < dayOfMonths.length; i++) {
+        const prev = dayOfMonths[i - 1]!;
+        const curr = dayOfMonths[i]!;
+        const stepsForward = curr === prev + 1;
+        const rollsMonth = curr === 1; // Next month, day 1
+        expect(stepsForward || rollsMonth).toBe(true);
+      }
+    });
+
+    it("reads the day-of-week from column C (Sun/Mon/Tues/Wed/...)", () => {
+      const first = parsed.days[0]!;
+      expect(first.dayOfWeek).toBe("Sun");
+      expect(first.city).toMatch(/Seattle/i);
+    });
+
+    it("extracts cities from column A across the trip", () => {
+      const cities = parsed.days.map((d) => d.city.toLowerCase());
+      expect(cities.some((c) => c.includes("venice"))).toBe(true);
+      expect(cities.some((c) => c.includes("bologna"))).toBe(true);
+      expect(cities.some((c) => c.includes("rome"))).toBe(true);
+    });
+
+    it("parses transport segments from column D", () => {
+      const allSegments = parsed.days.flatMap((d) => d.segments);
+      const flights = allSegments.filter((s) => s.type === "flight");
+      expect(flights.length).toBeGreaterThan(0);
+    });
+
+    it("parses lodging segments from column E", () => {
+      const allSegments = parsed.days.flatMap((d) => d.segments);
+      const hotels = allSegments.filter((s) => s.type === "hotel");
+      expect(hotels.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("Summer 2023 fixture (B=date column, cruise + train trip)", () => {
+    let parsed: Awaited<ReturnType<XlsxTripImporter["parseWorkbook"]>>;
+
+    beforeAll(async () => {
+      const importer = new XlsxTripImporter();
+      parsed = await importer.parseWorkbook(loadFixture("summer-2023.xlsx"));
+    });
+
+    it("parses the full 18-day trip", () => {
+      expect(parsed.days.length).toBeGreaterThanOrEqual(15);
+      expect(parsed.startDate).toMatch(/^\d{4}-07-10$/);
+    });
+
+    it("captures the first day as Seattle/Mon", () => {
+      const first = parsed.days[0]!;
+      expect(first.city).toMatch(/Seattle/i);
+      expect(first.dayOfWeek).toBe("Mon");
+    });
+
+    it("captures the Barcelona days with Tues/Wed/Thurs/Fri labels", () => {
+      // Day 2 (Tues) onward is Barcelona
+      const barcelonaDays = parsed.days.filter((d) => /barcelona/i.test(d.city));
+      expect(barcelonaDays.length).toBeGreaterThanOrEqual(4);
+      const dows = barcelonaDays.map((d) => d.dayOfWeek);
+      expect(dows).toContain("Tues");
+      expect(dows).toContain("Wed");
+    });
+
+    it("classifies Disney Dream row as a cruise segment", () => {
+      const allSegments = parsed.days.flatMap((d) => d.segments);
+      const cruise = allSegments.find((s) => s.type === "cruise");
+      expect(cruise).toBeDefined();
+    });
+  });
 });
 
 describe("extractYearHint", () => {

@@ -103,15 +103,24 @@ export function shiftWorkbookYears(
 interface RawRow {
   A: string;
   B: string;
-  C: string; // raw date text (or ISO date)
+  C: string;
   D: string;
   E: string;
   F: string;
   G: string;
   /** Original row number in the sheet (for debugging) */
   rowNum: number;
-  /** Non-empty `C` cell that parsed to a valid date, formatted as YYYY-MM-DD */
+  /** `B` cell parsed to a full YYYY-MM-DD (Date object, serial, or ISO string). */
+  bDate: string | undefined;
+  /** `C` cell parsed to a full YYYY-MM-DD. */
   cDate: string | undefined;
+  /**
+   * `B` cell holds a bare day-of-month integer (1-31) rather than a full
+   * date. Used by the "week-grouped" OneNote layout where only the first
+   * row of each week has a full date and subsequent days are just `7`,
+   * `8`, `9`, … The year/month gets carried forward at group time.
+   */
+  bDayOfMonth: number | undefined;
 }
 
 /** Flatten a cell into a plain string, handling ExcelJS rich text, formulas, dates, numbers.
@@ -148,15 +157,22 @@ function cellToString(cell: ExcelJS.Cell | undefined): string {
   return String(value).trim();
 }
 
-/** Try to convert a column-C cell value into a YYYY-MM-DD ISO date.
- *  Returns undefined for merge-slave cells so only the master row starts a new day. */
+/** Try to convert a cell value into a YYYY-MM-DD ISO date.
+ *  Returns undefined for merge-slave cells so only the master row starts a new day.
+ *
+ *  Rejects numbers below 10000 (pre-1927) so bare day-of-month integers like
+ *  `7` don't get silently converted to a 19th-century date. The week-grouped
+ *  OneNote layout encodes days 1-31 directly in the date column and we want
+ *  those to fall through to {@link cellToDayOfMonth}. */
 function cellToIsoDate(cell: ExcelJS.Cell | undefined): string | undefined {
   if (!cell || cell.value === null || cell.value === undefined) return undefined;
   if (cell.type === ValueType.Merge) return undefined;
   const v = cell.value;
 
-  // Excel date serial (number)
+  // Excel date serial (number) — must be plausibly post-1927 to avoid
+  // capturing day-of-month integers.
   if (typeof v === "number") {
+    if (v < 10000) return undefined;
     // Excel epoch quirk: 1900-based, with a phantom Feb 29, 1900
     // Standard formula: (serial - 25569) days since Unix epoch
     const ms = (v - 25569) * 86400 * 1000;
@@ -189,19 +205,45 @@ function cellToIsoDate(cell: ExcelJS.Cell | undefined): string | undefined {
   return undefined;
 }
 
+/** Extract a bare day-of-month integer (1-31) from a cell, used for the
+ *  week-grouped layout where the date column holds a plain number rather
+ *  than a full date after the first row of each week. Merge slaves return
+ *  undefined so only master rows start new days. */
+function cellToDayOfMonth(cell: ExcelJS.Cell | undefined): number | undefined {
+  if (!cell || cell.value === null || cell.value === undefined) return undefined;
+  if (cell.type === ValueType.Merge) return undefined;
+  const v = cell.value;
+  let n: number | undefined;
+  if (typeof v === "number") n = v;
+  else if (typeof v === "string" && /^\d{1,2}$/.test(v.trim())) n = Number(v.trim());
+  else if (typeof v === "object" && v !== null && "result" in v) {
+    const result = (v as { result: unknown }).result;
+    if (typeof result === "number") n = result;
+  }
+  if (n === undefined || !Number.isInteger(n)) return undefined;
+  if (n < 1 || n > 31) return undefined;
+  return n;
+}
+
 function readSheet(ws: ExcelJS.Worksheet): RawRow[] {
   const rows: RawRow[] = [];
   ws.eachRow({ includeEmpty: true }, (row, rowNum) => {
+    const bCell = row.getCell(2);
+    const cCell = row.getCell(3);
+    const bDate = cellToIsoDate(bCell);
     const raw: RawRow = {
       A: cellToString(row.getCell(1)),
-      B: cellToString(row.getCell(2)),
-      C: cellToString(row.getCell(3)),
+      B: cellToString(bCell),
+      C: cellToString(cCell),
       D: cellToString(row.getCell(4)),
       E: cellToString(row.getCell(5)),
       F: cellToString(row.getCell(6)),
       G: cellToString(row.getCell(7)),
       rowNum,
-      cDate: cellToIsoDate(row.getCell(3)),
+      bDate,
+      cDate: cellToIsoDate(cCell),
+      // Only treat B as a day-of-month shorthand if it isn't already a full date.
+      bDayOfMonth: bDate ? undefined : cellToDayOfMonth(bCell),
     };
     rows.push(raw);
   });
@@ -260,29 +302,94 @@ function mergeCityFragment(existing: string, incoming: string): string {
   return parts.join("/");
 }
 
-function groupByDay(rows: RawRow[]): DayBucket[] {
+/**
+ * Detect which column holds the full date. We support two layouts:
+ *
+ *   Layout 1 (original / "Christmas 2025" style):
+ *     A = city, B = dayOfWeek ("Fri"), C = date
+ *
+ *   Layout 2 ("Summer 2022/2023" OneNote style):
+ *     A = city, B = date OR bare day-of-month integer, C = dayOfWeek
+ *
+ * We pick whichever column has more full-date cells across the first
+ * ~50 rows. Ties or zero hits fall back to C (the original layout) so
+ * an empty/broken sheet still produces the same "no dated rows" error
+ * callers used to see.
+ */
+type DateColumn = "B" | "C";
+
+function detectDateColumn(rows: RawRow[]): DateColumn {
+  let bHits = 0;
+  let cHits = 0;
+  const sample = rows.slice(0, 50);
+  for (const r of sample) {
+    if (r.bDate) bHits++;
+    if (r.cDate) cHits++;
+  }
+  return bHits > cHits ? "B" : "C";
+}
+
+/**
+ * Carry a day-of-month integer into a full YYYY-MM-DD by using the year and
+ * month of the most recent full date. When the new day number is <= the
+ * previous day, we roll the month forward (with year wrap at December).
+ * This mirrors the visual flow of a OneNote week grid.
+ */
+function carryDayOfMonth(prevIsoDate: string, day: number): string {
+  const [yearStr, monthStr, dayStr] = prevIsoDate.split("-");
+  let year = Number(yearStr);
+  let month = Number(monthStr); // 1-12
+  const prevDay = Number(dayStr);
+
+  if (day <= prevDay) {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function groupByDay(rows: RawRow[], dateColumn: DateColumn): DayBucket[] {
   const buckets: DayBucket[] = [];
   let current: DayBucket | null = null;
+  let lastFullDate: string | undefined;
 
   for (const row of rows) {
-    if (row.cDate) {
-      // Start new day
+    // Resolve the row's date, if any:
+    //   - column-C layout: only row.cDate matters (no day-of-month shorthand)
+    //   - column-B layout: row.bDate (full) OR row.bDayOfMonth carried forward
+    let rowDate: string | undefined;
+    if (dateColumn === "C") {
+      rowDate = row.cDate;
+    } else {
+      if (row.bDate) {
+        rowDate = row.bDate;
+      } else if (row.bDayOfMonth !== undefined && lastFullDate) {
+        rowDate = carryDayOfMonth(lastFullDate, row.bDayOfMonth);
+      }
+    }
+
+    if (rowDate) {
+      lastFullDate = rowDate;
+      const dayOfWeek = dateColumn === "C" ? row.B : row.C;
       current = {
-        date: row.cDate,
-        dayOfWeek: row.B || "",
+        date: rowDate,
+        dayOfWeek: dayOfWeek || "",
         city: cleanCityFragment(row.A || ""),
         rows: [row],
       };
       buckets.push(current);
     } else if (current) {
-      // If this row has a city in col A but no date, treat it as a city update
-      // for the same day (e.g. Dec 24 "Berlin/" → "Cotswolds")
+      // Continuation row: a city in col A without a date line means a
+      // same-day city update (e.g. Dec 24 "Berlin/" → "Cotswolds").
       if (row.A) {
         current.city = mergeCityFragment(current.city, row.A);
       }
       current.rows.push(row);
     }
-    // Rows before the first dated row are ignored (header / blank space)
+    // Rows before the first dated row are ignored (header / blank space).
   }
   return buckets;
 }
@@ -791,11 +898,12 @@ export class XlsxTripImporter {
     }
 
     const rows = readSheet(itinerarySheet);
-    const buckets = groupByDay(rows);
+    const dateColumn = detectDateColumn(rows);
+    const buckets = groupByDay(rows, dateColumn);
 
     if (buckets.length === 0) {
       throw new Error(
-        "No dated rows found in the Itinerary sheet. Column C must contain dates.",
+        "No dated rows found in the Itinerary sheet. Column B or C must contain dates.",
       );
     }
 
