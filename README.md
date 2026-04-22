@@ -251,13 +251,20 @@ Version is auto-incremented on merge to main via GitHub Actions.
 
 The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedicated app folder), the same way trip data is persisted. Until that's done, share links and seamless token refresh are best-effort in production.
 
+Two related cleanups surfaced while auditing this area:
+
+- `GET /shared/:token` returns **500 instead of 404** when the registry has no entry for a token. In drive mode, the fallback path in `server/src/routes/shared.ts` calls `getStorage(req)`, which throws because shared routes are unauthenticated and `req.accessToken` is undefined. Should be handled as a clean 404.
+- `POST /auth/google` only stores a refresh token **when Google actually returns one**, which it does on first consent or when `access_type=offline` + `prompt=consent` are requested. Today the frontend uses the default `@react-oauth/google` popup flow, so returning users silently don't get a refresh token stored server-side. Tokens written to disk should also be encrypted at rest.
+
 **Plan to harden:**
 
 1. Add `DriveTokenStore` and `DriveShareRegistry` implementations alongside the existing in-memory classes.
-2. On write, serialize to a known Drive file (`token-store.json` / `share-registry.json` in the app's root Drive folder).
+2. On write, serialize to a known Drive file (`token-store.json` / `share-registry.json` in the app's root Drive folder), with refresh tokens encrypted at rest.
 3. On read, lazy-load from Drive with a short in-process TTL cache to avoid a Drive API call on every request.
 4. Wire them into `server/src/index.ts` behind an env flag (`PERSIST_TOKEN_STORE=true`) so local dev keeps the fast in-memory path.
-5. Add integration tests using a Drive API mock (or a dedicated test Drive folder).
+5. Request `access_type=offline` + `prompt=consent` on the login flow so returning users reliably yield a refresh token.
+6. Fix the shared-route fallback to return 404 (not 500) when a share token is unknown.
+7. Add integration tests using a Drive API mock (or a dedicated test Drive folder), including a "server restart" scenario that verifies share links keep working.
 
 ## Roadmap
 
@@ -271,12 +278,12 @@ The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedi
 - [x] **Phase 6** — UX & export: PDF export (pdfkit), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready), Map tab (Google Maps pins + KML export)
 - [x] **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [x] **Multi-layout XLSX import** — auto-detects column layouts (B=date vs. C=date, with day-of-month carry-forward for week-grouped workbooks)
+- [x] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 
 **Up next:**
 
 - [ ] **Google Calendar sync** — push trip segments to Google Calendar as events; re-sync updates existing events; unsync removes them (implementation exists on a feature branch, pending merge)
-- [ ] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
-- [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys (see Known Limitations above)
+- [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
