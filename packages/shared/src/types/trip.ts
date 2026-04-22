@@ -1,4 +1,4 @@
-export type TripStatus = "planning" | "active" | "completed" | "archived";
+export type TripStatus = "planning" | "active" | "completed" | "cancelled";
 
 export type SegmentType =
   | "flight"

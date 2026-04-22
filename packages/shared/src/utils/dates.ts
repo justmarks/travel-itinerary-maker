@@ -6,6 +6,19 @@ export function getDayOfWeek(isoDate: string): string {
   return DAY_NAMES[date.getUTCDay()];
 }
 
+/**
+ * Add `days` (may be negative) to an ISO date string and return an ISO date
+ * string. Invalid / empty inputs return the original value unchanged so
+ * callers can pass through user-typed values safely.
+ */
+export function addDays(isoDate: string, days: number): string {
+  if (!isoDate) return isoDate;
+  const d = new Date(isoDate + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return isoDate;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 /** Generate an array of ISO date strings between start and end (inclusive) */
 export function generateDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];

@@ -75,6 +75,7 @@ export type {
 export {
   getDayOfWeek,
   generateDateRange,
+  addDays,
   isDateInRange,
   dateRangesOverlap,
   findOverlappingTrips,

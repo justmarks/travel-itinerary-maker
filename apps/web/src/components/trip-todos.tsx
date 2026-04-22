@@ -159,7 +159,7 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
                 )}
                 <button
                   onClick={() => deleteTodo.mutate(todo.id)}
-                  className="mt-0.5 shrink-0 opacity-0 transition-opacity group-hover/todo:opacity-100"
+                  className="mt-0.5 shrink-0 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/todo:opacity-100"
                   title="Delete"
                   disabled={deleteTodo.isPending}
                 >

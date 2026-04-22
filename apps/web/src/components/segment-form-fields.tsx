@@ -1,5 +1,6 @@
 "use client";
 
+import { addDays } from "@travel-app/shared";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +13,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/**
+ * Default "end date" for a new segment when the user hasn't picked one yet.
+ * Keeps the control populated instead of blank so a one-night hotel or a
+ * multi-day cruise saves sensible values even if the user never touches the
+ * field.
+ */
+export function defaultEndDate(type: string, startDate: string): string {
+  if (!startDate) return "";
+  if (type === "hotel") return addDays(startDate, 1);
+  if (type === "cruise") return addDays(startDate, 3);
+  return startDate;
+}
 
 // ─── Organized type groups with category headers ────────────────────────────
 
@@ -556,7 +570,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || defaultEndDate("hotel", form.date)}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -622,7 +636,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || defaultEndDate("car_rental", form.date)}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -804,7 +818,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || defaultEndDate("cruise", form.date)}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>

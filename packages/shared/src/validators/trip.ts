@@ -21,7 +21,7 @@ export const TRIP_STATUSES = [
   "planning",
   "active",
   "completed",
-  "archived",
+  "cancelled",
 ] as const;
 
 export const SEGMENT_SOURCES = [

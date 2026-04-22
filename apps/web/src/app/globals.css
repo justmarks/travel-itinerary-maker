@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/*
+ * Touch-friendly hover reveal. On hover-capable pointers (desktop mice,
+ * trackpads) we want action buttons to appear on hover; on coarse/touch-only
+ * devices (iPad, phones) there is no hover event, so hidden-on-hover buttons
+ * are unreachable. The `can-hover:` variant wraps Tailwind utilities in an
+ * `@media (hover: hover)` query so we can hide things on desktops and keep
+ * them always-visible on touch.
+ *
+ * Usage:
+ *   opacity-100 can-hover:opacity-0 can-hover:group-hover/seg:opacity-100
+ *
+ * Results:
+ *   - Desktop: hidden until you hover the group (old behavior)
+ *   - iPad / phone: always visible
+ */
+@custom-variant can-hover (@media (hover: hover));
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

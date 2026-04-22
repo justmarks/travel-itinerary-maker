@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react";
 import {
   SegmentFormFields,
   getTypeFlags,
+  defaultEndDate,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 
@@ -167,22 +168,26 @@ export function EditSegmentDialog({
       updates.routeCode = undefined;
     }
 
-    // Car rental
+    // Car rental — default dropoff date to pickup date when blank so
+    // same-day rentals don't need two date clicks.
     if (flags.isCarRental) {
       updates.departureCity = form.departureCity || undefined;
       updates.arrivalCity = form.arrivalCity || undefined;
-      updates.endDate = form.endDate || undefined;
+      updates.endDate =
+        form.endDate || defaultEndDate("car_rental", form.date) || undefined;
     }
 
-    // Hotel
+    // Hotel — default check-out to check-in + 1 day (one-night stay).
     if (flags.isHotel) {
-      updates.endDate = form.endDate || undefined;
+      updates.endDate =
+        form.endDate || defaultEndDate("hotel", form.date) || undefined;
       updates.breakfastIncluded = form.breakfastIncluded || undefined;
     }
 
-    // Cruise
+    // Cruise — default disembark to embark + 3 days (typical short cruise).
     if (flags.isCruise) {
-      updates.endDate = form.endDate || undefined;
+      updates.endDate =
+        form.endDate || defaultEndDate("cruise", form.date) || undefined;
     }
 
     // Restaurant
