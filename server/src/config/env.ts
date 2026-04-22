@@ -9,5 +9,10 @@ export const config = {
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
   },
+  sentry: {
+    // Unset in dev/CI; set in production to opt the server into error
+    // reporting. See services/monitoring.ts for the init gate.
+    dsn: process.env.SENTRY_DSN || "",
+  },
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
 };

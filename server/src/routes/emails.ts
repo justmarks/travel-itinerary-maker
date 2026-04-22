@@ -17,6 +17,7 @@ import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ProcessedEmail } from "../services/google-drive/drive-storage";
 import { GmailScanner } from "../services/gmail-scanner";
 import { EmailParser } from "../services/email-parser";
+import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { config } from "../config/env";
 
 export interface EmailRoutesOptions {
@@ -542,8 +543,12 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    * Trigger a Gmail scan and parse emails with Claude AI.
    * Returns: pending (previously parsed) results + newly parsed results combined.
    * Only NEW emails (not in processedEmails at all) are sent to Claude.
+   *
+   * Rate-limited per user (see `createEmailScanRateLimiter`) — scanning is
+   * expensive and users don't need to hammer this button.
    */
-  router.post("/scan", async (req: Request, res: Response) => {
+  const scanRateLimiter = createEmailScanRateLimiter();
+  router.post("/scan", scanRateLimiter, async (req: Request, res: Response) => {
     try {
       const parsed = emailScanRequestSchema.safeParse(req.body);
       if (!parsed.success) {

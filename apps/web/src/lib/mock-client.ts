@@ -1,5 +1,9 @@
 import { ApiClient } from "@travel-app/api-client";
-import { convertToUsd, applyCruisePortsToDayCities } from "@travel-app/shared";
+import {
+  convertToUsd,
+  applyCruisePortsToDayCities,
+  CURRENT_TRIP_SCHEMA_VERSION,
+} from "@travel-app/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
@@ -45,6 +49,7 @@ const SAMPLE_TRIPS: Trip[] = [
     status: "planning",
     createdAt: "2025-03-01T10:00:00Z",
     updatedAt: "2025-03-15T14:30:00Z",
+    schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     days: [
       {
         date: "2025-04-10",
@@ -381,6 +386,7 @@ const SAMPLE_TRIPS: Trip[] = [
     status: "completed",
     createdAt: "2025-01-20T09:00:00Z",
     updatedAt: "2025-02-16T22:00:00Z",
+    schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     days: [
       {
         date: "2025-02-14",
@@ -577,6 +583,7 @@ const SAMPLE_TRIPS: Trip[] = [
     status: "completed",
     createdAt: "2025-04-01T10:00:00Z",
     updatedAt: "2025-04-01T10:00:00Z",
+    schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     days: [
       {
         date: "2025-07-19",
@@ -918,6 +925,7 @@ const SAMPLE_TRIPS: Trip[] = [
     status: "planning",
     createdAt: "2026-02-14T10:00:00Z",
     updatedAt: "2026-04-10T16:20:00Z",
+    schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     days: [
       {
         date: "2026-07-18",
@@ -1250,6 +1258,7 @@ export class MockApiClient extends ApiClient {
       shares: [],
       createdAt: now(),
       updatedAt: now(),
+      schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
     this.trips.set(id, trip);
     return Promise.resolve(structuredClone(trip));
@@ -1330,6 +1339,7 @@ export class MockApiClient extends ApiClient {
       shares: [],
       createdAt: now(),
       updatedAt: now(),
+      schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
     this.trips.set(id, trip);
 

@@ -119,6 +119,19 @@ export interface TripShare {
   createdAt: string;
 }
 
+/**
+ * Current Trip JSON schema version.
+ *
+ * Bump this when the Trip shape changes in a way that existing persisted
+ * trips can't round-trip losslessly (new required fields, renamed fields,
+ * restructured sub-objects). Every bump needs a corresponding migration
+ * step in `migrateTrip` so old JSON continues to load cleanly.
+ *
+ * Storage layers call `migrateTrip` on every `getTrip`/`listTrips` read,
+ * so by the next save the field has been normalised onto the trip.
+ */
+export const CURRENT_TRIP_SCHEMA_VERSION = 1;
+
 export interface Trip {
   id: string;
   title: string;
@@ -130,6 +143,12 @@ export interface Trip {
   shares: TripShare[];
   createdAt: string;
   updatedAt: string;
+  /**
+   * Version of the Trip JSON shape this document was last saved under. See
+   * `CURRENT_TRIP_SCHEMA_VERSION`. Older persisted trips may not have this
+   * field yet; storage layers normalise them on read via `migrateTrip`.
+   */
+  schemaVersion: number;
 }
 
 export interface UserSettings {

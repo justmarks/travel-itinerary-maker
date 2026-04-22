@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
+import { initMonitoring } from "@/lib/monitoring";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -47,6 +48,12 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  // Boot Sentry once on client hydration. No-op when NEXT_PUBLIC_SENTRY_DSN
+  // is unset (dev, CI, and any deployment that hasn't opted in yet).
+  useEffect(() => {
+    initMonitoring();
+  }, []);
+
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>

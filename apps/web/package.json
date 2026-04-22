@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
+    "@sentry/browser": "^10.49.0",
     "@travel-app/api-client": "workspace:*",
     "@travel-app/shared": "workspace:*",
     "@vis.gl/react-google-maps": "^1.8.3",

@@ -138,6 +138,10 @@ export const tripSchema = z.object({
   shares: z.array(tripShareSchema),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // Optional in the validator so trips persisted before schema versioning
+  // existed still parse cleanly. Code that reads trips should pipe the
+  // result through `migrateTrip` to fill this in at v1.
+  schemaVersion: z.number().int().positive().optional(),
 });
 
 /** Schema for creating a new trip (auto-generates id, dates, etc.) */

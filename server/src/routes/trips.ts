@@ -14,6 +14,7 @@ import {
   findOverlappingTrips,
   convertToUsd,
   applyCruisePortsToDayCities,
+  CURRENT_TRIP_SCHEMA_VERSION,
   type Trip,
   type TripDay,
   type Segment,
@@ -116,6 +117,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       shares: [],
       createdAt: now,
       updatedAt: now,
+      schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
 
     await storage.saveTrip(trip);
@@ -272,6 +274,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       shares: [],
       createdAt: now,
       updatedAt: now,
+      schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
 
     await storage.saveTrip(trip);

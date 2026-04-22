@@ -1,5 +1,5 @@
 import { google, type drive_v3 } from "googleapis";
-import type { Trip, UserSettings } from "@travel-app/shared";
+import { migrateTrip, type Trip, type UserSettings } from "@travel-app/shared";
 import type { StorageProvider } from "../storage";
 
 const APP_FOLDER_NAME = "TravelItineraryMaker";
@@ -148,8 +148,11 @@ export class DriveStorage implements StorageProvider {
 
     const trips: Trip[] = [];
     for (const file of res.data.files || []) {
-      const trip = await this.readJsonFile<Trip>(file.id!);
-      trips.push(trip);
+      // Trips saved before schema versioning existed don't have
+      // schemaVersion yet — migrateTrip fills it in at read time so the
+      // rest of the app can rely on the field being present.
+      const raw = await this.readJsonFile<unknown>(file.id!);
+      trips.push(migrateTrip(raw));
     }
 
     return trips.sort(
@@ -162,7 +165,8 @@ export class DriveStorage implements StorageProvider {
     const tripsFolderId = await this.getTripsFolderId();
     const fileId = await this.findFile(`${tripId}.json`, tripsFolderId);
     if (!fileId) return null;
-    return this.readJsonFile<Trip>(fileId);
+    const raw = await this.readJsonFile<unknown>(fileId);
+    return migrateTrip(raw);
   }
 
   async saveTrip(trip: Trip): Promise<void> {
