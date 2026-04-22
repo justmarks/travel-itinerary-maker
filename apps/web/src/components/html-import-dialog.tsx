@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EmailScanResult,
   ParsedSegment,
@@ -11,6 +11,7 @@ import {
   useImportHtmlEmail,
   useApplyParsedSegments,
   useTrips,
+  useCreateTrip,
   ApiError,
 } from "@travel-app/api-client";
 import {
@@ -40,6 +41,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Plus,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -143,9 +146,17 @@ export function HtmlImportDialog({
   const [appliedCount, setAppliedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Inline new-trip creation
+  const [showNewTripForm, setShowNewTripForm] = useState(false);
+  const [newTripTitle, setNewTripTitle] = useState("");
+  const [newTripStart, setNewTripStart] = useState("");
+  const [newTripEnd, setNewTripEnd] = useState("");
+  const [creatingTrip, setCreatingTrip] = useState(false);
+
   const importMutation = useImportHtmlEmail();
   const applyMutation = useApplyParsedSegments();
   const { data: trips } = useTrips();
+  const createTrip = useCreateTrip();
 
   const resetState = useCallback(() => {
     setStep("input");
@@ -158,6 +169,11 @@ export function HtmlImportDialog({
     setSelections([]);
     setErrorMessage("");
     setAppliedCount(0);
+    setShowNewTripForm(false);
+    setNewTripTitle("");
+    setNewTripStart("");
+    setNewTripEnd("");
+    setCreatingTrip(false);
   }, []);
 
   const handleOpenChange = useCallback(
@@ -260,6 +276,10 @@ export function HtmlImportDialog({
   }, []);
 
   const updateAssignedTrip = useCallback((index: number, value: string) => {
+    if (value === "__create_new__") {
+      setShowNewTripForm(true);
+      return;
+    }
     setSelections((prev) =>
       prev.map((sel, i) =>
         i === index ? { ...sel, assignedTripId: value } : sel,
@@ -272,6 +292,97 @@ export function HtmlImportDialog({
       selections.filter((s) => s.selected && s.assignedTripId).length,
     [selections],
   );
+
+  // Compute date range from all parsed segments for new-trip defaults.
+  const scannedDateRange = useMemo(() => {
+    const dates = selections.map((s) => s.date).filter(Boolean).sort();
+    if (dates.length === 0) return null;
+    return { start: dates[0], end: dates[dates.length - 1] };
+  }, [selections]);
+
+  // Suggest a trip name from destination cities + year.
+  const suggestedTripName = useMemo(() => {
+    if (selections.length === 0) return "";
+    const cities: string[] = [];
+    for (const s of selections) {
+      if (s.type === "flight" && s.arrivalCity) {
+        cities.push(s.arrivalCity);
+      } else if (s.city) {
+        cities.push(s.city);
+      }
+    }
+    if (cities.length === 0) return "";
+    const counts = new Map<string, number>();
+    for (const c of cities) {
+      counts.set(c, (counts.get(c) || 0) + 1);
+    }
+    const topCity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const year = selections[0]?.date?.slice(0, 4) || "";
+    return year ? `${topCity} ${year}` : topCity;
+  }, [selections]);
+
+  // Any selected segment that has not been assigned to a trip.
+  const hasUnassignedSegments = selections.some(
+    (s) => s.selected && !s.assignedTripId,
+  );
+
+  // Auto-show the new trip form when viewing results with unassigned
+  // segments and no existing trips to pick from.
+  useEffect(() => {
+    if (
+      step === "results" &&
+      hasUnassignedSegments &&
+      !showNewTripForm &&
+      (!trips || trips.length === 0)
+    ) {
+      setShowNewTripForm(true);
+    }
+  }, [step, hasUnassignedSegments, trips]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-populate the new trip form with suggestions from the parsed segments.
+  useEffect(() => {
+    if (!showNewTripForm) return;
+    if (!newTripTitle && suggestedTripName) setNewTripTitle(suggestedTripName);
+    if (!newTripStart && scannedDateRange) setNewTripStart(scannedDateRange.start);
+    if (!newTripEnd && scannedDateRange) setNewTripEnd(scannedDateRange.end);
+  }, [showNewTripForm, scannedDateRange, suggestedTripName]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Create a new trip and auto-assign selected segments whose dates fall in range. */
+  const handleCreateTrip = useCallback(async () => {
+    if (!newTripTitle || !newTripStart || !newTripEnd) return;
+    setCreatingTrip(true);
+    setErrorMessage("");
+    try {
+      const trip = await createTrip.mutateAsync({
+        title: newTripTitle,
+        startDate: newTripStart,
+        endDate: newTripEnd,
+      });
+      setSelections((prev) =>
+        prev.map((s) => {
+          if (
+            s.selected &&
+            !s.assignedTripId &&
+            s.date >= newTripStart &&
+            s.date <= newTripEnd
+          ) {
+            return { ...s, assignedTripId: trip.id };
+          }
+          return s;
+        }),
+      );
+      setShowNewTripForm(false);
+      setNewTripTitle("");
+      setNewTripStart("");
+      setNewTripEnd("");
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error ? err.message : "Failed to create trip",
+      );
+    } finally {
+      setCreatingTrip(false);
+    }
+  }, [newTripTitle, newTripStart, newTripEnd, createTrip]);
 
   const handleApply = useCallback(async () => {
     const segments = selections
@@ -462,6 +573,94 @@ export function HtmlImportDialog({
         {step === "results" && result && (
           <div className="flex min-h-0 flex-1 flex-col py-2">
             <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+            {/* New Trip creation — banner + inline form when segments are unassigned */}
+            {result.parsedSegments.length > 0 &&
+              hasUnassignedSegments &&
+              !showNewTripForm && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-amber-800">
+                      Some segments don&apos;t match any trip.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 shrink-0 border-amber-300 bg-white text-xs hover:bg-amber-50"
+                      onClick={() => setShowNewTripForm(true)}
+                    >
+                      <Plus className="mr-1 h-3 w-3" />
+                      Create Trip
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+            {showNewTripForm && (
+              <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                    <Plus className="h-4 w-4" />
+                    Create New Trip
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-blue-600 hover:text-blue-800"
+                    onClick={() => setShowNewTripForm(false)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <Input
+                  value={newTripTitle}
+                  onChange={(e) => setNewTripTitle(e.target.value)}
+                  placeholder="Trip name (e.g. Hawaii 2026)"
+                  className="h-8 bg-white text-sm"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-blue-700">Start date</label>
+                    <Input
+                      type="date"
+                      value={newTripStart}
+                      onChange={(e) => setNewTripStart(e.target.value)}
+                      className="h-8 bg-white text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-blue-700">End date</label>
+                    <Input
+                      type="date"
+                      value={newTripEnd}
+                      onChange={(e) => setNewTripEnd(e.target.value)}
+                      className="h-8 bg-white text-sm"
+                    />
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="h-8 w-full text-xs"
+                  onClick={handleCreateTrip}
+                  disabled={
+                    creatingTrip ||
+                    !newTripTitle ||
+                    !newTripStart ||
+                    !newTripEnd
+                  }
+                >
+                  {creatingTrip ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {creatingTrip
+                    ? "Creating..."
+                    : "Create & Assign Matching Segments"}
+                </Button>
+              </div>
+            )}
+
             {result.parsedSegments.length === 0 ? (
               <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -544,6 +743,12 @@ export function HtmlImportDialog({
                                     {t.title} ({t.startDate} → {t.endDate})
                                   </SelectItem>
                                 ))}
+                                <SelectItem value="__create_new__">
+                                  <span className="flex items-center gap-1.5 text-blue-600">
+                                    <Plus className="h-3 w-3" />
+                                    Create new trip...
+                                  </span>
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
