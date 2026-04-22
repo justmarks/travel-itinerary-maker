@@ -28,6 +28,21 @@ export interface SegmentCost {
   details?: string; // Room type, class, seat#, check-in/out, breakfast, etc.
 }
 
+/**
+ * A single port of call on a cruise itinerary. Used by cruise segments to
+ * describe which port the ship visits each day. "At sea" days can be
+ * represented with `atSea: true` (and no `port`), or simply omitted.
+ */
+export interface CruisePortOfCall {
+  date: string; // YYYY-MM-DD
+  /** Port name, e.g. "Dubrovnik" or "Venice/Italy". Omitted when atSea=true. */
+  port?: string;
+  arrivalTime?: string; // HH:MM, omitted for embarkation day
+  departureTime?: string; // HH:MM, omitted for disembarkation day
+  /** True when the ship is cruising at sea with no port visit that day. */
+  atSea?: boolean;
+}
+
 export interface Segment {
   id: string;
   type: SegmentType;
@@ -58,6 +73,9 @@ export interface Segment {
   // End-of-stay date (YYYY-MM-DD). Currently used by hotels (check-out),
   // car_rental (drop-off), and cruise (disembark).
   endDate?: string;
+  // Cruise-specific: per-day ports of call. When present, applying the
+  // segment updates TripDay.city for each day in range to match the port.
+  portsOfCall?: CruisePortOfCall[];
   // Hotel-specific
   breakfastIncluded?: boolean;
   // Flight-specific
@@ -199,6 +217,7 @@ export interface ParsedSegment {
   cancellationDeadline?: string;
   phone?: string;
   endDate?: string;
+  portsOfCall?: CruisePortOfCall[];
   breakfastIncluded?: boolean;
   seatNumber?: string;
   cabinClass?: string;

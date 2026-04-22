@@ -407,6 +407,7 @@ export function HtmlImportDialog({
         creditCardHold: s.creditCardHold,
         phone: s.phone,
         endDate: s.endDate,
+        portsOfCall: s.portsOfCall,
         breakfastIncluded: s.breakfastIncluded,
         seatNumber: s.seatNumber,
         cabinClass: s.cabinClass,

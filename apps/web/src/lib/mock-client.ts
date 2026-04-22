@@ -1,5 +1,5 @@
 import { ApiClient } from "@travel-app/api-client";
-import { convertToUsd } from "@travel-app/shared";
+import { convertToUsd, applyCruisePortsToDayCities } from "@travel-app/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
@@ -666,6 +666,15 @@ const SAMPLE_TRIPS: Trip[] = [
             endTime: "08:00",
             endDate: "2025-07-26",
             confirmationCode: "DCL-2025-F7741",
+            portsOfCall: [
+              { date: "2025-07-20", port: "Port Canaveral, FL", departureTime: "16:00" },
+              { date: "2025-07-21", port: "Nassau, Bahamas", arrivalTime: "09:00", departureTime: "17:00" },
+              { date: "2025-07-22", port: "Castaway Cay, Bahamas", arrivalTime: "08:30", departureTime: "16:30" },
+              { date: "2025-07-23", atSea: true },
+              { date: "2025-07-24", atSea: true },
+              { date: "2025-07-25", atSea: true },
+              { date: "2025-07-26", port: "Port Canaveral, FL", arrivalTime: "08:00" },
+            ],
             cost: { amount: 6200, currency: "USD", details: "7-night Eastern Caribbean · Stateroom 7652" },
             source: "email_confirmed",
             needsReview: false,
@@ -1406,6 +1415,8 @@ export class MockApiClient extends ApiClient {
         baggageInfo: seg.baggageInfo,
         contactName: seg.contactName,
         phone: seg.phone,
+        endDate: seg.endDate,
+        portsOfCall: seg.portsOfCall,
         breakfastIncluded: seg.breakfastIncluded,
         cost: seg.cost,
         source: "email_auto",
@@ -1414,6 +1425,13 @@ export class MockApiClient extends ApiClient {
         sortOrder: day.segments.length,
       });
       created.push({ tripId: seg.tripId, segmentId, title: seg.title });
+    }
+    // Cruise per-day port override: update each affected trip's days so the
+    // cities line up with the ship's ports of call (mirrors the server path).
+    const touchedTripIds = new Set(input.segments.map((s) => s.tripId));
+    for (const tid of touchedTripIds) {
+      const trip = this.trips.get(tid);
+      if (trip) applyCruisePortsToDayCities(trip);
     }
     return Promise.resolve({ created });
   }

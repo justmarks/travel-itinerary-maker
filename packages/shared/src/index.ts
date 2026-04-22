@@ -4,6 +4,7 @@ export type {
   TripDay,
   Segment,
   SegmentCost,
+  CruisePortOfCall,
   Todo,
   TripShare,
   TripStatus,
@@ -30,6 +31,7 @@ export {
   todoSchema,
   tripShareSchema,
   segmentCostSchema,
+  cruisePortOfCallSchema,
   createTripSchema,
   updateTripSchema,
   createSegmentSchema,
@@ -86,6 +88,6 @@ export {
   hasUsdRate,
 } from "./utils/currency";
 export { generateId } from "./utils/ids";
-export { formatFlightLabel } from "./utils/segments";
+export { formatFlightLabel, applyCruisePortsToDayCities } from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";

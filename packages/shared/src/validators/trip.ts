@@ -48,6 +48,24 @@ export const segmentCostSchema = z.object({
   details: z.string().optional(),
 });
 
+/**
+ * Per-day port of call for a cruise. `port` is the destination city for
+ * that day; `atSea` marks sea days (no port visit). When `atSea` is true,
+ * `port` is normally omitted.
+ */
+export const cruisePortOfCallSchema = z
+  .object({
+    date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD"),
+    port: z.string().optional(),
+    arrivalTime: z.string().regex(timeRegex, "Must be HH:MM or HH:MM:SS").optional(),
+    departureTime: z.string().regex(timeRegex, "Must be HH:MM or HH:MM:SS").optional(),
+    atSea: z.boolean().optional(),
+  })
+  .refine((data) => data.atSea === true || (data.port && data.port.length > 0), {
+    message: "port is required unless atSea is true",
+    path: ["port"],
+  });
+
 export const segmentSchema = z.object({
   id: z.string().min(1),
   type: z.enum(SEGMENT_TYPES),
@@ -71,6 +89,7 @@ export const segmentSchema = z.object({
   cancellationDeadline: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
   phone: z.string().optional(),
   endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  portsOfCall: z.array(cruisePortOfCallSchema).optional(),
   breakfastIncluded: z.boolean().optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
@@ -161,6 +180,7 @@ export const createSegmentSchema = z.object({
   partySize: z.number().int().min(1).optional(),
   creditCardHold: z.boolean().optional(),
   endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  portsOfCall: z.array(cruisePortOfCallSchema).optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
   seatNumber: z.string().optional(),
@@ -254,6 +274,7 @@ export const parsedSegmentSchema = z.object({
   cancellationDeadline: z.string().regex(isoDateRegex).optional(),
   phone: z.string().optional(),
   endDate: z.string().regex(isoDateRegex).optional(),
+  portsOfCall: z.array(cruisePortOfCallSchema).optional(),
   breakfastIncluded: z.boolean().optional(),
   seatNumber: z.string().optional(),
   cabinClass: z.string().optional(),

@@ -45,6 +45,12 @@ IMPORTANT RULES:
   - Car rental cost: The cost "amount" should be the BASE RENTAL RATE only — the total for the car itself BEFORE taxes, airport concession fees, vehicle license fees, customer facility charges, or any other surcharges. Do NOT include tax lines in the amount. Put the car class/type (e.g. "Midsize SUV", "Full-size") in "details". If taxes and fees are shown as a separate total, mention them briefly in "details" (e.g. "+$120 taxes & fees") but keep them out of "amount".
 - **CRUISES**: Return ONE segment spanning the full cruise:
   - type "cruise", date = embarkation date, startTime = boarding time, endDate = disembarkation date, endTime = disembark time. Put the ship name in "title" (e.g. "Disney Fantasy — 7-Night Eastern Caribbean"). "departureCity" = embarkation port, "arrivalCity" = disembarkation port (often the same for round-trip cruises). Do NOT set "venueName", "city", "address", or "provider" on cruises — ports go in "departureCity" / "arrivalCity".
+  - "portsOfCall": REQUIRED if the email contains a per-day itinerary / "Ports of Call" table. An ARRAY with ONE ENTRY FOR EACH DAY of the cruise (embarkation day through disembarkation day, inclusive — no gaps). Each entry: { "date": "YYYY-MM-DD", "port": "City Name", "arrivalTime"?: "HH:MM", "departureTime"?: "HH:MM", "atSea"?: true }.
+    - For sea days (rows labeled "At Sea", "Cruising", "Day at Sea", etc.), set "atSea": true and OMIT "port".
+    - For the embarkation day, set "port" to the embarkation port and "departureTime" to the ship's departure time; OMIT "arrivalTime".
+    - For the disembarkation day, set "port" to the disembarkation port and "arrivalTime" to the ship's arrival time; OMIT "departureTime".
+    - Clean the port name when straightforward (e.g. "Venice/Italy" → "Venice", "Thira/Santorini" → "Santorini"), but preserve the original name when splitting is ambiguous.
+    - Dates must be real calendar dates — do NOT use "Day 1", "Day 2" as the date. Derive each date from the embarkation date + offset.
 - **SHOWS/TICKETED EVENTS** (concerts, theater, Broadway, opera, Kabuki, symphonies, sporting events, comedy):
   - type "show", date = show date, startTime = showtime. "venueName" = theater/arena name. "address" = venue address if given. "seatNumber" = seat assignment(s) exactly as the ticket shows (e.g. "Orchestra Row F, Seats 14-15"). Do NOT set "provider" for shows — leave it blank.
 - **HOTEL CHECK-IN/CHECK-OUT TIMES**: If the email explicitly states a check-in time (e.g. "Check-in: 4:00 PM") or check-out time (e.g. "Check-out by 11:00 AM"), use those values for "startTime" (check-in) and "endTime" (check-out). Do NOT use timestamps from booking confirmation metadata, email headers, or ISO datetime fields that look like the time the email was sent — those are not real hotel policy times. If no explicit check-in/check-out time is stated in the visible email body, omit "startTime" and "endTime" entirely and the server will apply standard hotel defaults.
@@ -451,6 +457,31 @@ export class EmailParser {
           console.log(
             `[EmailParser] No cost returned for "${item.title}" (type: ${item.type})`,
           );
+        }
+
+        // Log ports of call for cruises so we can see what Claude extracted
+        // (including sea days) before Zod validation runs.
+        if (item.type === "cruise") {
+          if (Array.isArray(item.portsOfCall) && item.portsOfCall.length > 0) {
+            console.log(
+              `[EmailParser] Found ${item.portsOfCall.length} ports of call for "${item.title}":`,
+            );
+            for (const p of item.portsOfCall as Array<Record<string, unknown>>) {
+              const date = typeof p.date === "string" ? p.date : "?";
+              const label = p.atSea
+                ? "At Sea"
+                : typeof p.port === "string"
+                  ? p.port
+                  : "(missing port)";
+              const arr = typeof p.arrivalTime === "string" ? ` arr ${p.arrivalTime}` : "";
+              const dep = typeof p.departureTime === "string" ? ` dep ${p.departureTime}` : "";
+              console.log(`[EmailParser]   ${date} — ${label}${arr}${dep}`);
+            }
+          } else {
+            console.log(
+              `[EmailParser] No portsOfCall returned for cruise "${item.title}"`,
+            );
+          }
         }
 
         const result = parsedSegmentSchema.safeParse(item);

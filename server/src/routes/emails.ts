@@ -5,6 +5,7 @@ import {
   applyParsedSegmentsSchema,
   generateId,
   isDateInRange,
+  applyCruisePortsToDayCities,
   type EmailScanResult,
   type ParsedSegment,
   type Segment,
@@ -374,6 +375,15 @@ function applySegmentFields(
   if (parsed.cost) {
     if (overwrite || !target.cost) {
       target.cost = { ...parsed.cost };
+    }
+  }
+
+  // portsOfCall is an array, so the generic copyable-field logic doesn't
+  // apply cleanly. Treat it like cost: copy when overwriting or when the
+  // target has no existing ports-of-call data.
+  if (parsed.portsOfCall && parsed.portsOfCall.length > 0) {
+    if (overwrite || !target.portsOfCall || target.portsOfCall.length === 0) {
+      target.portsOfCall = parsed.portsOfCall.map((p) => ({ ...p }));
     }
   }
 }
@@ -1137,6 +1147,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             contactName: seg.contactName,
             phone: seg.phone,
             endDate: seg.endDate,
+            portsOfCall: seg.portsOfCall,
             breakfastIncluded: seg.breakfastIncluded,
             cost: seg.cost,
             source: "email_auto",
@@ -1170,6 +1181,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             day.city = lastCity;
             console.log(`    City: propagated ${day.date} → "${lastCity}"`);
           }
+        }
+
+        // Cruise per-day port override: a cruise's portsOfCall is the most
+        // authoritative city signal for each day of the cruise — override
+        // whatever was previously set (auto-filled, propagated, or manually
+        // chosen at trip creation time). Sea days become "At Sea".
+        const cruiseCityChanges = applyCruisePortsToDayCities(trip);
+        for (const change of cruiseCityChanges) {
+          console.log(
+            `    City: cruise port ${change.date} → "${change.to}" (was "${change.from || "∅"}")`,
+          );
         }
 
         trip.updatedAt = new Date().toISOString();
