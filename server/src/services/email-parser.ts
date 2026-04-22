@@ -459,6 +459,31 @@ export class EmailParser {
           );
         }
 
+        // Log ports of call for cruises so we can see what Claude extracted
+        // (including sea days) before Zod validation runs.
+        if (item.type === "cruise") {
+          if (Array.isArray(item.portsOfCall) && item.portsOfCall.length > 0) {
+            console.log(
+              `[EmailParser] Found ${item.portsOfCall.length} ports of call for "${item.title}":`,
+            );
+            for (const p of item.portsOfCall as Array<Record<string, unknown>>) {
+              const date = typeof p.date === "string" ? p.date : "?";
+              const label = p.atSea
+                ? "At Sea"
+                : typeof p.port === "string"
+                  ? p.port
+                  : "(missing port)";
+              const arr = typeof p.arrivalTime === "string" ? ` arr ${p.arrivalTime}` : "";
+              const dep = typeof p.departureTime === "string" ? ` dep ${p.departureTime}` : "";
+              console.log(`[EmailParser]   ${date} — ${label}${arr}${dep}`);
+            }
+          } else {
+            console.log(
+              `[EmailParser] No portsOfCall returned for cruise "${item.title}"`,
+            );
+          }
+        }
+
         const result = parsedSegmentSchema.safeParse(item);
         if (result.success) {
           segments.push(result.data as ParsedSegment);
