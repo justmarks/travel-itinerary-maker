@@ -265,7 +265,15 @@ export function useDeleteSegment(tripId: string) {
 export function useConfirmSegment(tripId: string) {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  // Shared mutation key so we can ask "how many confirm-segment mutations
+  // for this trip are still in flight?" in onSettled. Without it, each
+  // mutation's onSettled invalidates the trip, triggering a refetch whose
+  // response reflects the server *between* siblings' PATCHes — so segments
+  // confirmed optimistically but not yet PATCHed get clobbered back to
+  // needsReview, then flip to confirmed again when their PATCH lands.
+  const mutationKey = ["confirm-segment", tripId];
   return useMutation({
+    mutationKey,
     mutationFn: (segmentId: string) =>
       client.confirmSegment(tripId, segmentId),
     onMutate: async (segmentId) => {
@@ -292,8 +300,13 @@ export function useConfirmSegment(tripId: string) {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
+      // Only invalidate once the last confirm in the current batch has
+      // settled. isMutating returns 1 when this is the final mutation
+      // still resolving (the caller is counted until onSettled finishes).
+      if (queryClient.isMutating({ mutationKey }) === 1) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
+      }
     },
   });
 }
