@@ -109,18 +109,49 @@
     display: none !important;
   }
 
-  /* Timeline: let the grid stretch to fill the page width */
+  /* Timeline: let the grid stretch to fill the page width.
+   *
+   * In the viewport the timeline lives inside a horizontally-scrollable card
+   * (overflow-x-auto on .timeline-scroll, overflow-hidden on .timeline-card)
+   * with per-day columns that insist on `minmax(7.5rem, 1fr)` so they stay
+   * readable at desktop widths. On paper, none of those constraints work:
+   * the browser only prints what's visible in the flow, so any content past
+   * the card's clipped right edge is silently dropped. For a 3-week trip
+   * that's most of the itinerary.
+   *
+   * The fix pulls every clip/min-width lever at once so the grid collapses
+   * into whatever width the page gives it. The column template uses CSS
+   * custom properties specifically so we can shrink the per-day minimum to
+   * `0` here — cells share the page width equally instead of demanding a
+   * fixed px floor. See timeline-view.tsx for where the properties are set.
+   */
   .timeline-scroll {
     overflow: visible !important;
   }
 
+  .timeline-card {
+    overflow: visible !important;
+  }
+
   .timeline-grid {
+    --timeline-label-col: 3.5rem;
+    --timeline-day-min: 0px;
     min-width: unset !important;
-    font-size: 9px !important;
+    font-size: 8px !important;
   }
 
   /* Sticky labels don't make sense on paper — reset to flow */
   .timeline-grid .sticky {
     position: static !important;
+  }
+
+  /* Pills truncate in the viewport so narrow cells stay tidy. On paper the
+   * cells are much narrower (3-week trip ÷ page width), so truncation would
+   * hide most titles. Let text wrap instead. */
+  .timeline-grid .truncate {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: break-word !important;
   }
 }

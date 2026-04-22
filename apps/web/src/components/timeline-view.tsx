@@ -247,7 +247,12 @@ export function TimelineView({ trip }: { trip: Trip }) {
   const { days } = trip;
   const hotels = extractHotels(days);
 
-  const gridCols = `8rem repeat(${days.length}, minmax(7.5rem, 1fr))`;
+  // Column widths are driven by CSS custom properties so print media can shrink
+  // the per-day minimum to 0 (cells share page width equally) without having
+  // to rewrite the whole template from a media query. See globals.css.
+  const gridCols =
+    "var(--timeline-label-col, 8rem) " +
+    `repeat(${days.length}, minmax(var(--timeline-day-min, 7.5rem), 1fr))`;
 
   if (days.length === 0) {
     return (
@@ -280,7 +285,7 @@ export function TimelineView({ trip }: { trip: Trip }) {
       </div>
 
       {/* Timeline card */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="timeline-card bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto timeline-scroll">
           <div
             className="grid timeline-grid"
