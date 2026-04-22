@@ -22,6 +22,7 @@ export type {
   EmailScanResult,
   GmailLabel,
 } from "./types/trip";
+export { CURRENT_TRIP_SCHEMA_VERSION } from "./types/trip";
 
 // Validators
 export {
@@ -89,6 +90,7 @@ export {
   hasUsdRate,
 } from "./utils/currency";
 export { generateId } from "./utils/ids";
+export { migrateTrip } from "./utils/migrations";
 export { formatFlightLabel, applyCruisePortsToDayCities } from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";

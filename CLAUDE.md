@@ -192,7 +192,9 @@ cd apps/web && pnpm lint
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
 | `ANTHROPIC_API_KEY` | server | For planned AI email-parsing feature |
+| `SENTRY_DSN` | server | Sentry error-reporting DSN. Unset in dev/CI disables Sentry entirely. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend base URL (default: `http://localhost:3001/api/v1`) |
+| `NEXT_PUBLIC_SENTRY_DSN` | apps/web | Sentry browser DSN. Must be `NEXT_PUBLIC_` to be embedded in the static bundle. Unset disables Sentry. |
 
 ---
 

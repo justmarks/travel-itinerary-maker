@@ -16,6 +16,101 @@ export interface GmailScanOptions {
   newerThanDays?: number;
 }
 
+// ─── Pure helpers (exported for unit testing) ──────────────────────────────
+//
+// The logic that matters for behaviour — label name resolution, MIME body
+// extraction, base64url decoding — is pulled out of the class so tests can
+// hit it directly without constructing a Gmail client. The `GmailScanner`
+// class below is a thin transport wrapper around these.
+
+/**
+ * System Gmail labels that pass through label resolution unchanged.
+ * Users can refer to these by their canonical uppercase names.
+ */
+export const GMAIL_SYSTEM_LABELS = new Set([
+  "INBOX", "STARRED", "SENT", "IMPORTANT", "TRASH", "SPAM",
+  "DRAFT", "UNREAD", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+  "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
+]);
+
+export interface GmailLabelSummary {
+  id: string;
+  name: string;
+  type?: string;
+}
+
+/**
+ * Resolve a label filter (name, nested path, system label, or raw ID) to a
+ * concrete Gmail label ID. Returns null if no match is found.
+ *
+ * System labels (INBOX, STARRED, …) and IDs that already look like Gmail
+ * IDs (`Label_…`) pass through unchanged. For anything else, match by name
+ * case-insensitively, with a fallback that matches the trailing segment of
+ * a nested label (so "Travel" matches "Work/Travel").
+ */
+export function resolveLabelId(
+  labelFilter: string,
+  labels: GmailLabelSummary[],
+): string | null {
+  if (GMAIL_SYSTEM_LABELS.has(labelFilter) || labelFilter.startsWith("Label_")) {
+    return labelFilter;
+  }
+  const lower = labelFilter.trim().toLowerCase();
+  const match =
+    labels.find((l) => l.name.toLowerCase() === lower) ||
+    labels.find((l) => l.name.toLowerCase().endsWith("/" + lower));
+  return match ? match.id : null;
+}
+
+/** Decode a base64url-encoded string (the encoding Gmail uses for body data) */
+export function decodeBase64Url(data: string): string {
+  const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
+  return Buffer.from(base64, "base64").toString("utf-8");
+}
+
+/** Strip HTML markup to plain text using the same rules as the Gmail scanner. */
+export function htmlToText(html: string): string {
+  return convert(html, {
+    wordwrap: false,
+    selectors: [
+      { selector: "img", format: "skip" },
+      { selector: "a", options: { ignoreHref: true } },
+    ],
+  });
+}
+
+/**
+ * Walk a Gmail MIME payload tree and return the best text body we can
+ * reconstruct. Prefers `text/plain`; falls back to HTML (converted to text)
+ * only when the plain-text parts are missing or whitespace — marketing
+ * emails commonly ship a blank plain-text fallback alongside the real HTML.
+ */
+export function extractBody(payload: gmail_v1.Schema$MessagePart): string {
+  const parts: { plain: string[]; html: string[] } = { plain: [], html: [] };
+  collectTextParts(payload, parts);
+
+  const joinedPlain = parts.plain.join("\n").trim();
+  if (joinedPlain.length > 0) return parts.plain.join("\n");
+  if (parts.html.length > 0) return htmlToText(parts.html.join("\n"));
+  return "";
+}
+
+function collectTextParts(
+  payload: gmail_v1.Schema$MessagePart,
+  result: { plain: string[]; html: string[] },
+): void {
+  if (payload.body?.data) {
+    const decoded = decodeBase64Url(payload.body.data);
+    if (payload.mimeType === "text/plain") result.plain.push(decoded);
+    else if (payload.mimeType === "text/html") result.html.push(decoded);
+  }
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      collectTextParts(part, result);
+    }
+  }
+}
+
 /**
  * Scans Gmail for travel-related emails and returns raw content
  * for parsing by the AI service.
@@ -40,29 +135,16 @@ export class GmailScanner {
   }
 
   /**
-   * Resolve a label filter (which may be a label name, label ID, or system label
-   * like INBOX) to a concrete Gmail label ID. Returns null if it can't be found.
+   * Resolve a label filter to a Gmail label ID. Fetches the user's label list
+   * only when the filter isn't already a system label or raw `Label_…` ID.
+   * See `resolveLabelId` (module-level) for the matching rules.
    */
   private async resolveLabelId(labelFilter: string): Promise<string | null> {
-    // System labels and existing label IDs pass through unchanged.
-    // Gmail label IDs look like "Label_1234567890123456789" or system names
-    // like "INBOX", "STARRED", "SENT", "IMPORTANT", "TRASH", "SPAM".
-    const SYSTEM_LABELS = new Set([
-      "INBOX", "STARRED", "SENT", "IMPORTANT", "TRASH", "SPAM",
-      "DRAFT", "UNREAD", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
-      "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS",
-    ]);
-    if (SYSTEM_LABELS.has(labelFilter) || labelFilter.startsWith("Label_")) {
+    if (GMAIL_SYSTEM_LABELS.has(labelFilter) || labelFilter.startsWith("Label_")) {
       return labelFilter;
     }
-
-    // Otherwise look it up by name (case-insensitive, nested labels supported).
     const all = await this.listLabels();
-    const lower = labelFilter.trim().toLowerCase();
-    const match =
-      all.find((l) => l.name.toLowerCase() === lower) ||
-      all.find((l) => l.name.toLowerCase().endsWith("/" + lower));
-    return match ? match.id : null;
+    return resolveLabelId(labelFilter, all);
   }
 
   /** Search for travel confirmation emails */
@@ -156,7 +238,7 @@ export class GmailScanner {
     const from = getHeader("From");
     const date = getHeader("Date");
 
-    const bodyText = this.extractBody(msg.payload);
+    const bodyText = extractBody(msg.payload);
     if (!bodyText.trim()) {
       console.log(
         `SKIP: "${subject}" from ${from} (empty body — no text/plain or text/html content)`,
@@ -174,51 +256,4 @@ export class GmailScanner {
     };
   }
 
-  /** Collect all text/plain and text/html parts from a MIME tree */
-  private collectTextParts(
-    payload: gmail_v1.Schema$MessagePart,
-    result: { plain: string[]; html: string[] },
-  ): void {
-    if (payload.body?.data) {
-      const decoded = this.decodeBase64Url(payload.body.data);
-      if (payload.mimeType === "text/plain") result.plain.push(decoded);
-      else if (payload.mimeType === "text/html") result.html.push(decoded);
-    }
-    if (payload.parts) {
-      for (const part of payload.parts) {
-        this.collectTextParts(part, result);
-      }
-    }
-  }
-
-  /** Extract plain text body from MIME payload */
-  private extractBody(payload: gmail_v1.Schema$MessagePart): string {
-    const parts: { plain: string[]; html: string[] } = { plain: [], html: [] };
-    this.collectTextParts(payload, parts);
-
-    // Prefer plain text, but fall back to HTML if the plain-text parts exist
-    // but are empty/whitespace (common for marketing-style HTML emails that
-    // include a blank text/plain fallback part).
-    const joinedPlain = parts.plain.join("\n").trim();
-    if (joinedPlain.length > 0) return parts.plain.join("\n");
-    if (parts.html.length > 0) return this.htmlToText(parts.html.join("\n"));
-    return "";
-  }
-
-  /** Decode base64url-encoded string */
-  private decodeBase64Url(data: string): string {
-    const base64 = data.replace(/-/g, "+").replace(/_/g, "/");
-    return Buffer.from(base64, "base64").toString("utf-8");
-  }
-
-  /** Convert HTML to plain text */
-  private htmlToText(html: string): string {
-    return convert(html, {
-      wordwrap: false,
-      selectors: [
-        { selector: "img", format: "skip" },
-        { selector: "a", options: { ignoreHref: true } },
-      ],
-    });
-  }
 }

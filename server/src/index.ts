@@ -15,7 +15,12 @@ dotenv.config({
 
 import { createApp } from "./app";
 import { InMemoryStorage } from "./services/storage";
+import { initMonitoring } from "./services/monitoring";
 import { config } from "./config/env";
+
+// Initialise Sentry before building the app so any bootstrap error is
+// captured too. No-op when SENTRY_DSN is unset (dev / CI / tests).
+initMonitoring();
 
 const isProduction = config.nodeEnv === "production";
 

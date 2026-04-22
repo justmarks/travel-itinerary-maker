@@ -57,6 +57,7 @@ function makeTrip(shareToken: string, shareOverrides: Partial<Trip["shares"][0]>
     ],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    schemaVersion: 1,
   };
 }
 

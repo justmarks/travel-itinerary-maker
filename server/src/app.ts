@@ -9,6 +9,7 @@ import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
+import { reportError } from "./services/monitoring";
 import { config } from "./config/env";
 
 export interface AppOptions {
@@ -111,9 +112,15 @@ export function createApp(options: AppOptions): express.Express {
     res.status(404).json({ error: "Not found" });
   });
 
-  // Error handler — catch any unhandled errors from route handlers
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Error handler — catch any unhandled errors from route handlers. Logs
+  // locally and forwards to Sentry (no-op when monitoring is disabled).
+  app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error(err);
+    reportError(err, {
+      path: req.path,
+      method: req.method,
+      userId: req.userId,
+    });
     res.status(500).json({ error: "Internal server error" });
   });
 

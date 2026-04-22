@@ -93,6 +93,7 @@ const sampleTrip: Trip = {
   shares: [],
   createdAt: "2025-08-18T21:08:00.000Z",
   updatedAt: "2025-08-18T21:08:00.000Z",
+  schemaVersion: 1,
 };
 
 describe("tripToMarkdown", () => {
