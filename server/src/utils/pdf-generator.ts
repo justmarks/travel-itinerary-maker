@@ -35,9 +35,11 @@ function formatSegmentDetails(segment: Segment): string {
   switch (segment.type) {
     case "flight":
     case "train": {
+      // em-dash renders reliably in WinAnsi (PDFKit's default encoding for
+      // Helvetica); a Unicode arrow (U+2192) does not and prints as garbage.
       const route = [segment.departureCity, segment.arrivalCity]
         .filter(Boolean)
-        .join(" → ");
+        .join(" — ");
       const carrier = formatFlightLabel(segment);
       parts.push(carrier || segment.title);
       if (route) parts.push(route);
@@ -214,7 +216,7 @@ export function generateTripPdf(
       .fontSize(12)
       .font("Helvetica")
       .fillColor(MID_GRAY)
-      .text(`${trip.startDate}  →  ${trip.endDate}`);
+      .text(`${trip.startDate}  —  ${trip.endDate}`);
     doc.fillColor("black").moveDown(1.2);
 
     // Horizontal rule
@@ -330,33 +332,50 @@ export function generateTripPdf(
         doc.fillColor("black");
         doc.y = headerY + 20;
 
+        // Row padding above and below text inside each cell.
+        const CELL_PAD_Y = 4;
+
         costItems.forEach((item, i) => {
-          ensureSpace(doc, 20);
+          // Measure each column's wrapped height so rows grow to fit the
+          // tallest cell. The old fixed 16px row height caused wrapped
+          // text to render below the background and spill onto later
+          // pages as orphan fragments.
+          doc.fontSize(8.5).font("Helvetica");
+          const descText = item.description;
+          const costText = formatCurrency(item.amount, item.currency);
+          const detailsText = item.details || "—";
+          const descH = doc.heightOfString(descText, { width: colDesc - 6 });
+          const costH = doc.heightOfString(costText, { width: colCost - 6 });
+          const detailsH = doc.heightOfString(detailsText, {
+            width: colDetails - 6,
+          });
+          const rowHeight =
+            Math.max(descH, costH, detailsH, 10) + CELL_PAD_Y * 2;
+
+          ensureSpace(doc, rowHeight);
           const rowY = doc.y;
           const bg = i % 2 === 0 ? "white" : LIGHT_GRAY;
-          doc.rect(PAGE_MARGIN, rowY, CONTENT_WIDTH, 16).fill(bg);
+          doc.rect(PAGE_MARGIN, rowY, CONTENT_WIDTH, rowHeight).fill(bg);
           doc
             .fillColor("black")
             .fontSize(8.5)
             .font("Helvetica")
-            .text(item.description, PAGE_MARGIN + 6, rowY + 3, {
+            .text(descText, PAGE_MARGIN + 6, rowY + CELL_PAD_Y, {
               width: colDesc - 6,
-              lineBreak: false,
-              ellipsis: true,
             })
             .text(
-              formatCurrency(item.amount, item.currency),
+              costText,
               PAGE_MARGIN + colDesc + 6,
-              rowY + 3,
-              { width: colCost - 6, lineBreak: false },
+              rowY + CELL_PAD_Y,
+              { width: colCost - 6 },
             )
             .text(
-              item.details || "—",
+              detailsText,
               PAGE_MARGIN + colDesc + colCost + 6,
-              rowY + 3,
-              { width: colDetails - 6, lineBreak: false, ellipsis: true },
+              rowY + CELL_PAD_Y,
+              { width: colDetails - 6 },
             );
-          doc.y = rowY + 16;
+          doc.y = rowY + rowHeight;
         });
 
         // Totals row

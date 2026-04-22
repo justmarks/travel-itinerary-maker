@@ -1474,6 +1474,30 @@ export class MockApiClient extends ApiClient {
       includeCosts: true,
       includeTodos: true,
     });
-    return new Blob([html], { type: "text/html" });
+    // Demo mode has no backend and we don't want to ship a browser PDF
+    // library for one feature, so open the printable HTML in a new tab
+    // and let the browser's "Save as PDF" produce a real PDF. This
+    // replaces the old behaviour of returning an HTML blob with a .pdf
+    // filename, which downloaded a file Adobe / Preview / Chrome refused
+    // to open.
+    if (typeof window !== "undefined") {
+      const w = window.open("", "_blank");
+      if (!w) {
+        throw new Error(
+          "Couldn't open the print window — please allow popups for this site.",
+        );
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      // Trigger print once the new document has laid out.
+      w.addEventListener("load", () => {
+        w.focus();
+        w.print();
+      });
+    }
+    // Return an empty PDF-typed blob so the existing download flow is a
+    // no-op. The actual "download" is the print-to-PDF dialog above.
+    return new Blob([], { type: "application/pdf" });
   }
 }

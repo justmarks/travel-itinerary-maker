@@ -296,6 +296,10 @@ function downloadBlob(content: string, filename: string, mimeType: string) {
 }
 
 function downloadBlobDirect(blob: Blob, filename: string) {
+  // Empty blob is a sentinel meaning the export was handled another way
+  // (e.g. demo mode opens the print-to-PDF dialog directly). Skip the
+  // download so the user doesn't get a 0-byte file.
+  if (blob.size === 0) return;
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
