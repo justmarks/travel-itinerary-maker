@@ -15,6 +15,7 @@ import { Plus } from "lucide-react";
 import {
   SegmentFormFields,
   EMPTY_FORM_STATE,
+  defaultEndDate,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 
@@ -72,15 +73,16 @@ export function AddSegmentDialog({
         partySize: form.partySize ? parseInt(form.partySize, 10) : undefined,
         creditCardHold: form.creditCardHold || undefined,
         // For multi-day segment types (hotel, car rental, cruise), default the
-        // end date to the start date when the user leaves it blank — matches
-        // what the form visibly shows and saves the user a click for same-day
-        // stays / one-day rentals.
+        // end date when the user leaves it blank — matches what the form
+        // visibly shows. Hotel gets start+1 (typical one-night stay), cruise
+        // gets start+3 (typical minimum cruise length), car rental gets the
+        // start date (same-day return).
         endDate:
           form.endDate ||
           (form.type === "hotel" ||
           form.type === "car_rental" ||
           form.type === "cruise"
-            ? form.date || date
+            ? defaultEndDate(form.type, form.date || date)
             : undefined),
         cabinClass: form.cabinClass || undefined,
         baggageInfo: form.baggageInfo || undefined,

@@ -1,6 +1,7 @@
 import {
   getDayOfWeek,
   generateDateRange,
+  addDays,
   isDateInRange,
   dateRangesOverlap,
   findOverlappingTrips,
@@ -16,6 +17,36 @@ describe("getDayOfWeek", () => {
 
   it("handles leap year", () => {
     expect(getDayOfWeek("2024-02-29")).toBe("Thu");
+  });
+});
+
+describe("addDays", () => {
+  it("adds positive days", () => {
+    expect(addDays("2026-04-21", 1)).toBe("2026-04-22");
+    expect(addDays("2026-04-21", 3)).toBe("2026-04-24");
+  });
+
+  it("handles month boundary", () => {
+    expect(addDays("2026-04-30", 1)).toBe("2026-05-01");
+    expect(addDays("2026-01-31", 1)).toBe("2026-02-01");
+  });
+
+  it("handles year boundary", () => {
+    expect(addDays("2025-12-31", 1)).toBe("2026-01-01");
+  });
+
+  it("handles leap year", () => {
+    expect(addDays("2024-02-28", 1)).toBe("2024-02-29");
+    expect(addDays("2024-02-29", 1)).toBe("2024-03-01");
+  });
+
+  it("supports negative offsets", () => {
+    expect(addDays("2026-04-21", -1)).toBe("2026-04-20");
+  });
+
+  it("returns input unchanged for empty / invalid strings", () => {
+    expect(addDays("", 1)).toBe("");
+    expect(addDays("not-a-date", 1)).toBe("not-a-date");
   });
 });
 
