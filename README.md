@@ -12,18 +12,18 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 - **Day-by-day itinerary view** — inline segment cards with editing, per-segment costs, and confirmation codes
 - **Timeline view** — Hipmunk-style Gantt grid; toggle between swimlane rows (Transport / Hotel / Activities / Dining) and a single chronological row; hotel stays render as spanning bars; prints cleanly
+- **Map view** — plot hotels, dining, activities, and transport endpoints as pins on an interactive Google Map; KML export for sharing with Google My Maps
 - **Google OAuth** — sign in with your Google account; no separate credentials needed
 - **Google Drive storage** — trip data stored as JSON in your own Drive (you own your data)
-- **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs
+- **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs; one-click "Confirm all" for a whole batch of auto-parsed segments
 - **Embedded costs** — each segment card shows cost and booking details inline, with a dedicated Costs tab
 - **TODO tracking** — categorized checklist for meals, activities, research, and logistics
-- **Google Calendar sync** — push trip segments to Google Calendar as events; re-sync updates existing events; unsync removes them
 - **Sharing** — generate share links with configurable visibility (costs, TODOs)
 - **Export** — download itineraries as Markdown, OneNote-compatible HTML, or PDF
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 - **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same Claude parser (unblocks non-Gmail users)
-- **XLSX import** — one-shot import a complete trip from a OneNote-exported workbook (itinerary + costs sheets)
+- **XLSX import** — one-shot import a complete trip from a OneNote-exported workbook; auto-detects column layouts (B=date vs. C=date) and parses the Costs sheet, attaching costs to matching lodging segments
 
 ## Tech Stack
 
@@ -35,8 +35,8 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 | Shared packages | Zod validators · TanStack React Query · typed API client |
 | Auth | Google OAuth (auth-code flow) |
 | Monorepo | pnpm 10 workspaces · Turborepo |
-| CI/CD | GitHub Actions · auto version bumping |
-| Hosting | Vercel (web) · Railway (API) — all free tier |
+| CI/CD | GitHub Actions · auto version bumping · GitHub Pages deploy |
+| Hosting | GitHub Pages (web, static export) · Railway (API) — all free tier |
 
 ## Project Structure
 
@@ -113,12 +113,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **341 tests** across 17 test suites.
+Current coverage: **379 tests** across 18 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 130 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, ID generation, segment label formatting, overlap detection, segment matching |
-| `server` | 211 | Trip + segment + todo CRUD, sharing, costs, export, email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (parser + year-hint inference + year shift + import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults), DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 140 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, ID generation, segment label formatting, overlap detection, segment matching |
+| `server` | 239 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -175,6 +175,7 @@ Base URL: `/api/v1`
 | `PUT` | `/trips/:id/segments/:segId` | Update a segment |
 | `DELETE` | `/trips/:id/segments/:segId` | Delete a segment |
 | `POST` | `/trips/:id/segments/:segId/confirm` | Mark an auto-parsed segment as reviewed |
+| `POST` | `/trips/:id/segments/confirm-all` | Confirm all pending auto-parsed segments on a trip in one call |
 | `GET` | `/trips/:id/costs` | Aggregated cost summary (USD-normalized) |
 | `POST` | `/trips/:id/todos` | Add a TODO |
 | `PUT` | `/trips/:id/todos/:todoId` | Update a TODO |
@@ -185,6 +186,7 @@ Base URL: `/api/v1`
 | `GET` | `/shared/:token` | View a shared trip (public) |
 | `GET` | `/trips/:id/export/markdown` | Export as Markdown |
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
+| `GET` | `/trips/:id/export/pdf` | Export as PDF (pdfkit; day-by-day + costs summary) |
 | `GET` | `/emails/labels` | List Gmail labels for scan filtering |
 | `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
 | `POST` | `/emails/import-html` | Parse a raw HTML email through the same Claude pipeline |
@@ -266,15 +268,16 @@ The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedi
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
 - [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
 - [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
-- [x] **Phase 6** — UX & export: PDF export (pdfkit), Google Calendar sync (create/update/delete), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready)
+- [x] **Phase 6** — UX & export: PDF export (pdfkit), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready), Map tab (Google Maps pins + KML export)
 - [x] **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
+- [x] **Multi-layout XLSX import** — auto-detects column layouts (B=date vs. C=date, with day-of-month carry-forward for week-grouped workbooks)
 
 **Up next:**
 
+- [ ] **Google Calendar sync** — push trip segments to Google Calendar as events; re-sync updates existing events; unsync removes them (implementation exists on a feature branch, pending merge)
 - [ ] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
-- [ ] **Map view tab** — plot hotels, activities, and restaurants as pins on an interactive map; draw routes between transport segments; reuses existing city/address data on segments
 - [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
 - [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
