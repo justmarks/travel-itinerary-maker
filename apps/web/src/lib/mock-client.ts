@@ -1,5 +1,5 @@
 import { ApiClient } from "@travel-app/api-client";
-import { convertToUsd } from "@travel-app/shared";
+import { convertToUsd, applyCruisePortsToDayCities } from "@travel-app/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
@@ -1415,6 +1415,8 @@ export class MockApiClient extends ApiClient {
         baggageInfo: seg.baggageInfo,
         contactName: seg.contactName,
         phone: seg.phone,
+        endDate: seg.endDate,
+        portsOfCall: seg.portsOfCall,
         breakfastIncluded: seg.breakfastIncluded,
         cost: seg.cost,
         source: "email_auto",
@@ -1423,6 +1425,13 @@ export class MockApiClient extends ApiClient {
         sortOrder: day.segments.length,
       });
       created.push({ tripId: seg.tripId, segmentId, title: seg.title });
+    }
+    // Cruise per-day port override: update each affected trip's days so the
+    // cities line up with the ship's ports of call (mirrors the server path).
+    const touchedTripIds = new Set(input.segments.map((s) => s.tripId));
+    for (const tid of touchedTripIds) {
+      const trip = this.trips.get(tid);
+      if (trip) applyCruisePortsToDayCities(trip);
     }
     return Promise.resolve({ created });
   }
