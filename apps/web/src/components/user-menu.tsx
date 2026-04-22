@@ -35,6 +35,11 @@ export function UserMenu() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2">
           {user.picture ? (
+            // Google OAuth avatar — a tiny 24px image from an arbitrary
+            // Google CDN host. Next/Image would require whitelisting
+            // lh*.googleusercontent.com in next.config and provides
+            // negligible benefit at this size.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.picture}
               alt=""

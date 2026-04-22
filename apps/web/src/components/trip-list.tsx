@@ -6,37 +6,34 @@ import { TripCard } from "./trip-card";
 import { Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-function todayISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 export function TripList() {
   const { data: trips, isLoading, error } = useTrips();
-  const [showPast, setShowPast] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
-  const today = useMemo(() => todayISO(), []);
-
-  const isPast = useCallback(
-    (t: { endDate: string; status: string }) =>
-      t.status === "completed" || t.endDate < today,
-    [today],
+  // A trip is "completed" for the purposes of this toggle when its status
+  // is explicitly completed or cancelled. End-date is NOT part of the
+  // rule — an upcoming trip with status=planning stays visible even if
+  // the user never gets around to closing it out, and a trip marked
+  // completed a day early is still hidden.
+  const isCompleted = useCallback(
+    (t: { status: string }) =>
+      t.status === "completed" || t.status === "cancelled",
+    [],
   );
 
-  const pastCount = useMemo(
-    () => trips?.filter(isPast).length ?? 0,
-    [trips, isPast],
+  const completedCount = useMemo(
+    () => trips?.filter(isCompleted).length ?? 0,
+    [trips, isCompleted],
   );
 
   const visibleTrips = useMemo(() => {
     if (!trips) return [];
-    const filtered = showPast ? trips : trips.filter((t) => !isPast(t));
+    const filtered = showCompleted
+      ? trips
+      : trips.filter((t) => !isCompleted(t));
     // Ascending by startDate (ISO YYYY-MM-DD sorts lexicographically)
     return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [trips, showPast, isPast]);
+  }, [trips, showCompleted, isCompleted]);
 
   if (isLoading) {
     return (
@@ -80,10 +77,10 @@ export function TripList() {
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <Plane className="mb-4 h-12 w-12 text-muted-foreground/50" />
           <h3 className="text-lg font-medium">No upcoming trips</h3>
-          {pastCount > 0 && (
+          {completedCount > 0 && (
             <p className="mt-1 text-sm text-muted-foreground">
-              You have {pastCount} past {pastCount === 1 ? "trip" : "trips"}{" "}
-              hidden.
+              You have {completedCount} completed{" "}
+              {completedCount === 1 ? "trip" : "trips"} hidden.
             </p>
           )}
         </div>
@@ -95,16 +92,16 @@ export function TripList() {
         </div>
       )}
 
-      {pastCount > 0 && (
+      {completedCount > 0 && (
         <div className="flex justify-center pt-2">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowPast((v) => !v)}
+            onClick={() => setShowCompleted((v) => !v)}
           >
-            {showPast
-              ? `Hide past trips (${pastCount})`
-              : `Show past trips (${pastCount})`}
+            {showCompleted
+              ? `Hide completed trips (${completedCount})`
+              : `Show completed trips (${completedCount})`}
           </Button>
         </div>
       )}
