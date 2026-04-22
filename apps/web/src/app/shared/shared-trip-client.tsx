@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import { useSharedTrip } from "@travel-app/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { Calendar, MapPin, Plane } from "lucide-react";
@@ -11,12 +10,7 @@ function formatDateRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export default function SharedTripClient({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = use(params);
+export default function SharedTripClient({ token }: { token: string }) {
   const { data: trip, isLoading, error } = useSharedTrip(token);
 
   if (isLoading) {

@@ -70,5 +70,7 @@ export function useDemoMode(): boolean {
  */
 export function useDemoHref(path: string): string {
   const isDemo = useDemoMode();
-  return isDemo ? `${path}?demo=true` : path;
+  if (!isDemo) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}demo=true`;
 }

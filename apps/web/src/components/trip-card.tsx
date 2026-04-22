@@ -58,7 +58,7 @@ export function TripCard({ trip }: { trip: TripSummary }) {
   const updateTrip = useUpdateTrip(trip.id);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(trip.title);
-  const tripHref = useDemoHref(`/trips/${trip.id}`);
+  const tripHref = useDemoHref(`/trips/?id=${trip.id}`);
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
