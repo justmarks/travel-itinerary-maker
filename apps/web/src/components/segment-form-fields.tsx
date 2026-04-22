@@ -234,8 +234,11 @@ export function SegmentFormFields({
   //   cruises (the cruise line shows in the title/carrier)
   //   shows (ticket issuer rarely relevant)
   //   other transport (keep the card minimal — just from/to/time)
+  //   restaurants (you don't "book a meal through a provider" — the venue
+  //     is the restaurant; OpenTable/Resy are booking tools, not what
+  //     people want to record on an itinerary)
   const showProvider =
-    !isFlight && !isTrain && !isHotel && !isShow && !isCruise && !isOtherTransport;
+    !isFlight && !isTrain && !isHotel && !isShow && !isCruise && !isOtherTransport && !isRestaurant;
 
   return (
     <div className="space-y-4">

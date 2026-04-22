@@ -137,15 +137,21 @@ export function EditSegmentDialog({
       updates.address = form.address || undefined;
       updates.city = form.city || undefined;
       // Provider surfaces on the form for car rental, car service, activity,
-      // tour, and restaurants — match that here so a hotel/show/train/cruise/
-      // other-transport edit can't accidentally reinstate a provider the
-      // form no longer shows.
+      // and tour — match that here so any type whose form no longer shows
+      // provider can't accidentally reinstate a stale value on save.
+      // Restaurants are included in hidesProvider (rather than relying on
+      // the field being blank) so switching an existing segment *to*
+      // restaurant actively clears any provider carried over from the
+      // previous type.
       const hidesProvider =
         flags.isHotel ||
         flags.isShow ||
         flags.isTrain ||
+        flags.isRestaurant ||
         (flags.isTransport && !flags.isFlight && !flags.isTrain);
-      if (!hidesProvider) {
+      if (hidesProvider) {
+        updates.provider = undefined;
+      } else {
         updates.provider = form.provider || undefined;
       }
     }
