@@ -11,6 +11,63 @@ interface PdfOptions {
   includeTodos?: boolean;
 }
 
+// ─── Text sanitization ───────────────────────────────────────────────────────
+//
+// PDFKit's built-in Helvetica uses WinAnsi encoding, which supports a limited
+// Unicode range. Common glyphs users type (→, ✓, curly quotes) render as
+// garbled symbols like `!'` if passed through. Strip or substitute known
+// problem glyphs before handing strings to `.text()`.
+
+const SANITIZE_MAP: Record<string, string> = {
+  "\u2192": "—", // → right arrow
+  "\u2190": "—", // ← left arrow
+  "\u2194": "—", // ↔ left-right arrow
+  "\u2713": "[x]", // ✓ check
+  "\u2714": "[x]", // ✔ heavy check
+  "\u2717": "[ ]", // ✗ ballot x
+  "\u2718": "[ ]", // ✘ heavy ballot x
+  "\u2610": "[ ]", // ☐ empty checkbox
+  "\u2611": "[x]", // ☑ checked checkbox
+  "\u2612": "[x]", // ☒ crossed checkbox
+  "\u2022": "·", // • bullet → middle dot (which IS in WinAnsi)
+  "\u2018": "'", // left single quote
+  "\u2019": "'", // right single quote
+  "\u201c": '"', // left double quote
+  "\u201d": '"', // right double quote
+  "\u2026": "...", // … horizontal ellipsis
+};
+
+export function sanitizeForPdf(s: string): string {
+  if (!s) return s;
+  return s.replace(/[\u2192\u2190\u2194\u2713\u2714\u2717\u2718\u2610\u2611\u2612\u2022\u2018\u2019\u201c\u201d\u2026]/g, (ch) => SANITIZE_MAP[ch] ?? ch);
+}
+
+/**
+ * Compose the cost-summary "Item" column text for a single cost row.
+ *
+ * Mirrors the web UX in apps/web/src/components/trip-costs.tsx:
+ *   - `primary`: "{City}: {Category}" when a city is known, else just the
+ *     category label. Rendered in bold.
+ *   - `subtitle`: the segment title (if it adds information beyond the
+ *     category label — i.e. not the exact same string, case-insensitive).
+ *     Rendered in muted gray below the primary. Empty when it would just
+ *     repeat the category.
+ *
+ * Exported for unit testing; the PDF renderer uses it inline.
+ */
+export function formatCostItemDescription(
+  item: Pick<CostSummaryItem, "category" | "city" | "description">,
+): { primary: string; subtitle: string } {
+  const catLabel = SEGMENT_LABELS[item.category] ?? item.category;
+  const primary = item.city ? `${item.city}: ${catLabel}` : catLabel;
+  const subtitle =
+    item.description &&
+    item.description.trim().toLowerCase() !== catLabel.toLowerCase()
+      ? item.description
+      : "";
+  return { primary, subtitle };
+}
+
 // ─── Segment formatting ──────────────────────────────────────────────────────
 
 const SEGMENT_LABELS: Record<string, string> = {
@@ -35,9 +92,11 @@ function formatSegmentDetails(segment: Segment): string {
   switch (segment.type) {
     case "flight":
     case "train": {
+      // em-dash renders reliably in WinAnsi (PDFKit's default encoding for
+      // Helvetica); a Unicode arrow (U+2192) does not and prints as garbage.
       const route = [segment.departureCity, segment.arrivalCity]
         .filter(Boolean)
-        .join(" → ");
+        .join(" — ");
       const carrier = formatFlightLabel(segment);
       parts.push(carrier || segment.title);
       if (route) parts.push(route);
@@ -89,7 +148,7 @@ function formatSegmentDetails(segment: Segment): string {
     }
   }
 
-  return parts.join("  ·  ");
+  return sanitizeForPdf(parts.join("  ·  "));
 }
 
 // ─── Layout helpers ──────────────────────────────────────────────────────────
@@ -124,34 +183,49 @@ function drawSegmentRow(
   costStr: string | null,
   rowIndex: number,
 ): void {
+  // Row grows to fit wrapped text in the tallest column. A fixed row height
+  // caused wrapped 2nd lines to paint below the row background and get
+  // visually clipped by the following row's zebra stripe.
+  const CELL_PAD_Y = 4;
+  const labelWidth = 80;
+  const costWidth = costStr ? 80 : 0;
+  const detailsX = PAGE_MARGIN + SEGMENT_INDENT + labelWidth;
+  const detailsWidth =
+    CONTENT_WIDTH - SEGMENT_INDENT - labelWidth - costWidth;
+
+  // Measure each column's wrapped height with the font settings we'll
+  // actually render with.
+  doc.fontSize(8.5).font("Helvetica-Bold");
+  const labelH = doc.heightOfString(typeLabel, { width: labelWidth });
+  doc.font("Helvetica");
+  const detailsH = doc.heightOfString(details, { width: detailsWidth });
+  const costH = costStr
+    ? doc.heightOfString(costStr, { width: costWidth })
+    : 0;
+
+  const rowHeight = Math.max(labelH, detailsH, costH, 10) + CELL_PAD_Y * 2;
   const y = doc.y;
-  const rowHeight = 18;
   const bgColor = rowIndex % 2 === 0 ? "white" : LIGHT_GRAY;
 
   doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, rowHeight).fill(bgColor);
 
   // Type label (bold, fixed width)
-  const labelWidth = 80;
   doc
     .fillColor(HEADER_COLOR)
     .fontSize(8.5)
     .font("Helvetica-Bold")
-    .text(typeLabel, PAGE_MARGIN + SEGMENT_INDENT, y + 4, {
+    .text(typeLabel, PAGE_MARGIN + SEGMENT_INDENT, y + CELL_PAD_Y, {
       width: labelWidth,
-      lineBreak: false,
+      align: "left",
     });
 
-  // Details
-  const detailsX = PAGE_MARGIN + SEGMENT_INDENT + labelWidth;
-  const costWidth = costStr ? 80 : 0;
-  const detailsWidth = CONTENT_WIDTH - SEGMENT_INDENT - labelWidth - costWidth;
+  // Details (may wrap)
   doc
     .fillColor("black")
     .font("Helvetica")
-    .text(details, detailsX, y + 4, {
+    .text(details, detailsX, y + CELL_PAD_Y, {
       width: detailsWidth,
-      lineBreak: false,
-      ellipsis: true,
+      align: "left",
     });
 
   // Cost (right-aligned)
@@ -159,15 +233,15 @@ function drawSegmentRow(
     doc
       .fillColor(MID_GRAY)
       .font("Helvetica")
-      .text(costStr, PAGE_MARGIN + CONTENT_WIDTH - costWidth, y + 4, {
+      .text(costStr, PAGE_MARGIN + CONTENT_WIDTH - costWidth, y + CELL_PAD_Y, {
         width: costWidth,
-        lineBreak: false,
         align: "right",
       });
   }
 
   doc.fillColor("black");
   doc.y = y + rowHeight;
+  doc.x = PAGE_MARGIN;
 }
 
 function ensureSpace(
@@ -204,17 +278,18 @@ export function generateTripPdf(
     doc.on("error", reject);
 
     // ── Cover / title ────────────────────────────────────────────────────────
+    doc.x = PAGE_MARGIN;
     doc
       .fontSize(26)
       .font("Helvetica-Bold")
       .fillColor(HEADER_COLOR)
-      .text(trip.title, { align: "left" });
+      .text(sanitizeForPdf(trip.title), { align: "left" });
     doc.moveDown(0.3);
     doc
       .fontSize(12)
       .font("Helvetica")
       .fillColor(MID_GRAY)
-      .text(`${trip.startDate}  →  ${trip.endDate}`);
+      .text(`${trip.startDate}  —  ${trip.endDate}`, { align: "left" });
     doc.fillColor("black").moveDown(1.2);
 
     // Horizontal rule
@@ -227,11 +302,12 @@ export function generateTripPdf(
     doc.moveDown(0.8);
 
     // ── Itinerary ────────────────────────────────────────────────────────────
+    doc.x = PAGE_MARGIN;
     doc
       .fontSize(14)
       .font("Helvetica-Bold")
       .fillColor(HEADER_COLOR)
-      .text("Itinerary");
+      .text("Itinerary", { align: "left" });
     doc.fillColor("black").moveDown(0.5);
 
     for (const day of trip.days) {
@@ -239,7 +315,9 @@ export function generateTripPdf(
       const estimatedHeight = 26 + segCount * 18 + 8;
       ensureSpace(doc, estimatedHeight);
 
-      const dayLabel = `${day.dayOfWeek}  ·  ${day.date}${day.city ? "  —  " + day.city : ""}`;
+      const dayLabel = sanitizeForPdf(
+        `${day.dayOfWeek}  ·  ${day.date}${day.city ? "  —  " + day.city : ""}`,
+      );
       drawDayHeader(doc, dayLabel);
 
       const sorted = [...day.segments].sort(
@@ -275,11 +353,13 @@ export function generateTripPdf(
           if (seg.cost) {
             costItems.push({
               category: seg.type,
-              description: seg.title,
+              description: sanitizeForPdf(seg.title),
               city: seg.city || day.city,
               amount: seg.cost.amount,
               currency: seg.cost.currency,
-              details: seg.cost.details,
+              details: seg.cost.details
+                ? sanitizeForPdf(seg.cost.details)
+                : seg.cost.details,
               segmentId: seg.id,
             });
           }
@@ -298,11 +378,16 @@ export function generateTripPdf(
           .stroke();
         doc.moveDown(0.8);
 
+        // Reset x explicitly — the preceding segment row's right-aligned
+        // cost column leaves PDFKit's alignment context pinned to "right",
+        // which would otherwise cause this heading to stack vertically on
+        // the right margin instead of rendering left-aligned.
+        doc.x = PAGE_MARGIN;
         doc
           .fontSize(14)
           .font("Helvetica-Bold")
           .fillColor(HEADER_COLOR)
-          .text("Cost Summary");
+          .text("Cost Summary", { align: "left" });
         doc.fillColor("black").moveDown(0.5);
 
         // Table header
@@ -330,33 +415,88 @@ export function generateTripPdf(
         doc.fillColor("black");
         doc.y = headerY + 20;
 
+        // Row padding above and below text inside each cell.
+        const CELL_PAD_Y = 4;
+        // Vertical gap between the bold primary line and the muted
+        // subtitle in the Item column.
+        const SUBTITLE_GAP = 1;
+
         costItems.forEach((item, i) => {
-          ensureSpace(doc, 20);
+          // The Item column mirrors the web cost card:
+          //   Line 1 (bold):   "{City}: {Category}"   e.g. "Palermo: Car Rental"
+          //   Line 2 (muted):  seg.title              e.g. "Hertz at CTA airport"
+          // See formatCostItemDescription() for the showSubtitle rule.
+          const { primary: primaryText, subtitle: subtitleText } =
+            formatCostItemDescription(item);
+          const costText = formatCurrency(item.amount, item.currency);
+          const detailsText = item.details || "—";
+
+          // Measure each column's wrapped height so rows grow to fit the
+          // tallest cell. The old fixed 16px row height caused wrapped
+          // text to render below the background and spill onto later
+          // pages as orphan fragments.
+          doc.fontSize(8.5).font("Helvetica-Bold");
+          const primaryH = doc.heightOfString(primaryText, {
+            width: colDesc - 6,
+          });
+          doc.font("Helvetica");
+          const subtitleH = subtitleText
+            ? doc.heightOfString(subtitleText, { width: colDesc - 6 })
+            : 0;
+          const descH =
+            primaryH + (subtitleText ? subtitleH + SUBTITLE_GAP : 0);
+          const costH = doc.heightOfString(costText, { width: colCost - 6 });
+          const detailsH = doc.heightOfString(detailsText, {
+            width: colDetails - 6,
+          });
+          const rowHeight =
+            Math.max(descH, costH, detailsH, 10) + CELL_PAD_Y * 2;
+
+          ensureSpace(doc, rowHeight);
           const rowY = doc.y;
           const bg = i % 2 === 0 ? "white" : LIGHT_GRAY;
-          doc.rect(PAGE_MARGIN, rowY, CONTENT_WIDTH, 16).fill(bg);
+          doc.rect(PAGE_MARGIN, rowY, CONTENT_WIDTH, rowHeight).fill(bg);
+
+          // Item column — primary (bold) + optional subtitle (muted)
           doc
             .fillColor("black")
             .fontSize(8.5)
-            .font("Helvetica")
-            .text(item.description, PAGE_MARGIN + 6, rowY + 3, {
+            .font("Helvetica-Bold")
+            .text(primaryText, PAGE_MARGIN + 6, rowY + CELL_PAD_Y, {
               width: colDesc - 6,
-              lineBreak: false,
-              ellipsis: true,
-            })
+            });
+          if (subtitleText) {
+            doc
+              .fillColor(MID_GRAY)
+              .font("Helvetica")
+              .text(
+                subtitleText,
+                PAGE_MARGIN + 6,
+                rowY + CELL_PAD_Y + primaryH + SUBTITLE_GAP,
+                { width: colDesc - 6 },
+              );
+          }
+
+          // Cost column
+          doc
+            .fillColor("black")
+            .font("Helvetica")
+            .text(costText, PAGE_MARGIN + colDesc + 6, rowY + CELL_PAD_Y, {
+              width: colCost - 6,
+            });
+
+          // Details column
+          doc
+            .fillColor("black")
+            .font("Helvetica")
             .text(
-              formatCurrency(item.amount, item.currency),
-              PAGE_MARGIN + colDesc + 6,
-              rowY + 3,
-              { width: colCost - 6, lineBreak: false },
-            )
-            .text(
-              item.details || "—",
+              detailsText,
               PAGE_MARGIN + colDesc + colCost + 6,
-              rowY + 3,
-              { width: colDetails - 6, lineBreak: false, ellipsis: true },
+              rowY + CELL_PAD_Y,
+              { width: colDetails - 6 },
             );
-          doc.y = rowY + 16;
+
+          doc.y = rowY + rowHeight;
         });
 
         // Totals row
@@ -366,12 +506,17 @@ export function generateTripPdf(
           .join("  +  ");
 
         doc.moveDown(0.4);
+        doc.x = PAGE_MARGIN;
         doc
           .fontSize(9)
           .font("Helvetica-Bold")
           .fillColor(HEADER_COLOR)
-          .text(`Total: ${totalStr}`, { align: "right" });
+          .text(`Total: ${totalStr}`, PAGE_MARGIN, doc.y, {
+            width: CONTENT_WIDTH,
+            align: "right",
+          });
         doc.fillColor("black");
+        doc.x = PAGE_MARGIN;
       }
     }
 
@@ -388,11 +533,12 @@ export function generateTripPdf(
         .stroke();
       doc.moveDown(0.8);
 
+      doc.x = PAGE_MARGIN;
       doc
         .fontSize(14)
         .font("Helvetica-Bold")
         .fillColor(HEADER_COLOR)
-        .text("TODO");
+        .text("TODO", { align: "left" });
       doc.fillColor("black").moveDown(0.5);
 
       const sorted = [...trip.todos].sort(
@@ -400,16 +546,21 @@ export function generateTripPdf(
       );
       for (const todo of sorted) {
         ensureSpace(doc, 16);
-        const check = todo.isCompleted ? "☑" : "☐";
-        const category = todo.category ? `  (${todo.category})` : "";
+        // ☑/☐ are outside WinAnsi and render as garbage in PDFKit's
+        // default Helvetica; use ASCII equivalents.
+        const check = todo.isCompleted ? "[x]" : "[ ]";
+        const category = todo.category
+          ? `  (${sanitizeForPdf(todo.category)})`
+          : "";
         doc
           .fontSize(9)
           .font("Helvetica")
           .fillColor(todo.isCompleted ? MID_GRAY : "black")
           .text(
-            `${check}  ${todo.text}${category}`,
+            `${check}  ${sanitizeForPdf(todo.text)}${category}`,
             PAGE_MARGIN + 8,
             doc.y,
+            { align: "left" },
           );
       }
       doc.fillColor("black");
