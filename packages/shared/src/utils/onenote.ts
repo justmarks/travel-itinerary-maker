@@ -22,6 +22,16 @@ function formatSegmentCell(segment: Segment): string {
       if (segment.confirmationCode) parts.push(`#${segment.confirmationCode}`);
       break;
     }
+    case "cruise": {
+      parts.push(segment.title);
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      if (route) parts.push(route);
+      if (segment.startTime) parts.push(segment.startTime);
+      if (segment.confirmationCode) parts.push(`#${segment.confirmationCode}`);
+      break;
+    }
     case "hotel":
     case "car_rental":
     case "car_service":
@@ -43,7 +53,6 @@ function formatSegmentCell(segment: Segment): string {
     }
     case "activity":
     case "tour":
-    case "cruise":
     case "show":
     default: {
       parts.push(segment.venueName || segment.title);
