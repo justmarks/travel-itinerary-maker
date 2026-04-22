@@ -117,7 +117,7 @@ export function XlsxImportDialog({
         onSuccess: (response) => {
           setOpen(false);
           resetState();
-          router.push(`/trips/${response.trip.id}`);
+          router.push(`/trips/?id=${response.trip.id}`);
         },
         onError: (error) => {
           if (error instanceof ApiError) {

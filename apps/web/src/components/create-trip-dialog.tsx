@@ -47,7 +47,9 @@ export function CreateTripDialog() {
           setEndDate("");
           setOverlapError(null);
           router.push(
-            isDemo ? `/trips/${trip.id}?demo=true` : `/trips/${trip.id}`,
+            isDemo
+              ? `/trips/?id=${trip.id}&demo=true`
+              : `/trips/?id=${trip.id}`,
           );
         },
         onError: (error) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   useTrip,
@@ -395,12 +395,7 @@ const TAB_LABELS: Record<Tab, string> = {
   todos:     "To-do",
 };
 
-export default function TripDetailClient({
-  params,
-}: {
-  params: Promise<{ tripId: string }>;
-}) {
-  const { tripId } = use(params);
+export default function TripDetailClient({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, error } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
