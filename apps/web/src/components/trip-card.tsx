@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { TripSummary } from "@travel-app/api-client";
+import type { TripStatus } from "@travel-app/shared";
 import { useDemoHref } from "@/lib/demo";
 import { useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardHeader,
@@ -35,8 +37,21 @@ const statusColors: Record<string, string> = {
   planning: "bg-blue-100 text-blue-800",
   active: "bg-green-100 text-green-800",
   completed: "bg-gray-100 text-gray-800",
-  archived: "bg-yellow-100 text-yellow-800",
+  cancelled: "bg-red-100 text-red-700",
 };
+
+/** Order the status chip cycles through on click. */
+const STATUS_CYCLE: TripStatus[] = [
+  "planning",
+  "active",
+  "completed",
+  "cancelled",
+];
+
+function nextStatus(current: string): TripStatus {
+  const idx = STATUS_CYCLE.indexOf(current as TripStatus);
+  return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+}
 
 function formatDateRange(start: string, end: string): string {
   const s = new Date(start + "T00:00:00");
@@ -73,6 +88,14 @@ export function TripCard({ trip }: { trip: TripSummary }) {
     if (trimmed !== trip.title) {
       updateTrip.mutate({ title: trimmed });
     }
+  };
+
+  const cycleStatus = (e: React.MouseEvent) => {
+    // The card is wrapped in a <Link> overlay; stop propagation so clicking
+    // the chip doesn't also navigate into the trip.
+    e.preventDefault();
+    e.stopPropagation();
+    updateTrip.mutate({ status: nextStatus(trip.status) });
   };
 
   return (
@@ -172,8 +195,16 @@ export function TripCard({ trip }: { trip: TripSummary }) {
           {formatDateRange(trip.startDate, trip.endDate)}
         </CardDescription>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Badge variant="secondary" className={statusColors[trip.status]}>
-            {trip.status}
+          <Badge asChild variant="secondary" className={cn(statusColors[trip.status], "relative z-10 p-0")}>
+            <button
+              type="button"
+              onClick={cycleStatus}
+              disabled={updateTrip.isPending}
+              title={`Status: ${trip.status}. Click to advance.`}
+              className="cursor-pointer px-2 py-0.5 capitalize hover:opacity-80 disabled:cursor-wait"
+            >
+              {trip.status}
+            </button>
           </Badge>
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <MapPin className="h-3.5 w-3.5" />

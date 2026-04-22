@@ -9,6 +9,7 @@ import {
   useConfirmAllSegments,
   ApiError,
 } from "@travel-app/api-client";
+import type { TripStatus } from "@travel-app/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,6 +17,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
@@ -30,6 +35,8 @@ import {
   FileDown,
   AlertCircle,
   AlertTriangle,
+  MoreHorizontal,
+  FileCode2,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
@@ -47,8 +54,21 @@ const STATUS_STYLES: Record<string, string> = {
   planning:  "bg-blue-100  text-blue-700",
   active:    "bg-green-100 text-green-700",
   completed: "bg-gray-100  text-gray-600",
-  archived:  "bg-yellow-100 text-yellow-700",
+  cancelled: "bg-red-100   text-red-700",
 };
+
+/** Order the status chip cycles through on click. */
+const TRIP_STATUS_CYCLE: TripStatus[] = [
+  "planning",
+  "active",
+  "completed",
+  "cancelled",
+];
+
+function nextTripStatus(current: string): TripStatus {
+  const idx = TRIP_STATUS_CYCLE.indexOf(current as TripStatus);
+  return TRIP_STATUS_CYCLE[(idx + 1) % TRIP_STATUS_CYCLE.length];
+}
 
 function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
@@ -117,7 +137,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
       title="Rename trip"
     >
       <h1 className="text-2xl font-bold">{title}</h1>
-      <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100" />
+      <Pencil className="h-4 w-4 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
     </button>
   );
 }
@@ -260,7 +280,7 @@ function EditableDates({
     >
       <Calendar className="h-3.5 w-3.5" />
       {formatDateRange(startDate, endDate)}
-      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover/dates:opacity-100" />
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/dates:opacity-100" />
     </button>
   );
 }
@@ -284,67 +304,89 @@ function downloadBlobDirect(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function ExportMenu({ tripId }: { tripId: string }) {
+/**
+ * Combined overflow menu for the trip detail header — keeps the toolbar
+ * compact by tucking "Import email" and the Export submenu behind a single
+ * "..." button. The EmailScan button stays visible because it's the most
+ * common action; everything else lives here.
+ */
+function TripActionsMenu({
+  tripId,
+  onImportEmail,
+}: {
+  tripId: string;
+  onImportEmail: () => void;
+}) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
 
-  const handleExportMarkdown = async () => {
+  const runExport = async (fn: () => Promise<void>) => {
     setExporting(true);
     try {
+      await fn();
+    } catch {
+      alert("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportMarkdown = () =>
+    runExport(async () => {
       const markdown = await client.exportMarkdown(tripId);
       downloadBlob(markdown, "itinerary.md", "text/markdown");
-    } catch {
-      alert("Export failed.");
-    } finally {
-      setExporting(false);
-    }
-  };
+    });
 
-  const handleExportOneNote = async () => {
-    setExporting(true);
-    try {
+  const handleExportOneNote = () =>
+    runExport(async () => {
       const html = await client.exportOneNote(tripId);
       downloadBlob(html, "itinerary.html", "text/html");
-    } catch {
-      alert("Export failed.");
-    } finally {
-      setExporting(false);
-    }
-  };
+    });
 
-  const handleExportPdf = async () => {
-    setExporting(true);
-    try {
+  const handleExportPdf = () =>
+    runExport(async () => {
       const blob = await client.exportPdf(tripId);
       downloadBlobDirect(blob, "itinerary.pdf");
-    } catch {
-      alert("Export failed.");
-    } finally {
-      setExporting(false);
-    }
-  };
+    });
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" disabled={exporting}>
-          <Download className="mr-2 h-3.5 w-3.5" />
-          {exporting ? "Exporting..." : "Export"}
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="More trip actions"
+          disabled={exporting}
+        >
+          <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleExportMarkdown}>
-          <FileText className="mr-2 h-4 w-4" />
-          Markdown (.md)
+        <DropdownMenuItem onSelect={onImportEmail}>
+          <FileCode2 className="mr-2 h-4 w-4" />
+          Import email
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportOneNote}>
-          <BookOpen className="mr-2 h-4 w-4" />
-          OneNote (.html)
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleExportPdf}>
-          <FileDown className="mr-2 h-4 w-4" />
-          PDF (.pdf)
-        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onClick={handleExportMarkdown}>
+              <FileText className="mr-2 h-4 w-4" />
+              Markdown (.md)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportOneNote}>
+              <BookOpen className="mr-2 h-4 w-4" />
+              OneNote (.html)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportPdf}>
+              <FileDown className="mr-2 h-4 w-4" />
+              PDF (.pdf)
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -399,6 +441,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, error } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
+  const [htmlImportOpen, setHtmlImportOpen] = useState(false);
+  const updateTripStatus = useUpdateTrip(tripId);
 
   if (isLoading) {
     return (
@@ -442,8 +486,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
-            <HtmlImportDialog tripId={trip.id} triggerLabel="Import email" />
-            <ExportMenu tripId={trip.id} />
+            <TripActionsMenu
+              tripId={trip.id}
+              onImportEmail={() => setHtmlImportOpen(true)}
+            />
+            <HtmlImportDialog
+              tripId={trip.id}
+              hideTrigger
+              open={htmlImportOpen}
+              onOpenChange={setHtmlImportOpen}
+            />
             <UserMenu />
           </div>
         </div>
@@ -451,14 +503,20 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
             <EditableTitle tripId={trip.id} title={trip.title} />
-            <span
+            <button
+              type="button"
+              onClick={() =>
+                updateTripStatus.mutate({ status: nextTripStatus(trip.status) })
+              }
+              disabled={updateTripStatus.isPending}
+              title={`Status: ${trip.status}. Click to advance.`}
               className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+                "cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait",
                 STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
               )}
             >
               {trip.status}
-            </span>
+            </button>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             <EditableDates

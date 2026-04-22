@@ -270,7 +270,7 @@ describe("updateTripSchema", () => {
   });
 
   it("rejects invalid status", () => {
-    const result = updateTripSchema.safeParse({ status: "cancelled" });
+    const result = updateTripSchema.safeParse({ status: "bogus" });
     expect(result.success).toBe(false);
   });
 });

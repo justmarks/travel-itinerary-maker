@@ -71,7 +71,17 @@ export function AddSegmentDialog({
         coach: form.coach || undefined,
         partySize: form.partySize ? parseInt(form.partySize, 10) : undefined,
         creditCardHold: form.creditCardHold || undefined,
-        endDate: form.endDate || undefined,
+        // For multi-day segment types (hotel, car rental, cruise), default the
+        // end date to the start date when the user leaves it blank — matches
+        // what the form visibly shows and saves the user a click for same-day
+        // stays / one-day rentals.
+        endDate:
+          form.endDate ||
+          (form.type === "hotel" ||
+          form.type === "car_rental" ||
+          form.type === "cruise"
+            ? form.date || date
+            : undefined),
         cabinClass: form.cabinClass || undefined,
         baggageInfo: form.baggageInfo || undefined,
         seatNumber: form.seatNumber || undefined,

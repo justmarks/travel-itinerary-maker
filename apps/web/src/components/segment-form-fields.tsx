@@ -556,7 +556,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || form.date}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -622,7 +622,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || form.date}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -804,7 +804,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-end-date`}
               type="date"
-              value={form.endDate}
+              value={form.endDate || form.date}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>

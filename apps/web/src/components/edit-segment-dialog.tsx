@@ -167,22 +167,23 @@ export function EditSegmentDialog({
       updates.routeCode = undefined;
     }
 
-    // Car rental
+    // Car rental — default dropoff date to pickup date when blank so
+    // same-day rentals don't need two date clicks.
     if (flags.isCarRental) {
       updates.departureCity = form.departureCity || undefined;
       updates.arrivalCity = form.arrivalCity || undefined;
-      updates.endDate = form.endDate || undefined;
+      updates.endDate = form.endDate || form.date || undefined;
     }
 
-    // Hotel
+    // Hotel — default check-out to check-in date when blank.
     if (flags.isHotel) {
-      updates.endDate = form.endDate || undefined;
+      updates.endDate = form.endDate || form.date || undefined;
       updates.breakfastIncluded = form.breakfastIncluded || undefined;
     }
 
-    // Cruise
+    // Cruise — default disembark date to embark date when blank.
     if (flags.isCruise) {
-      updates.endDate = form.endDate || undefined;
+      updates.endDate = form.endDate || form.date || undefined;
     }
 
     // Restaurant
