@@ -69,6 +69,19 @@ cd packages/shared && pnpm test
 
 **No frontend tests exist yet** — only `server/` and `packages/shared/` have test suites.
 
+### Linting
+
+```bash
+pnpm lint         # ESLint across the workspace via Turbo
+cd apps/web && pnpm lint
+```
+
+- Only `apps/web` has a lint task. Config lives in `apps/web/eslint.config.mjs` (ESLint 9 flat config, extending `next/core-web-vitals` + `next/typescript` via `FlatCompat`).
+- `pnpm lint` must be **clean (zero warnings, zero errors)** before committing or opening a PR. Treat warnings as errors — fix or justify every one.
+- Unused-variable rule: `argsIgnorePattern: "^_"`. Prefix intentionally-unused parameters, destructured values, and caught errors with `_` (e.g. `_req`, `_err`) rather than disabling the rule.
+- Prefer deleting dead imports/state over suppressing. Only reach for `// eslint-disable-next-line <rule>` when the lint is genuinely wrong for the situation, and always add a comment above it explaining why.
+- Do **not** commit new `<img>` tags unless Next/Image is truly unsuitable — in that case, disable `@next/next/no-img-element` on that line with a justification (see `user-menu.tsx` for the pattern).
+
 ---
 
 ## Key Conventions
