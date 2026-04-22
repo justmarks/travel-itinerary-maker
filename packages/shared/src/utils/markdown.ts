@@ -20,6 +20,19 @@ function formatSegmentForTable(segment: Segment): string {
       if (segment.confirmationCode) parts.push(`\`${segment.confirmationCode}\``);
       break;
     }
+    case "cruise": {
+      const cName = segment.url
+        ? `[${segment.title}](${segment.url})`
+        : segment.title;
+      parts.push(cName);
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      if (route) parts.push(route);
+      if (segment.startTime) parts.push(segment.startTime);
+      if (segment.confirmationCode) parts.push(`\`${segment.confirmationCode}\``);
+      break;
+    }
     case "hotel":
     case "car_rental":
     case "car_service":
@@ -45,7 +58,7 @@ function formatSegmentForTable(segment: Segment): string {
     }
     case "activity":
     case "tour":
-    case "cruise":
+    case "show":
     default: {
       const aName = segment.url
         ? `[${segment.venueName || segment.title}](${segment.url})`
@@ -109,6 +122,7 @@ export function tripToMarkdown(trip: Trip, options: ExportOptions = {}): string 
       "activity",
       "tour",
       "cruise",
+      "show",
     ])
       .map(formatSegmentForTable)
       .join("<br>");

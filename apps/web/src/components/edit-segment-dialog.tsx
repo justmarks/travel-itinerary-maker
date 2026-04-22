@@ -37,6 +37,7 @@ function segmentToFormState(
     arrivalCity: segment.arrivalCity ?? "",
     carrier: segment.carrier ?? "",
     routeCode: segment.routeCode ?? "",
+    coach: segment.coach ?? "",
     partySize: segment.partySize?.toString() ?? "",
     creditCardHold: segment.creditCardHold ?? false,
     seatNumber: segment.seatNumber ?? "",
@@ -120,31 +121,68 @@ export function EditSegmentDialog({
       updates.seatNumber = form.seatNumber || undefined;
       updates.cabinClass = form.cabinClass || undefined;
       updates.baggageInfo = form.baggageInfo || undefined;
+    } else if (flags.isCruise) {
+      // Cruise: departure/arrival ports, no venue/city/address/provider.
+      // Explicitly null out the venue fields so switching a segment from
+      // another type to cruise doesn't leave stale data behind.
+      updates.departureCity = form.departureCity || undefined;
+      updates.arrivalCity = form.arrivalCity || undefined;
+      updates.venueName = undefined;
+      updates.address = undefined;
+      updates.city = undefined;
+      updates.provider = undefined;
     } else {
       updates.venueName = form.venueName || undefined;
       updates.address = form.address || undefined;
       updates.city = form.city || undefined;
-      updates.provider = form.provider || undefined;
+      // Provider surfaces on the form for car rental, car service, activity,
+      // tour, and restaurants — match that here so a hotel/show/train/cruise/
+      // other-transport edit can't accidentally reinstate a provider the
+      // form no longer shows.
+      const hidesProvider =
+        flags.isHotel ||
+        flags.isShow ||
+        flags.isTrain ||
+        (flags.isTransport && !flags.isFlight && !flags.isTrain);
+      if (!hidesProvider) {
+        updates.provider = form.provider || undefined;
+      }
     }
 
-    // Transport (non-flight)
-    if (flags.isTransport && !flags.isFlight) {
+    // Train (also isTransport, but carries coach + seatNumber)
+    if (flags.isTrain) {
       updates.departureCity = form.departureCity || undefined;
       updates.arrivalCity = form.arrivalCity || undefined;
       updates.carrier = form.carrier || undefined;
       updates.routeCode = form.routeCode || undefined;
+      updates.coach = form.coach || undefined;
+      updates.seatNumber = form.seatNumber || undefined;
+    }
+
+    // Other transport (non-flight, non-train). No route code or provider.
+    if (flags.isTransport && !flags.isFlight && !flags.isTrain) {
+      updates.departureCity = form.departureCity || undefined;
+      updates.arrivalCity = form.arrivalCity || undefined;
+      updates.carrier = form.carrier || undefined;
+      updates.routeCode = undefined;
     }
 
     // Car rental
     if (flags.isCarRental) {
       updates.departureCity = form.departureCity || undefined;
       updates.arrivalCity = form.arrivalCity || undefined;
+      updates.endDate = form.endDate || undefined;
     }
 
     // Hotel
     if (flags.isHotel) {
       updates.endDate = form.endDate || undefined;
       updates.breakfastIncluded = form.breakfastIncluded || undefined;
+    }
+
+    // Cruise
+    if (flags.isCruise) {
+      updates.endDate = form.endDate || undefined;
     }
 
     // Restaurant

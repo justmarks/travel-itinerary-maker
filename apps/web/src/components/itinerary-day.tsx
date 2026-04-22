@@ -18,6 +18,7 @@ import {
   UtensilsCrossed,
   Camera,
   Ship,
+  Ticket,
   Navigation,
   AlertCircle,
   CheckCircle2,
@@ -41,8 +42,10 @@ import { cn } from "@/lib/utils";
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
 const FLIGHT_TYPES = new Set(["flight"]);
+const TRAIN_TYPES = new Set(["train"]);
 const CAR_RENTAL_TYPES = new Set(["car_rental"]);
 const CAR_SERVICE_TYPES = new Set(["car_service"]);
+const CRUISE_TYPES = new Set(["cruise"]);
 
 function fmt12h(t?: string) {
   if (!t) return null;
@@ -81,6 +84,7 @@ const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
   other_transport:   { icon: Navigation,      label: "Transport",   color: "text-gray-500"   },
   hotel:             { icon: BedDouble,       label: "Hotel",       color: "text-indigo-500" },
   activity:               { icon: MapPin,          label: "Activity",   color: "text-green-500"  },
+  show:                   { icon: Ticket,          label: "Show",       color: "text-pink-500"   },
   restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",  color: "text-sky-500"    },
   restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",     color: "text-lime-500"   },
   restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",      color: "text-amber-500"  },
@@ -109,8 +113,10 @@ function SegmentRow({
   const isRestaurant = RESTAURANT_TYPES.has(segment.type);
   const isHotel = HOTEL_TYPES.has(segment.type);
   const isFlight = FLIGHT_TYPES.has(segment.type);
+  const isTrain = TRAIN_TYPES.has(segment.type);
   const isCarRental = CAR_RENTAL_TYPES.has(segment.type);
   const isCarService = CAR_SERVICE_TYPES.has(segment.type);
+  const isCruise = CRUISE_TYPES.has(segment.type);
 
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
@@ -171,17 +177,42 @@ function SegmentRow({
                 )}
               </>
             ) : isCarRental ? (
-              <span>{startTime || endTime}</span>
+              <>
+                {startTime && <span>Pickup {startTime}</span>}
+                {startTime && endTime && <span className="mx-1">·</span>}
+                {endTime && <span>Dropoff {endTime}</span>}
+                {segment.endDate && (
+                  <>
+                    <span className="mx-1">·</span>
+                    <span>Return {fmtDate(segment.endDate)}</span>
+                  </>
+                )}
+              </>
+            ) : isCruise ? (
+              <>
+                {startTime && <span>Board {startTime}</span>}
+                {startTime && endTime && <span className="mx-1">·</span>}
+                {endTime && <span>Disembark {endTime}</span>}
+                {segment.endDate && (
+                  <>
+                    <span className="mx-1">·</span>
+                    <span>Off {fmtDate(segment.endDate)}</span>
+                  </>
+                )}
+              </>
             ) : (
               <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
             )}
           </div>
         )}
-        {/* Hotel checkout date (when no times shown) */}
-        {isHotel && !startTime && !endTime && segment.endDate && (
+        {/* End date fallback when no times are shown */}
+        {!startTime && !endTime && segment.endDate && (isHotel || isCarRental || isCruise) && (
           <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="h-3 w-3 shrink-0" />
-            <span>Check-out {fmtDate(segment.endDate)}</span>
+            <span>
+              {isHotel ? "Check-out " : isCarRental ? "Return " : "Disembark "}
+              {fmtDate(segment.endDate)}
+            </span>
           </div>
         )}
 
@@ -224,6 +255,16 @@ function SegmentRow({
         {isFlight && segment.baggageInfo && (
           <p className="mt-0.5 text-xs text-muted-foreground">
             {segment.baggageInfo}
+          </p>
+        )}
+
+        {/* Train coach & seat */}
+        {isTrain && (segment.coach || segment.seatNumber) && (
+          <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+            <Armchair className="h-3 w-3 shrink-0" />
+            {segment.coach && <span>{segment.coach}</span>}
+            {segment.coach && segment.seatNumber && <span>·</span>}
+            {segment.seatNumber && <span>Seat {segment.seatNumber}</span>}
           </p>
         )}
 

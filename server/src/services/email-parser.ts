@@ -26,11 +26,12 @@ Each item in the array must be a JSON object with these fields:
 - "routeCode": ONLY the flight number digits, no airline prefix. For example: "359" (NOT "DL359"), "101" (NOT "AS101"), "2410" (NOT "AA2410"). Strip any letter prefix that matches the airline code.
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
-- "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger.
+- "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger. For trains, the seat/berth number(s).
+- "coach": for trains only — the coach or car designation (e.g. "Car 7", "Coach B", "Voiture 12"). Free text.
 - "cabinClass": class of service for flights (e.g. "Economy", "Premium Economy", "Business", "First", "Main Cabin", "Comfort+"). Extract exactly as stated in the email.
 - "baggageInfo": checked baggage policy for flights (e.g. "1 checked bag included", "2 checked bags included", "No checked bags included - $35/bag", "1 free checked bag per passenger"). Extract if mentioned in the email.
 - "partySize": total number of travelers/guests
-- "endDate": check-out date for hotels in YYYY-MM-DD format (if available). This is the departure/check-out date, NOT the check-in date.
+- "endDate": end/return date in YYYY-MM-DD format for multi-day bookings. For hotels, this is the check-out date. For car_rental, this is the dropoff date. For cruise, this is the disembarkation date.
 - "breakfastIncluded": boolean (for hotels, if mentioned)
 - "phone": contact phone number (if available)
 - "url": booking URL (if available)
@@ -39,10 +40,13 @@ Each item in the array must be a JSON object with these fields:
 
 IMPORTANT RULES:
 - One booking = one segment. If an email has a flight with 4 passengers and 4 seat numbers, return ONE flight segment with all seats in "seatNumber" and partySize=4.
-- **CAR RENTALS**: Return TWO separate segments — one for PICKUP and one for DROPOFF:
-  - Pickup segment: type "car_rental", date = pickup date, startTime = pickup time, no endTime. Title format: "Company - City" (e.g. "National - Lihue"). Include cost on the pickup segment only. ALWAYS populate the "city" field with the pickup city (same city that appears in the title). If the pickup location is an airport, also put the airport name/code in "venueName" (e.g. "Lihue Airport (LIH)") and the city in "city".
-  - Dropoff segment: type "car_rental", date = dropoff date, startTime = dropoff time, no endTime. Title format: "Company - City (Return)" (e.g. "National - Lihue (Return)"). No cost on the dropoff segment. ALWAYS populate the "city" field with the dropoff city.
+- **CAR RENTALS**: Return ONE segment spanning the full rental:
+  - type "car_rental", date = pickup date, startTime = pickup time, endDate = dropoff date, endTime = dropoff time. Title format: "Company - City" (e.g. "National - Lihue"). ALWAYS populate the "city" field with the pickup city (same city that appears in the title). If the pickup location is an airport, also put the airport name/code in "venueName" (e.g. "Lihue Airport (LIH)") and the city in "city". If the dropoff is in a different city, put it in "arrivalCity".
   - Car rental cost: The cost "amount" should be the BASE RENTAL RATE only — the total for the car itself BEFORE taxes, airport concession fees, vehicle license fees, customer facility charges, or any other surcharges. Do NOT include tax lines in the amount. Put the car class/type (e.g. "Midsize SUV", "Full-size") in "details". If taxes and fees are shown as a separate total, mention them briefly in "details" (e.g. "+$120 taxes & fees") but keep them out of "amount".
+- **CRUISES**: Return ONE segment spanning the full cruise:
+  - type "cruise", date = embarkation date, startTime = boarding time, endDate = disembarkation date, endTime = disembark time. Put the ship name in "title" (e.g. "Disney Fantasy — 7-Night Eastern Caribbean"). "departureCity" = embarkation port, "arrivalCity" = disembarkation port (often the same for round-trip cruises). Do NOT set "venueName", "city", "address", or "provider" on cruises — ports go in "departureCity" / "arrivalCity".
+- **SHOWS/TICKETED EVENTS** (concerts, theater, Broadway, opera, Kabuki, symphonies, sporting events, comedy):
+  - type "show", date = show date, startTime = showtime. "venueName" = theater/arena name. "address" = venue address if given. "seatNumber" = seat assignment(s) exactly as the ticket shows (e.g. "Orchestra Row F, Seats 14-15"). Do NOT set "provider" for shows — leave it blank.
 - **HOTEL CHECK-IN/CHECK-OUT TIMES**: If the email explicitly states a check-in time (e.g. "Check-in: 4:00 PM") or check-out time (e.g. "Check-out by 11:00 AM"), use those values for "startTime" (check-in) and "endTime" (check-out). Do NOT use timestamps from booking confirmation metadata, email headers, or ISO datetime fields that look like the time the email was sent — those are not real hotel policy times. If no explicit check-in/check-out time is stated in the visible email body, omit "startTime" and "endTime" entirely and the server will apply standard hotel defaults.
 - **HOTELS**: The cost "amount" should be the ROOM RATE only (nightly or total room charge), NOT including fees like parking, resort fees, or taxes. Put the room type (e.g. "2 Bedroom Villa, 2 Bathrooms" or "King Room with City View") and any fees/extras (parking, resort fee, breakfast) in the "details" string so the user can see them separately.
 - **FLIGHTS**: For the cost, use ONLY the total price for the booking. Do NOT break down into base fare, taxes, or fees — just the final total amount. If the email shows a per-person price, use that per-person total (multiple per-person emails will be combined later).

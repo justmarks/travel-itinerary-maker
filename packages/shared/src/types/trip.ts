@@ -8,6 +8,7 @@ export type SegmentType =
   | "other_transport"
   | "hotel"
   | "activity"
+  | "show"
   | "restaurant_breakfast"
   | "restaurant_brunch"
   | "restaurant_lunch"
@@ -47,13 +48,17 @@ export interface Segment {
   arrivalCity?: string;
   carrier?: string;
   routeCode?: string;
+  // Train-specific (reuses departureCity/arrivalCity as the station names)
+  coach?: string;
   // Dining-specific
   partySize?: number;
   creditCardHold?: boolean;
   cancellationDeadline?: string; // ISO date "YYYY-MM-DD" — when CC hold must be cancelled by
   phone?: string;
+  // End-of-stay date (YYYY-MM-DD). Currently used by hotels (check-out),
+  // car_rental (drop-off), and cruise (disembark).
+  endDate?: string;
   // Hotel-specific
-  endDate?: string; // Check-out date for hotels (YYYY-MM-DD)
   breakfastIncluded?: boolean;
   // Flight-specific
   seatNumber?: string; // e.g. "14A, 14B"
@@ -188,6 +193,7 @@ export interface ParsedSegment {
   arrivalCity?: string;
   carrier?: string;
   routeCode?: string;
+  coach?: string;
   partySize?: number;
   creditCardHold?: boolean;
   cancellationDeadline?: string;

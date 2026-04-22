@@ -43,6 +43,7 @@ export const SEGMENT_TYPE_GROUPS = [
     label: "Activities",
     items: [
       { value: "activity", label: "Activity" },
+      { value: "show", label: "Show" },
       { value: "tour", label: "Tour" },
       { value: "cruise", label: "Cruise" },
     ],
@@ -75,7 +76,13 @@ export function getTypeFlags(type: string) {
     isCarService: type === "car_service",
     isRestaurant: RESTAURANT_TYPES.has(type),
     isTransport: TRANSPORT_TYPES.has(type),
-    isActivity: type === "activity" || type === "tour" || type === "cruise",
+    isCruise: type === "cruise",
+    isShow: type === "show",
+    isActivity:
+      type === "activity" ||
+      type === "tour" ||
+      type === "cruise" ||
+      type === "show",
   };
 }
 
@@ -97,6 +104,7 @@ export interface SegmentFormState {
   arrivalCity: string;
   carrier: string;
   routeCode: string;
+  coach: string;
   partySize: string;
   creditCardHold: boolean;
   seatNumber: string;
@@ -127,6 +135,7 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   arrivalCity: "",
   carrier: "",
   routeCode: "",
+  coach: "",
   partySize: "",
   creditCardHold: false,
   seatNumber: "",
@@ -189,17 +198,30 @@ export function SegmentFormFields({
   const flags = getTypeFlags(form.type);
   const {
     isFlight,
+    isTrain,
     isHotel,
     isCarRental,
     isCarService,
     isRestaurant,
     isTransport,
+    isCruise,
+    isShow,
   } = flags;
+  const isOtherTransport = isTransport && !isFlight && !isTrain;
 
   // Which fields should be visible?
-  const showVenue = !isFlight && !isTransport;
-  const showAddress = !isFlight;
-  const showCity = !isFlight;
+  const showVenue = !isFlight && !isTransport && !isCruise;
+  const showAddress = !isFlight && !isCruise;
+  const showCity = !isFlight && !isCruise;
+  // Provider is hidden for:
+  //   flights (carrier is shown instead)
+  //   trains (carrier is shown instead)
+  //   hotels (the venue *is* the provider)
+  //   cruises (the cruise line shows in the title/carrier)
+  //   shows (ticket issuer rarely relevant)
+  //   other transport (keep the card minimal — just from/to/time)
+  const showProvider =
+    !isFlight && !isTrain && !isHotel && !isShow && !isCruise && !isOtherTransport;
 
   return (
     <div className="space-y-4">
@@ -336,8 +358,94 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Train / Other transport ── */}
-      {isTransport && !isFlight && (
+      {/* ── Train ── */}
+      {isTrain && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-dep-city`}>Departure station</Label>
+              <Input
+                id={`${idPrefix}-dep-city`}
+                placeholder="e.g. Paris Gare du Nord"
+                value={form.departureCity}
+                onChange={(e) => onChange({ departureCity: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-arr-city`}>Arrival station</Label>
+              <Input
+                id={`${idPrefix}-arr-city`}
+                placeholder="e.g. London St Pancras"
+                value={form.arrivalCity}
+                onChange={(e) => onChange({ arrivalCity: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-carrier`}>Carrier</Label>
+              <Input
+                id={`${idPrefix}-carrier`}
+                placeholder="e.g. Eurostar"
+                value={form.carrier}
+                onChange={(e) => onChange({ carrier: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-route`}>Train #</Label>
+              <Input
+                id={`${idPrefix}-route`}
+                placeholder="e.g. ES 9024"
+                value={form.routeCode}
+                onChange={(e) => onChange({ routeCode: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-start`}>Departure time</Label>
+              <Input
+                id={`${idPrefix}-start`}
+                type="time"
+                value={form.startTime}
+                onChange={(e) => onChange({ startTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-end`}>Arrival time</Label>
+              <Input
+                id={`${idPrefix}-end`}
+                type="time"
+                value={form.endTime}
+                onChange={(e) => onChange({ endTime: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-coach`}>Coach</Label>
+              <Input
+                id={`${idPrefix}-coach`}
+                placeholder="e.g. Coach 14"
+                value={form.coach}
+                onChange={(e) => onChange({ coach: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
+              <Input
+                id={`${idPrefix}-seats`}
+                placeholder="e.g. 23A, 23B"
+                value={form.seatNumber}
+                onChange={(e) => onChange({ seatNumber: e.target.value })}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Other transport (non-flight, non-train) ── */}
+      {isTransport && !isFlight && !isTrain && (
         <>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -359,25 +467,14 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-carrier`}>Carrier</Label>
-              <Input
-                id={`${idPrefix}-carrier`}
-                placeholder="e.g. Eurostar"
-                value={form.carrier}
-                onChange={(e) => onChange({ carrier: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-route`}>Route code</Label>
-              <Input
-                id={`${idPrefix}-route`}
-                placeholder="e.g. Amtrak 501"
-                value={form.routeCode}
-                onChange={(e) => onChange({ routeCode: e.target.value })}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-carrier`}>Carrier (optional)</Label>
+            <Input
+              id={`${idPrefix}-carrier`}
+              placeholder="Optional"
+              value={form.carrier}
+              onChange={(e) => onChange({ carrier: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -500,13 +597,33 @@ export function SegmentFormFields({
               />
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-start`}>Pickup time</Label>
+              <Input
+                id={`${idPrefix}-start`}
+                type="time"
+                value={form.startTime}
+                onChange={(e) => onChange({ startTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-end`}>Dropoff time</Label>
+              <Input
+                id={`${idPrefix}-end`}
+                type="time"
+                value={form.endTime}
+                onChange={(e) => onChange({ endTime: e.target.value })}
+              />
+            </div>
+          </div>
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-start`}>Pickup / dropoff time</Label>
+            <Label htmlFor={`${idPrefix}-end-date`}>Dropoff date</Label>
             <Input
-              id={`${idPrefix}-start`}
-              type="time"
-              value={form.startTime}
-              onChange={(e) => onChange({ startTime: e.target.value })}
+              id={`${idPrefix}-end-date`}
+              type="date"
+              value={form.endDate}
+              onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
         </>
@@ -639,8 +756,63 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Activity / Tour / Cruise: generic fields ── */}
-      {!isFlight && !isHotel && !isCarRental && !isCarService && !isRestaurant && !isTransport && (
+      {/* ── Cruise: departure/arrival ports, boarding/disembark times ── */}
+      {isCruise && (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-dep-city`}>Boarding city</Label>
+              <Input
+                id={`${idPrefix}-dep-city`}
+                placeholder="e.g. Port Canaveral"
+                value={form.departureCity}
+                onChange={(e) => onChange({ departureCity: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-arr-city`}>Disembark city</Label>
+              <Input
+                id={`${idPrefix}-arr-city`}
+                placeholder="e.g. Port Canaveral"
+                value={form.arrivalCity}
+                onChange={(e) => onChange({ arrivalCity: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-start`}>Boarding time</Label>
+              <Input
+                id={`${idPrefix}-start`}
+                type="time"
+                value={form.startTime}
+                onChange={(e) => onChange({ startTime: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-end`}>Disembark time</Label>
+              <Input
+                id={`${idPrefix}-end`}
+                type="time"
+                value={form.endTime}
+                onChange={(e) => onChange({ endTime: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-end-date`}>Disembark date</Label>
+            <Input
+              id={`${idPrefix}-end-date`}
+              type="date"
+              value={form.endDate}
+              onChange={(e) => onChange({ endDate: e.target.value })}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── Activity / Show / Tour: generic fields ── */}
+      {!isFlight && !isHotel && !isCarRental && !isCarService && !isRestaurant && !isTransport && !isCruise && (
         <>
           {showVenue && (
             <div className="grid grid-cols-2 gap-4">
@@ -648,7 +820,9 @@ export function SegmentFormFields({
                 <Label htmlFor={`${idPrefix}-venue`}>Venue</Label>
                 <Input
                   id={`${idPrefix}-venue`}
-                  placeholder="Optional"
+                  placeholder={
+                    isShow ? "e.g. Royal Albert Hall" : "Optional"
+                  }
                   value={form.venueName}
                   onChange={(e) => onChange({ venueName: e.target.value })}
                 />
@@ -711,7 +885,7 @@ export function SegmentFormFields({
             onChange={(e) => onChange({ confirmationCode: e.target.value })}
           />
         </div>
-        {!isFlight && (
+        {showProvider && (
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-provider`}>Provider</Label>
             <Input

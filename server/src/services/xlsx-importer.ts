@@ -805,10 +805,18 @@ export class XlsxTripImporter {
 
       // Column D — transport sub-blocks. Transport doesn't inherit the day's
       // city directly; it gets populated downstream via airport-code lookup
-      // and day-to-day context (see enrichTransportCities below).
+      // and day-to-day context (see enrichTransportCities below). Exception:
+      // cruise segments carry the embarkation port as departureCity so the
+      // card still shows a sensible location when the row only says
+      // "Board ship". Arrival port will be enriched later if the spreadsheet
+      // mentions it; otherwise it stays blank.
       const transportBlocks = collectColumnBlocks(bucket.rows, "D");
       for (const block of transportBlocks) {
-        segments.push(buildTransportSegment(block));
+        const seg = buildTransportSegment(block);
+        if (seg.type === "cruise" && dayCity && !seg.departureCity) {
+          seg.departureCity = dayCity;
+        }
+        segments.push(seg);
       }
 
       // Column E — lodging sub-blocks. Auto-populate the day's city so the
