@@ -1,5 +1,8 @@
 import type { Trip } from "@travel-app/shared";
-import { generateTripPdf } from "../../src/utils/pdf-generator";
+import {
+  generateTripPdf,
+  formatCostItemDescription,
+} from "../../src/utils/pdf-generator";
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
   return {
@@ -173,5 +176,65 @@ describe("generateTripPdf", () => {
     const arrowUtf8 = Buffer.from("\u2192", "utf8");
     const hasRawArrow = buf.includes(arrowUtf8);
     expect(hasRawArrow).toBe(false);
+  });
+});
+
+describe("formatCostItemDescription", () => {
+  // Ensures the PDF cost-summary Item column matches the web UI's cost
+  // card layout. The web UI renders:
+  //   primary  (bold):   "{City}: {Category}"   fallback to just Category
+  //   subtitle (muted):  seg.title              only when it differs
+  // (see apps/web/src/components/trip-costs.tsx).
+
+  it("includes City and Category when city is present", () => {
+    expect(
+      formatCostItemDescription({
+        category: "car_rental",
+        city: "Palermo",
+        description: "Hertz Pickup",
+      }),
+    ).toEqual({ primary: "Palermo: Car Rental", subtitle: "Hertz Pickup" });
+  });
+
+  it("falls back to category-only when city is absent", () => {
+    expect(
+      formatCostItemDescription({
+        category: "flight",
+        city: undefined,
+        description: "BA 247",
+      }),
+    ).toEqual({ primary: "Flight", subtitle: "BA 247" });
+  });
+
+  it("suppresses subtitle when it duplicates the category label", () => {
+    // If seg.title is just "Hotel", the UI hides the subtitle. The PDF
+    // should match: nothing extra to show.
+    expect(
+      formatCostItemDescription({
+        category: "hotel",
+        city: "Rome",
+        description: "hotel",
+      }),
+    ).toEqual({ primary: "Rome: Hotel", subtitle: "" });
+  });
+
+  it("suppresses subtitle when description is empty", () => {
+    expect(
+      formatCostItemDescription({
+        category: "activity",
+        city: "Paris",
+        description: "",
+      }),
+    ).toEqual({ primary: "Paris: Activity", subtitle: "" });
+  });
+
+  it("falls back to the raw category string when no label is registered", () => {
+    expect(
+      formatCostItemDescription({
+        category: "unknown_type",
+        city: "Nowhere",
+        description: "Something",
+      }),
+    ).toEqual({ primary: "Nowhere: unknown_type", subtitle: "Something" });
   });
 });

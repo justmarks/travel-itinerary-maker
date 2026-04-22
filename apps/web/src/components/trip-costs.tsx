@@ -75,9 +75,16 @@ export function TripCosts({ tripId }: { tripId: string }) {
                   className="flex items-start justify-between gap-2"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{primary}</div>
+                    {/* title= gives a native browser tooltip on hover so the
+                        full text is recoverable when it truncates. */}
+                    <div className="truncate font-medium" title={primary}>
+                      {primary}
+                    </div>
                     {showSubtitle && (
-                      <div className="truncate text-xs text-muted-foreground">
+                      <div
+                        className="truncate text-xs text-muted-foreground"
+                        title={item.description}
+                      >
                         {item.description}
                       </div>
                     )}

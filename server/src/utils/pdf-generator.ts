@@ -37,9 +37,35 @@ const SANITIZE_MAP: Record<string, string> = {
   "\u2026": "...", // … horizontal ellipsis
 };
 
-function sanitizeForPdf(s: string): string {
+export function sanitizeForPdf(s: string): string {
   if (!s) return s;
   return s.replace(/[\u2192\u2190\u2194\u2713\u2714\u2717\u2718\u2610\u2611\u2612\u2022\u2018\u2019\u201c\u201d\u2026]/g, (ch) => SANITIZE_MAP[ch] ?? ch);
+}
+
+/**
+ * Compose the cost-summary "Item" column text for a single cost row.
+ *
+ * Mirrors the web UX in apps/web/src/components/trip-costs.tsx:
+ *   - `primary`: "{City}: {Category}" when a city is known, else just the
+ *     category label. Rendered in bold.
+ *   - `subtitle`: the segment title (if it adds information beyond the
+ *     category label — i.e. not the exact same string, case-insensitive).
+ *     Rendered in muted gray below the primary. Empty when it would just
+ *     repeat the category.
+ *
+ * Exported for unit testing; the PDF renderer uses it inline.
+ */
+export function formatCostItemDescription(
+  item: Pick<CostSummaryItem, "category" | "city" | "description">,
+): { primary: string; subtitle: string } {
+  const catLabel = SEGMENT_LABELS[item.category] ?? item.category;
+  const primary = item.city ? `${item.city}: ${catLabel}` : catLabel;
+  const subtitle =
+    item.description &&
+    item.description.trim().toLowerCase() !== catLabel.toLowerCase()
+      ? item.description
+      : "";
+  return { primary, subtitle };
 }
 
 // ─── Segment formatting ──────────────────────────────────────────────────────
@@ -391,17 +417,34 @@ export function generateTripPdf(
 
         // Row padding above and below text inside each cell.
         const CELL_PAD_Y = 4;
+        // Vertical gap between the bold primary line and the muted
+        // subtitle in the Item column.
+        const SUBTITLE_GAP = 1;
 
         costItems.forEach((item, i) => {
+          // The Item column mirrors the web cost card:
+          //   Line 1 (bold):   "{City}: {Category}"   e.g. "Palermo: Car Rental"
+          //   Line 2 (muted):  seg.title              e.g. "Hertz at CTA airport"
+          // See formatCostItemDescription() for the showSubtitle rule.
+          const { primary: primaryText, subtitle: subtitleText } =
+            formatCostItemDescription(item);
+          const costText = formatCurrency(item.amount, item.currency);
+          const detailsText = item.details || "—";
+
           // Measure each column's wrapped height so rows grow to fit the
           // tallest cell. The old fixed 16px row height caused wrapped
           // text to render below the background and spill onto later
           // pages as orphan fragments.
-          doc.fontSize(8.5).font("Helvetica");
-          const descText = item.description;
-          const costText = formatCurrency(item.amount, item.currency);
-          const detailsText = item.details || "—";
-          const descH = doc.heightOfString(descText, { width: colDesc - 6 });
+          doc.fontSize(8.5).font("Helvetica-Bold");
+          const primaryH = doc.heightOfString(primaryText, {
+            width: colDesc - 6,
+          });
+          doc.font("Helvetica");
+          const subtitleH = subtitleText
+            ? doc.heightOfString(subtitleText, { width: colDesc - 6 })
+            : 0;
+          const descH =
+            primaryH + (subtitleText ? subtitleH + SUBTITLE_GAP : 0);
           const costH = doc.heightOfString(costText, { width: colCost - 6 });
           const detailsH = doc.heightOfString(detailsText, {
             width: colDetails - 6,
@@ -413,25 +456,46 @@ export function generateTripPdf(
           const rowY = doc.y;
           const bg = i % 2 === 0 ? "white" : LIGHT_GRAY;
           doc.rect(PAGE_MARGIN, rowY, CONTENT_WIDTH, rowHeight).fill(bg);
+
+          // Item column — primary (bold) + optional subtitle (muted)
           doc
             .fillColor("black")
             .fontSize(8.5)
-            .font("Helvetica")
-            .text(descText, PAGE_MARGIN + 6, rowY + CELL_PAD_Y, {
+            .font("Helvetica-Bold")
+            .text(primaryText, PAGE_MARGIN + 6, rowY + CELL_PAD_Y, {
               width: colDesc - 6,
-            })
-            .text(
-              costText,
-              PAGE_MARGIN + colDesc + 6,
-              rowY + CELL_PAD_Y,
-              { width: colCost - 6 },
-            )
+            });
+          if (subtitleText) {
+            doc
+              .fillColor(MID_GRAY)
+              .font("Helvetica")
+              .text(
+                subtitleText,
+                PAGE_MARGIN + 6,
+                rowY + CELL_PAD_Y + primaryH + SUBTITLE_GAP,
+                { width: colDesc - 6 },
+              );
+          }
+
+          // Cost column
+          doc
+            .fillColor("black")
+            .font("Helvetica")
+            .text(costText, PAGE_MARGIN + colDesc + 6, rowY + CELL_PAD_Y, {
+              width: colCost - 6,
+            });
+
+          // Details column
+          doc
+            .fillColor("black")
+            .font("Helvetica")
             .text(
               detailsText,
               PAGE_MARGIN + colDesc + colCost + 6,
               rowY + CELL_PAD_Y,
               { width: colDetails - 6 },
             );
+
           doc.y = rowY + rowHeight;
         });
 
