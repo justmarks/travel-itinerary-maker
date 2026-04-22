@@ -1,6 +1,6 @@
 {
   "name": "travel-itinerary-maker",
-  "version": "0.26.8",
+  "version": "0.26.9",
   "private": true,
   "description": "Auto-generate travel itineraries from email confirmations",
   "scripts": {
