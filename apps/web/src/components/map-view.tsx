@@ -11,7 +11,6 @@ import {
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
-import { cn } from "@/lib/utils";
 import { ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 

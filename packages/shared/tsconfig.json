@@ -4,7 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "CommonJS",
-    "moduleResolution": "node"
+    "moduleResolution": "node10",
+    "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*"],
   "exclude": ["__tests__", "dist"]

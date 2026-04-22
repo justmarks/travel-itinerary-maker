@@ -4,7 +4,6 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import type {
   EmailScanResult,
   ParsedSegment,
-  GmailLabel,
   SegmentMatchStatus,
   ApplyAction,
 } from "@travel-app/shared";
@@ -16,7 +15,6 @@ import {
   usePendingEmails,
   useTrips,
   useCreateTrip,
-  ApiError,
 } from "@travel-app/api-client";
 import {
   Dialog,
@@ -118,7 +116,6 @@ export function EmailScanDialog({
   const [selections, setSelections] = useState<SegmentSelection[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [appliedCount, setAppliedCount] = useState(0);
-  const [showSkipped, setShowSkipped] = useState(false);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [forceRescan, setForceRescan] = useState(false);
 
@@ -143,7 +140,6 @@ export function EmailScanDialog({
     setSelections([]);
     setErrorMessage("");
     setAppliedCount(0);
-    setShowSkipped(false);
     setShowLowConfidence(false);
     setShowNewTripForm(false);
     setNewTripTitle("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
 
 /**
  * Runtime demo mode detection via `?demo=true` querystring.

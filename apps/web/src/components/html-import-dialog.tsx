@@ -184,7 +184,9 @@ export function HtmlImportDialog({
         setTimeout(resetState, 200);
       }
     },
-    [resetState],
+    // setOpen is a stable setState — not required in deps per React docs,
+    // but ESLint's exhaustive-deps can't verify that without extra info.
+    [resetState, setOpen],
   );
 
   const handleFileUpload = useCallback(
