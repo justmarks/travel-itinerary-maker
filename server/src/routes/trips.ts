@@ -13,6 +13,7 @@ import {
   getDayOfWeek,
   findOverlappingTrips,
   convertToUsd,
+  applyCruisePortsToDayCities,
   type Trip,
   type TripDay,
   type Segment,
@@ -504,6 +505,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       };
 
       day.segments.push(segment);
+      // For cruises with per-day ports, update each TripDay.city to match.
+      if (segment.type === "cruise" && segment.portsOfCall) {
+        applyCruisePortsToDayCities(trip);
+      }
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.status(201).json(segment);
@@ -573,6 +578,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       // segment also updates its source.
       if (wasNeedsReview && found.needsReview === false) {
         found.source = "email_confirmed";
+      }
+
+      // A cruise update may have added or changed portsOfCall — re-run the
+      // day-city override so TripDay cities stay in sync.
+      if (found.type === "cruise" && found.portsOfCall) {
+        applyCruisePortsToDayCities(trip);
       }
 
       trip.updatedAt = new Date().toISOString();
