@@ -209,6 +209,7 @@ export const updateSegmentSchema = createSegmentSchema.extend({
 export const createTodoSchema = z.object({
   text: z.string().min(1),
   category: z.enum(TODO_CATEGORIES).optional(),
+  details: z.string().optional(),
 });
 
 /** Schema for updating a todo */
@@ -216,6 +217,9 @@ export const updateTodoSchema = z.object({
   text: z.string().min(1).optional(),
   isCompleted: z.boolean().optional(),
   category: z.enum(TODO_CATEGORIES).optional(),
+  // Empty string clears the field; the route handler treats `null` and `""`
+  // as "remove details" so the user can wipe notes from the edit dialog.
+  details: z.string().optional().nullable(),
   sortOrder: z.number().int().min(0).optional(),
 });
 

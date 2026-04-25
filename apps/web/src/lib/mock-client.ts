@@ -369,9 +369,9 @@ const SAMPLE_TRIPS: Trip[] = [
     todos: [
       { id: "todo-1", text: "Purchase 14-day JR Pass", isCompleted: true, category: "logistics", sortOrder: 0 },
       { id: "todo-2", text: "Book Shinkansen seat reservations", isCompleted: true, category: "logistics", sortOrder: 1 },
-      { id: "todo-3", text: "Research best ramen spots in Tokyo", isCompleted: false, category: "meals", sortOrder: 2 },
+      { id: "todo-3", text: "Research best ramen spots in Tokyo", isCompleted: false, category: "meals", sortOrder: 2, details: "Ichiran (Shibuya & Shinjuku) for tonkotsu\nAfuri (Ebisu) for yuzu shio — try the limited spring menu\nFu-unji (Nishi-Shinjuku) for tsukemen, get there before noon to skip the line" },
       { id: "todo-4", text: "Download offline Google Maps for Japan", isCompleted: false, category: "logistics", sortOrder: 3 },
-      { id: "todo-5", text: "Get IC card (Suica / Pasmo)", isCompleted: false, category: "logistics", sortOrder: 4 },
+      { id: "todo-5", text: "Get IC card (Suica / Pasmo)", isCompleted: false, category: "logistics", sortOrder: 4, details: "Welcome Suica is the easiest option for tourists — no deposit, expires in 28 days. Available at airport stations." },
       { id: "todo-6", text: "Pack light layers for April weather", isCompleted: false, category: "logistics", sortOrder: 5 },
     ],
     shares: [],

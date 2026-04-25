@@ -714,6 +714,36 @@ describe("Todo routes", () => {
     );
     expect(delRes.status).toBe(204);
   });
+
+  it("persists multi-line details and lets the client edit/clear them", async () => {
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/todos`)
+      .send({
+        text: "Book Paris dinner",
+        category: "meals",
+        details: "Try Le Comptoir du Relais\nReservation 3 weeks ahead",
+      });
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.details).toBe(
+      "Try Le Comptoir du Relais\nReservation 3 weeks ahead",
+    );
+
+    const updated = await request(app)
+      .put(`/api/v1/trips/${tripId}/todos/${createRes.body.id}`)
+      .send({
+        category: "research",
+        details: "Backup option: Septime",
+      });
+    expect(updated.status).toBe(200);
+    expect(updated.body.category).toBe("research");
+    expect(updated.body.details).toBe("Backup option: Septime");
+
+    const cleared = await request(app)
+      .put(`/api/v1/trips/${tripId}/todos/${createRes.body.id}`)
+      .send({ details: "" });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.details).toBeUndefined();
+  });
 });
 
 describe("Share routes", () => {

@@ -778,6 +778,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         text: parsed.data.text,
         isCompleted: false,
         category: parsed.data.category,
+        details: parsed.data.details || undefined,
         sortOrder: trip.todos.length,
       };
 
@@ -815,6 +816,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       if (updates.isCompleted !== undefined)
         todo.isCompleted = updates.isCompleted;
       if (updates.category !== undefined) todo.category = updates.category;
+      // null or empty string clears notes; non-empty string sets them.
+      if (updates.details !== undefined) {
+        todo.details = updates.details ? updates.details : undefined;
+      }
       if (updates.sortOrder !== undefined) todo.sortOrder = updates.sortOrder;
 
       trip.updatedAt = new Date().toISOString();

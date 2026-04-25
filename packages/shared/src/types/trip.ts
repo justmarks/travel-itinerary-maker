@@ -105,6 +105,8 @@ export interface Todo {
   text: string;
   isCompleted: boolean;
   category?: TodoCategory;
+  /** Free-form notes — supports multi-line input from the edit dialog. */
+  details?: string;
   sortOrder: number;
 }
 
