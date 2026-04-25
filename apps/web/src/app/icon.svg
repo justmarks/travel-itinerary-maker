@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Globe with pin">
+  <rect width="64" height="64" rx="14" fill="#0ea5e9"/>
+  <circle cx="30" cy="34" r="16" fill="#ffffff"/>
+  <path d="M14 34 L46 34 M30 18 C24 24 24 44 30 50 M30 18 C36 24 36 44 30 50" fill="none" stroke="#0ea5e9" stroke-width="2"/>
+  <path d="M44 18 C44 22 40 26 40 30 C40 26 36 22 36 18 C36 14 38 12 40 12 C42 12 44 14 44 18 Z" fill="#ef4444" stroke="#7f1d1d" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="40" cy="18" r="2" fill="#ffffff"/>
+</svg>
