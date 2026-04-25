@@ -36,11 +36,15 @@ jobs:
         run: pnpm --filter @travel-app/shared build && pnpm --filter @travel-app/api-client build
 
       - name: Build web app
+        # NEXT_PUBLIC_* vars are inlined into the static bundle at build time,
+        # so each one the client reads has to be wired through here even if
+        # it already exists as a repository secret.
         run: pnpm --filter web build
         env:
           NODE_ENV: production
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
