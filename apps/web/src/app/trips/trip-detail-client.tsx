@@ -587,7 +587,12 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
 
         {activeTab === "todos" && (
           <div className="rounded-xl border p-6">
-            <TripTodos tripId={trip.id} todos={trip.todos} />
+            <TripTodos
+              tripId={trip.id}
+              todos={trip.todos}
+              days={trip.days}
+              showSuggestButton
+            />
           </div>
         )}
       </div>

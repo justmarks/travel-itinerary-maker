@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { Todo, TodoCategory } from "@travel-app/shared";
+import type { Todo, TodoCategory, TripDay } from "@travel-app/shared";
 import {
   useUpdateTodo,
   useCreateTodo,
 } from "@travel-app/api-client";
-import { CheckSquare2, Square, Plus, X } from "lucide-react";
+import { CheckSquare2, Square, Plus, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EditTodoDialog } from "@/components/edit-todo-dialog";
+import { SuggestMealsDialog } from "@/components/suggest-meals-dialog";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -33,7 +34,22 @@ const TODO_CATEGORIES: { value: TodoCategory; label: string }[] = [
   { value: "logistics", label: "Logistics" },
 ];
 
-export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) {
+export function TripTodos({
+  tripId,
+  todos,
+  days,
+  showSuggestButton = false,
+}: {
+  tripId: string;
+  todos: Todo[];
+  /** Required when `showSuggestButton` is true — the meal suggester reads it. */
+  days?: TripDay[];
+  /**
+   * Show the "Suggest meals" button. Only enabled on the dedicated To-do
+   * tab; the sidebar render on the Itinerary tab keeps the chrome minimal.
+   */
+  showSuggestButton?: boolean;
+}) {
   const updateTodo = useUpdateTodo(tripId);
   const createTodo = useCreateTodo(tripId);
 
@@ -41,6 +57,7 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
   const [newText, setNewText] = useState("");
   const [newCategory, setNewCategory] = useState<string>("");
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
 
   const sorted = [...todos].sort((a, b) => a.sortOrder - b.sortOrder);
   const completedCount = sorted.filter((t) => t.isCompleted).length;
@@ -72,6 +89,18 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
             <span className="text-sm text-muted-foreground">
               {completedCount}/{sorted.length}
             </span>
+          )}
+          {showSuggestButton && days && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => setSuggestOpen(true)}
+              title="Suggest to-dos for missing meals"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              Suggest meals
+            </Button>
           )}
           <Button
             variant="ghost"
@@ -190,6 +219,16 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
           }
         />
       ))}
+
+      {showSuggestButton && days && (
+        <SuggestMealsDialog
+          tripId={tripId}
+          days={days}
+          todos={sorted}
+          open={suggestOpen}
+          onOpenChange={setSuggestOpen}
+        />
+      )}
     </div>
   );
 }
