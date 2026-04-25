@@ -442,7 +442,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function TripDetailClient({ tripId }: { tripId: string }) {
-  const { data: trip, isLoading, error } = useTrip(tripId);
+  const { data: trip, isLoading } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
@@ -459,7 +459,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
     );
   }
 
-  if (error || !trip) {
+  if (!trip) {
     return (
       <main className="min-h-screen p-8">
         <div className="mx-auto max-w-7xl">

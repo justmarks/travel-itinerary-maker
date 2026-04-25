@@ -113,9 +113,12 @@ function Pill({ segment, showIcon }: { segment: Segment; showIcon: boolean }) {
 
 function RowLabel({ icon, name }: { icon: string; name: string }) {
   return (
-    <div className="sticky left-0 z-10 bg-white border-r border-gray-200 border-b border-gray-100 px-3 py-2.5 flex items-start gap-1.5">
-      <span className="text-sm leading-none mt-0.5">{icon}</span>
-      <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+    <div
+      title={name}
+      className="sticky left-0 z-10 bg-white border-r border-gray-200 border-b border-gray-100 px-2 sm:px-3 py-2.5 flex items-center sm:items-start justify-center sm:justify-start gap-1.5"
+    >
+      <span className="text-sm leading-none sm:mt-0.5">{icon}</span>
+      <span className="hidden sm:inline text-[11px] font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
         {name}
       </span>
     </div>
@@ -289,14 +292,14 @@ export function TimelineView({ trip }: { trip: Trip }) {
         <div className="overflow-x-auto timeline-scroll">
           <div
             className="grid timeline-grid"
-            style={{ gridTemplateColumns: gridCols, minWidth: "max-content", width: "100%" }}
+            style={{ gridTemplateColumns: gridCols, width: "100%" }}
           >
             {/* Day header row */}
             <div className="sticky left-0 z-20 bg-gray-50 border-b border-gray-200 border-r border-gray-200" />
             {days.map((day) => (
               <div
                 key={day.date}
-                className="bg-gray-50 border-b border-gray-200 border-r border-gray-100 px-3 py-2.5 text-center"
+                className="bg-gray-50 border-b border-gray-200 border-r border-gray-100 px-1.5 sm:px-3 py-2.5 text-center"
               >
                 <div className="text-[13px] font-bold text-gray-900">{day.dayOfWeek}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5">
@@ -305,7 +308,7 @@ export function TimelineView({ trip }: { trip: Trip }) {
                     day: "numeric",
                   })}
                 </div>
-                <div className="text-[11px] text-gray-500 mt-0.5 font-medium truncate max-w-[7rem] mx-auto">
+                <div className="text-[11px] text-gray-500 mt-0.5 font-medium truncate max-w-[4.5rem] sm:max-w-[7rem] mx-auto">
                   {day.city}
                 </div>
               </div>

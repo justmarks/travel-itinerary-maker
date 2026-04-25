@@ -464,6 +464,8 @@ export function ItineraryDay({
 }) {
   const segments = [...day.segments].sort((a, b) => {
     if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    if (a.startTime) return -1;
+    if (b.startTime) return 1;
     return a.sortOrder - b.sortOrder;
   });
 

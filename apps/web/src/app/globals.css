@@ -97,6 +97,38 @@
   }
 }
 
+/* Timeline column widths scale with viewport. Phones get a narrow icon-only
+ * label column and slim day cells so 3-4 days fit on screen. Tablets and up
+ * restore the full text label and roomier day columns. The CSS variables are
+ * read by .timeline-grid's gridTemplateColumns inline style in timeline-view.tsx,
+ * and overridden again by the @media print block below. */
+.timeline-grid {
+  --timeline-label-col: 2.75rem;
+  --timeline-day-min: 5rem;
+}
+
+/* Allow grid cells to shrink below their content's intrinsic min-content so
+ * that pills with `truncate` (white-space: nowrap) actually clip to the cell
+ * instead of forcing the column wider than --timeline-day-min. Without this,
+ * a single long pill title makes one day fill the whole mobile viewport. */
+.timeline-grid > * {
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .timeline-grid {
+    --timeline-label-col: 7rem;
+    --timeline-day-min: 6.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .timeline-grid {
+    --timeline-label-col: 8rem;
+    --timeline-day-min: 7.5rem;
+  }
+}
+
 @media print {
   /* Preserve background colours on all elements */
   * {

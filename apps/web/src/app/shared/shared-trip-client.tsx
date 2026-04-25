@@ -11,7 +11,7 @@ function formatDateRange(start: string, end: string) {
 }
 
 export default function SharedTripClient({ token }: { token: string }) {
-  const { data: trip, isLoading, error } = useSharedTrip(token);
+  const { data: trip, isLoading } = useSharedTrip(token);
 
   if (isLoading) {
     return (
@@ -24,7 +24,7 @@ export default function SharedTripClient({ token }: { token: string }) {
     );
   }
 
-  if (error || !trip) {
+  if (!trip) {
     return (
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
