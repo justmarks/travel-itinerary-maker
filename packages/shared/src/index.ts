@@ -94,3 +94,8 @@ export { migrateTrip } from "./utils/migrations";
 export { formatFlightLabel, applyCruisePortsToDayCities } from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";
+export {
+  suggestMealTodos,
+  dedupeAgainstExistingTodos,
+} from "./utils/meal-suggester";
+export type { MealSuggestion } from "./utils/meal-suggester";
