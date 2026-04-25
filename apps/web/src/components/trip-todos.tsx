@@ -5,9 +5,8 @@ import type { Todo, TodoCategory } from "@travel-app/shared";
 import {
   useUpdateTodo,
   useCreateTodo,
-  useDeleteTodo,
 } from "@travel-app/api-client";
-import { CheckSquare2, Square, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare2, Square, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { EditTodoDialog } from "@/components/edit-todo-dialog";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -36,11 +36,11 @@ const TODO_CATEGORIES: { value: TodoCategory; label: string }[] = [
 export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) {
   const updateTodo = useUpdateTodo(tripId);
   const createTodo = useCreateTodo(tripId);
-  const deleteTodo = useDeleteTodo(tripId);
 
   const [showAdd, setShowAdd] = useState(false);
   const [newText, setNewText] = useState("");
   const [newCategory, setNewCategory] = useState<string>("");
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
 
   const sorted = [...todos].sort((a, b) => a.sortOrder - b.sortOrder);
   const completedCount = sorted.filter((t) => t.isCompleted).length;
@@ -122,7 +122,7 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
       ) : (
         <ul className="flex flex-col gap-0.5">
           {sorted.map((todo) => (
-            <li key={todo.id} className="group/todo">
+            <li key={todo.id}>
               <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
                 <button
                   onClick={() =>
@@ -132,6 +132,7 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
                     })
                   }
                   className="mt-0.5 shrink-0"
+                  title={todo.isCompleted ? "Mark incomplete" : "Mark complete"}
                 >
                   {todo.isCompleted ? (
                     <CheckSquare2 className="h-4 w-4 text-green-500" />
@@ -139,37 +140,56 @@ export function TripTodos({ tripId, todos }: { tripId: string; todos: Todo[] }) 
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </button>
-                <span
-                  className={cn(
-                    "flex-1 leading-snug",
-                    todo.isCompleted && "text-muted-foreground line-through",
-                  )}
+                <button
+                  type="button"
+                  onClick={() => setEditingTodoId(todo.id)}
+                  className="min-w-0 flex-1 text-left"
+                  title="Edit"
                 >
-                  {todo.text}
-                </span>
-                {todo.category && (
-                  <span
+                  <div
                     className={cn(
-                      "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                      CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                      "leading-snug",
+                      todo.isCompleted && "text-muted-foreground line-through",
                     )}
                   >
-                    {todo.category}
-                  </span>
-                )}
-                <button
-                  onClick={() => deleteTodo.mutate(todo.id)}
-                  className="mt-0.5 shrink-0 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/todo:opacity-100"
-                  title="Delete"
-                  disabled={deleteTodo.isPending}
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    {todo.text}
+                  </div>
+                  {todo.details && (
+                    <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                      {todo.details}
+                    </div>
+                  )}
                 </button>
+                {todo.category && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingTodoId(todo.id)}
+                    className={cn(
+                      "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80",
+                      CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                    )}
+                    title="Edit"
+                  >
+                    {todo.category}
+                  </button>
+                )}
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      {sorted.map((todo) => (
+        <EditTodoDialog
+          key={todo.id}
+          tripId={tripId}
+          todo={todo}
+          open={editingTodoId === todo.id}
+          onOpenChange={(open) =>
+            setEditingTodoId(open ? todo.id : null)
+          }
+        />
+      ))}
     </div>
   );
 }
