@@ -248,7 +248,17 @@ export function SegmentFormFields({
           <Label>Type</Label>
           <SegmentTypeSelect
             value={form.type}
-            onValueChange={(v) => onChange({ type: v })}
+            onValueChange={(v) => {
+              const patch: Partial<SegmentFormState> = { type: v };
+              // Hotels: default check-in to 3 PM and check-out to 11 AM
+              // when the user picks the type. Only fills empty fields so we
+              // never clobber a value the user already typed.
+              if (v === "hotel") {
+                if (!form.startTime) patch.startTime = "15:00";
+                if (!form.endTime) patch.endTime = "11:00";
+              }
+              onChange(patch);
+            }}
           />
         </div>
         <div className="space-y-2">
