@@ -85,8 +85,8 @@ export function CreateTripDialog() {
     >
       <DialogTrigger asChild>
         <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Trip
+          <Plus className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">New Trip</span>
         </Button>
       </DialogTrigger>
       <DialogContent>
