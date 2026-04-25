@@ -28,14 +28,14 @@ export default function Home() {
 
   return (
     <RequireAuth>
-      <main className="min-h-screen p-8">
+      <main className="min-h-screen p-4 sm:p-8">
         <div className="mx-auto max-w-5xl">
-          <div className="mb-8 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Plane className="h-7 w-7" />
-              <h1 className="text-2xl font-bold">My Trips</h1>
+          <div className="mb-8 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <Plane className="h-7 w-7 shrink-0" />
+              <h1 className="truncate text-2xl font-bold">My Trips</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <EmailScanDialog triggerSize="default" />
               <CreateTripDialog />
               <DropdownMenu>

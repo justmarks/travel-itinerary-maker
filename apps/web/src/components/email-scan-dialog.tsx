@@ -472,8 +472,8 @@ export function EmailScanDialog({
     >
       <DialogTrigger asChild>
         <Button variant={triggerVariant} size={triggerSize}>
-          <Mail className="mr-2 h-4 w-4" />
-          {triggerLabel}
+          <Mail className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">{triggerLabel}</span>
         </Button>
       </DialogTrigger>
 
