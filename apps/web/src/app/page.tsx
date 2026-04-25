@@ -8,6 +8,7 @@ import { XlsxImportDialog } from "@/components/xlsx-import-dialog";
 import { TripList } from "@/components/trip-list";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
+import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,7 +20,6 @@ import {
   FileCode2,
   FileSpreadsheet,
   MoreHorizontal,
-  Plane,
 } from "lucide-react";
 
 export default function Home() {
@@ -32,7 +32,7 @@ export default function Home() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-8 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-3">
-              <Plane className="h-7 w-7 shrink-0" />
+              <AppLogo className="h-8 w-8 shrink-0" />
               <h1 className="truncate text-2xl font-bold">My Trips</h1>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
