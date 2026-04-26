@@ -605,10 +605,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
+      let deletedCalendarEventId: string | undefined;
       let deleted = false;
       for (const day of trip.days) {
         const idx = day.segments.findIndex((s) => s.id === (req.params.segId as string));
         if (idx >= 0) {
+          deletedCalendarEventId = day.segments[idx].calendarEventId;
           day.segments.splice(idx, 1);
           deleted = true;
           break;
@@ -622,6 +624,15 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
+
+      // Remove the corresponding Google Calendar event if the trip is synced
+      if (deletedCalendarEventId && trip.calendarId && req.accessToken) {
+        const { deleteCalendarEvent } = await import("../services/google-calendar");
+        deleteCalendarEvent(req.accessToken, trip.calendarId, deletedCalendarEventId).catch(() => {
+          // Fire-and-forget — deletion failure is non-critical
+        });
+      }
+
       res.status(204).send();
     },
   );
@@ -989,6 +1000,31 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         `attachment; filename="${trip.title.replace(/[^a-zA-Z0-9 ]/g, "")}.html"`,
       );
       res.send(html);
+    },
+  );
+
+  router.get(
+    "/:tripId/export/ical",
+    async (req: Request, res: Response) => {
+      const storage = getStorage(req);
+      const [{ tripToIcal }, { resolveTripTimezones }] = await Promise.all([
+        import("@travel-app/shared"),
+        import("../utils/timezone-lookup"),
+      ]);
+      const trip = await storage.getTrip(req.params.tripId as string);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      await resolveTripTimezones(trip);
+      const ics = tripToIcal(trip);
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${trip.title.replace(/[^a-zA-Z0-9 ]/g, "")}.ics"`,
+      );
+      res.send(ics);
     },
   );
 

@@ -274,6 +274,40 @@ export class ApiClient {
     return this.request(`/shared/${token}`);
   }
 
+  // ─── Calendar Sync ──────────────────────────────────────
+
+  listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    return this.request("/trips/calendar/list");
+  }
+
+  syncCalendar(
+    tripId: string,
+    calendarId?: string,
+  ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
+    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "POST" });
+  }
+
+  syncSegment(
+    tripId: string,
+    segmentId: string,
+    calendarId?: string,
+  ): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
+    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    return this.request(`/trips/${tripId}/segments/${segmentId}/calendar/sync${qs}`, { method: "POST" });
+  }
+
+  unsyncCalendar(
+    tripId: string,
+    opts?: { calendarId?: string; deleteEvents?: boolean },
+  ): Promise<{ removed: number; failed: number }> {
+    const params = new URLSearchParams();
+    if (opts?.calendarId) params.set("calendarId", opts.calendarId);
+    if (opts?.deleteEvents === false) params.set("deleteEvents", "false");
+    const qs = params.size ? `?${params}` : "";
+    return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "DELETE" });
+  }
+
   // ─── Export ─────────────────────────────────────────────
 
   async exportMarkdown(
@@ -358,6 +392,22 @@ export class ApiClient {
       throw new ApiError(res.status, body);
     }
     return res.text();
+  }
+
+  async exportIcal(tripId: string): Promise<Blob> {
+    const token = this.getAccessToken?.();
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+    const res = await fetch(
+      `${this.baseUrl}/trips/${tripId}/export/ical`,
+      { headers: authHeaders },
+    );
+    if (!res.ok) {
+      const body = await res.json();
+      throw new ApiError(res.status, body);
+    }
+    return res.blob();
   }
 
   async exportPdf(tripId: string, exclude?: string[]): Promise<Blob> {

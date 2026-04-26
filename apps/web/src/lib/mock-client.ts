@@ -1737,6 +1737,15 @@ export class MockApiClient extends ApiClient {
     return Promise.resolve({ status: "dismissed" });
   }
 
+  // ─── Calendar Sync ─────────────────────────────────────
+
+  override async listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    return [
+      { id: "primary", summary: "My Calendar", primary: true },
+      { id: "work@example.com", summary: "Work", primary: false },
+    ];
+  }
+
   // ─── Export ─────────────────────────────────────────────
 
   override async exportMarkdown(tripId: string): Promise<string> {
@@ -1751,6 +1760,14 @@ export class MockApiClient extends ApiClient {
     if (!trip) return Promise.reject(new Error("Trip not found"));
     const { tripToOneNoteHtml } = await import("@travel-app/shared");
     return tripToOneNoteHtml(trip, { includeCosts: true, includeTodos: true });
+  }
+
+  override async exportIcal(tripId: string): Promise<Blob> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { tripToIcal } = await import("@travel-app/shared");
+    const ics = tripToIcal(trip);
+    return new Blob([ics], { type: "text/calendar; charset=utf-8" });
   }
 
   override async exportPdf(tripId: string): Promise<Blob> {
@@ -1786,5 +1803,48 @@ export class MockApiClient extends ApiClient {
     // Return an empty PDF-typed blob so the existing download flow is a
     // no-op. The actual "download" is the print-to-PDF dialog above.
     return new Blob([], { type: "application/pdf" });
+  }
+
+  // ─── Calendar Sync ──────────────────────────────────────
+
+  override syncCalendar(
+    tripId: string,
+  ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+
+    let created = 0;
+    let updated = 0;
+    for (const day of trip.days) {
+      for (const segment of day.segments) {
+        if (segment.calendarEventId) {
+          updated++;
+        } else {
+          segment.calendarEventId = `mock-event-${segment.id}`;
+          created++;
+        }
+      }
+    }
+    this.trips.set(tripId, trip);
+    return Promise.resolve({ created, updated, failed: 0, calendarId: "primary" });
+  }
+
+  override unsyncCalendar(
+    tripId: string,
+  ): Promise<{ removed: number; failed: number }> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+
+    let removed = 0;
+    for (const day of trip.days) {
+      for (const segment of day.segments) {
+        if (segment.calendarEventId) {
+          delete segment.calendarEventId;
+          removed++;
+        }
+      }
+    }
+    this.trips.set(tripId, trip);
+    return Promise.resolve({ removed, failed: 0 });
   }
 }

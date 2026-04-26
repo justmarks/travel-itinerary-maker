@@ -95,6 +95,7 @@ export const segmentSchema = z.object({
   baggageInfo: z.string().optional(),
   contactName: z.string().optional(),
   cost: segmentCostSchema.optional(),
+  calendarEventId: z.string().optional(),
   source: z.enum(SEGMENT_SOURCES),
   sourceEmailId: z.string().optional(),
   needsReview: z.boolean(),
@@ -138,6 +139,7 @@ export const tripSchema = z.object({
   shares: z.array(tripShareSchema),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  calendarId: z.string().optional(),
   // Optional in the validator so trips persisted before schema versioning
   // existed still parse cleanly. Code that reads trips should pipe the
   // result through `migrateTrip` to fill this in at v1.

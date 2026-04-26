@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useTrip,
   useUpdateTrip,
@@ -12,6 +13,21 @@ import {
 import type { TripStatus } from "@travel-app/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +41,10 @@ import {
 import {
   ArrowLeft,
   Calendar,
+  CalendarCheck,
+  CalendarPlus,
+  CalendarX,
+  RefreshCw,
   MapPin,
   Pencil,
   Check,
@@ -33,6 +53,7 @@ import {
   FileText,
   BookOpen,
   FileDown,
+  CalendarDays,
   AlertCircle,
   AlertTriangle,
   MoreHorizontal,
@@ -43,6 +64,7 @@ import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
 import { MapView } from "@/components/map-view";
+import { toast } from "sonner";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
@@ -316,9 +338,11 @@ function downloadBlobDirect(blob: Blob, filename: string) {
  */
 function TripActionsMenu({
   tripId,
+  tripTitle,
   onImportEmail,
 }: {
   tripId: string;
+  tripTitle: string;
   onImportEmail: () => void;
 }) {
   const client = useApiClient();
@@ -351,6 +375,13 @@ function TripActionsMenu({
     runExport(async () => {
       const blob = await client.exportPdf(tripId);
       downloadBlobDirect(blob, "itinerary.pdf");
+    });
+
+  const handleExportIcal = () =>
+    runExport(async () => {
+      const blob = await client.exportIcal(tripId);
+      const safeName = tripTitle.replace(/[/\\:*?"<>|]/g, "-").trim() || "itinerary";
+      downloadBlobDirect(blob, `${safeName}.ics`);
     });
 
   return (
@@ -388,6 +419,10 @@ function TripActionsMenu({
             <DropdownMenuItem onClick={handleExportPdf}>
               <FileDown className="mr-2 h-4 w-4" />
               PDF (.pdf)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportIcal}>
+              <CalendarDays className="mr-2 h-4 w-4" />
+              iCal (.ics)
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
@@ -428,6 +463,250 @@ function NeedsReviewBanner({
         Confirm all
       </Button>
     </div>
+  );
+}
+
+function CalendarSyncButton({
+  trip,
+}: {
+  trip: {
+    id: string;
+    calendarId?: string;
+    days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
+  };
+}) {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  const [syncing, setSyncing] = useState(false);
+  // "pick"  → choose-calendar dialog (not yet synced)
+  // "info"  → synced-status dialog
+  // null    → no dialog
+  const [dialog, setDialog] = useState<"pick" | "info" | null>(null);
+  const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
+  // "confirm" = showing the remove-sync confirmation step
+  const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
+  const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
+
+  const isSynced = trip.days.flatMap((d) => d.segments).some((s) => s.calendarEventId);
+  const syncedCount = trip.days.flatMap((d) => d.segments).filter((s) => s.calendarEventId).length;
+  const syncedCalendarName = calendars?.find((c) => c.id === trip.calendarId)?.summary;
+
+  const loadCalendars = async () => {
+    setLoadingCalendars(true);
+    setCalendars(null);
+    try {
+      const cals = await client.listCalendars();
+      setCalendars(cals);
+      const primary = cals.find((c) => c.primary);
+      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+    } catch {
+      setCalendars([]);
+    } finally {
+      setLoadingCalendars(false);
+    }
+  };
+
+  const openDialog = () => {
+    if (isSynced) {
+      setRemoveStep(null);
+      setDeleteChoice("delete");
+      setDialog("info");
+      loadCalendars();
+    } else {
+      setDialog("pick");
+      loadCalendars();
+    }
+  };
+
+  const handleSync = async () => {
+    setDialog(null);
+    setSyncing(true);
+    try {
+      const result = await client.syncCalendar(trip.id, selectedCalendarId);
+      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      const total = result.created + result.updated;
+      if (result.failed > 0) {
+        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
+      } else {
+        toast.success(`${total} event${total !== 1 ? "s" : ""} synced to Google Calendar`);
+      }
+    } catch {
+      toast.error("Sync failed — check that Calendar access is granted.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setDialog(null);
+    setSyncing(true);
+    try {
+      const result = await client.syncCalendar(trip.id, trip.calendarId);
+      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      const total = result.created + result.updated;
+      if (result.failed > 0) {
+        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
+      } else {
+        toast.success(`Calendar refreshed — ${total} event${total !== 1 ? "s" : ""} up to date`);
+      }
+    } catch {
+      toast.error("Refresh failed — check that Calendar access is granted.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setDialog(null);
+    setSyncing(true);
+    try {
+      const result = await client.unsyncCalendar(trip.id, { deleteEvents: deleteChoice === "delete" });
+      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      if (deleteChoice === "delete") {
+        toast.success(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
+      } else {
+        toast.success("Sync removed — calendar events kept");
+      }
+    } catch {
+      toast.error("Failed to remove sync.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={syncing}
+        onClick={openDialog}
+      >
+        {isSynced ? (
+          <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+        ) : (
+          <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+        )}
+        {syncing
+          ? "Syncing…"
+          : isSynced
+            ? `Synced (${syncedCount})`
+            : "Sync to Calendar"}
+      </Button>
+
+      {/* ── Calendar picker (not yet synced) ── */}
+      <Dialog open={dialog === "pick"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Choose a calendar</DialogTitle>
+            <DialogDescription>
+              Select the Google Calendar to sync this trip&apos;s events to.
+            </DialogDescription>
+          </DialogHeader>
+          {loadingCalendars ? (
+            <p className="py-2 text-sm text-muted-foreground">Loading calendars…</p>
+          ) : calendars && calendars.length > 0 ? (
+            <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {calendars.map((cal) => (
+                  <SelectItem key={cal.id} value={cal.id}>
+                    {cal.summary}{cal.primary ? " (primary)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="py-2 text-sm text-muted-foreground">No writable calendars found.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
+            <Button onClick={handleSync} disabled={loadingCalendars || !calendars?.length}>
+              Sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Sync info dialog (already synced) ── */}
+      <Dialog open={dialog === "info"} onOpenChange={(o) => { if (!o) { setDialog(null); setRemoveStep(null); } }}>
+        <DialogContent className="sm:max-w-sm">
+          {removeStep !== "confirm" ? (
+            <>
+              <DialogHeader>
+                <DialogTitle>Google Calendar sync</DialogTitle>
+                <DialogDescription>
+                  {syncedCount} event{syncedCount !== 1 ? "s" : ""} synced
+                  {syncedCalendarName ? ` to ${syncedCalendarName}` : ""}.
+                  New and edited events are pushed automatically.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => setRemoveStep("confirm")}
+                >
+                  <CalendarX className="mr-2 h-3.5 w-3.5" />
+                  Remove sync
+                </Button>
+                <Button className="w-full sm:w-auto" onClick={handleRefresh}>
+                  <RefreshCw className="mr-2 h-3.5 w-3.5" />
+                  Refresh
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle>Remove sync</DialogTitle>
+                <DialogDescription>
+                  What should happen to the calendar events?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-3 py-1">
+                <label className="flex items-start gap-3 cursor-pointer rounded-md border p-3 has-[:checked]:border-primary">
+                  <input
+                    type="radio"
+                    name="deleteChoice"
+                    value="delete"
+                    checked={deleteChoice === "delete"}
+                    onChange={() => setDeleteChoice("delete")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">Delete from Google Calendar</p>
+                    <p className="text-xs text-muted-foreground">Remove all synced events from your calendar.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer rounded-md border p-3 has-[:checked]:border-primary">
+                  <input
+                    type="radio"
+                    name="deleteChoice"
+                    value="keep"
+                    checked={deleteChoice === "keep"}
+                    onChange={() => setDeleteChoice("keep")}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <p className="text-sm font-medium">Keep in Google Calendar</p>
+                    <p className="text-xs text-muted-foreground">Events stay in your calendar but won&apos;t be updated by this app.</p>
+                  </div>
+                </label>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRemoveStep(null)}>Back</Button>
+                <Button variant="destructive" onClick={handleRemove}>Remove sync</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -490,8 +769,10 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+            <CalendarSyncButton trip={trip} />
             <TripActionsMenu
               tripId={trip.id}
+              tripTitle={trip.title}
               onImportEmail={() => setHtmlImportOpen(true)}
             />
             <HtmlImportDialog

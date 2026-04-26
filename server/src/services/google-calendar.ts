@@ -1,0 +1,626 @@
+import { google, type calendar_v3 } from "googleapis";
+import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import { formatFlightLabel } from "@travel-app/shared";
+import { getCityTimezone } from "@travel-app/shared";
+
+export interface CalendarSyncResult {
+  created: number;
+  updated: number;
+  failed: number;
+  calendarId: string;
+  /** Map of segmentId → calendarEventId for segments that were created/updated */
+  eventMap: Record<string, string>;
+}
+
+export interface CalendarUnsyncResult {
+  removed: number;
+  failed: number;
+}
+
+function buildClient(accessToken: string): calendar_v3.Calendar {
+  const auth = new google.auth.OAuth2();
+  auth.setCredentials({ access_token: accessToken });
+  return google.calendar({ version: "v3", auth });
+}
+
+// ─── Time helpers ─────────────────────────────────────────────────────────────
+
+function addHoursToTime(time: string, hours: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + (m ?? 0) + hours * 60;
+  return `${String(Math.min(Math.floor(total / 60), 23)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(isoDate + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Returns tz offset in minutes (positive = east of UTC) for the given UTC instant. */
+function getUtcOffsetMinutes(referenceUtc: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(referenceUtc);
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0");
+  const localMs = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return (localMs - referenceUtc.getTime()) / 60_000;
+}
+
+/**
+ * Compute the calendar date of arrival for a flight/train segment.
+ * Returns depDate if arrival is on the same local-calendar date,
+ * or depDate+1 when the flight crosses midnight in UTC (e.g. transatlantic).
+ */
+function resolveArrivalDate(
+  depDate: string,
+  depTime: string | undefined,
+  depTz: string | undefined,
+  arrTime: string | undefined,
+  arrTz: string | undefined,
+): string {
+  if (!depTime || !arrTime || !depTz || !arrTz) return depDate;
+  try {
+    const ref = new Date(`${depDate}T12:00:00Z`);
+    const depOffMin = getUtcOffsetMinutes(ref, depTz);
+    const arrOffMin = getUtcOffsetMinutes(ref, arrTz);
+    const [dh, dm] = depTime.slice(0, 5).split(":").map(Number);
+    const [ah, am] = arrTime.slice(0, 5).split(":").map(Number);
+    const depUtcMin = (dh ?? 0) * 60 + (dm ?? 0) - depOffMin;
+    const arrSameDayUtcMin = (ah ?? 0) * 60 + (am ?? 0) - arrOffMin;
+    return arrSameDayUtcMin > depUtcMin ? depDate : addDays(depDate, 1);
+  } catch {
+    return depDate;
+  }
+}
+
+function dateTime(
+  date: string,
+  time?: string,
+  tz?: string,
+): calendar_v3.Schema$EventDateTime {
+  if (!time) return { date };
+  const t = time.length === 5 ? time + ":00" : time;
+  const dt: calendar_v3.Schema$EventDateTime = { dateTime: `${date}T${t}` };
+  if (tz) dt.timeZone = tz;
+  return dt;
+}
+
+// ─── Segment → Calendar Event ─────────────────────────────────────────────────
+
+const TYPE_LABELS: Record<string, string> = {
+  flight: "Flight",
+  train: "Train",
+  car_rental: "Car Rental",
+  car_service: "Car",
+  other_transport: "Transport",
+  hotel: "Hotel",
+  activity: "Activity",
+  show: "Show",
+  restaurant_breakfast: "Breakfast",
+  restaurant_brunch: "Brunch",
+  restaurant_lunch: "Lunch",
+  restaurant_dinner: "Dinner",
+  tour: "Tour",
+  cruise: "Cruise",
+};
+
+export function segmentToEvent(
+  segment: Segment,
+  day: TripDay,
+  tripTitle: string,
+): calendar_v3.Schema$Event {
+  const label = TYPE_LABELS[segment.type] ?? segment.type;
+  let summary: string;
+  let description: string;
+  let location: string | undefined;
+  let start: calendar_v3.Schema$EventDateTime;
+  let end: calendar_v3.Schema$EventDateTime;
+
+  // Derive IANA timezones from the cities associated with this segment.
+  // Transport uses departure city for start and arrival city for end so a
+  // flight from Tokyo to Paris shows 09:00 JST departure and 18:00 CET
+  // arrival regardless of the user's device zone. All other segments use
+  // the segment's own city or the day city.
+  const startTz = getCityTimezone(
+    segment.departureCity ?? segment.city ?? day.city,
+  );
+  const endTz = getCityTimezone(
+    segment.arrivalCity ?? segment.city ?? day.city,
+  );
+  // For non-transport segments start and end are in the same place.
+  const localTz = getCityTimezone(segment.city ?? day.city);
+
+  switch (segment.type) {
+    case "flight":
+    case "train": {
+      const carrier = formatFlightLabel(segment);
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      summary = carrier ? `${carrier}${route ? ": " + route : ""}` : `${label}: ${segment.title}`;
+      const desc: string[] = [];
+      if (route) desc.push(route);
+      if (segment.coach) desc.push(`Coach: ${segment.coach}`);
+      if (segment.seatNumber) desc.push(`Seat: ${segment.seatNumber}`);
+      if (segment.cabinClass) desc.push(`Class: ${segment.cabinClass}`);
+      if (segment.baggageInfo) desc.push(`Baggage: ${segment.baggageInfo}`);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.departureCity || segment.city || day.city;
+      // Start in departure city TZ; end in arrival city TZ.
+      start = dateTime(day.date, segment.startTime, startTz);
+      const arrDate = resolveArrivalDate(
+        day.date, segment.startTime, startTz, segment.endTime, endTz,
+      );
+      end = segment.endTime
+        ? dateTime(arrDate, segment.endTime, endTz)
+        : segment.startTime
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 2), startTz)
+          : { date: addDays(day.date, 1) };
+      break;
+    }
+
+    case "hotel": {
+      const venue = segment.venueName || segment.title;
+      summary = `Hotel: ${venue}`;
+      const desc: string[] = [];
+      if (segment.address) desc.push(segment.address);
+      if (segment.breakfastIncluded) desc.push("Breakfast included");
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      start = { date: day.date };
+      end = { date: segment.endDate ?? addDays(day.date, 1) };
+      break;
+    }
+
+    case "car_rental": {
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      if (segment.address) desc.push(segment.address);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      start = { date: day.date };
+      end = { date: segment.endDate ?? addDays(day.date, 1) };
+      break;
+    }
+
+    case "cruise": {
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      if (route) desc.push(route);
+      if (segment.address) desc.push(segment.address);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      if (segment.endDate) {
+        start = dateTime(day.date, segment.startTime, startTz);
+        end = dateTime(segment.endDate, segment.endTime, endTz);
+      } else {
+        start = dateTime(day.date, segment.startTime, localTz);
+        end = segment.endTime
+          ? dateTime(day.date, segment.endTime, localTz)
+          : segment.startTime
+            ? dateTime(day.date, addHoursToTime(segment.startTime, 2), localTz)
+            : { date: addDays(day.date, 1) };
+      }
+      break;
+    }
+
+    case "restaurant_breakfast":
+    case "restaurant_brunch":
+    case "restaurant_lunch":
+    case "restaurant_dinner": {
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      if (segment.partySize) desc.push(`Party of ${segment.partySize}`);
+      if (segment.creditCardHold) desc.push("Credit card hold required");
+      if (segment.cancellationDeadline) desc.push(`Cancel by: ${segment.cancellationDeadline}`);
+      if (segment.phone) desc.push(`Phone: ${segment.phone}`);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.venueName;
+      start = dateTime(day.date, segment.startTime, localTz);
+      end = segment.endTime
+        ? dateTime(day.date, segment.endTime, localTz)
+        : segment.startTime
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 2), localTz)
+          : { date: addDays(day.date, 1) };
+      break;
+    }
+
+    default: {
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      if (segment.address) desc.push(segment.address);
+      if (segment.type === "car_service" && segment.contactName)
+        desc.push(`Driver: ${segment.contactName}`);
+      if (segment.type === "show" && segment.seatNumber)
+        desc.push(`Seat: ${segment.seatNumber}`);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      start = dateTime(day.date, segment.startTime, localTz);
+      end = segment.endTime
+        ? dateTime(day.date, segment.endTime, localTz)
+        : segment.startTime
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 1), localTz)
+          : { date: addDays(day.date, 1) };
+      break;
+    }
+  }
+
+  return {
+    summary,
+    description: description || undefined,
+    location,
+    start,
+    end,
+    extendedProperties: {
+      private: {
+        source: "travel-itinerary-maker",
+        tripTitle,
+        tripId: "",      // filled in by caller
+        segmentId: segment.id,
+      },
+    },
+  };
+}
+
+// ─── Calendar list ────────────────────────────────────────────────────────────
+
+export interface CalendarEntry {
+  id: string;
+  summary: string;
+  primary: boolean;
+}
+
+export async function listUserCalendars(accessToken: string): Promise<CalendarEntry[]> {
+  const cal = buildClient(accessToken);
+  const res = await cal.calendarList.list({ minAccessRole: "writer" });
+  return (res.data.items ?? []).map((item) => ({
+    id: item.id ?? "",
+    summary: item.summary ?? item.id ?? "",
+    primary: item.primary === true,
+  }));
+}
+
+// ─── Existing-event matching ──────────────────────────────────────────────────
+
+/** Collapse whitespace and punctuation for fuzzy comparison. */
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_.]+/g, "");
+}
+
+/**
+ * Fetch all events from a calendar within [startDate, endDate+2 days].
+ * Returns an empty array if the API call fails so the caller can fall back
+ * to creating new events.
+ */
+async function fetchEventsInRange(
+  cal: calendar_v3.Calendar,
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+): Promise<calendar_v3.Schema$Event[]> {
+  const events: calendar_v3.Schema$Event[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await cal.events.list({
+      calendarId,
+      timeMin: new Date(`${startDate}T00:00:00Z`).toISOString(),
+      timeMax: new Date(`${addDays(endDate, 2)}T00:00:00Z`).toISOString(),
+      maxResults: 250,
+      singleEvents: true,
+      showDeleted: false,
+      pageToken,
+    });
+    events.push(...(res.data.items ?? []));
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return events;
+}
+
+/**
+ * Try to find an existing calendar event that matches a segment. Only
+ * considers events NOT already tracked by a segment in this trip (by event ID)
+ * so we never accidentally re-match events that are already in use.
+ * Returns the matched event ID, or undefined.
+ *
+ * - flight/train: matched by route code then formatted label
+ * - hotel:        matched by venue name on an all-day event within the stay
+ * - everything else: matched by title/venue on the same calendar date
+ */
+function findMatchingEventId(
+  segment: Segment,
+  day: TripDay,
+  existingEvents: calendar_v3.Schema$Event[],
+  trackedEventIds: Set<string>,
+): string | undefined {
+  // Exclude events already claimed by another segment in this sync
+  const candidates = existingEvents.filter(
+    (e) => e.id && !trackedEventIds.has(e.id),
+  );
+
+  switch (segment.type) {
+    case "flight":
+    case "train": {
+      // Match by route code (most reliable — "AS565", "AA 1234", etc.)
+      if (segment.routeCode) {
+        const routeNorm = norm(segment.routeCode);
+        for (const e of candidates) {
+          if (e.id && e.summary && norm(e.summary).includes(routeNorm)) {
+            return e.id;
+          }
+        }
+      }
+      // Fall back to formatted carrier + flight label ("Alaska Airlines 565")
+      const label = formatFlightLabel(segment);
+      if (label) {
+        const labelNorm = norm(label);
+        for (const e of candidates) {
+          if (e.id && e.summary) {
+            const sumNorm = norm(e.summary);
+            if (sumNorm.includes(labelNorm) || labelNorm.includes(sumNorm)) {
+              return e.id;
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    case "hotel": {
+      // Hotel events are all-day; match venue name within the stay range.
+      const venueName = segment.venueName || segment.title;
+      if (!venueName) break;
+      const venueNorm = norm(venueName);
+      const checkIn = day.date;
+      const checkOut = segment.endDate ?? addDays(day.date, 1);
+      for (const e of candidates) {
+        if (!e.id || !e.summary || !e.start?.date) continue;
+        const eventDate = e.start.date;
+        if (eventDate >= checkIn && eventDate < checkOut) {
+          const sumNorm = norm(e.summary);
+          if (sumNorm.includes(venueNorm) || venueNorm.includes(sumNorm)) {
+            return e.id;
+          }
+        }
+      }
+      break;
+    }
+
+    default: {
+      // Activities, restaurants, shows, tours, etc.: match title/venue on same date.
+      const title = segment.venueName || segment.title;
+      if (!title) break;
+      const titleNorm = norm(title);
+      for (const e of candidates) {
+        if (!e.id || !e.summary) continue;
+        const eventDate = e.start?.date ?? e.start?.dateTime?.slice(0, 10);
+        if (eventDate !== day.date) continue;
+        const sumNorm = norm(e.summary);
+        if (sumNorm.includes(titleNorm) || titleNorm.includes(sumNorm)) {
+          return e.id;
+        }
+      }
+      break;
+    }
+  }
+
+  return undefined;
+}
+
+// ─── Sync ─────────────────────────────────────────────────────────────────────
+
+export async function syncTripToCalendar(
+  accessToken: string,
+  trip: Trip,
+  calendarId = "primary",
+): Promise<CalendarSyncResult> {
+  const cal = buildClient(accessToken);
+  const result: CalendarSyncResult = {
+    created: 0,
+    updated: 0,
+    failed: 0,
+    calendarId,
+    eventMap: {},
+  };
+
+  // Build the set of event IDs already tracked by segments so the matcher
+  // won't reassign an event that's already in use by another segment.
+  const trackedEventIds = new Set(
+    trip.days.flatMap((d) => d.segments).map((s) => s.calendarEventId).filter(Boolean) as string[],
+  );
+
+  // Pre-fetch existing calendar events so we can match airline-added (or
+  // previously-orphaned) events against segments that don't yet have an ID.
+  const needsMatching = trip.days.some((d) =>
+    d.segments.some((s) => !s.calendarEventId),
+  );
+  let existingEvents: calendar_v3.Schema$Event[] = [];
+  if (needsMatching) {
+    try {
+      existingEvents = await fetchEventsInRange(cal, calendarId, trip.startDate, trip.endDate);
+      console.log(`[calendar-sync] Fetched ${existingEvents.length} existing event(s) for matching`);
+    } catch {
+      console.warn("[calendar-sync] Could not fetch existing events for match check; will create new events.");
+    }
+  }
+
+  for (const day of trip.days) {
+    for (const segment of day.segments) {
+      try {
+        const event = segmentToEvent(segment, day, trip.title);
+        event.extendedProperties!.private!.tripId = trip.id;
+
+        // If this segment has no calendarEventId yet, see if an existing
+        // calendar event (airline-added or orphaned from a previous sync)
+        // already represents it.
+        if (!segment.calendarEventId) {
+          const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
+          if (matchId) {
+            console.log(`[calendar-sync] Matched "${segment.title}" to existing event ${matchId}`);
+            segment.calendarEventId = matchId;
+            trackedEventIds.add(matchId);
+          }
+        }
+
+        if (segment.calendarEventId) {
+          try {
+            await cal.events.update({
+              calendarId,
+              eventId: segment.calendarEventId,
+              requestBody: event,
+            });
+            result.updated++;
+            result.eventMap[segment.id] = segment.calendarEventId;
+            console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
+          } catch (err: unknown) {
+            const status =
+              (err as { code?: number }).code ??
+              (err as { status?: number }).status;
+            if (status === 404 || status === 410) {
+              // Event was deleted from calendar — re-create it
+              const res = await cal.events.insert({ calendarId, requestBody: event });
+              result.created++;
+              result.eventMap[segment.id] = res.data.id!;
+              console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
+            } else {
+              throw err;
+            }
+          }
+        } else {
+          const res = await cal.events.insert({ calendarId, requestBody: event });
+          result.created++;
+          result.eventMap[segment.id] = res.data.id!;
+          console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
+        }
+      } catch {
+        result.failed++;
+      }
+    }
+  }
+
+  console.log(`[calendar-sync] Done: ${result.created} created, ${result.updated} updated, ${result.failed} failed (calendarId=${calendarId})`);
+  return result;
+}
+
+/**
+ * Sync a single segment to Google Calendar. Creates or updates one event.
+ * Returns the event ID that was created/updated, or undefined on failure.
+ */
+export async function syncSegmentToCalendar(
+  accessToken: string,
+  trip: Trip,
+  day: TripDay,
+  segment: Segment,
+  calendarId = "primary",
+): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
+  const cal = buildClient(accessToken);
+  const event = segmentToEvent(segment, day, trip.title);
+  event.extendedProperties!.private!.tripId = trip.id;
+
+  try {
+    if (segment.calendarEventId) {
+      try {
+        await cal.events.update({ calendarId, eventId: segment.calendarEventId, requestBody: event });
+        console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
+        return { created: 0, updated: 1, failed: 0, eventId: segment.calendarEventId };
+      } catch (err: unknown) {
+        const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
+        if (status === 404 || status === 410) {
+          const res = await cal.events.insert({ calendarId, requestBody: event });
+          console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
+          return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
+        }
+        throw err;
+      }
+    } else {
+      // No calendarEventId — try to match an existing event first
+      const existingEvents = await fetchEventsInRange(cal, calendarId, day.date, day.date).catch(() => [] as calendar_v3.Schema$Event[]);
+      const trackedEventIds = new Set(
+        trip.days.flatMap((d) => d.segments).map((s) => s.calendarEventId).filter(Boolean) as string[],
+      );
+      const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
+      if (matchId) {
+        await cal.events.update({ calendarId, eventId: matchId, requestBody: event });
+        console.log(`[calendar-sync] Matched+updated "${segment.title}" → ${matchId}`);
+        return { created: 0, updated: 1, failed: 0, eventId: matchId };
+      }
+      const res = await cal.events.insert({ calendarId, requestBody: event });
+      console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
+      return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
+    }
+  } catch {
+    console.warn(`[calendar-sync] Failed to sync "${segment.title}"`);
+    return { created: 0, updated: 0, failed: 1 };
+  }
+}
+
+/**
+ * Delete a single calendar event. Treats 404/410 as success (already gone).
+ */
+export async function deleteCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  const cal = buildClient(accessToken);
+  try {
+    await cal.events.delete({ calendarId, eventId });
+    console.log(`[calendar-sync] Removed  event ${eventId}`);
+  } catch (err: unknown) {
+    const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
+    if (status !== 404 && status !== 410) throw err;
+    console.log(`[calendar-sync] Already gone event ${eventId}`);
+  }
+}
+
+export async function unsyncTripFromCalendar(
+  accessToken: string,
+  trip: Trip,
+  calendarId = "primary",
+): Promise<CalendarUnsyncResult> {
+  const cal = buildClient(accessToken);
+  const result: CalendarUnsyncResult = { removed: 0, failed: 0 };
+
+  for (const day of trip.days) {
+    for (const segment of day.segments) {
+      if (!segment.calendarEventId) continue;
+      try {
+        await cal.events.delete({ calendarId, eventId: segment.calendarEventId });
+        result.removed++;
+        console.log(`[calendar-sync] Removed  "${segment.title}" (${segment.calendarEventId})`);
+      } catch (err: unknown) {
+        const status =
+          (err as { code?: number }).code ??
+          (err as { status?: number }).status;
+        if (status === 404 || status === 410) {
+          result.removed++; // already gone — counts as removed
+          console.log(`[calendar-sync] Already gone "${segment.title}" (${segment.calendarEventId})`);
+        } else {
+          result.failed++;
+          console.warn(`[calendar-sync] Failed to remove "${segment.title}" (${segment.calendarEventId}):`, err);
+        }
+      }
+    }
+  }
+
+  return result;
+}

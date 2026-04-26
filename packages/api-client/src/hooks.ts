@@ -203,10 +203,18 @@ export function useCreateSegment(tripId: string) {
       const { date, ...segmentData } = input;
       return client.createSegment(tripId, date, segmentData);
     },
-    onSuccess: () => {
+    onSuccess: (newSegment) => {
+      // Read calendarId before invalidating so we get it from current cache
+      const trip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs(tripId) });
+      if (trip?.calendarId) {
+        // Sync only the newly created segment, not the entire trip
+        client.syncSegment(tripId, newSegment.id, trip.calendarId).then(() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+        }).catch(() => { /* silent — user can manually refresh */ });
+      }
     },
   });
 }
@@ -239,6 +247,15 @@ export function useUpdateSegment(tripId: string) {
     onError: (_err, _input, ctx) => {
       if (ctx?.prev) {
         queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSuccess: (_data, variables) => {
+      // Sync only the edited segment, not the entire trip
+      const trip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (trip?.calendarId) {
+        client.syncSegment(tripId, variables.segmentId, trip.calendarId).then(() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+        }).catch(() => { /* silent — user can manually refresh */ });
       }
     },
     onSettled: () => {

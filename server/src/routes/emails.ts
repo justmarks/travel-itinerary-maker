@@ -419,7 +419,11 @@ function deduplicateResults(results: EmailScanResult[]): void {
   const toRemove = new Set<string>(); // "resultIdx:segIdx"
   const replacements = new Map<string, ParsedSegment>(); // "resultIdx:segIdx" → merged
 
-  for (const [, group] of groups) {
+  const totalSegs = allSegments.length;
+  const dupGroups = [...groups.values()].filter((g) => g.length > 1).length;
+  console.log(`[dedup] ${totalSegs} segment(s) across ${results.length} result(s) — ${dupGroups} duplicate group(s)`);
+
+  for (const [dedupKey, group] of groups) {
     if (group.length <= 1) continue;
 
     // Merge all into the first one
@@ -431,7 +435,12 @@ function deduplicateResults(results: EmailScanResult[]): void {
 
     const winnerKey = `${group[0].resultIdx}:${group[0].segIdx}`;
     replacements.set(winnerKey, merged);
-    console.log(`  Dedup: merged ${group.length} segments → "${merged.title}" (${merged.seatNumber || "no seats"})`);
+
+    console.log(`  Dedup [${dedupKey}]: ${group.length} copies of "${merged.title}"`);
+    console.log(`    keeping: from ${group[0].seg.emailId}`);
+    for (let i = 1; i < group.length; i++) {
+      console.log(`    skipping: from ${group[i].seg.emailId} (duplicate)`);
+    }
   }
 
   // Apply removals and replacements (iterate backwards to preserve indices)
