@@ -19,7 +19,8 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Embedded costs** — each segment card shows cost and booking details inline, with a dedicated Costs tab
 - **TODO tracking** — categorized checklist for meals, activities, research, and logistics
 - **Sharing** — generate share links with configurable visibility (costs, TODOs)
-- **Export** — download itineraries as Markdown, OneNote-compatible HTML, or PDF
+- **Export** — download itineraries as Markdown, OneNote-compatible HTML, PDF, or **iCal (.ics)**; the iCal file is named after the trip, includes VTIMEZONE blocks for correct DST display in Outlook, and handles overnight flights (arrival date advances to the next calendar day when the flight crosses midnight UTC)
+- **Google Calendar sync** — push all trip segments to any of your writable Google Calendars with one click; hotels and car rentals become all-day events; flights and trains carry the correct IANA time zone per city so events land at the right wall-clock time regardless of your device zone; re-sync updates existing events; unsync removes them; a calendar picker lets you choose which calendar before each sync
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 - **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same Claude parser (unblocks non-Gmail users)
@@ -113,12 +114,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **379 tests** across 18 test suites.
+Current coverage: **465 tests** across 24 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 140 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, ID generation, segment label formatting, overlap detection, segment matching |
-| `server` | 239 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 181 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, overlap detection, segment matching |
+| `server` | 284 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF + iCal), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar sync + unsync (all-day events for hotels/car rentals, timed events with TZID for flights), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
 
@@ -187,6 +188,10 @@ Base URL: `/api/v1`
 | `GET` | `/trips/:id/export/markdown` | Export as Markdown |
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 | `GET` | `/trips/:id/export/pdf` | Export as PDF (pdfkit; day-by-day + costs summary) |
+| `GET` | `/trips/:id/export/ical` | Export as iCal (.ics) with VTIMEZONE blocks and correct DST offsets |
+| `GET` | `/trips/calendar/list` | List the user's writable Google Calendars |
+| `POST` | `/trips/:id/calendar/sync` | Push all segments to a Google Calendar; pass `?calendarId=` to target a specific calendar |
+| `DELETE` | `/trips/:id/calendar/sync` | Remove all previously synced events; uses the stored `calendarId` by default |
 | `GET` | `/emails/labels` | List Gmail labels for scan filtering |
 | `POST` | `/emails/scan` | Scan Gmail and parse with Claude AI |
 | `POST` | `/emails/import-html` | Parse a raw HTML email through the same Claude pipeline |
@@ -233,7 +238,7 @@ Demo mode uses a mock API client with sample trip data. No backend required. The
 
 **Times are wall-clock local to the segment's city.** A 09:00 flight out of Tokyo and a 09:00 dinner in Paris are both stored and displayed as `09:00` — the app does not display, convert, or annotate time zones in the UI, even on multi-country trips. This keeps the day-by-day view simple: the time you read is the time you'll see on the clock when you're there.
 
-The one place this matters is **calendar export**: events pushed to Google Calendar attach the correct IANA time zone per segment so they land at the right wall-clock time regardless of the user's device zone.
+The one place times are zone-aware is **calendar export**. Both Google Calendar sync and iCal export attach the correct IANA time zone per segment so events land at the right wall-clock time regardless of the user's device zone. iCal files include `VTIMEZONE` blocks (with DST transition dates computed via `Intl`) so Outlook and other clients that look up timezone offsets from their own database get the correct summer/winter offset rather than always using standard time. Overnight flights (e.g. LA → Paris) have their `DTEND` advanced to the next calendar day when the arrival UTC time is earlier in the day than the departure UTC time.
 
 ## Contributing
 
@@ -285,10 +290,10 @@ Two related cleanups surfaced while auditing this area:
 - [x] **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
 - [x] **Multi-layout XLSX import** — auto-detects column layouts (B=date vs. C=date, with day-of-month carry-forward for week-grouped workbooks)
 - [x] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
+- [x] **Google Calendar sync** — push trip segments to any writable Google Calendar; hotels and car rentals as all-day events; flights/trains carry the correct IANA time zone per city; re-sync updates existing events; unsync removes them; calendar picker lets you choose the target calendar; `calendarId` stored on trip so unsync always hits the right calendar
+- [x] **iCal export** — download trip as a `.ics` file named after the trip; VTIMEZONE blocks with DST-aware transitions for Outlook compatibility; overnight flight `DTEND` advanced to next day when UTC arrival precedes UTC departure
 
 **Up next:**
-
-- [ ] **Google Calendar sync** — push trip segments to Google Calendar as events with the correct IANA time zone per segment (so a 09:00 Tokyo flight lands at 09:00 JST regardless of the user's device zone); re-sync updates existing events; unsync removes them (implementation exists on a feature branch, pending merge)
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
