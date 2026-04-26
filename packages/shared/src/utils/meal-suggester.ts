@@ -12,7 +12,11 @@ export interface MealSuggestion {
   date: string;
   /** "lunch" or "dinner". The kind of meal we think is missing. */
   meal: "lunch" | "dinner";
-  /** True when the day has transit during the lunch window — picnic/takeaway. */
+  /**
+   * True when the day is a departure-from-an-overnight-stop day — the user
+   * has slept in town and is leaving by flight/train, so a sit-down meal
+   * doesn't fit. Only set on lunch.
+   */
   takeaway: boolean;
   /** Final user-facing text saved as the todo's `text`. */
   text: string;
@@ -34,14 +38,51 @@ const TRANSPORT_TYPES = new Set<SegmentType>([
 const LUNCH_TYPE: SegmentType = "restaurant_lunch";
 const DINNER_TYPE: SegmentType = "restaurant_dinner";
 
-/** Lunch window: a transport segment starting in this range overlaps lunch. */
-const LUNCH_WINDOW_START = "10:00";
-const LUNCH_WINDOW_END = "14:00";
+/** Meal windows in minutes-from-midnight. End is exclusive. */
+const LUNCH_WINDOW = { start: 11 * 60 + 30, end: 14 * 60 }; // 11:30–14:00
+const DINNER_WINDOW = { start: 18 * 60, end: 21 * 60 }; //   18:00–21:00
 
-function inLunchWindow(time: string | undefined): boolean {
-  if (!time) return false;
-  // ISO-style HH:MM lex-compares correctly: "10:00" <= "13:30" < "14:00"
-  return time >= LUNCH_WINDOW_START && time < LUNCH_WINDOW_END;
+/** Layovers shorter than this don't leave room for a meal. */
+const SHORT_LAYOVER_MINUTES = 6 * 60;
+
+/**
+ * Default duration for a flight/train segment when only `startTime` is
+ * known. Errs long: better to skip a meal we'd otherwise suggest than
+ * to recommend lunch while the user is in the air.
+ */
+const FLIGHT_DEFAULT_DURATION = 8 * 60;
+const TRAIN_DEFAULT_DURATION = 4 * 60;
+const OTHER_TRANSPORT_DEFAULT_DURATION = 2 * 60;
+
+interface Interval {
+  start: number;
+  end: number;
+}
+
+function toMin(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function intervalsOverlap(a: Interval, b: Interval): boolean {
+  return a.start < b.end && b.start < a.end;
+}
+
+/** Assumed [start, end] interval for a transport segment, in minutes. */
+function transportInterval(s: Segment): Interval | null {
+  if (!s.startTime) return null;
+  const start = toMin(s.startTime);
+  let end: number;
+  if (s.endTime) {
+    end = toMin(s.endTime);
+  } else if (s.type === "flight") {
+    end = start + FLIGHT_DEFAULT_DURATION;
+  } else if (s.type === "train") {
+    end = start + TRAIN_DEFAULT_DURATION;
+  } else {
+    end = start + OTHER_TRANSPORT_DEFAULT_DURATION;
+  }
+  return { start, end };
 }
 
 function hasMeal(segments: Segment[], type: SegmentType): boolean {
@@ -52,10 +93,58 @@ function hasTransport(segments: Segment[]): boolean {
   return segments.some((s) => TRANSPORT_TYPES.has(s.type));
 }
 
-function transportInLunchWindow(segments: Segment[]): boolean {
-  return segments.some(
-    (s) => TRANSPORT_TYPES.has(s.type) && inLunchWindow(s.startTime),
-  );
+/**
+ * True when a flight or train segment is in motion during any part of the
+ * meal window. Only flights and trains qualify — sitting in a car or bus
+ * doesn't preclude grabbing a meal en route the way an enclosed cabin does.
+ */
+function inFlightOrTrainDuring(
+  segments: Segment[],
+  window: Interval,
+): boolean {
+  return segments.some((s) => {
+    if (s.type !== "flight" && s.type !== "train") return false;
+    const interval = transportInterval(s);
+    return interval !== null && intervalsOverlap(interval, window);
+  });
+}
+
+/**
+ * True when the meal window falls inside a layover shorter than 6 hours
+ * — i.e. between two flight/train segments with not enough time to leave
+ * the airport / station and find food.
+ */
+function inShortLayoverDuring(
+  segments: Segment[],
+  window: Interval,
+): boolean {
+  const flights = segments
+    .filter((s) => s.type === "flight" || s.type === "train")
+    .map(transportInterval)
+    .filter((i): i is Interval => i !== null)
+    .sort((a, b) => a.start - b.start);
+
+  for (let i = 0; i < flights.length - 1; i++) {
+    const gapStart = flights[i].end;
+    const gapEnd = flights[i + 1].start;
+    if (gapEnd <= gapStart) continue; // overlapping/back-to-back, skip
+    if (gapEnd - gapStart >= SHORT_LAYOVER_MINUTES) continue; // long enough
+    if (window.start >= gapStart && window.end <= gapEnd) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the day has an outbound flight/train starting at or after
+ * `afterMin` — the signal that the user is leaving today and any
+ * pre-departure meal needs to be portable.
+ */
+function hasDepartureAfter(segments: Segment[], afterMin: number): boolean {
+  return segments.some((s) => {
+    if (s.type !== "flight" && s.type !== "train") return false;
+    if (!s.startTime) return false;
+    return toMin(s.startTime) >= afterMin;
+  });
 }
 
 /** Friendly date label like "Mon, Apr 14" given a TripDay. */
@@ -67,15 +156,23 @@ function dayLabel(day: TripDay): string {
 
 /**
  * Walk every TripDay and emit a `MealSuggestion` for any missing lunch or
- * dinner. When the day already has a transport segment overlapping the
- * lunch window (10:00–14:00), the lunch suggestion switches to a takeaway
- * variant — a sit-down place won't fit while the user is in transit.
+ * dinner that the user could realistically eat. Rules applied:
  *
- * Skips the dinner suggestion on the trip's final day if that day has any
- * transport segment. The assumption: the last leg flies the user back
- * home, where dinner is presumably handled off-itinerary. Lunch on the
- * final day is still suggested (with the takeaway variant if transit
- * overlaps lunch hours).
+ * - **In transit during the meal** — if a flight or train segment overlaps
+ *   the meal window, skip the meal. The user can't eat in the cabin (and
+ *   if they can, the airline handles it).
+ * - **Short layover (< 6h)** — when the meal window falls between two
+ *   flights/trains and the gap is under 6 hours, skip the meal: there's
+ *   no time to leave the airport/station and find food.
+ * - **Final-day departure** — dinner is skipped on the trip's last day
+ *   when that day has a transport segment (typical flight home → user
+ *   eats off-itinerary).
+ *
+ * The takeaway-lunch variant only fires when the user has slept somewhere
+ * the night before AND is leaving today — i.e. an outbound flight/train
+ * starts at or after lunch ends. Arrival days (first day, or any day
+ * where transport ends in the morning and they go to a hotel) get a
+ * regular sit-down lunch suggestion instead.
  *
  * Pure: takes the days array, returns a fresh list. Doesn't mutate.
  * Caller is responsible for de-duping against any todos that already
@@ -87,17 +184,32 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
 
   for (let i = 0; i < days.length; i++) {
     const day = days[i];
+    const isFirstDay = i === 0;
+    const isLastDay = i === lastDayIdx;
     const label = dayLabel(day);
     const cityPart = day.city ? ` in ${day.city}` : "";
 
-    if (!hasMeal(day.segments, LUNCH_TYPE)) {
-      const takeaway = transportInLunchWindow(day.segments);
+    // ─ Lunch ──────────────────────────────────────────────
+    const lunchSkipped =
+      hasMeal(day.segments, LUNCH_TYPE) ||
+      inFlightOrTrainDuring(day.segments, LUNCH_WINDOW) ||
+      inShortLayoverDuring(day.segments, LUNCH_WINDOW);
+
+    if (!lunchSkipped) {
+      // Takeaway only when user is leaving an overnight stop today —
+      // i.e. there's a flight/train AT or AFTER lunch ends, and this
+      // isn't the trip's first day (which is treated as the arrival
+      // from home — eating in the destination city, not packing).
+      const takeaway =
+        !isFirstDay && hasDepartureAfter(day.segments, LUNCH_WINDOW.end);
+
       const text = takeaway
         ? `Pick up takeaway lunch for ${label}${cityPart}`
         : `Plan lunch for ${label}${cityPart}`;
       const details = takeaway
-        ? "Transit during lunch — grab something portable."
+        ? "Heading out today — grab something portable."
         : undefined;
+
       out.push({
         key: `lunch-${day.date}`,
         date: day.date,
@@ -109,11 +221,14 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
       });
     }
 
-    // Skip dinner on the final day when there's a transport segment —
-    // user is heading home and won't be eating off the trip plan.
-    const isFinalLegHome = i === lastDayIdx && hasTransport(day.segments);
+    // ─ Dinner ─────────────────────────────────────────────
+    const dinnerSkipped =
+      hasMeal(day.segments, DINNER_TYPE) ||
+      (isLastDay && hasTransport(day.segments)) ||
+      inFlightOrTrainDuring(day.segments, DINNER_WINDOW) ||
+      inShortLayoverDuring(day.segments, DINNER_WINDOW);
 
-    if (!hasMeal(day.segments, DINNER_TYPE) && !isFinalLegHome) {
+    if (!dinnerSkipped) {
       out.push({
         key: `dinner-${day.date}`,
         date: day.date,
