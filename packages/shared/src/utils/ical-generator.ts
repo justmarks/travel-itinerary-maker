@@ -86,18 +86,26 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Returns tz offset in minutes (positive = east of UTC) using noon UTC as a DST-safe reference. */
+/**
+ * Returns tz offset in minutes (positive = east of UTC) for the given UTC instant.
+ * Uses Date.UTC arithmetic on the local date/time parts so it is correct for any
+ * reference time — including midnight UTC, where the simple hour-difference formula
+ * wraps incorrectly for behind-UTC zones (e.g. New York at 00:00 UTC is still 19:00
+ * the previous day, yielding a spurious +19 h with the arithmetic approach).
+ */
 function getUtcOffsetMinutes(referenceUtc: Date, tz: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).formatToParts(referenceUtc);
-  const get = (type: string) =>
-    parseInt(parts.find((p) => p.type === type)?.value ?? "0");
-  return (get("hour") % 24 - referenceUtc.getUTCHours()) * 60 +
-    (get("minute") - referenceUtc.getUTCMinutes());
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0");
+  const localMs = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return (localMs - referenceUtc.getTime()) / 60_000;
 }
 
 /**
@@ -125,6 +133,122 @@ function resolveArrivalDate(
   } catch {
     return depDate;
   }
+}
+
+// ─── VTIMEZONE generation ─────────────────────────────────────────────────────
+
+/** Format an offset in minutes as the ±HHMM used in TZOFFSETFROM / TZOFFSETTO. */
+function fmtTzOff(minutes: number): string {
+  const sign = minutes >= 0 ? "+" : "-";
+  const abs = Math.abs(minutes);
+  return `${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}${String(abs % 60).padStart(2, "0")}`;
+}
+
+/** Convert a UTC millisecond value to a local YYYYMMDDTHHMMSS string using a fixed offset. */
+function utcMsToLocalDtStr(ms: number, offsetMinutes: number): string {
+  const d = new Date(ms + offsetMinutes * 60_000);
+  return (
+    String(d.getUTCFullYear()) +
+    String(d.getUTCMonth() + 1).padStart(2, "0") +
+    String(d.getUTCDate()).padStart(2, "0") +
+    "T" +
+    String(d.getUTCHours()).padStart(2, "0") +
+    String(d.getUTCMinutes()).padStart(2, "0") +
+    String(d.getUTCSeconds()).padStart(2, "0")
+  );
+}
+
+/**
+ * Binary-search for the UTC millisecond timestamp where the DST offset
+ * changes between startMonth and endMonth (inclusive) in the given year.
+ * Returns null if no transition is found. Result is within 1 minute of the
+ * actual transition.
+ */
+function findTransitionMs(
+  tz: string,
+  year: number,
+  startMonth: number,
+  endMonth: number,
+): number | null {
+  let lo = Date.UTC(year, startMonth, 1);
+  let hi = Date.UTC(year, endMonth + 1, 1);
+  const offLo = getUtcOffsetMinutes(new Date(lo), tz);
+  const offHi = getUtcOffsetMinutes(new Date(hi), tz);
+  if (offLo === offHi) return null;
+  while (hi - lo > 60_000) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (getUtcOffsetMinutes(new Date(mid), tz) === offLo) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
+/**
+ * Build VTIMEZONE lines for an IANA timezone and a specific calendar year.
+ *
+ * Including a VTIMEZONE block in the iCal output is the RFC 5545-recommended
+ * way to tell calendar clients (especially Outlook) the exact UTC offset —
+ * including DST — for each TZID used in DTSTART/DTEND properties. Without
+ * VTIMEZONE, Outlook sometimes uses the standard-time (winter) offset for
+ * summer events, shifting them by 1 hour.
+ *
+ * The DAYLIGHT and STANDARD sub-components use the actual DST transition
+ * dates for the given year, computed via binary search over Intl.DateTimeFormat.
+ */
+function buildVTimezone(tz: string, year: number): string[] {
+  const offJan = getUtcOffsetMinutes(new Date(Date.UTC(year, 0, 15)), tz);
+  const offJul = getUtcOffsetMinutes(new Date(Date.UTC(year, 6, 15)), tz);
+  const lines: string[] = ["BEGIN:VTIMEZONE", `TZID:${tz}`];
+
+  if (offJan === offJul) {
+    // No DST — single STANDARD component with self-referential offsets.
+    const off = fmtTzOff(offJan);
+    lines.push("BEGIN:STANDARD", `DTSTART:${year}0101T000000`, `TZOFFSETFROM:${off}`, `TZOFFSETTO:${off}`, "END:STANDARD");
+  } else {
+    const hasDstInSummer = offJul > offJan;
+    const stdOff = hasDstInSummer ? offJan : offJul;
+    const dstOff = hasDstInSummer ? offJul : offJan;
+
+    // Spring: standard → daylight (northern: Jan–Jun; southern: Jul–Nov)
+    const springMs = hasDstInSummer
+      ? findTransitionMs(tz, year, 0, 6)
+      : findTransitionMs(tz, year, 6, 11);
+
+    // Fall: daylight → standard (northern: Jul–Nov; southern: Jan–Jun)
+    const fallMs = hasDstInSummer
+      ? findTransitionMs(tz, year, 6, 11)
+      : findTransitionMs(tz, year, 0, 6);
+
+    if (springMs !== null) {
+      // DTSTART is the wall-clock in STANDARD time at the spring transition.
+      lines.push("BEGIN:DAYLIGHT", `DTSTART:${utcMsToLocalDtStr(springMs, stdOff)}`, `TZOFFSETFROM:${fmtTzOff(stdOff)}`, `TZOFFSETTO:${fmtTzOff(dstOff)}`, "END:DAYLIGHT");
+    }
+    if (fallMs !== null) {
+      // DTSTART is the wall-clock in DAYLIGHT time at the fall transition.
+      lines.push("BEGIN:STANDARD", `DTSTART:${utcMsToLocalDtStr(fallMs, dstOff)}`, `TZOFFSETFROM:${fmtTzOff(dstOff)}`, `TZOFFSETTO:${fmtTzOff(stdOff)}`, "END:STANDARD");
+    }
+  }
+
+  lines.push("END:VTIMEZONE");
+  return lines;
+}
+
+/** Collect every unique IANA timezone ID referenced by timed events in a trip. */
+function collectTripTimezones(trip: Trip): Set<string> {
+  const tzs = new Set<string>();
+  const add = (tz: string | undefined) => { if (tz) tzs.add(tz); };
+  for (const day of trip.days) {
+    for (const segment of day.segments) {
+      if (segment.type === "hotel" || segment.type === "car_rental") continue;
+      if (segment.type === "flight" || segment.type === "train" || segment.type === "cruise") {
+        add(getCityTimezone(segment.departureCity ?? segment.city ?? day.city));
+        add(getCityTimezone(segment.arrivalCity ?? segment.city ?? day.city));
+      } else {
+        add(getCityTimezone(segment.city ?? day.city));
+      }
+    }
+  }
+  return tzs;
 }
 
 // ─── Segment → VEVENT ─────────────────────────────────────────────────────────
@@ -313,6 +437,17 @@ export function tripToIcal(trip: Trip): string {
     textProp("X-WR-CALNAME", trip.title),
     textProp("X-WR-CALDESC", `Itinerary for ${safeTitle}`),
   ];
+
+  // Emit VTIMEZONE definitions before VEVENTs so clients (especially Outlook)
+  // have the exact DST rules for each TZID used in DTSTART/DTEND properties.
+  const tripYear = parseInt(trip.startDate.slice(0, 4));
+  for (const tz of collectTripTimezones(trip)) {
+    try {
+      lines.push(...buildVTimezone(tz, tripYear));
+    } catch {
+      // Skip if timezone is unrecognised — events will fall back to TZID lookup.
+    }
+  }
 
   for (const day of trip.days) {
     for (const segment of day.segments) {

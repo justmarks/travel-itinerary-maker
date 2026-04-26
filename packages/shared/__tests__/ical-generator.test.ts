@@ -211,6 +211,44 @@ describe("tripToIcal", () => {
     }
   });
 
+  it("includes a VTIMEZONE block for each unique timezone used by timed events", () => {
+    const trip = makeTrip({
+      days: [
+        {
+          date: "2026-06-10",
+          dayOfWeek: "Wed",
+          city: "Paris",
+          segments: [
+            {
+              id: "seg-tz",
+              type: "flight",
+              title: "CDG → JFK",
+              departureCity: "Paris",
+              arrivalCity: "New York",
+              carrier: "Air France",
+              routeCode: "AF001",
+              startTime: "10:00",
+              endTime: "14:00",
+              source: "manual",
+              needsReview: false,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const ics = tripToIcal(trip);
+    // VTIMEZONE must appear before any VEVENT
+    expect(ics.indexOf("BEGIN:VTIMEZONE")).toBeLessThan(ics.indexOf("BEGIN:VEVENT"));
+    expect(ics).toContain("TZID:Europe/Paris\r\n");
+    expect(ics).toContain("TZID:America/New_York\r\n");
+    // Europe/Paris summer = UTC+2 (CEST)
+    expect(ics).toContain("TZOFFSETTO:+0200\r\n");
+    // America/New_York summer = UTC-4 (EDT)
+    expect(ics).toContain("TZOFFSETTO:-0400\r\n");
+  });
+
   it("advances DTEND date by one day for overnight transatlantic flights", () => {
     // LA 13:30 PDT (20:30 UTC) → Paris 08:10 CEST (06:10 UTC next day)
     const trip = makeTrip({

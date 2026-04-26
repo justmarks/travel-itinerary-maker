@@ -37,18 +37,20 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Returns tz offset in minutes (positive = east of UTC) using noon UTC as a DST-safe reference. */
+/** Returns tz offset in minutes (positive = east of UTC) for the given UTC instant. */
 function getUtcOffsetMinutes(referenceUtc: Date, tz: string): number {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   }).formatToParts(referenceUtc);
-  const get = (type: string) =>
-    parseInt(parts.find((p) => p.type === type)?.value ?? "0");
-  return (get("hour") % 24 - referenceUtc.getUTCHours()) * 60 +
-    (get("minute") - referenceUtc.getUTCMinutes());
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? "0");
+  const localMs = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return (localMs - referenceUtc.getTime()) / 60_000;
 }
 
 /**
