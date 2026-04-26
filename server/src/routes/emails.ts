@@ -419,6 +419,10 @@ function deduplicateResults(results: EmailScanResult[]): void {
   const toRemove = new Set<string>(); // "resultIdx:segIdx"
   const replacements = new Map<string, ParsedSegment>(); // "resultIdx:segIdx" → merged
 
+  const totalSegs = allSegments.length;
+  const dupGroups = [...groups.values()].filter((g) => g.length > 1).length;
+  console.log(`[dedup] ${totalSegs} segment(s) across ${results.length} result(s) — ${dupGroups} duplicate group(s)`);
+
   for (const [dedupKey, group] of groups) {
     if (group.length <= 1) continue;
 

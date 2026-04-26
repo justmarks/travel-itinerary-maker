@@ -300,6 +300,129 @@ export async function listUserCalendars(accessToken: string): Promise<CalendarEn
   }));
 }
 
+// ─── Existing-event matching ──────────────────────────────────────────────────
+
+/** Collapse whitespace and punctuation for fuzzy comparison. */
+function norm(s: string): string {
+  return s.toLowerCase().replace(/[\s\-_.]+/g, "");
+}
+
+/**
+ * Fetch all events from a calendar within [startDate, endDate+2 days].
+ * Returns an empty array if the API call fails so the caller can fall back
+ * to creating new events.
+ */
+async function fetchEventsInRange(
+  cal: calendar_v3.Calendar,
+  calendarId: string,
+  startDate: string,
+  endDate: string,
+): Promise<calendar_v3.Schema$Event[]> {
+  const events: calendar_v3.Schema$Event[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await cal.events.list({
+      calendarId,
+      timeMin: new Date(`${startDate}T00:00:00Z`).toISOString(),
+      timeMax: new Date(`${addDays(endDate, 2)}T00:00:00Z`).toISOString(),
+      maxResults: 250,
+      singleEvents: true,
+      showDeleted: false,
+      pageToken,
+    });
+    events.push(...(res.data.items ?? []));
+    pageToken = res.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return events;
+}
+
+/**
+ * Try to find an existing calendar event that matches a segment. Only
+ * considers events NOT created by this app so we never re-match our own
+ * previously synced events. Returns the matched event ID, or undefined.
+ *
+ * - flight/train: matched by route code then formatted label
+ * - hotel:        matched by venue name on an all-day event within the stay
+ * - everything else: matched by title/venue on the same calendar date
+ */
+function findMatchingEventId(
+  segment: Segment,
+  day: TripDay,
+  existingEvents: calendar_v3.Schema$Event[],
+): string | undefined {
+  const candidates = existingEvents.filter(
+    (e) => e.extendedProperties?.private?.["source"] !== "travel-itinerary-maker",
+  );
+
+  switch (segment.type) {
+    case "flight":
+    case "train": {
+      // Match by route code (most reliable — "AS565", "AA 1234", etc.)
+      if (segment.routeCode) {
+        const routeNorm = norm(segment.routeCode);
+        for (const e of candidates) {
+          if (e.id && e.summary && norm(e.summary).includes(routeNorm)) {
+            return e.id;
+          }
+        }
+      }
+      // Fall back to formatted carrier + flight label ("Alaska Airlines 565")
+      const label = formatFlightLabel(segment);
+      if (label) {
+        const labelNorm = norm(label);
+        for (const e of candidates) {
+          if (e.id && e.summary) {
+            const sumNorm = norm(e.summary);
+            if (sumNorm.includes(labelNorm) || labelNorm.includes(sumNorm)) {
+              return e.id;
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    case "hotel": {
+      // Hotel events are all-day; match venue name within the stay range.
+      const venueName = segment.venueName || segment.title;
+      if (!venueName) break;
+      const venueNorm = norm(venueName);
+      const checkIn = day.date;
+      const checkOut = segment.endDate ?? addDays(day.date, 1);
+      for (const e of candidates) {
+        if (!e.id || !e.summary || !e.start?.date) continue;
+        const eventDate = e.start.date;
+        if (eventDate >= checkIn && eventDate < checkOut) {
+          const sumNorm = norm(e.summary);
+          if (sumNorm.includes(venueNorm) || venueNorm.includes(sumNorm)) {
+            return e.id;
+          }
+        }
+      }
+      break;
+    }
+
+    default: {
+      // Activities, restaurants, shows, tours, etc.: match title/venue on same date.
+      const title = segment.venueName || segment.title;
+      if (!title) break;
+      const titleNorm = norm(title);
+      for (const e of candidates) {
+        if (!e.id || !e.summary) continue;
+        const eventDate = e.start?.date ?? e.start?.dateTime?.slice(0, 10);
+        if (eventDate !== day.date) continue;
+        const sumNorm = norm(e.summary);
+        if (sumNorm.includes(titleNorm) || titleNorm.includes(sumNorm)) {
+          return e.id;
+        }
+      }
+      break;
+    }
+  }
+
+  return undefined;
+}
+
 // ─── Sync ─────────────────────────────────────────────────────────────────────
 
 export async function syncTripToCalendar(
@@ -316,11 +439,35 @@ export async function syncTripToCalendar(
     eventMap: {},
   };
 
+  // Pre-fetch existing calendar events so we can match airline-added flights
+  // against trip segments that don't yet have a calendarEventId.
+  const needsMatching = trip.days.some((d) =>
+    d.segments.some((s) => !s.calendarEventId),
+  );
+  let existingEvents: calendar_v3.Schema$Event[] = [];
+  if (needsMatching) {
+    try {
+      existingEvents = await fetchEventsInRange(cal, calendarId, trip.startDate, trip.endDate);
+    } catch {
+      console.warn("[calendar-sync] Could not fetch existing events for match check; will create new events.");
+    }
+  }
+
   for (const day of trip.days) {
     for (const segment of day.segments) {
       try {
         const event = segmentToEvent(segment, day, trip.title);
         event.extendedProperties!.private!.tripId = trip.id;
+
+        // If this segment has no calendarEventId yet, see if an existing
+        // calendar event (e.g. added by the airline) already represents it.
+        if (!segment.calendarEventId) {
+          const matchId = findMatchingEventId(segment, day, existingEvents);
+          if (matchId) {
+            console.log(`[calendar-sync] Matched "${segment.title}" to existing event ${matchId}`);
+            segment.calendarEventId = matchId;
+          }
+        }
 
         if (segment.calendarEventId) {
           try {
