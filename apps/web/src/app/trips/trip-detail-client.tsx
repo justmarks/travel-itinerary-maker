@@ -320,9 +320,11 @@ function downloadBlobDirect(blob: Blob, filename: string) {
  */
 function TripActionsMenu({
   tripId,
+  tripTitle,
   onImportEmail,
 }: {
   tripId: string;
+  tripTitle: string;
   onImportEmail: () => void;
 }) {
   const client = useApiClient();
@@ -360,7 +362,8 @@ function TripActionsMenu({
   const handleExportIcal = () =>
     runExport(async () => {
       const blob = await client.exportIcal(tripId);
-      downloadBlobDirect(blob, "itinerary.ics");
+      const safeName = tripTitle.replace(/[/\\:*?"<>|]/g, "-").trim() || "itinerary";
+      downloadBlobDirect(blob, `${safeName}.ics`);
     });
 
   return (
@@ -587,6 +590,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
             <CalendarSyncButton trip={trip} />
             <TripActionsMenu
               tripId={trip.id}
+              tripTitle={trip.title}
               onImportEmail={() => setHtmlImportOpen(true)}
             />
             <HtmlImportDialog
