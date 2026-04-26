@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { Plane, AlertCircle, Info } from "lucide-react";
+import { AppLogo } from "@/components/app-logo";
+import { AlertCircle, Info } from "lucide-react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -77,7 +78,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-8 text-center">
         <div>
-          <Plane className="mx-auto mb-4 h-12 w-12" />
+          <AppLogo className="mx-auto mb-5 h-16 w-16" />
           <h1 className="text-2xl font-bold">Travel Itinerary Maker</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Sign in to manage your travel itineraries
