@@ -60,6 +60,11 @@ export function UserMenu() {
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>
+        {process.env.NEXT_PUBLIC_APP_VERSION && (
+          <div className="mt-1 border-t border-border px-2 py-1 text-[10px] text-muted-foreground/60">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </div>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
