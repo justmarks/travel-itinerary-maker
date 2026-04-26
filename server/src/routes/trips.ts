@@ -993,6 +993,27 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   );
 
   router.get(
+    "/:tripId/export/ical",
+    async (req: Request, res: Response) => {
+      const storage = getStorage(req);
+      const { tripToIcal } = await import("@travel-app/shared");
+      const trip = await storage.getTrip(req.params.tripId as string);
+      if (!trip) {
+        res.status(404).json({ error: "Trip not found" });
+        return;
+      }
+
+      const ics = tripToIcal(trip);
+      res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${trip.title.replace(/[^a-zA-Z0-9 ]/g, "")}.ics"`,
+      );
+      res.send(ics);
+    },
+  );
+
+  router.get(
     "/:tripId/export/pdf",
     async (req: Request, res: Response) => {
       const storage = getStorage(req);

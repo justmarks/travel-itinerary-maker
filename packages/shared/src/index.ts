@@ -99,3 +99,5 @@ export {
   dedupeAgainstExistingTodos,
 } from "./utils/meal-suggester";
 export type { MealSuggestion } from "./utils/meal-suggester";
+export { tripToIcal } from "./utils/ical-generator";
+export { getCityTimezone } from "./utils/city-timezone";

@@ -1753,6 +1753,14 @@ export class MockApiClient extends ApiClient {
     return tripToOneNoteHtml(trip, { includeCosts: true, includeTodos: true });
   }
 
+  override async exportIcal(tripId: string): Promise<Blob> {
+    const trip = this.trips.get(tripId);
+    if (!trip) return Promise.reject(new Error("Trip not found"));
+    const { tripToIcal } = await import("@travel-app/shared");
+    const ics = tripToIcal(trip);
+    return new Blob([ics], { type: "text/calendar; charset=utf-8" });
+  }
+
   override async exportPdf(tripId: string): Promise<Blob> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));

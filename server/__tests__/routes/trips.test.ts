@@ -947,6 +947,26 @@ describe("Export routes", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("exports to iCal (.ics)", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/export/ical`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/calendar");
+    expect(res.headers["content-disposition"]).toContain(".ics");
+    expect(res.text).toContain("BEGIN:VCALENDAR");
+    expect(res.text).toContain("END:VCALENDAR");
+    expect(res.text).toContain("BEGIN:VEVENT");
+    expect(res.text).toContain("Christmas 2025");
+  });
+
+  it("returns 404 for iCal export of non-existent trip", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/does-not-exist/export/ical`,
+    );
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("POST /api/v1/trips/import-xlsx", () => {

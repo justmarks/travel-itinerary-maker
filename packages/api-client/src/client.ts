@@ -378,6 +378,22 @@ export class ApiClient {
     return res.text();
   }
 
+  async exportIcal(tripId: string): Promise<Blob> {
+    const token = this.getAccessToken?.();
+    const authHeaders: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {};
+    const res = await fetch(
+      `${this.baseUrl}/trips/${tripId}/export/ical`,
+      { headers: authHeaders },
+    );
+    if (!res.ok) {
+      const body = await res.json();
+      throw new ApiError(res.status, body);
+    }
+    return res.blob();
+  }
+
   async exportPdf(tripId: string, exclude?: string[]): Promise<Blob> {
     const qs = exclude?.length ? `?exclude=${exclude.join(",")}` : "";
     const token = this.getAccessToken?.();

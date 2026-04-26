@@ -1,7 +1,7 @@
 import { google, type calendar_v3 } from "googleapis";
 import type { Trip, TripDay, Segment } from "@travel-app/shared";
 import { formatFlightLabel } from "@travel-app/shared";
-import { getCityTimezone } from "../utils/city-timezone";
+import { getCityTimezone } from "@travel-app/shared";
 
 export interface CalendarSyncResult {
   created: number;

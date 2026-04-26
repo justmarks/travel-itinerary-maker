@@ -36,6 +36,7 @@ import {
   FileText,
   BookOpen,
   FileDown,
+  CalendarDays,
   AlertCircle,
   AlertTriangle,
   MoreHorizontal,
@@ -356,6 +357,12 @@ function TripActionsMenu({
       downloadBlobDirect(blob, "itinerary.pdf");
     });
 
+  const handleExportIcal = () =>
+    runExport(async () => {
+      const blob = await client.exportIcal(tripId);
+      downloadBlobDirect(blob, "itinerary.ics");
+    });
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -391,6 +398,10 @@ function TripActionsMenu({
             <DropdownMenuItem onClick={handleExportPdf}>
               <FileDown className="mr-2 h-4 w-4" />
               PDF (.pdf)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExportIcal}>
+              <CalendarDays className="mr-2 h-4 w-4" />
+              iCal (.ics)
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
