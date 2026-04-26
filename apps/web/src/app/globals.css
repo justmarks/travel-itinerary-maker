@@ -24,7 +24,10 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0.064 270.94);
+  /* Brand indigo (#4f46e5 — matches the paper-plane logo). Buttons,
+   * links, and selection states pick up this token, so the brand
+   * colour shows up in muscle-memory spots, not just the favicon. */
+  --primary: oklch(0.51 0.22 277);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.965 0 0);
   --secondary-foreground: oklch(0.205 0.064 270.94);
@@ -36,7 +39,9 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0.165 254.62);
+  /* Focus ring pulls from the same brand hue so keyboard focus
+   * matches the primary button look. */
+  --ring: oklch(0.51 0.22 277);
   --radius: 0.625rem;
 }
 
@@ -47,8 +52,11 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0.064 270.94);
+  /* Lighter indigo on dark backgrounds (~indigo-400). Keeps enough
+   * contrast against the dark surface while still reading as the
+   * same brand colour. */
+  --primary: oklch(0.7 0.18 277);
+  --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -59,7 +67,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0.088 270.94);
+  --ring: oklch(0.7 0.18 277);
 }
 
 @theme inline {

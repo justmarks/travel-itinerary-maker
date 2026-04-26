@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { EditTodoDialog } from "@/components/edit-todo-dialog";
 import { SuggestMealsDialog } from "@/components/suggest-meals-dialog";
+import { AppLogo } from "@/components/app-logo";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -147,7 +148,10 @@ export function TripTodos({
       )}
 
       {sorted.length === 0 && !showAdd ? (
-        <p className="text-sm text-muted-foreground">No tasks yet.</p>
+        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-6 text-center">
+          <AppLogo className="h-8 w-8 opacity-60" />
+          <p className="text-sm text-muted-foreground">No tasks yet.</p>
+        </div>
       ) : (
         <ul className="flex flex-col gap-0.5">
           {sorted.map((todo) => (

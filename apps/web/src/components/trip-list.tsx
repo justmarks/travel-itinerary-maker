@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTrips } from "@travel-app/api-client";
 import { TripCard } from "./trip-card";
-import { Plane } from "lucide-react";
+import { AppLogo } from "./app-logo";
 import { Button } from "@/components/ui/button";
 
 export function TripList() {
@@ -62,7 +62,7 @@ export function TripList() {
   if (!trips?.length) {
     return (
       <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-        <Plane className="mb-4 h-12 w-12 text-muted-foreground/50" />
+        <AppLogo className="mb-4 h-12 w-12 opacity-60" />
         <h3 className="text-lg font-medium">No trips yet</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Create your first trip to get started.
@@ -75,7 +75,7 @@ export function TripList() {
     <div className="space-y-4">
       {visibleTrips.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-          <Plane className="mb-4 h-12 w-12 text-muted-foreground/50" />
+          <AppLogo className="mb-4 h-12 w-12 opacity-60" />
           <h3 className="text-lg font-medium">No upcoming trips</h3>
           {completedCount > 0 && (
             <p className="mt-1 text-sm text-muted-foreground">
