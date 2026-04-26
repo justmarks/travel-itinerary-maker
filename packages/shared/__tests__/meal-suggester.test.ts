@@ -65,11 +65,22 @@ describe("suggestMealTodos", () => {
     expect(result[0].text).not.toContain(" in ");
   });
 
-  it("uses the destination city when day.city has a slash (e.g. 'Paris/Rome')", () => {
+  it("splits a slash-separated city: lunch uses origin, dinner uses destination", () => {
+    // A transit day from Paris to Rome: lunch is before the move (in Paris),
+    // dinner is after the move (in Rome).
     const result = suggestMealTodos([
+      day("2026-04-13", "Sun", "Lisbon", []), // anchor day so day 2 isn't "first"
       day("2026-04-14", "Mon", "Paris / Rome", []),
     ]);
-    const dinner = result.find((r) => r.meal === "dinner");
+    const lunch = result.find(
+      (r) => r.date === "2026-04-14" && r.meal === "lunch",
+    );
+    const dinner = result.find(
+      (r) => r.date === "2026-04-14" && r.meal === "dinner",
+    );
+    expect(lunch).toBeDefined();
+    expect(lunch!.text).toContain(" in Paris");
+    expect(lunch!.text).not.toContain("Rome");
     expect(dinner).toBeDefined();
     expect(dinner!.text).toContain(" in Rome");
     expect(dinner!.text).not.toContain("Paris");
