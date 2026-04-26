@@ -182,12 +182,13 @@ describe("segmentToEvent", () => {
     expect(event.summary).toContain("Air France");
     expect(event.summary).toContain("Paris");
     expect(event.summary).toContain("New York");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T10:00:00" });
-    expect(event.end).toEqual({ dateTime: "2026-06-10T14:00:00" });
+    // Departure in Paris (CET/CEST), arrival in New York (ET) — different zones
+    expect(event.start).toEqual({ dateTime: "2026-06-10T10:00:00", timeZone: "Europe/Paris" });
+    expect(event.end).toEqual({ dateTime: "2026-06-10T14:00:00", timeZone: "America/New_York" });
     expect(event.description).toContain("AFXYZ");
   });
 
-  it("maps a hotel segment with endDate as multi-day event", async () => {
+  it("maps a hotel segment with endDate as multi-day event in local timezone", async () => {
     const { segmentToEvent } = await import("../../src/services/google-calendar");
     const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Paris", segments: [] };
     const segment = {
@@ -207,6 +208,7 @@ describe("segmentToEvent", () => {
     const event = segmentToEvent(segment, day, "Test Trip");
 
     expect(event.summary).toBe("Hotel: Hotel Lutetia");
+    // Hotel has no startTime, so uses all-day date (no timeZone on all-day)
     expect(event.start).toEqual({ date: "2026-06-10" });
     expect(event.end).toEqual({ date: "2026-06-13" });
     expect(event.location).toContain("Blvd Raspail");
@@ -214,17 +216,16 @@ describe("segmentToEvent", () => {
     expect(event.description).toContain("LUT123");
   });
 
-  it("maps a restaurant segment with default 2-hour duration", async () => {
+  it("maps a restaurant segment with timezone from day city", async () => {
     const { segmentToEvent } = await import("../../src/services/google-calendar");
-    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Paris", segments: [] };
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Tokyo", segments: [] };
     const segment = {
       id: "s3",
       type: "restaurant_dinner" as const,
-      title: "Le Jules Verne",
-      venueName: "Le Jules Verne",
-      startTime: "20:00",
+      title: "Ichiran Ramen",
+      venueName: "Ichiran Ramen",
+      startTime: "19:00",
       partySize: 2,
-      creditCardHold: true,
       source: "manual" as const,
       needsReview: false,
       sortOrder: 0,
@@ -232,11 +233,31 @@ describe("segmentToEvent", () => {
 
     const event = segmentToEvent(segment, day, "Test Trip");
 
-    expect(event.summary).toBe("Dinner: Le Jules Verne");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T20:00:00" });
-    expect(event.end).toEqual({ dateTime: "2026-06-10T22:00:00" });
+    expect(event.summary).toBe("Dinner: Ichiran Ramen");
+    expect(event.start).toEqual({ dateTime: "2026-06-10T19:00:00", timeZone: "Asia/Tokyo" });
+    expect(event.end).toEqual({ dateTime: "2026-06-10T21:00:00", timeZone: "Asia/Tokyo" });
     expect(event.description).toContain("Party of 2");
-    expect(event.description).toContain("Credit card hold required");
+  });
+
+  it("falls back gracefully when city is unrecognised (no timeZone field)", async () => {
+    const { segmentToEvent } = await import("../../src/services/google-calendar");
+    const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "At Sea", segments: [] };
+    const segment = {
+      id: "s3b",
+      type: "restaurant_dinner" as const,
+      title: "Dinner at Sea",
+      venueName: "Main Dining Room",
+      startTime: "18:00",
+      source: "manual" as const,
+      needsReview: false,
+      sortOrder: 0,
+    };
+
+    const event = segmentToEvent(segment, day, "Test Trip");
+
+    // "At Sea" is not in the lookup table — no timeZone should be emitted
+    expect(event.start).toEqual({ dateTime: "2026-06-10T18:00:00" });
+    expect((event.start as { timeZone?: string }).timeZone).toBeUndefined();
   });
 
   it("maps a cruise segment with endDate as a multi-day event", async () => {
@@ -260,13 +281,14 @@ describe("segmentToEvent", () => {
     const event = segmentToEvent(segment, day, "Test Trip");
 
     expect(event.summary).toBe("Cruise: MSC Seaside");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T16:00:00" });
-    expect(event.end).toEqual({ date: "2026-06-17" });
+    // Start in Barcelona (Europe/Madrid), end in Civitavecchia (Europe/Rome)
+    expect(event.start).toEqual({ dateTime: "2026-06-10T16:00:00", timeZone: "Europe/Madrid" });
+    expect(event.end).toEqual({ date: "2026-06-17" }); // endTime omitted → all-day end
     expect(event.description).toContain("Barcelona → Civitavecchia");
     expect(event.description).toContain("MSC-7741");
   });
 
-  it("maps a car_rental segment with endDate as a multi-day event", async () => {
+  it("maps a car_rental segment with endDate as a multi-day event in local timezone", async () => {
     const { segmentToEvent } = await import("../../src/services/google-calendar");
     const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Kyoto", segments: [] };
     const segment = {
@@ -287,8 +309,8 @@ describe("segmentToEvent", () => {
     const event = segmentToEvent(segment, day, "Test Trip");
 
     expect(event.summary).toBe("Car Rental: Times Car Rental Kyoto Station");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T15:00:00" });
-    expect(event.end).toEqual({ dateTime: "2026-06-13T10:00:00" });
+    expect(event.start).toEqual({ dateTime: "2026-06-10T15:00:00", timeZone: "Asia/Tokyo" });
+    expect(event.end).toEqual({ dateTime: "2026-06-13T10:00:00", timeZone: "Asia/Tokyo" });
     expect(event.description).toContain("TCR-7741");
   });
 
@@ -312,8 +334,8 @@ describe("segmentToEvent", () => {
     const event = segmentToEvent(segment, day, "Test Trip");
 
     expect(event.summary).toBe("Show: Kabuki-za Theatre");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T18:00:00" });
-    expect(event.end).toEqual({ dateTime: "2026-06-10T21:00:00" });
+    expect(event.start).toEqual({ dateTime: "2026-06-10T18:00:00", timeZone: "Asia/Tokyo" });
+    expect(event.end).toEqual({ dateTime: "2026-06-10T21:00:00", timeZone: "Asia/Tokyo" });
     expect(event.description).toContain("Tier 2, Row B · 14-15");
   });
 

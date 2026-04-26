@@ -1,6 +1,7 @@
 import { google, type calendar_v3 } from "googleapis";
 import type { Trip, TripDay, Segment } from "@travel-app/shared";
 import { formatFlightLabel } from "@travel-app/shared";
+import { getCityTimezone } from "../utils/city-timezone";
 
 export interface CalendarSyncResult {
   created: number;
@@ -36,10 +37,16 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function dateTime(date: string, time?: string): calendar_v3.Schema$EventDateTime {
+function dateTime(
+  date: string,
+  time?: string,
+  tz?: string,
+): calendar_v3.Schema$EventDateTime {
   if (!time) return { date };
   const t = time.length === 5 ? time + ":00" : time;
-  return { dateTime: `${date}T${t}` };
+  const dt: calendar_v3.Schema$EventDateTime = { dateTime: `${date}T${t}` };
+  if (tz) dt.timeZone = tz;
+  return dt;
 }
 
 // ─── Segment → Calendar Event ─────────────────────────────────────────────────
@@ -73,6 +80,20 @@ export function segmentToEvent(
   let start: calendar_v3.Schema$EventDateTime;
   let end: calendar_v3.Schema$EventDateTime;
 
+  // Derive IANA timezones from the cities associated with this segment.
+  // Transport uses departure city for start and arrival city for end so a
+  // flight from Tokyo to Paris shows 09:00 JST departure and 18:00 CET
+  // arrival regardless of the user's device zone. All other segments use
+  // the segment's own city or the day city.
+  const startTz = getCityTimezone(
+    segment.departureCity ?? segment.city ?? day.city,
+  );
+  const endTz = getCityTimezone(
+    segment.arrivalCity ?? segment.city ?? day.city,
+  );
+  // For non-transport segments start and end are in the same place.
+  const localTz = getCityTimezone(segment.city ?? day.city);
+
   switch (segment.type) {
     case "flight":
     case "train": {
@@ -90,11 +111,12 @@ export function segmentToEvent(
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.departureCity || segment.city || day.city;
-      start = dateTime(day.date, segment.startTime);
+      // Start in departure city TZ; end in arrival city TZ.
+      start = dateTime(day.date, segment.startTime, startTz);
       end = segment.endTime
-        ? dateTime(day.date, segment.endTime)
+        ? dateTime(day.date, segment.endTime, endTz)
         : segment.startTime
-          ? dateTime(day.date, addHoursToTime(segment.startTime, 2))
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 2), startTz)
           : { date: addDays(day.date, 1) };
       break;
     }
@@ -108,8 +130,8 @@ export function segmentToEvent(
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;
-      start = dateTime(day.date, segment.startTime);
-      end = dateTime(segment.endDate ?? addDays(day.date, 1), segment.endTime);
+      start = dateTime(day.date, segment.startTime, localTz);
+      end = dateTime(segment.endDate ?? addDays(day.date, 1), segment.endTime, localTz);
       break;
     }
 
@@ -131,14 +153,15 @@ export function segmentToEvent(
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;
       if (segment.endDate) {
-        start = dateTime(day.date, segment.startTime);
-        end = dateTime(segment.endDate, segment.endTime);
+        // Cruise/car start in departure-city zone, end in arrival/return zone.
+        start = dateTime(day.date, segment.startTime, startTz);
+        end = dateTime(segment.endDate, segment.endTime, endTz);
       } else {
-        start = dateTime(day.date, segment.startTime);
+        start = dateTime(day.date, segment.startTime, localTz);
         end = segment.endTime
-          ? dateTime(day.date, segment.endTime)
+          ? dateTime(day.date, segment.endTime, localTz)
           : segment.startTime
-            ? dateTime(day.date, addHoursToTime(segment.startTime, 2))
+            ? dateTime(day.date, addHoursToTime(segment.startTime, 2), localTz)
             : { date: addDays(day.date, 1) };
       }
       break;
@@ -158,11 +181,11 @@ export function segmentToEvent(
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.venueName;
-      start = dateTime(day.date, segment.startTime);
+      start = dateTime(day.date, segment.startTime, localTz);
       end = segment.endTime
-        ? dateTime(day.date, segment.endTime)
+        ? dateTime(day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dateTime(day.date, addHoursToTime(segment.startTime, 2))
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 2), localTz)
           : { date: addDays(day.date, 1) };
       break;
     }
@@ -179,11 +202,11 @@ export function segmentToEvent(
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;
-      start = dateTime(day.date, segment.startTime);
+      start = dateTime(day.date, segment.startTime, localTz);
       end = segment.endTime
-        ? dateTime(day.date, segment.endTime)
+        ? dateTime(day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dateTime(day.date, addHoursToTime(segment.startTime, 1))
+          ? dateTime(day.date, addHoursToTime(segment.startTime, 1), localTz)
           : { date: addDays(day.date, 1) };
       break;
     }
