@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useUpdateTodo, useDeleteTodo } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
@@ -65,20 +67,35 @@ export function EditTodoDialog({
     const trimmed = text.trim();
     if (!trimmed) return;
 
-    updateTodo.mutate({
-      todoId: todo.id,
-      text: trimmed,
-      // Empty string clears notes server-side.
-      details: details.trim() ? details : "",
-      category:
-        category === NO_CATEGORY ? undefined : (category as TodoCategory),
-    });
+    updateTodo.mutate(
+      {
+        todoId: todo.id,
+        text: trimmed,
+        // Empty string clears notes server-side.
+        details: details.trim() ? details : "",
+        category:
+          category === NO_CATEGORY ? undefined : (category as TodoCategory),
+      },
+      {
+        onError: (err) => {
+          toast.error("Couldn't save to-do", {
+            description: describeError(err),
+          });
+        },
+      },
+    );
     onOpenChange(false);
   };
 
   const handleDelete = () => {
     if (!confirm(`Delete "${todo.text}"?`)) return;
-    deleteTodo.mutate(todo.id);
+    deleteTodo.mutate(todo.id, {
+      onError: (err) => {
+        toast.error("Couldn't delete to-do", {
+          description: describeError(err),
+        });
+      },
+    });
     onOpenChange(false);
   };
 
