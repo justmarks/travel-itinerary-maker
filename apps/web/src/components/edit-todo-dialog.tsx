@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useUpdateTodo, useDeleteTodo } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 const TODO_CATEGORIES: { value: TodoCategory; label: string }[] = [
   { value: "meals", label: "Meals" },
@@ -75,16 +77,26 @@ export function EditTodoDialog({
           category === NO_CATEGORY ? undefined : (category as TodoCategory),
       },
       {
-        onSuccess: () => onOpenChange(false),
+        onError: (err) => {
+          toast.error("Couldn't save to-do", {
+            description: describeError(err),
+          });
+        },
       },
     );
+    onOpenChange(false);
   };
 
   const handleDelete = () => {
     if (!confirm(`Delete "${todo.text}"?`)) return;
     deleteTodo.mutate(todo.id, {
-      onSuccess: () => onOpenChange(false),
+      onError: (err) => {
+        toast.error("Couldn't delete to-do", {
+          description: describeError(err),
+        });
+      },
     });
+    onOpenChange(false);
   };
 
   return (
@@ -139,7 +151,6 @@ export function EditTodoDialog({
               variant="ghost"
               size="sm"
               onClick={handleDelete}
-              disabled={deleteTodo.isPending || updateTodo.isPending}
               className="text-destructive hover:text-destructive"
             >
               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -150,22 +161,11 @@ export function EditTodoDialog({
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={updateTodo.isPending}
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                disabled={!text.trim() || updateTodo.isPending}
-              >
-                {updateTodo.isPending ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save"
-                )}
+              <Button type="submit" disabled={!text.trim()}>
+                Save
               </Button>
             </div>
           </div>

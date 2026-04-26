@@ -22,6 +22,7 @@ import type {
   HtmlImportRequest,
   XlsxImportRequest,
 } from "@travel-app/shared";
+import { generateId } from "@travel-app/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
@@ -371,8 +372,62 @@ export function useCreateTodo(tripId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateTodoInput) => client.createTodo(tripId, input),
-    onSuccess: () => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.todos(tripId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prevTodos = queryClient.getQueryData<Todo[]>(
+        queryKeys.todos(tripId),
+      );
+      const prevTrip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      const prevTrips = queryClient.getQueryData<TripSummary[]>(
+        queryKeys.trips,
+      );
+      const baseLength =
+        prevTodos?.length ?? prevTrip?.todos.length ?? 0;
+      const optimistic: Todo = {
+        id: `temp_${generateId()}`,
+        text: input.text,
+        isCompleted: false,
+        category: input.category,
+        details: input.details ?? undefined,
+        sortOrder: baseLength,
+      };
+      if (prevTodos) {
+        queryClient.setQueryData<Todo[]>(queryKeys.todos(tripId), [
+          ...prevTodos,
+          optimistic,
+        ]);
+      }
+      if (prevTrip) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prevTrip,
+          todos: [...prevTrip.todos, optimistic],
+        });
+      }
+      if (prevTrips) {
+        queryClient.setQueryData<TripSummary[]>(
+          queryKeys.trips,
+          prevTrips.map((t) =>
+            t.id === tripId ? { ...t, todoCount: t.todoCount + 1 } : t,
+          ),
+        );
+      }
+      return { prevTodos, prevTrip, prevTrips };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prevTodos) {
+        queryClient.setQueryData(queryKeys.todos(tripId), ctx.prevTodos);
+      }
+      if (ctx?.prevTrip) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prevTrip);
+      }
+      if (ctx?.prevTrips) {
+        queryClient.setQueryData(queryKeys.trips, ctx.prevTrips);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.todos(tripId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.trips });
     },
   });
@@ -381,14 +436,73 @@ export function useCreateTodo(tripId: string) {
 export function useUpdateTodo(tripId: string) {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  // Shared mutation key so multiple in-flight checkbox toggles don't clobber
+  // each other's optimistic state when the first PUT response lands. Same
+  // pattern as useConfirmSegment.
+  const mutationKey = ["update-todo", tripId];
   return useMutation({
+    mutationKey,
     mutationFn: (input: { todoId: string } & UpdateTodoInput) => {
       const { todoId, ...data } = input;
       return client.updateTodo(tripId, todoId, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.todos(tripId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.todos(tripId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prevTodos = queryClient.getQueryData<Todo[]>(
+        queryKeys.todos(tripId),
+      );
+      const prevTrip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      const { todoId, ...rawPatch } = input;
+      // UpdateTodoInput permits `null` to clear optional fields; locally we
+      // normalise to `undefined` so the cached Todo type stays clean.
+      const patch: Partial<Todo> = {
+        ...(rawPatch.text !== undefined && { text: rawPatch.text }),
+        ...(rawPatch.isCompleted !== undefined && {
+          isCompleted: rawPatch.isCompleted,
+        }),
+        ...(rawPatch.sortOrder !== undefined && {
+          sortOrder: rawPatch.sortOrder,
+        }),
+        ...("category" in rawPatch && {
+          category: rawPatch.category ?? undefined,
+        }),
+        ...("details" in rawPatch && {
+          details: rawPatch.details ?? undefined,
+        }),
+      };
+      if (prevTodos) {
+        queryClient.setQueryData<Todo[]>(
+          queryKeys.todos(tripId),
+          prevTodos.map((t) => (t.id === todoId ? { ...t, ...patch } : t)),
+        );
+      }
+      if (prevTrip) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prevTrip,
+          todos: prevTrip.todos.map((t) =>
+            t.id === todoId ? { ...t, ...patch } : t,
+          ),
+        });
+      }
+      return { prevTodos, prevTrip };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prevTodos) {
+        queryClient.setQueryData(queryKeys.todos(tripId), ctx.prevTodos);
+      }
+      if (ctx?.prevTrip) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prevTrip);
+      }
+    },
+    onSettled: () => {
+      // Defer the refetch until the last sibling toggle settles, otherwise
+      // a refetch fired between two in-flight PUTs reflects only the first
+      // change and visually undoes the second.
+      if (queryClient.isMutating({ mutationKey }) === 1) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.todos(tripId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+      }
     },
   });
 }
@@ -398,8 +512,54 @@ export function useDeleteTodo(tripId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (todoId: string) => client.deleteTodo(tripId, todoId),
-    onSuccess: () => {
+    onMutate: async (todoId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.todos(tripId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.trip(tripId) });
+      const prevTodos = queryClient.getQueryData<Todo[]>(
+        queryKeys.todos(tripId),
+      );
+      const prevTrip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      const prevTrips = queryClient.getQueryData<TripSummary[]>(
+        queryKeys.trips,
+      );
+      if (prevTodos) {
+        queryClient.setQueryData<Todo[]>(
+          queryKeys.todos(tripId),
+          prevTodos.filter((t) => t.id !== todoId),
+        );
+      }
+      if (prevTrip) {
+        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+          ...prevTrip,
+          todos: prevTrip.todos.filter((t) => t.id !== todoId),
+        });
+      }
+      if (prevTrips) {
+        queryClient.setQueryData<TripSummary[]>(
+          queryKeys.trips,
+          prevTrips.map((t) =>
+            t.id === tripId
+              ? { ...t, todoCount: Math.max(0, t.todoCount - 1) }
+              : t,
+          ),
+        );
+      }
+      return { prevTodos, prevTrip, prevTrips };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.prevTodos) {
+        queryClient.setQueryData(queryKeys.todos(tripId), ctx.prevTodos);
+      }
+      if (ctx?.prevTrip) {
+        queryClient.setQueryData(queryKeys.trip(tripId), ctx.prevTrip);
+      }
+      if (ctx?.prevTrips) {
+        queryClient.setQueryData(queryKeys.trips, ctx.prevTrips);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.todos(tripId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.trips });
     },
   });

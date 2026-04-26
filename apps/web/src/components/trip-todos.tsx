@@ -7,6 +7,8 @@ import {
   useCreateTodo,
 } from "@travel-app/api-client";
 import { CheckSquare2, Square, Plus, X, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -71,13 +73,16 @@ export function TripTodos({
         category: (newCategory as TodoCategory) || undefined,
       },
       {
-        onSuccess: () => {
-          setNewText("");
-          setNewCategory("");
-          setShowAdd(false);
+        onError: (err) => {
+          toast.error("Couldn't add to-do", {
+            description: describeError(err),
+          });
         },
       },
     );
+    setNewText("");
+    setNewCategory("");
+    setShowAdd(false);
   };
 
   return (
@@ -135,11 +140,7 @@ export function TripTodos({
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!newText.trim() || createTodo.isPending}
-            >
+            <Button type="submit" size="sm" disabled={!newText.trim()}>
               Add
             </Button>
           </div>
@@ -155,10 +156,19 @@ export function TripTodos({
               <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
                 <button
                   onClick={() =>
-                    updateTodo.mutate({
-                      todoId: todo.id,
-                      isCompleted: !todo.isCompleted,
-                    })
+                    updateTodo.mutate(
+                      {
+                        todoId: todo.id,
+                        isCompleted: !todo.isCompleted,
+                      },
+                      {
+                        onError: (err) => {
+                          toast.error("Couldn't update to-do", {
+                            description: describeError(err),
+                          });
+                        },
+                      },
+                    )
                   }
                   className="mt-0.5 shrink-0"
                   title={todo.isCompleted ? "Mark incomplete" : "Mark complete"}
