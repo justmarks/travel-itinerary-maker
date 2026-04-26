@@ -21,6 +21,7 @@ import {
 import { EditTodoDialog } from "@/components/edit-todo-dialog";
 import { SuggestMealsDialog } from "@/components/suggest-meals-dialog";
 import { AppLogo } from "@/components/app-logo";
+import { MarkdownText } from "@/components/markdown-text";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_STYLES: Record<string, string> = {
@@ -183,26 +184,28 @@ export function TripTodos({
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingTodoId(todo.id)}
-                  className="min-w-0 flex-1 text-left"
-                  title="Edit"
-                >
-                  <div
-                    className={cn(
-                      "leading-snug",
-                      todo.isCompleted && "text-muted-foreground line-through",
-                    )}
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTodoId(todo.id)}
+                    className="w-full text-left"
+                    title="Edit"
                   >
-                    {todo.text}
-                  </div>
-                  {todo.details && (
-                    <div className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                      {todo.details}
+                    <div
+                      className={cn(
+                        "leading-snug",
+                        todo.isCompleted && "text-muted-foreground line-through",
+                      )}
+                    >
+                      {todo.text}
                     </div>
+                  </button>
+                  {todo.details && (
+                    <MarkdownText className="mt-0.5 text-xs text-muted-foreground">
+                      {todo.details}
+                    </MarkdownText>
                   )}
-                </button>
+                </div>
                 {todo.category && (
                   <button
                     type="button"
