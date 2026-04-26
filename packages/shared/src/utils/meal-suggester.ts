@@ -94,6 +94,21 @@ function hasTransport(segments: Segment[]): boolean {
 }
 
 /**
+ * True when any flight or train segment on the day crosses midnight —
+ * i.e. departs in the evening and arrives the next morning (`endTime`
+ * earlier than `startTime`). The whole day is effectively a transit
+ * day: the user is at home, en route to the airport, or in the air for
+ * the bulk of it, so neither lunch nor dinner gets a real sit-down.
+ */
+function hasOvernightTransport(segments: Segment[]): boolean {
+  return segments.some((s) => {
+    if (s.type !== "flight" && s.type !== "train") return false;
+    if (!s.startTime || !s.endTime) return false;
+    return toMin(s.endTime) < toMin(s.startTime);
+  });
+}
+
+/**
  * True when a flight or train segment is in motion during any part of the
  * meal window. Only flights and trains qualify — sitting in a car or bus
  * doesn't preclude grabbing a meal en route the way an enclosed cabin does.
@@ -158,6 +173,11 @@ function dayLabel(day: TripDay): string {
  * Walk every TripDay and emit a `MealSuggestion` for any missing lunch or
  * dinner that the user could realistically eat. Rules applied:
  *
+ * - **Overnight flight/train** — if a flight or train on this day crosses
+ *   midnight (departs evening, arrives the next morning), skip both
+ *   lunch and dinner. The day is effectively a transit day; the user
+ *   isn't in the destination city yet and won't be sitting down for a
+ *   meal there.
  * - **In transit during the meal** — if a flight or train segment overlaps
  *   the meal window, skip the meal. The user can't eat in the cabin (and
  *   if they can, the airline handles it).
@@ -188,9 +208,11 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
     const isLastDay = i === lastDayIdx;
     const label = dayLabel(day);
     const cityPart = day.city ? ` in ${day.city}` : "";
+    const overnightTransport = hasOvernightTransport(day.segments);
 
     // ─ Lunch ──────────────────────────────────────────────
     const lunchSkipped =
+      overnightTransport ||
       hasMeal(day.segments, LUNCH_TYPE) ||
       inFlightOrTrainDuring(day.segments, LUNCH_WINDOW) ||
       inShortLayoverDuring(day.segments, LUNCH_WINDOW);
@@ -223,6 +245,7 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
 
     // ─ Dinner ─────────────────────────────────────────────
     const dinnerSkipped =
+      overnightTransport ||
       hasMeal(day.segments, DINNER_TYPE) ||
       (isLastDay && hasTransport(day.segments)) ||
       inFlightOrTrainDuring(day.segments, DINNER_WINDOW) ||
