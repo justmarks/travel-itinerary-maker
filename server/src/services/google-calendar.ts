@@ -130,30 +130,37 @@ export function segmentToEvent(
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;
-      start = dateTime(day.date, segment.startTime, localTz);
-      end = dateTime(segment.endDate ?? addDays(day.date, 1), segment.endTime, localTz);
+      start = { date: day.date };
+      end = { date: segment.endDate ?? addDays(day.date, 1) };
       break;
     }
 
-    case "cruise":
     case "car_rental": {
-      // Multi-day events when endDate is set. Cruise events span embarkation
-      // through disembarkation; car rentals span pickup through return.
       const venue = segment.venueName || segment.title;
       summary = `${label}: ${venue}`;
       const desc: string[] = [];
-      if (segment.type === "cruise") {
-        const route = [segment.departureCity, segment.arrivalCity]
-          .filter(Boolean)
-          .join(" → ");
-        if (route) desc.push(route);
-      }
+      if (segment.address) desc.push(segment.address);
+      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      description = desc.join("\n");
+      location = segment.address || segment.city || day.city;
+      start = { date: day.date };
+      end = { date: segment.endDate ?? addDays(day.date, 1) };
+      break;
+    }
+
+    case "cruise": {
+      const venue = segment.venueName || segment.title;
+      summary = `${label}: ${venue}`;
+      const desc: string[] = [];
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      if (route) desc.push(route);
       if (segment.address) desc.push(segment.address);
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
       location = segment.address || segment.city || day.city;
       if (segment.endDate) {
-        // Cruise/car start in departure-city zone, end in arrival/return zone.
         start = dateTime(day.date, segment.startTime, startTz);
         end = dateTime(segment.endDate, segment.endTime, endTz);
       } else {

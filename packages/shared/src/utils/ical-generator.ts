@@ -157,21 +157,29 @@ function segmentToVEvent(
       if (segment.breakfastIncluded) descParts.push("Breakfast included");
       if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
       location = segment.address ?? segment.city ?? day.city;
-      dtStart = dtProp("DTSTART", day.date, segment.startTime, localTz);
-      dtEnd = dtProp("DTEND", segment.endDate ?? addDays(day.date, 1), segment.endTime, localTz);
+      dtStart = dtProp("DTSTART", day.date);
+      dtEnd = dtProp("DTEND", segment.endDate ?? addDays(day.date, 1));
       break;
     }
 
-    case "cruise":
     case "car_rental": {
       const venue = segment.venueName ?? segment.title;
       summary = `${label}: ${venue}`;
-      if (segment.type === "cruise") {
-        const route = [segment.departureCity, segment.arrivalCity]
-          .filter(Boolean)
-          .join(" → ");
-        if (route) descParts.push(route);
-      }
+      if (segment.address) descParts.push(segment.address);
+      if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
+      location = segment.address ?? segment.city ?? day.city;
+      dtStart = dtProp("DTSTART", day.date);
+      dtEnd = dtProp("DTEND", segment.endDate ?? addDays(day.date, 1));
+      break;
+    }
+
+    case "cruise": {
+      const venue = segment.venueName ?? segment.title;
+      summary = `${label}: ${venue}`;
+      const route = [segment.departureCity, segment.arrivalCity]
+        .filter(Boolean)
+        .join(" → ");
+      if (route) descParts.push(route);
       if (segment.address) descParts.push(segment.address);
       if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
       location = segment.address ?? segment.city ?? day.city;

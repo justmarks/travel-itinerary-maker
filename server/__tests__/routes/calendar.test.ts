@@ -309,8 +309,8 @@ describe("segmentToEvent", () => {
     const event = segmentToEvent(segment, day, "Test Trip");
 
     expect(event.summary).toBe("Car Rental: Times Car Rental Kyoto Station");
-    expect(event.start).toEqual({ dateTime: "2026-06-10T15:00:00", timeZone: "Asia/Tokyo" });
-    expect(event.end).toEqual({ dateTime: "2026-06-13T10:00:00", timeZone: "Asia/Tokyo" });
+    expect(event.start).toEqual({ date: "2026-06-10" });
+    expect(event.end).toEqual({ date: "2026-06-13" });
     expect(event.description).toContain("TCR-7741");
   });
 

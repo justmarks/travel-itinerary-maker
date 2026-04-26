@@ -62,7 +62,7 @@ describe("tripToIcal", () => {
     expect(ics).toContain("END:VEVENT\r\n");
   });
 
-  it("emits an all-day VEVENT for a segment with no time", () => {
+  it("emits an all-day VEVENT for a hotel, ignoring check-in/out times", () => {
     const trip = makeTrip({
       days: [
         {
@@ -75,6 +75,8 @@ describe("tripToIcal", () => {
               type: "hotel",
               title: "Hotel Lutetia",
               venueName: "Hotel Lutetia",
+              startTime: "15:00",
+              endTime: "11:00",
               endDate: "2026-06-13",
               source: "manual",
               needsReview: false,
@@ -88,6 +90,38 @@ describe("tripToIcal", () => {
     const ics = tripToIcal(trip);
     expect(ics).toContain("DTSTART;VALUE=DATE:20260610\r\n");
     expect(ics).toContain("DTEND;VALUE=DATE:20260613\r\n");
+    expect(ics).not.toContain("T150000");
+  });
+
+  it("emits an all-day VEVENT for a car rental", () => {
+    const trip = makeTrip({
+      days: [
+        {
+          date: "2026-06-10",
+          dayOfWeek: "Wed",
+          city: "Kyoto",
+          segments: [
+            {
+              id: "seg2b",
+              type: "car_rental",
+              title: "Toyota Aqua",
+              venueName: "Times Car Rental",
+              startTime: "15:00",
+              endTime: "10:00",
+              endDate: "2026-06-13",
+              source: "manual",
+              needsReview: false,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const ics = tripToIcal(trip);
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260610\r\n");
+    expect(ics).toContain("DTEND;VALUE=DATE:20260613\r\n");
+    expect(ics).not.toContain("T150000");
   });
 
   it("emits a floating datetime when city is unrecognised", () => {
