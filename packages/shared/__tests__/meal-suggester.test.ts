@@ -125,6 +125,56 @@ describe("suggestMealTodos", () => {
     expect(keys).toContain("lunch-2026-04-14");
     expect(keys).toContain("dinner-2026-04-15");
   });
+
+  it("skips dinner on the final day when there's a transport segment (final leg home)", () => {
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Tokyo", []),
+      day("2026-04-15", "Tue", "Tokyo", [
+        seg({ type: "flight", title: "NRT → JFK", startTime: "17:30" }),
+      ]),
+    ]);
+    // Day 1 (non-final): lunch + dinner suggested.
+    expect(
+      result.filter((r) => r.date === "2026-04-14").map((r) => r.meal),
+    ).toEqual(["lunch", "dinner"]);
+    // Final day: only lunch — dinner skipped because the day has a flight home.
+    const finalDay = result.filter((r) => r.date === "2026-04-15");
+    expect(finalDay.map((r) => r.meal)).toEqual(["lunch"]);
+  });
+
+  it("still suggests dinner on the final day when there's no transport", () => {
+    // Final day with no transport — user is presumably eating in town,
+    // so dinner is worth planning.
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Tokyo", []),
+      day("2026-04-15", "Tue", "Tokyo", []),
+    ]);
+    const finalDay = result.filter((r) => r.date === "2026-04-15");
+    expect(finalDay.map((r) => r.meal)).toContain("dinner");
+  });
+
+  it("on a single-day trip with transport, lunch is still suggested but dinner is skipped", () => {
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Tokyo", [
+        seg({ type: "flight", title: "Same-day return", startTime: "20:00" }),
+      ]),
+    ]);
+    expect(result.map((r) => r.meal)).toEqual(["lunch"]);
+  });
+
+  it("does not skip dinner on a non-final day even if it has transport", () => {
+    // Day-2 transport doesn't suppress its own dinner — only the final
+    // day's transport is treated as the "going home" leg.
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Tokyo", []),
+      day("2026-04-15", "Tue", "Kyoto", [
+        seg({ type: "train", title: "Tokyo → Kyoto", startTime: "08:00" }),
+      ]),
+      day("2026-04-16", "Wed", "Kyoto", []),
+    ]);
+    const day2 = result.filter((r) => r.date === "2026-04-15");
+    expect(day2.map((r) => r.meal)).toEqual(["lunch", "dinner"]);
+  });
 });
 
 describe("dedupeAgainstExistingTodos", () => {

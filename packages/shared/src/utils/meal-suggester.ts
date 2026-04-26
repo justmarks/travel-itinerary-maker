@@ -48,6 +48,10 @@ function hasMeal(segments: Segment[], type: SegmentType): boolean {
   return segments.some((s) => s.type === type);
 }
 
+function hasTransport(segments: Segment[]): boolean {
+  return segments.some((s) => TRANSPORT_TYPES.has(s.type));
+}
+
 function transportInLunchWindow(segments: Segment[]): boolean {
   return segments.some(
     (s) => TRANSPORT_TYPES.has(s.type) && inLunchWindow(s.startTime),
@@ -67,14 +71,22 @@ function dayLabel(day: TripDay): string {
  * lunch window (10:00–14:00), the lunch suggestion switches to a takeaway
  * variant — a sit-down place won't fit while the user is in transit.
  *
+ * Skips the dinner suggestion on the trip's final day if that day has any
+ * transport segment. The assumption: the last leg flies the user back
+ * home, where dinner is presumably handled off-itinerary. Lunch on the
+ * final day is still suggested (with the takeaway variant if transit
+ * overlaps lunch hours).
+ *
  * Pure: takes the days array, returns a fresh list. Doesn't mutate.
  * Caller is responsible for de-duping against any todos that already
  * exist on the trip (see `dedupeAgainstExistingTodos`).
  */
 export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
   const out: MealSuggestion[] = [];
+  const lastDayIdx = days.length - 1;
 
-  for (const day of days) {
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i];
     const label = dayLabel(day);
     const cityPart = day.city ? ` in ${day.city}` : "";
 
@@ -97,7 +109,11 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
       });
     }
 
-    if (!hasMeal(day.segments, DINNER_TYPE)) {
+    // Skip dinner on the final day when there's a transport segment —
+    // user is heading home and won't be eating off the trip plan.
+    const isFinalLegHome = i === lastDayIdx && hasTransport(day.segments);
+
+    if (!hasMeal(day.segments, DINNER_TYPE) && !isFinalLegHome) {
       out.push({
         key: `dinner-${day.date}`,
         date: day.date,
