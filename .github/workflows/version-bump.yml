@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths-ignore:
       - "package.json"
+      - "apps/web/package.json"
       - "CHANGELOG.md"
 
 jobs:
@@ -43,11 +44,30 @@ jobs:
             echo "type=patch" >> $GITHUB_OUTPUT
           fi
 
+      # apps/web/package.json carries the version surfaced in the UI
+      # (UserMenu dropdown). Mirror the root bump into apps/web only when
+      # this push touched apps/web — that way server-only commits don't
+      # change the visible web version.
+      - name: Detect apps/web changes
+        id: web-changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q '^apps/web/'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Bump version
         run: |
           npm version ${{ steps.bump-type.outputs.type }} --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
           git add package.json
+
+          if [ "${{ steps.web-changed.outputs.changed }}" = "true" ]; then
+            (cd apps/web && npm version "$VERSION" --no-git-tag-version --allow-same-version)
+            git add apps/web/package.json
+          fi
+
           git commit -m "chore: bump version to $VERSION [skip ci]"
           git tag "v$VERSION"
           git push && git push --tags

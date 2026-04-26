@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import pkg from "./package.json";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -12,6 +13,11 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   transpilePackages: ["@travel-app/shared", "@travel-app/api-client"],
+  // Surfaced in the UserMenu dropdown. Sourced from this package's version so
+  // the version-bump workflow keeps it in sync with the rest of the project.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+  },
 };
 
 export default nextConfig;
