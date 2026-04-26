@@ -996,13 +996,17 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     "/:tripId/export/ical",
     async (req: Request, res: Response) => {
       const storage = getStorage(req);
-      const { tripToIcal } = await import("@travel-app/shared");
+      const [{ tripToIcal }, { resolveTripTimezones }] = await Promise.all([
+        import("@travel-app/shared"),
+        import("../utils/timezone-lookup"),
+      ]);
       const trip = await storage.getTrip(req.params.tripId as string);
       if (!trip) {
         res.status(404).json({ error: "Trip not found" });
         return;
       }
 
+      await resolveTripTimezones(trip);
       const ics = tripToIcal(trip);
       res.setHeader("Content-Type", "text/calendar; charset=utf-8");
       res.setHeader(

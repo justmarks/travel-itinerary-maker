@@ -35,7 +35,11 @@ export function createCalendarRoutes(
 
     const calendarId = (req.query.calendarId as string | undefined) ?? "primary";
 
-    const { syncTripToCalendar } = await import("../services/google-calendar");
+    const [{ syncTripToCalendar }, { resolveTripTimezones }] = await Promise.all([
+      import("../services/google-calendar"),
+      import("../utils/timezone-lookup"),
+    ]);
+    await resolveTripTimezones(trip);
     const result = await syncTripToCalendar(req.accessToken ?? "", trip, calendarId);
 
     // Persist the returned event IDs back onto each segment

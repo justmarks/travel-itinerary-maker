@@ -381,6 +381,8 @@ const TABLE: Record<string, string> = {
   portland:      "America/Los_Angeles",
   pdx:           "America/Los_Angeles",
   sacramento:    "America/Los_Angeles",
+  ontario:       "America/Los_Angeles",  // Ontario, CA (ONT airport)
+  ont:           "America/Los_Angeles",
 
   // ── North America — US Hawaii / Alaska ─────────────────────────────────────
   honolulu:      "Pacific/Honolulu",
@@ -484,11 +486,39 @@ function normalise(raw: string): string {
     .trim();
 }
 
+// ─── Dynamic cache (populated by server-side async lookup) ────────────────────
+
+const dynamicCache = new Map<string, string>();
+
+/** Pre-populate the dynamic cache from an async geocoding result. */
+export function preloadCityTimezone(city: string, tz: string): void {
+  dynamicCache.set(normalise(city), tz);
+}
+
+// ─── IANA zone name matching ──────────────────────────────────────────────────
+
+function ianaZoneMatch(n: string): string | undefined {
+  if (typeof Intl?.supportedValuesOf !== "function") return undefined;
+  const needle = n.replace(/\s+/g, "_");
+  for (const zone of Intl.supportedValuesOf("timeZone")) {
+    const city = zone.split("/").pop()?.toLowerCase() ?? "";
+    if (city === needle) return zone;
+  }
+  return undefined;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Return the IANA timezone for a city string, or `undefined` if the city is
  * not recognised (caller should omit the timeZone field rather than guess).
+ *
+ * Resolution order:
+ *  1. Static curated table (fast, no allocations)
+ *  2. Substring match against table keys
+ *  3. Dynamic cache populated by server-side async geocoding
+ *  4. IANA zone name matching (e.g. "Auckland" → "Pacific/Auckland")
+ *  5. console.warn + return undefined
  */
 export function getCityTimezone(city: string | undefined): string | undefined {
   if (!city) return undefined;
@@ -499,15 +529,26 @@ export function getCityTimezone(city: string | undefined): string | undefined {
   // 1. Exact match after normalisation
   if (TABLE[n]) return TABLE[n];
 
-  // 2. Check if any multi-word key is a substring of the normalised city,
-  //    or the normalised city is a substring of a longer key.
-  //    This catches "Shinjuku, Tokyo" matching "tokyo", "Port Canaveral, FL"
-  //    matching "port canaveral", etc.
+  // 2. Word-boundary substring match — catches city names embedded in raw
+  //    address strings (e.g. "LOC PUNTA RAISI PALERMO 90145 IT" → "palermo")
+  //    without false positives like "ontario" ⊃ "rio".
   for (const [key, tz] of Object.entries(TABLE)) {
-    if (n.includes(key) || key.includes(n)) {
-      return tz;
-    }
+    const keyEsc = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const nEsc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${keyEsc}\\b`).test(n) || new RegExp(`\\b${nEsc}\\b`).test(key)) return tz;
   }
 
+  // 3. Dynamic cache (async geocoding results)
+  if (dynamicCache.has(n)) return dynamicCache.get(n);
+
+  // 4. IANA zone name matching ("Auckland" → "Pacific/Auckland")
+  const ianaMatch = ianaZoneMatch(n);
+  if (ianaMatch) {
+    dynamicCache.set(n, ianaMatch);
+    return ianaMatch;
+  }
+
+  // 5. Unknown — warn so the gap can be found and the table updated
+  console.warn(`[city-timezone] No timezone found for: "${city}" — events will use a floating datetime`);
   return undefined;
 }
