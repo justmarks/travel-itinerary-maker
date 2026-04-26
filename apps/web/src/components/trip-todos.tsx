@@ -63,7 +63,11 @@ export function TripTodos({
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
 
-  const sorted = [...todos].sort((a, b) => a.sortOrder - b.sortOrder);
+  // Completed items sink to the bottom; otherwise preserve sortOrder.
+  const sorted = [...todos].sort(
+    (a, b) =>
+      Number(a.isCompleted) - Number(b.isCompleted) || a.sortOrder - b.sortOrder,
+  );
   const completedCount = sorted.filter((t) => t.isCompleted).length;
 
   const handleAdd = (e: React.FormEvent) => {

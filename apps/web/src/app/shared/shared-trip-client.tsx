@@ -68,13 +68,19 @@ export default function SharedTripClient({ token }: { token: string }) {
           <div className="mt-8 rounded-xl border p-5">
             <h2 className="mb-3 font-semibold">To-do</h2>
             <ul className="flex flex-col gap-1 text-sm">
-              {trip.todos.map((todo) => (
-                <li key={todo.id} className="flex items-center gap-2">
-                  <span className={todo.isCompleted ? "text-muted-foreground line-through" : ""}>
-                    {todo.isCompleted ? "✓" : "○"} {todo.text}
-                  </span>
-                </li>
-              ))}
+              {[...trip.todos]
+                .sort(
+                  (a, b) =>
+                    Number(a.isCompleted) - Number(b.isCompleted) ||
+                    a.sortOrder - b.sortOrder,
+                )
+                .map((todo) => (
+                  <li key={todo.id} className="flex items-center gap-2">
+                    <span className={todo.isCompleted ? "text-muted-foreground line-through" : ""}>
+                      {todo.isCompleted ? "✓" : "○"} {todo.text}
+                    </span>
+                  </li>
+                ))}
             </ul>
           </div>
         )}
