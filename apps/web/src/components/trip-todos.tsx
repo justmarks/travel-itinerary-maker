@@ -65,19 +65,13 @@ export function TripTodos({
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newText.trim()) return;
-    createTodo.mutate(
-      {
-        text: newText.trim(),
-        category: (newCategory as TodoCategory) || undefined,
-      },
-      {
-        onSuccess: () => {
-          setNewText("");
-          setNewCategory("");
-          setShowAdd(false);
-        },
-      },
-    );
+    createTodo.mutate({
+      text: newText.trim(),
+      category: (newCategory as TodoCategory) || undefined,
+    });
+    setNewText("");
+    setNewCategory("");
+    setShowAdd(false);
   };
 
   return (
@@ -135,11 +129,7 @@ export function TripTodos({
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!newText.trim() || createTodo.isPending}
-            >
+            <Button type="submit" size="sm" disabled={!newText.trim()}>
               Add
             </Button>
           </div>
