@@ -23,13 +23,14 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "Travel Itinerary Maker",
   description: "Auto-generate travel itineraries from email confirmations",
-  // Next picks up `icon.svg` and `opengraph-image.tsx` automatically.
-  // Apple-touch-icon needs an explicit hint — point it at the same SVG
-  // so iOS devices that honour SVG home-screen icons get the brand
-  // mark. Older iOS may fall back to the regular favicon. The path
-  // includes the basePath because Next does NOT auto-prepend it for
-  // metadata.icons entries (manifest has its own handling).
+  // Setting `metadata.icons` as an object suppresses Next's auto-discovery
+  // of `app/icon.svg`, so the regular `<link rel="icon">` tag must be
+  // declared here too — otherwise browsers fall back to /favicon.ico
+  // (a default gray-globe glyph on GH Pages). Both URLs include the
+  // basePath because Next does NOT auto-prepend it for entries in
+  // metadata.icons (the manifest has its own handling).
   icons: {
+    icon: `${BASE_PATH}/icon.svg`,
     apple: `${BASE_PATH}/icon.svg`,
   },
   openGraph: {
