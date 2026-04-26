@@ -306,6 +306,67 @@ describe("suggestMealTodos", () => {
     expect(day2Lunch!.takeaway).toBe(false);
   });
 
+  // ─── Rule 4: skip both meals on overnight transport days ──
+
+  it("skips both lunch and dinner when a flight crosses midnight (overnight)", () => {
+    // Mirrors the Iceland sample trip: depart 16:40, arrive 06:30 next day.
+    // The day is effectively a transit day — user is at home/airport/in
+    // the air for the bulk of it, not eating in the destination city.
+    const result = suggestMealTodos([
+      day("2026-07-18", "Sat", "Reykjavík", [
+        seg({
+          type: "flight",
+          title: "SEA → KEF",
+          startTime: "16:40",
+          endTime: "06:30",
+        }),
+      ]),
+      day("2026-07-19", "Sun", "Reykjavík", []),
+    ]);
+    const day1 = result.filter((r) => r.date === "2026-07-18");
+    expect(day1).toEqual([]);
+    // The next day (proper arrival) still gets meals.
+    const day2 = result.filter((r) => r.date === "2026-07-19");
+    expect(day2.map((r) => r.meal)).toEqual(["lunch", "dinner"]);
+  });
+
+  it("skips both meals when a train crosses midnight (overnight train)", () => {
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Paris", []),
+      day("2026-04-15", "Tue", "Venice", [
+        seg({
+          type: "train",
+          title: "Paris → Venice sleeper",
+          startTime: "21:00",
+          endTime: "07:30",
+        }),
+      ]),
+    ]);
+    const day2 = result.filter((r) => r.date === "2026-04-15");
+    expect(day2).toEqual([]);
+  });
+
+  it("does not treat a same-day flight (endTime > startTime) as overnight", () => {
+    // Sanity check: the overnight rule keys on endTime < startTime, not
+    // on time-of-day. A normal evening flight that lands the same day
+    // still suggests lunch.
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Tokyo", []),
+      day("2026-04-15", "Tue", "Tokyo", [
+        seg({
+          type: "flight",
+          title: "Late evening hop",
+          startTime: "19:00",
+          endTime: "22:30",
+        }),
+      ]),
+    ]);
+    const day2Lunch = result.find(
+      (r) => r.date === "2026-04-15" && r.meal === "lunch",
+    );
+    expect(day2Lunch).toBeDefined();
+  });
+
   it("on a single-day trip with an evening departure, lunch is not takeaway (first-day rule)", () => {
     // Even though the day has a late departure, isFirstDay=true means
     // takeaway doesn't fire — there's no overnight-in-town context.
