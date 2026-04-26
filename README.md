@@ -229,6 +229,12 @@ The app supports a runtime demo mode for trying it without Google credentials. A
 
 Demo mode uses a mock API client with sample trip data. No backend required. The demo and real login flow are served from the same build — toggle via the URL parameter.
 
+## Conventions
+
+**Times are wall-clock local to the segment's city.** A 09:00 flight out of Tokyo and a 09:00 dinner in Paris are both stored and displayed as `09:00` — the app does not display, convert, or annotate time zones in the UI, even on multi-country trips. This keeps the day-by-day view simple: the time you read is the time you'll see on the clock when you're there.
+
+The one place this matters is **calendar export**: events pushed to Google Calendar attach the correct IANA time zone per segment so they land at the right wall-clock time regardless of the user's device zone.
+
 ## Contributing
 
 All changes go through pull requests — no direct commits to main.
@@ -282,10 +288,9 @@ Two related cleanups surfaced while auditing this area:
 
 **Up next:**
 
-- [ ] **Google Calendar sync** — push trip segments to Google Calendar as events; re-sync updates existing events; unsync removes them (implementation exists on a feature branch, pending merge)
+- [ ] **Google Calendar sync** — push trip segments to Google Calendar as events with the correct IANA time zone per segment (so a 09:00 Tokyo flight lands at 09:00 JST regardless of the user's device zone); re-sync updates existing events; unsync removes them (implementation exists on a feature branch, pending merge)
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
-- [ ] **Time zone display** — show local city time alongside home time on segment cards for multi-country trips; surface TZ context on flights (departs/arrives in local time)
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
 - [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
