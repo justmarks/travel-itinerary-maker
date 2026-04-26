@@ -211,6 +211,73 @@ describe("tripToIcal", () => {
     }
   });
 
+  it("advances DTEND date by one day for overnight transatlantic flights", () => {
+    // LA 13:30 PDT (20:30 UTC) → Paris 08:10 CEST (06:10 UTC next day)
+    const trip = makeTrip({
+      days: [
+        {
+          date: "2026-06-26",
+          dayOfWeek: "Fri",
+          city: "Los Angeles",
+          segments: [
+            {
+              id: "seg-overnight",
+              type: "flight",
+              title: "LAX → CDG",
+              departureCity: "Los Angeles",
+              arrivalCity: "Paris",
+              carrier: "Air France",
+              routeCode: "AF066",
+              startTime: "13:30",
+              endTime: "08:10",
+              source: "manual",
+              needsReview: false,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const ics = tripToIcal(trip);
+    expect(ics).toContain("DTSTART;TZID=America/Los_Angeles:20260626T133000\r\n");
+    // Arrival is 08:10 Paris time on June 27, not June 26
+    expect(ics).toContain("DTEND;TZID=Europe/Paris:20260627T081000\r\n");
+  });
+
+  it("keeps DTEND on same date for same-day westbound flights", () => {
+    // Paris 10:00 CEST (08:00 UTC) → New York 14:00 EDT (18:00 UTC, same day)
+    const trip = makeTrip({
+      days: [
+        {
+          date: "2026-06-10",
+          dayOfWeek: "Wed",
+          city: "Paris",
+          segments: [
+            {
+              id: "seg-sameday",
+              type: "flight",
+              title: "CDG → JFK",
+              departureCity: "Paris",
+              arrivalCity: "New York",
+              carrier: "Delta",
+              routeCode: "DL260",
+              startTime: "10:00",
+              endTime: "14:00",
+              source: "manual",
+              needsReview: false,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const ics = tripToIcal(trip);
+    expect(ics).toContain("DTSTART;TZID=Europe/Paris:20260610T100000\r\n");
+    expect(ics).toContain("DTEND;TZID=America/New_York:20260610T140000\r\n");
+  });
+
   it("escapes special characters in text properties", () => {
     const trip = makeTrip({
       title: "Trip; with, commas\\backslashes",

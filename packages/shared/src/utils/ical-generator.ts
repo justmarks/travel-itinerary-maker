@@ -86,6 +86,47 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Returns tz offset in minutes (positive = east of UTC) using noon UTC as a DST-safe reference. */
+function getUtcOffsetMinutes(referenceUtc: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(referenceUtc);
+  const get = (type: string) =>
+    parseInt(parts.find((p) => p.type === type)?.value ?? "0");
+  return (get("hour") % 24 - referenceUtc.getUTCHours()) * 60 +
+    (get("minute") - referenceUtc.getUTCMinutes());
+}
+
+/**
+ * Compute the calendar date of arrival for a flight/train segment.
+ * Returns depDate if arrival is on the same local-calendar date,
+ * or depDate+1 when the flight crosses midnight in UTC (e.g. transatlantic).
+ */
+function resolveArrivalDate(
+  depDate: string,
+  depTime: string | undefined,
+  depTz: string | undefined,
+  arrTime: string | undefined,
+  arrTz: string | undefined,
+): string {
+  if (!depTime || !arrTime || !depTz || !arrTz) return depDate;
+  try {
+    const ref = new Date(`${depDate}T12:00:00Z`);
+    const depOffMin = getUtcOffsetMinutes(ref, depTz);
+    const arrOffMin = getUtcOffsetMinutes(ref, arrTz);
+    const [dh, dm] = depTime.slice(0, 5).split(":").map(Number);
+    const [ah, am] = arrTime.slice(0, 5).split(":").map(Number);
+    const depUtcMin = (dh ?? 0) * 60 + (dm ?? 0) - depOffMin;
+    const arrSameDayUtcMin = (ah ?? 0) * 60 + (am ?? 0) - arrOffMin;
+    return arrSameDayUtcMin > depUtcMin ? depDate : addDays(depDate, 1);
+  } catch {
+    return depDate;
+  }
+}
+
 // ─── Segment → VEVENT ─────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<string, string> = {
@@ -142,8 +183,11 @@ function segmentToVEvent(
       if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
       location = segment.departureCity ?? segment.city ?? day.city;
       dtStart = dtProp("DTSTART", day.date, segment.startTime, startTz);
+      const arrDate = resolveArrivalDate(
+        day.date, segment.startTime, startTz, segment.endTime, endTz,
+      );
       dtEnd = segment.endTime
-        ? dtProp("DTEND", day.date, segment.endTime, endTz)
+        ? dtProp("DTEND", arrDate, segment.endTime, endTz)
         : segment.startTime
           ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), startTz)
           : dtProp("DTEND", addDays(day.date, 1));
