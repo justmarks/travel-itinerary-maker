@@ -62,6 +62,7 @@ import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
 import { MapView } from "@/components/map-view";
+import { toast } from "sonner";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
@@ -475,7 +476,6 @@ function CalendarSyncButton({
   const client = useApiClient();
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
@@ -503,18 +503,17 @@ function CalendarSyncButton({
   const handleSync = async () => {
     setPickerOpen(false);
     setSyncing(true);
-    setMessage(null);
     try {
       const result = await client.syncCalendar(trip.id, selectedCalendarId);
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
       const total = result.created + result.updated;
-      setMessage(
-        result.failed > 0
-          ? `${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`
-          : `${total} event${total !== 1 ? "s" : ""} synced`,
-      );
+      if (result.failed > 0) {
+        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
+      } else {
+        toast.success(`${total} event${total !== 1 ? "s" : ""} synced to Google Calendar`);
+      }
     } catch {
-      setMessage("Sync failed — check that Calendar access is granted.");
+      toast.error("Sync failed — check that Calendar access is granted.");
     } finally {
       setSyncing(false);
     }
@@ -522,13 +521,12 @@ function CalendarSyncButton({
 
   const handleUnsync = async () => {
     setSyncing(true);
-    setMessage(null);
     try {
       const result = await client.unsyncCalendar(trip.id);
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      setMessage(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
+      toast.success(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
     } catch {
-      setMessage("Failed to remove calendar events.");
+      toast.error("Failed to remove calendar events.");
     } finally {
       setSyncing(false);
     }
@@ -536,28 +534,25 @@ function CalendarSyncButton({
 
   return (
     <>
-      <div className="flex flex-col items-end gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={syncing}
-          onClick={isSynced ? handleUnsync : openPicker}
-        >
-          {isSynced ? (
-            <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
-          ) : (
-            <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-          )}
-          {syncing
-            ? isSynced
-              ? "Removing…"
-              : "Syncing…"
-            : isSynced
-              ? `Synced (${syncedCount})`
-              : "Sync to Calendar"}
-        </Button>
-        {message && <p className="text-xs text-muted-foreground">{message}</p>}
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={syncing}
+        onClick={isSynced ? handleUnsync : openPicker}
+      >
+        {isSynced ? (
+          <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+        ) : (
+          <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+        )}
+        {syncing
+          ? isSynced
+            ? "Removing…"
+            : "Syncing…"
+          : isSynced
+            ? `Synced (${syncedCount})`
+            : "Sync to Calendar"}
+      </Button>
 
       <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
         <DialogContent className="sm:max-w-sm">
