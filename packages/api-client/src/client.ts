@@ -288,6 +288,15 @@ export class ApiClient {
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "POST" });
   }
 
+  syncSegment(
+    tripId: string,
+    segmentId: string,
+    calendarId?: string,
+  ): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
+    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    return this.request(`/trips/${tripId}/segments/${segmentId}/calendar/sync${qs}`, { method: "POST" });
+  }
+
   unsyncCalendar(
     tripId: string,
     opts?: { calendarId?: string; deleteEvents?: boolean },

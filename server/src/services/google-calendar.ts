@@ -338,8 +338,9 @@ async function fetchEventsInRange(
 
 /**
  * Try to find an existing calendar event that matches a segment. Only
- * considers events NOT created by this app so we never re-match our own
- * previously synced events. Returns the matched event ID, or undefined.
+ * considers events NOT already tracked by a segment in this trip (by event ID)
+ * so we never accidentally re-match events that are already in use.
+ * Returns the matched event ID, or undefined.
  *
  * - flight/train: matched by route code then formatted label
  * - hotel:        matched by venue name on an all-day event within the stay
@@ -349,9 +350,11 @@ function findMatchingEventId(
   segment: Segment,
   day: TripDay,
   existingEvents: calendar_v3.Schema$Event[],
+  trackedEventIds: Set<string>,
 ): string | undefined {
+  // Exclude events already claimed by another segment in this sync
   const candidates = existingEvents.filter(
-    (e) => e.extendedProperties?.private?.["source"] !== "travel-itinerary-maker",
+    (e) => e.id && !trackedEventIds.has(e.id),
   );
 
   switch (segment.type) {
@@ -439,8 +442,14 @@ export async function syncTripToCalendar(
     eventMap: {},
   };
 
-  // Pre-fetch existing calendar events so we can match airline-added flights
-  // against trip segments that don't yet have a calendarEventId.
+  // Build the set of event IDs already tracked by segments so the matcher
+  // won't reassign an event that's already in use by another segment.
+  const trackedEventIds = new Set(
+    trip.days.flatMap((d) => d.segments).map((s) => s.calendarEventId).filter(Boolean) as string[],
+  );
+
+  // Pre-fetch existing calendar events so we can match airline-added (or
+  // previously-orphaned) events against segments that don't yet have an ID.
   const needsMatching = trip.days.some((d) =>
     d.segments.some((s) => !s.calendarEventId),
   );
@@ -448,6 +457,7 @@ export async function syncTripToCalendar(
   if (needsMatching) {
     try {
       existingEvents = await fetchEventsInRange(cal, calendarId, trip.startDate, trip.endDate);
+      console.log(`[calendar-sync] Fetched ${existingEvents.length} existing event(s) for matching`);
     } catch {
       console.warn("[calendar-sync] Could not fetch existing events for match check; will create new events.");
     }
@@ -460,12 +470,14 @@ export async function syncTripToCalendar(
         event.extendedProperties!.private!.tripId = trip.id;
 
         // If this segment has no calendarEventId yet, see if an existing
-        // calendar event (e.g. added by the airline) already represents it.
+        // calendar event (airline-added or orphaned from a previous sync)
+        // already represents it.
         if (!segment.calendarEventId) {
-          const matchId = findMatchingEventId(segment, day, existingEvents);
+          const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
           if (matchId) {
             console.log(`[calendar-sync] Matched "${segment.title}" to existing event ${matchId}`);
             segment.calendarEventId = matchId;
+            trackedEventIds.add(matchId);
           }
         }
 
@@ -507,6 +519,77 @@ export async function syncTripToCalendar(
 
   console.log(`[calendar-sync] Done: ${result.created} created, ${result.updated} updated, ${result.failed} failed (calendarId=${calendarId})`);
   return result;
+}
+
+/**
+ * Sync a single segment to Google Calendar. Creates or updates one event.
+ * Returns the event ID that was created/updated, or undefined on failure.
+ */
+export async function syncSegmentToCalendar(
+  accessToken: string,
+  trip: Trip,
+  day: TripDay,
+  segment: Segment,
+  calendarId = "primary",
+): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
+  const cal = buildClient(accessToken);
+  const event = segmentToEvent(segment, day, trip.title);
+  event.extendedProperties!.private!.tripId = trip.id;
+
+  try {
+    if (segment.calendarEventId) {
+      try {
+        await cal.events.update({ calendarId, eventId: segment.calendarEventId, requestBody: event });
+        console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
+        return { created: 0, updated: 1, failed: 0, eventId: segment.calendarEventId };
+      } catch (err: unknown) {
+        const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
+        if (status === 404 || status === 410) {
+          const res = await cal.events.insert({ calendarId, requestBody: event });
+          console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
+          return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
+        }
+        throw err;
+      }
+    } else {
+      // No calendarEventId — try to match an existing event first
+      const existingEvents = await fetchEventsInRange(cal, calendarId, day.date, day.date).catch(() => [] as calendar_v3.Schema$Event[]);
+      const trackedEventIds = new Set(
+        trip.days.flatMap((d) => d.segments).map((s) => s.calendarEventId).filter(Boolean) as string[],
+      );
+      const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
+      if (matchId) {
+        await cal.events.update({ calendarId, eventId: matchId, requestBody: event });
+        console.log(`[calendar-sync] Matched+updated "${segment.title}" → ${matchId}`);
+        return { created: 0, updated: 1, failed: 0, eventId: matchId };
+      }
+      const res = await cal.events.insert({ calendarId, requestBody: event });
+      console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
+      return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
+    }
+  } catch {
+    console.warn(`[calendar-sync] Failed to sync "${segment.title}"`);
+    return { created: 0, updated: 0, failed: 1 };
+  }
+}
+
+/**
+ * Delete a single calendar event. Treats 404/410 as success (already gone).
+ */
+export async function deleteCalendarEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+): Promise<void> {
+  const cal = buildClient(accessToken);
+  try {
+    await cal.events.delete({ calendarId, eventId });
+    console.log(`[calendar-sync] Removed  event ${eventId}`);
+  } catch (err: unknown) {
+    const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
+    if (status !== 404 && status !== 410) throw err;
+    console.log(`[calendar-sync] Already gone event ${eventId}`);
+  }
 }
 
 export async function unsyncTripFromCalendar(

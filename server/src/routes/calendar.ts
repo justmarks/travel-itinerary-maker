@@ -74,6 +74,50 @@ export function createCalendarRoutes(
   });
 
   /**
+   * POST /trips/:tripId/segments/:segId/calendar/sync
+   * Sync a single segment to Google Calendar (create or update one event).
+   * Used by auto-sync after segment create/edit so only the changed event
+   * is touched rather than re-syncing the entire trip.
+   */
+  router.post("/:tripId/segments/:segId/calendar/sync", async (req: Request, res: Response) => {
+    const storage = getStorage(req);
+    const trip = await storage.getTrip(req.params.tripId as string);
+    if (!trip) {
+      res.status(404).json({ error: "Trip not found" });
+      return;
+    }
+
+    const segId = req.params.segId as string;
+    let targetDay: import("@travel-app/shared").TripDay | undefined;
+    let targetSegment: import("@travel-app/shared").Segment | undefined;
+    for (const day of trip.days) {
+      const seg = day.segments.find((s) => s.id === segId);
+      if (seg) { targetDay = day; targetSegment = seg; break; }
+    }
+    if (!targetDay || !targetSegment) {
+      res.status(404).json({ error: "Segment not found" });
+      return;
+    }
+
+    const calendarId = (req.query.calendarId as string | undefined) ?? trip.calendarId ?? "primary";
+
+    const [{ syncSegmentToCalendar }, { resolveTripTimezones }] = await Promise.all([
+      import("../services/google-calendar"),
+      import("../utils/timezone-lookup"),
+    ]);
+    await resolveTripTimezones(trip);
+    const result = await syncSegmentToCalendar(req.accessToken ?? "", trip, targetDay, targetSegment, calendarId);
+
+    if (result.eventId && result.eventId !== targetSegment.calendarEventId) {
+      targetSegment.calendarEventId = result.eventId;
+      trip.updatedAt = new Date().toISOString();
+      await storage.saveTrip(trip);
+    }
+
+    res.json(result);
+  });
+
+  /**
    * DELETE /trips/:tripId/calendar/sync
    * Remove all previously synced calendar events for this trip
    * and clear calendarEventId from every segment.
