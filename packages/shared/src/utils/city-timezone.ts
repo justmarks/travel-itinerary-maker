@@ -465,6 +465,149 @@ const TABLE: Record<string, string> = {
   "french polynesia":"Pacific/Tahiti",
   "bora bora":   "Pacific/Tahiti",
   "guam":        "Pacific/Guam",
+
+  // ── Top-100 airport IATA codes (additions not already in table above) ────────
+  // Middle East
+  dxb:           "Asia/Dubai",
+  auh:           "Asia/Dubai",        // Abu Dhabi
+  shj:           "Asia/Dubai",        // Sharjah
+  doh:           "Asia/Qatar",        // Doha
+  ruh:           "Asia/Riyadh",       // Riyadh
+  jed:           "Asia/Riyadh",       // Jeddah
+  kwi:           "Asia/Kuwait",       // Kuwait City
+  bah:           "Asia/Bahrain",      // Manama
+  mct:           "Asia/Muscat",       // Muscat
+  tlv:           "Asia/Jerusalem",    // Tel Aviv
+  amm:           "Asia/Amman",        // Amman
+  bey:           "Asia/Beirut",       // Beirut
+  ist:           "Europe/Istanbul",   // Istanbul
+  saw:           "Europe/Istanbul",   // Istanbul Sabiha Gökçen
+  esb:           "Europe/Istanbul",   // Ankara
+  adb:           "Europe/Istanbul",   // İzmir
+
+  // South / Southeast Asia
+  sin:           "Asia/Singapore",
+  bkk:           "Asia/Bangkok",
+  dmk:           "Asia/Bangkok",      // Don Mueang
+  kul:           "Asia/Kuala_Lumpur",
+  mnl:           "Asia/Manila",
+  cgk:           "Asia/Jakarta",      // Jakarta
+  bom:           "Asia/Kolkata",      // Mumbai
+  del:           "Asia/Kolkata",      // Delhi
+  hyd:           "Asia/Kolkata",      // Hyderabad (India)
+  ccu:           "Asia/Kolkata",      // Kolkata
+  cmb:           "Asia/Colombo",      // Colombo
+  dac:           "Asia/Dhaka",        // Dhaka
+  khi:           "Asia/Karachi",      // Karachi
+  lhe:           "Asia/Karachi",      // Lahore
+  isb:           "Asia/Karachi",      // Islamabad
+
+  // China
+  pek:           "Asia/Shanghai",     // Beijing Capital
+  pkx:           "Asia/Shanghai",     // Beijing Daxing
+  pvg:           "Asia/Shanghai",     // Shanghai Pudong
+  sha:           "Asia/Shanghai",     // Shanghai Hongqiao
+  can:           "Asia/Shanghai",     // Guangzhou
+
+  // Europe
+  ams:           "Europe/Amsterdam",
+  fra:           "Europe/Berlin",     // Frankfurt
+  muc:           "Europe/Berlin",     // Munich
+  dus:           "Europe/Berlin",     // Düsseldorf
+  ham:           "Europe/Berlin",     // Hamburg
+  str:           "Europe/Berlin",     // Stuttgart
+  cgn:           "Europe/Berlin",     // Cologne
+  ber:           "Europe/Berlin",     // Berlin Brandenburg
+  zrh:           "Europe/Zurich",     // Zurich
+  gva:           "Europe/Zurich",     // Geneva
+  mad:           "Europe/Madrid",     // Madrid
+  bcn:           "Europe/Madrid",     // Barcelona
+  agp:           "Europe/Madrid",     // Málaga
+  alc:           "Europe/Madrid",     // Alicante
+  pmi:           "Europe/Madrid",     // Palma de Mallorca
+  fco:           "Europe/Rome",       // Rome Fiumicino
+  mxp:           "Europe/Rome",       // Milan Malpensa
+  lin:           "Europe/Rome",       // Milan Linate
+  vce:           "Europe/Rome",       // Venice
+  ory:           "Europe/Paris",      // Paris Orly
+  man:           "Europe/London",     // Manchester
+  lis:           "Europe/Lisbon",     // Lisbon
+  opo:           "Europe/Lisbon",     // Porto
+  bru:           "Europe/Brussels",   // Brussels
+  vie:           "Europe/Vienna",     // Vienna
+  arn:           "Europe/Stockholm",  // Stockholm Arlanda
+  bma:           "Europe/Stockholm",  // Stockholm Bromma
+  cph:           "Europe/Copenhagen", // Copenhagen
+  osl:           "Europe/Oslo",       // Oslo
+  hel:           "Europe/Helsinki",   // Helsinki
+  svo:           "Europe/Moscow",     // Moscow Sheremetyevo
+  dme:           "Europe/Moscow",     // Moscow Domodedovo
+  vko:           "Europe/Moscow",     // Moscow Vnukovo
+  led:           "Europe/Moscow",     // St. Petersburg
+  "st. petersburg": "Europe/Moscow",
+  "saint petersburg": "Europe/Moscow",
+  waw:           "Europe/Warsaw",     // Warsaw
+  prg:           "Europe/Prague",     // Prague
+  bud:           "Europe/Budapest",   // Budapest
+  ath:           "Europe/Athens",     // Athens
+
+  // Africa
+  cai:           "Africa/Cairo",
+  jnb:           "Africa/Johannesburg", // Johannesburg
+  cpt:           "Africa/Johannesburg", // Cape Town
+  nbo:           "Africa/Nairobi",
+  add:           "Africa/Addis_Ababa", // Addis Ababa
+  los:           "Africa/Lagos",
+  acc:           "Africa/Accra",
+  cmn:           "Africa/Casablanca", // Casablanca
+  rak:           "Africa/Casablanca", // Marrakech
+  "marrakesh":   "Africa/Casablanca",
+  tun:           "Africa/Tunis",
+  alg:           "Africa/Algiers",
+
+  // Americas
+  mex:           "America/Mexico_City",
+  gru:           "America/Sao_Paulo", // São Paulo
+  gig:           "America/Sao_Paulo", // Rio de Janeiro
+  bog:           "America/Bogota",    // Bogotá
+  "bogotá":      "America/Bogota",
+  lim:           "America/Lima",
+  scl:           "America/Santiago",  // Santiago
+  eze:           "America/Argentina/Buenos_Aires", // Buenos Aires
+  aep:           "America/Argentina/Buenos_Aires",
+  clt:           "America/New_York",  // Charlotte
+  bwi:           "America/New_York",  // Baltimore
+  rdu:           "America/New_York",  // Raleigh-Durham
+  cle:           "America/New_York",  // Cleveland
+  cvg:           "America/New_York",  // Cincinnati
+  "cincinnati":  "America/New_York",
+  pit:           "America/New_York",  // Pittsburgh
+  bna:           "America/Chicago",   // Nashville
+  msy:           "America/Chicago",   // New Orleans
+  aus:           "America/Chicago",   // Austin
+  sat:           "America/Chicago",   // San Antonio
+  stl:           "America/Chicago",   // St. Louis
+  "st. louis":   "America/Chicago",
+  okc:           "America/Chicago",   // Oklahoma City
+  mci:           "America/Chicago",   // Kansas City
+  "kansas city": "America/Chicago",
+  abq:           "America/Denver",    // Albuquerque
+  tus:           "America/Phoenix",   // Tucson
+  oak:           "America/Los_Angeles", // Oakland
+  sjc:           "America/Los_Angeles", // San Jose
+  bur:           "America/Los_Angeles", // Burbank
+  sna:           "America/Los_Angeles", // Orange County
+  "orange county": "America/Los_Angeles",
+  "santa ana":   "America/Los_Angeles",
+  smf:           "America/Los_Angeles", // Sacramento
+  rno:           "America/Los_Angeles", // Reno
+  ogg:           "Pacific/Honolulu",  // Maui
+  koa:           "Pacific/Honolulu",  // Kona
+  "kona":        "Pacific/Honolulu",
+  lih:           "Pacific/Honolulu",  // Kauai
+  "kauai":       "Pacific/Honolulu",
+  yeg:           "America/Edmonton",  // Edmonton
+  yyc:           "America/Edmonton",  // Calgary
 };
 
 // ─── Normalise helper ─────────────────────────────────────────────────────────

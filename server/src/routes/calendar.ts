@@ -88,9 +88,17 @@ export function createCalendarRoutes(
 
     // Use the calendarId stored on the trip when no override is given
     const calendarId = (req.query.calendarId as string | undefined) ?? trip.calendarId ?? "primary";
+    // deleteEvents=false → clear sync tracking without touching Google Calendar
+    const deleteEvents = req.query.deleteEvents !== "false";
 
-    const { unsyncTripFromCalendar } = await import("../services/google-calendar");
-    const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId);
+    let removed = 0;
+    let failed = 0;
+    if (deleteEvents) {
+      const { unsyncTripFromCalendar } = await import("../services/google-calendar");
+      const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId);
+      removed = result.removed;
+      failed = result.failed;
+    }
 
     // Clear calendarEventId from every segment and the stored calendarId
     for (const day of trip.days) {
@@ -104,7 +112,7 @@ export function createCalendarRoutes(
     trip.updatedAt = new Date().toISOString();
     await storage.saveTrip(trip);
 
-    res.json({ removed: result.removed, failed: result.failed });
+    res.json({ removed, failed });
   });
 
   return router;

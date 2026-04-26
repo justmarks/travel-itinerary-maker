@@ -290,9 +290,12 @@ export class ApiClient {
 
   unsyncCalendar(
     tripId: string,
-    calendarId?: string,
+    opts?: { calendarId?: string; deleteEvents?: boolean },
   ): Promise<{ removed: number; failed: number }> {
-    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    const params = new URLSearchParams();
+    if (opts?.calendarId) params.set("calendarId", opts.calendarId);
+    if (opts?.deleteEvents === false) params.set("deleteEvents", "false");
+    const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "DELETE" });
   }
 

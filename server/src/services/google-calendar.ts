@@ -478,6 +478,7 @@ export async function syncTripToCalendar(
             });
             result.updated++;
             result.eventMap[segment.id] = segment.calendarEventId;
+            console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
           } catch (err: unknown) {
             const status =
               (err as { code?: number }).code ??
@@ -487,6 +488,7 @@ export async function syncTripToCalendar(
               const res = await cal.events.insert({ calendarId, requestBody: event });
               result.created++;
               result.eventMap[segment.id] = res.data.id!;
+              console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
             } else {
               throw err;
             }
@@ -495,6 +497,7 @@ export async function syncTripToCalendar(
           const res = await cal.events.insert({ calendarId, requestBody: event });
           result.created++;
           result.eventMap[segment.id] = res.data.id!;
+          console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
         }
       } catch {
         result.failed++;
@@ -502,6 +505,7 @@ export async function syncTripToCalendar(
     }
   }
 
+  console.log(`[calendar-sync] Done: ${result.created} created, ${result.updated} updated, ${result.failed} failed (calendarId=${calendarId})`);
   return result;
 }
 
@@ -519,14 +523,17 @@ export async function unsyncTripFromCalendar(
       try {
         await cal.events.delete({ calendarId, eventId: segment.calendarEventId });
         result.removed++;
+        console.log(`[calendar-sync] Removed  "${segment.title}" (${segment.calendarEventId})`);
       } catch (err: unknown) {
         const status =
           (err as { code?: number }).code ??
           (err as { status?: number }).status;
         if (status === 404 || status === 410) {
           result.removed++; // already gone — counts as removed
+          console.log(`[calendar-sync] Already gone "${segment.title}" (${segment.calendarEventId})`);
         } else {
           result.failed++;
+          console.warn(`[calendar-sync] Failed to remove "${segment.title}" (${segment.calendarEventId}):`, err);
         }
       }
     }

@@ -204,9 +204,16 @@ export function useCreateSegment(tripId: string) {
       return client.createSegment(tripId, date, segmentData);
     },
     onSuccess: () => {
+      // Read calendarId before invalidating so we get it from current cache
+      const trip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.segments(tripId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.costs(tripId) });
+      if (trip?.calendarId) {
+        client.syncCalendar(tripId, trip.calendarId).then(() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+        }).catch(() => { /* silent — user can manually refresh */ });
+      }
     },
   });
 }
@@ -239,6 +246,15 @@ export function useUpdateSegment(tripId: string) {
     onError: (_err, _input, ctx) => {
       if (ctx?.prev) {
         queryClient.setQueryData(queryKeys.trip(tripId), ctx.prev);
+      }
+    },
+    onSuccess: () => {
+      // Auto-sync to Google Calendar if the trip is connected
+      const trip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+      if (trip?.calendarId) {
+        client.syncCalendar(tripId, trip.calendarId).then(() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.trip(tripId) });
+        }).catch(() => { /* silent — user can manually refresh */ });
       }
     },
     onSettled: () => {
