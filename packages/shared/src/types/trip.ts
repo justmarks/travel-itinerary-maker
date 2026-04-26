@@ -147,6 +147,8 @@ export interface Trip {
   shares: TripShare[];
   createdAt: string;
   updatedAt: string;
+  /** Google Calendar ID this trip is synced to, if any. */
+  calendarId?: string;
   /**
    * Version of the Trip JSON shape this document was last saved under. See
    * `CURRENT_TRIP_SCHEMA_VERSION`. Older persisted trips may not have this

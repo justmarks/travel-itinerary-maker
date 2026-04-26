@@ -1737,6 +1737,15 @@ export class MockApiClient extends ApiClient {
     return Promise.resolve({ status: "dismissed" });
   }
 
+  // ─── Calendar Sync ─────────────────────────────────────
+
+  override async listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    return [
+      { id: "primary", summary: "My Calendar", primary: true },
+      { id: "work@example.com", summary: "Work", primary: false },
+    ];
+  }
+
   // ─── Export ─────────────────────────────────────────────
 
   override async exportMarkdown(tripId: string): Promise<string> {

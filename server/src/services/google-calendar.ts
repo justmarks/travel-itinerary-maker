@@ -282,6 +282,24 @@ export function segmentToEvent(
   };
 }
 
+// ─── Calendar list ────────────────────────────────────────────────────────────
+
+export interface CalendarEntry {
+  id: string;
+  summary: string;
+  primary: boolean;
+}
+
+export async function listUserCalendars(accessToken: string): Promise<CalendarEntry[]> {
+  const cal = buildClient(accessToken);
+  const res = await cal.calendarList.list({ minAccessRole: "writer" });
+  return (res.data.items ?? []).map((item) => ({
+    id: item.id ?? "",
+    summary: item.summary ?? item.id ?? "",
+    primary: item.primary === true,
+  }));
+}
+
 // ─── Sync ─────────────────────────────────────────────────────────────────────
 
 export async function syncTripToCalendar(

@@ -139,6 +139,7 @@ export const tripSchema = z.object({
   shares: z.array(tripShareSchema),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  calendarId: z.string().optional(),
   // Optional in the validator so trips persisted before schema versioning
   // existed still parse cleanly. Code that reads trips should pipe the
   // result through `migrateTrip` to fill this in at v1.

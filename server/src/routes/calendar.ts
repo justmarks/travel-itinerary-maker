@@ -20,6 +20,16 @@ export function createCalendarRoutes(
   const syncRateLimiter = createCalendarSyncRateLimiter();
 
   /**
+   * GET /trips/calendar/list
+   * Return the authenticated user's writable Google Calendars.
+   */
+  router.get("/calendar/list", async (req: Request, res: Response) => {
+    const { listUserCalendars } = await import("../services/google-calendar");
+    const calendars = await listUserCalendars(req.accessToken ?? "");
+    res.json(calendars);
+  });
+
+  /**
    * POST /trips/:tripId/calendar/sync
    * Push all trip segments to Google Calendar.
    * Creates new events for un-synced segments; updates existing ones.
@@ -51,6 +61,7 @@ export function createCalendarRoutes(
         }
       }
     }
+    trip.calendarId = result.calendarId;
     trip.updatedAt = new Date().toISOString();
     await storage.saveTrip(trip);
 
@@ -75,12 +86,13 @@ export function createCalendarRoutes(
       return;
     }
 
-    const calendarId = (req.query.calendarId as string | undefined) ?? "primary";
+    // Use the calendarId stored on the trip when no override is given
+    const calendarId = (req.query.calendarId as string | undefined) ?? trip.calendarId ?? "primary";
 
     const { unsyncTripFromCalendar } = await import("../services/google-calendar");
     const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId);
 
-    // Clear calendarEventId from every segment
+    // Clear calendarEventId from every segment and the stored calendarId
     for (const day of trip.days) {
       for (const segment of day.segments) {
         if (segment.calendarEventId) {
@@ -88,6 +100,7 @@ export function createCalendarRoutes(
         }
       }
     }
+    delete trip.calendarId;
     trip.updatedAt = new Date().toISOString();
     await storage.saveTrip(trip);
 

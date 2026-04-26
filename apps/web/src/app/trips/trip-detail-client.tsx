@@ -14,6 +14,21 @@ import type { TripStatus } from "@travel-app/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -453,6 +468,7 @@ function CalendarSyncButton({
 }: {
   trip: {
     id: string;
+    calendarId?: string;
     days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
   };
 }) {
@@ -460,20 +476,36 @@ function CalendarSyncButton({
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
 
-  const isSynced = trip.days
-    .flatMap((d) => d.segments)
-    .some((s) => s.calendarEventId);
+  const isSynced = trip.days.flatMap((d) => d.segments).some((s) => s.calendarEventId);
+  const syncedCount = trip.days.flatMap((d) => d.segments).filter((s) => s.calendarEventId).length;
 
-  const syncedCount = trip.days
-    .flatMap((d) => d.segments)
-    .filter((s) => s.calendarEventId).length;
+  const openPicker = async () => {
+    setPickerOpen(true);
+    setLoadingCalendars(true);
+    setCalendars(null);
+    try {
+      const cals = await client.listCalendars();
+      setCalendars(cals);
+      const primary = cals.find((c) => c.primary);
+      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+    } catch {
+      setCalendars([]);
+    } finally {
+      setLoadingCalendars(false);
+    }
+  };
 
   const handleSync = async () => {
+    setPickerOpen(false);
     setSyncing(true);
     setMessage(null);
     try {
-      const result = await client.syncCalendar(trip.id);
+      const result = await client.syncCalendar(trip.id, selectedCalendarId);
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
       const total = result.created + result.updated;
       setMessage(
@@ -503,28 +535,67 @@ function CalendarSyncButton({
   };
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={syncing}
-        onClick={isSynced ? handleUnsync : handleSync}
-      >
-        {isSynced ? (
-          <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
-        ) : (
-          <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-        )}
-        {syncing
-          ? isSynced
-            ? "Removing…"
-            : "Syncing…"
-          : isSynced
-            ? `Synced (${syncedCount})`
-            : "Sync to Calendar"}
-      </Button>
-      {message && <p className="text-xs text-muted-foreground">{message}</p>}
-    </div>
+    <>
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={syncing}
+          onClick={isSynced ? handleUnsync : openPicker}
+        >
+          {isSynced ? (
+            <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+          )}
+          {syncing
+            ? isSynced
+              ? "Removing…"
+              : "Syncing…"
+            : isSynced
+              ? `Synced (${syncedCount})`
+              : "Sync to Calendar"}
+        </Button>
+        {message && <p className="text-xs text-muted-foreground">{message}</p>}
+      </div>
+
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Choose a calendar</DialogTitle>
+            <DialogDescription>
+              Select the Google Calendar to sync this trip&apos;s events to.
+            </DialogDescription>
+          </DialogHeader>
+          {loadingCalendars ? (
+            <p className="py-2 text-sm text-muted-foreground">Loading calendars…</p>
+          ) : calendars && calendars.length > 0 ? (
+            <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {calendars.map((cal) => (
+                  <SelectItem key={cal.id} value={cal.id}>
+                    {cal.summary}{cal.primary ? " (primary)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="py-2 text-sm text-muted-foreground">No writable calendars found.</p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPickerOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSync} disabled={loadingCalendars || !calendars?.length}>
+              Sync
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

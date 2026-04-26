@@ -276,6 +276,10 @@ export class ApiClient {
 
   // ─── Calendar Sync ──────────────────────────────────────
 
+  listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    return this.request("/trips/calendar/list");
+  }
+
   syncCalendar(
     tripId: string,
     calendarId?: string,
