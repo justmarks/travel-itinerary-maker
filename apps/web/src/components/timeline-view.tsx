@@ -193,10 +193,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
         className="bg-amber-50/20 border-b border-gray-100 border-r border-gray-100 p-2 min-h-14 flex items-center"
         style={{ gridColumn: `span ${span}` }}
       >
-        <div className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 w-full min-w-0">
-          <span className="shrink-0">🏨</span>
+        <div className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 w-full min-w-0">
+          <span className="hidden sm:inline shrink-0">🏨</span>
           <span className="truncate">{name}</span>
-          <span className="ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
+          <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
             {span} night{span !== 1 ? "s" : ""}
           </span>
         </div>
@@ -218,7 +218,7 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
 
   return (
     <>
-      <RowLabel icon="🏨" name="Hotel" />
+      <RowLabel icon="🏨" name="Lodging" />
       {cells}
     </>
   );
@@ -227,7 +227,7 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
 function Legend() {
   const items = [
     { label: "Transport", bg: "bg-blue-100",    border: "border-blue-200"    },
-    { label: "Hotel",     bg: "bg-amber-100",   border: "border-amber-200"   },
+    { label: "Lodging",   bg: "bg-amber-100",   border: "border-amber-200"   },
     { label: "Activity",  bg: "bg-emerald-100", border: "border-emerald-200" },
     { label: "Dining",    bg: "bg-rose-100",    border: "border-rose-200"    },
   ];
