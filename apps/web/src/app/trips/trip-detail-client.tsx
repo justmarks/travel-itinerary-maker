@@ -539,13 +539,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }) {
         <NeedsReviewBanner trip={trip} />
 
         {/* Tab navigation — hidden when printing */}
-        <div className="mb-6 flex gap-0 border-b border-gray-200 print-hidden">
+        <div className="mb-6 flex gap-0 overflow-x-auto border-b border-gray-200 print-hidden">
           {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
                 activeTab === tab
                   ? "border-gray-900 text-gray-900"
                   : "border-transparent text-gray-500 hover:text-gray-900",
