@@ -170,6 +170,23 @@ function dayLabel(day: TripDay): string {
 }
 
 /**
+ * Pick the city to use in the meal text. When a day spans two cities
+ * (e.g. `"Paris/Rome"` for a transit day), the meal happens in:
+ *   - the *origin* city for lunch (before the transit), so use the first segment
+ *   - the *destination* city for dinner (after the transit), so use the last
+ * Falls back to the original string when there's no slash or no usable
+ * segment in the requested position.
+ */
+function mealCity(city: string, position: "first" | "last"): string {
+  const parts = city
+    .split("/")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return city;
+  return position === "first" ? parts[0] : parts[parts.length - 1];
+}
+
+/**
  * Walk every TripDay and emit a `MealSuggestion` for any missing lunch or
  * dinner that the user could realistically eat. Rules applied:
  *
@@ -207,7 +224,8 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
     const isFirstDay = i === 0;
     const isLastDay = i === lastDayIdx;
     const label = dayLabel(day);
-    const cityPart = day.city ? ` in ${day.city}` : "";
+    const lunchCityPart = day.city ? ` in ${mealCity(day.city, "first")}` : "";
+    const dinnerCityPart = day.city ? ` in ${mealCity(day.city, "last")}` : "";
     const overnightTransport = hasOvernightTransport(day.segments);
 
     // ─ Lunch ──────────────────────────────────────────────
@@ -226,8 +244,8 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
         !isFirstDay && hasDepartureAfter(day.segments, LUNCH_WINDOW.end);
 
       const text = takeaway
-        ? `Pick up takeaway lunch for ${label}${cityPart}`
-        : `Plan lunch for ${label}${cityPart}`;
+        ? `Pick up takeaway lunch for ${label}${lunchCityPart}`
+        : `Plan lunch for ${label}${lunchCityPart}`;
       const details = takeaway
         ? "Heading out today — grab something portable."
         : undefined;
@@ -257,7 +275,7 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
         date: day.date,
         meal: "dinner",
         takeaway: false,
-        text: `Plan dinner for ${label}${cityPart}`,
+        text: `Plan dinner for ${label}${dinnerCityPart}`,
         category: "meals",
       });
     }

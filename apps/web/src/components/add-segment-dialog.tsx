@@ -118,6 +118,7 @@ export function AddSegmentDialog({
             form={form}
             onChange={handleChange}
             idPrefix="add"
+            autoFocusTitle
           />
 
           <div className="flex justify-end gap-2 pt-2">
