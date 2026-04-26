@@ -204,10 +204,17 @@ export function SegmentFormFields({
   form,
   onChange,
   idPrefix,
+  autoFocusTitle = false,
 }: {
   form: SegmentFormState;
   onChange: (patch: Partial<SegmentFormState>) => void;
   idPrefix: string;
+  /**
+   * Auto-focus the title input on mount. Useful when adding a new segment so
+   * the user can start typing immediately; off when editing an existing one
+   * so we don't pop the keyboard on mobile just for tapping a row open.
+   */
+  autoFocusTitle?: boolean;
 }) {
   const flags = getTypeFlags(form.type);
   const {
@@ -286,7 +293,7 @@ export function SegmentFormFields({
           }
           value={form.title}
           onChange={(e) => onChange({ title: e.target.value })}
-          autoFocus
+          autoFocus={autoFocusTitle}
         />
       </div>
 
