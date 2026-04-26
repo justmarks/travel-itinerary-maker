@@ -105,6 +105,17 @@
   }
 }
 
+/* Hide the scrollbar on horizontally-scrollable rows (e.g. the tab strip)
+ * while still allowing the user to scroll. iOS Safari already hides
+ * scrollbars except during active scroll; this brings desktop in line. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Timeline column widths scale with viewport. Phones get a narrow icon-only
  * label column and roomier day cells so ~3 days fit on screen at a time
  * (the rest scrolls horizontally). Tablets and up restore the full text label
