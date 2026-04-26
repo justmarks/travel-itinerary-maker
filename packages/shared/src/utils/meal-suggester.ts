@@ -170,6 +170,20 @@ function dayLabel(day: TripDay): string {
 }
 
 /**
+ * Pick the city to use in the meal text. When a day spans two cities
+ * (e.g. `"Paris/Rome"` for a transit day), the meal happens at the
+ * destination, so use the trailing segment. Falls back to the original
+ * string when there's no slash or no usable trailing segment.
+ */
+function mealCity(city: string): string {
+  const parts = city
+    .split("/")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return parts[parts.length - 1] ?? city;
+}
+
+/**
  * Walk every TripDay and emit a `MealSuggestion` for any missing lunch or
  * dinner that the user could realistically eat. Rules applied:
  *
@@ -207,7 +221,7 @@ export function suggestMealTodos(days: TripDay[]): MealSuggestion[] {
     const isFirstDay = i === 0;
     const isLastDay = i === lastDayIdx;
     const label = dayLabel(day);
-    const cityPart = day.city ? ` in ${day.city}` : "";
+    const cityPart = day.city ? ` in ${mealCity(day.city)}` : "";
     const overnightTransport = hasOvernightTransport(day.segments);
 
     // ─ Lunch ──────────────────────────────────────────────

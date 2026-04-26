@@ -65,6 +65,16 @@ describe("suggestMealTodos", () => {
     expect(result[0].text).not.toContain(" in ");
   });
 
+  it("uses the destination city when day.city has a slash (e.g. 'Paris/Rome')", () => {
+    const result = suggestMealTodos([
+      day("2026-04-14", "Mon", "Paris / Rome", []),
+    ]);
+    const dinner = result.find((r) => r.meal === "dinner");
+    expect(dinner).toBeDefined();
+    expect(dinner!.text).toContain(" in Rome");
+    expect(dinner!.text).not.toContain("Paris");
+  });
+
   it("emits stable per-day, per-meal keys", () => {
     const result = suggestMealTodos([
       day("2026-04-14", "Mon", "Tokyo", []),
