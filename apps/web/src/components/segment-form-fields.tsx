@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addDays,
   lookupAirport,
@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -200,7 +201,22 @@ function AirportInput({
   onPick?: (info: AirportInfo) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
   const results = useMemo(() => (open && value ? searchAirports(value, 8) : []), [open, value]);
+
+  // Reset the highlighted row whenever the result list changes so a stale
+  // index doesn't persist across queries.
+  useEffect(() => {
+    setHighlight(0);
+  }, [results.length, value]);
+
+  const selectByIndex = (idx: number): void => {
+    const r = results[idx];
+    if (!r) return;
+    onChange(r.code);
+    onPick?.(r);
+    setOpen(false);
+  };
 
   return (
     <div className="relative">
@@ -220,23 +236,56 @@ function AirportInput({
           if (info) onPick?.(info);
         }}
         onFocus={() => setOpen(true)}
-        // Delay close so the click handler on a result fires first.
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        // Close synchronously on blur. The dropdown buttons preventDefault on
+        // mousedown so a click won't blur the input first; tab moves focus
+        // before this fires, and we don't want a stale dropdown lingering
+        // after the user has already left the field (it caused the focus
+        // trap in the dialog to bounce focus back to the top).
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            // Open the list on first ArrowDown, otherwise advance the highlight.
+            e.preventDefault();
+            if (!open) {
+              setOpen(true);
+              return;
+            }
+            setHighlight((i) => Math.min(i + 1, Math.max(results.length - 1, 0)));
+          } else if (e.key === "ArrowUp") {
+            if (!open || results.length === 0) return;
+            e.preventDefault();
+            setHighlight((i) => Math.max(i - 1, 0));
+          } else if (e.key === "Enter") {
+            // Only consume Enter when picking from the dropdown — otherwise
+            // let the form submit handler take over on its own elsewhere.
+            if (open && results.length > 0) {
+              e.preventDefault();
+              selectByIndex(highlight);
+            }
+          } else if (e.key === "Escape") {
+            if (open) {
+              e.preventDefault();
+              setOpen(false);
+            }
+          }
+          // Tab: do not preventDefault; default browser behaviour moves focus
+          // to the next field. The blur handler above closes the dropdown.
+        }}
       />
       {open && results.length > 0 && (
         <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
-          {results.map((r) => (
+          {results.map((r, i) => (
             <button
               key={r.code}
               type="button"
               tabIndex={-1}
-              className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-accent"
+              className={cn(
+                "block w-full cursor-pointer px-3 py-2 text-left text-sm",
+                i === highlight ? "bg-accent" : "hover:bg-accent",
+              )}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange(r.code);
-                onPick?.(r);
-                setOpen(false);
-              }}
+              onMouseEnter={() => setHighlight(i)}
+              onClick={() => selectByIndex(i)}
             >
               <span className="font-mono font-semibold">{r.code}</span>
               <span className="ml-2">{r.city}</span>
