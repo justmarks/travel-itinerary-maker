@@ -314,19 +314,24 @@ export function SegmentFormFields({
   } = flags;
   const isOtherTransport = isTransport && !isFlight && !isTrain;
 
-  // For flights, derive `title` from the IATA codes whenever both endpoints
-  // are filled. We only overwrite when the title is empty or already follows
-  // the auto-format ("XXX → YYY"), so a user who types a custom title keeps
-  // their wording.
-  const flightAutoTitlePattern = /^[A-Z]{3}\s*→\s*[A-Z]{3}$/;
+  // For flights, derive `title` from the IATA codes (and the carrier/flight
+  // number when set) whenever both endpoints are filled. We only overwrite
+  // when the title is empty or already follows the auto-format
+  // ("XXX → YYY" or "XXX → YYY (Carrier RouteCode)") so a user who types a
+  // custom title keeps their wording.
+  const flightAutoTitlePattern = /^[A-Z]{3}\s*→\s*[A-Z]{3}(\s*\(.+\))?$/;
   const applyFlightAutoTitle = (patch: Partial<SegmentFormState>): void => {
     if (!isFlight) return;
     const dep = (patch.departureAirport ?? form.departureAirport).trim().toUpperCase();
     const arr = (patch.arrivalAirport ?? form.arrivalAirport).trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(dep) || !/^[A-Z]{3}$/.test(arr)) return;
+    const carrier = (patch.carrier ?? form.carrier).trim();
+    const route = (patch.routeCode ?? form.routeCode).trim();
+    const flightLabel = [carrier, route].filter(Boolean).join(" ");
+    const auto = flightLabel ? `${dep} → ${arr} (${flightLabel})` : `${dep} → ${arr}`;
     const current = (patch.title ?? form.title).trim();
     if (current && !flightAutoTitlePattern.test(current)) return;
-    patch.title = `${dep} → ${arr}`;
+    patch.title = auto;
   };
   const pushFlightPatch = (patch: Partial<SegmentFormState>): void => {
     applyFlightAutoTitle(patch);
@@ -432,7 +437,7 @@ export function SegmentFormFields({
                 id={`${idPrefix}-carrier`}
                 placeholder="e.g. Alaska Airlines"
                 value={form.carrier}
-                onChange={(e) => onChange({ carrier: e.target.value })}
+                onChange={(e) => pushFlightPatch({ carrier: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -441,7 +446,7 @@ export function SegmentFormFields({
                 id={`${idPrefix}-route`}
                 placeholder="e.g. AS123"
                 value={form.routeCode}
-                onChange={(e) => onChange({ routeCode: e.target.value })}
+                onChange={(e) => pushFlightPatch({ routeCode: e.target.value })}
               />
             </div>
           </div>
