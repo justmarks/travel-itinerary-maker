@@ -22,7 +22,7 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 
-export default function Home() {
+export default function Home(): React.JSX.Element {
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
   const [xlsxImportOpen, setXlsxImportOpen] = useState(false);
 

@@ -32,7 +32,7 @@ function TripPageInner() {
   return <TripDetailClient tripId={tripId} />;
 }
 
-export default function TripPage() {
+export default function TripPage(): React.JSX.Element {
   return (
     <Suspense
       fallback={

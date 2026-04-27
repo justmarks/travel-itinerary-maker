@@ -18,7 +18,7 @@ export const alt = "Travel Itinerary Maker — auto-generated trips from email";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default function OpengraphImage(): ImageResponse {
   return new ImageResponse(
     (
       <div
