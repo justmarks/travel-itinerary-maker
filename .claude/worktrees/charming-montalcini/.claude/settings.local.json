@@ -25,7 +25,8 @@
       "Bash(where \"chrome.exe\")",
       "Read(//c/Program Files/Google/Chrome/Application/**)",
       "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(rm \"C:/Users/justm/Claude Projects/Travel Itinerary Maker/scripts/gen-mobile-assets.mjs\")"
     ]
   }
 }
