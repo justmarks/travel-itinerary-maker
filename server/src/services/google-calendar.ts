@@ -1,7 +1,12 @@
 import { google, type calendar_v3 } from "googleapis";
 import type { Trip, TripDay, Segment } from "@travel-app/shared";
-import { formatFlightLabel } from "@travel-app/shared";
-import { getCityTimezone } from "@travel-app/shared";
+import {
+  formatFlightLabel,
+  formatFlightEndpoint,
+  getCityTimezone,
+  getAirportTimezone,
+  lookupAirport,
+} from "@travel-app/shared";
 
 export interface CalendarSyncResult {
   created: number;
@@ -128,12 +133,16 @@ export function segmentToEvent(
   // flight from Tokyo to Paris shows 09:00 JST departure and 18:00 CET
   // arrival regardless of the user's device zone. All other segments use
   // the segment's own city or the day city.
-  const startTz = getCityTimezone(
-    segment.departureCity ?? segment.city ?? day.city,
-  );
-  const endTz = getCityTimezone(
-    segment.arrivalCity ?? segment.city ?? day.city,
-  );
+  // Prefer airport-derived timezones when IATA codes are present so a flight
+  // out of Tokyo (HND) lands at the right local clock time even if no city
+  // string is set on the segment. Falls back to the city lookup for legacy
+  // data and other transport types.
+  const startTz =
+    getAirportTimezone(segment.departureAirport) ??
+    getCityTimezone(segment.departureCity ?? segment.city ?? day.city);
+  const endTz =
+    getAirportTimezone(segment.arrivalAirport) ??
+    getCityTimezone(segment.arrivalCity ?? segment.city ?? day.city);
   // For non-transport segments start and end are in the same place.
   const localTz = getCityTimezone(segment.city ?? day.city);
 
@@ -141,9 +150,10 @@ export function segmentToEvent(
     case "flight":
     case "train": {
       const carrier = formatFlightLabel(segment);
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
+      const depAirport = lookupAirport(segment.departureAirport);
+      const depLabel = formatFlightEndpoint(segment.departureAirport, segment.departureCity);
+      const arrLabel = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity);
+      const route = [depLabel, arrLabel].filter(Boolean).join(" → ");
       summary = carrier ? `${carrier}${route ? ": " + route : ""}` : `${label}: ${segment.title}`;
       const desc: string[] = [];
       if (route) desc.push(route);
@@ -153,7 +163,11 @@ export function segmentToEvent(
       if (segment.baggageInfo) desc.push(`Baggage: ${segment.baggageInfo}`);
       if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
       description = desc.join("\n");
-      location = segment.departureCity || segment.city || day.city;
+      location =
+        depAirport?.airportName ||
+        segment.departureCity ||
+        segment.city ||
+        day.city;
       // Start in departure city TZ; end in arrival city TZ.
       start = dateTime(day.date, segment.startTime, startTz);
       const arrDate = resolveArrivalDate(

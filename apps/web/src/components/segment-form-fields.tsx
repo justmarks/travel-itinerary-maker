@@ -1,9 +1,17 @@
 "use client";
 
-import { addDays } from "@travel-app/shared";
+import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
+import {
+  addDays,
+  lookupAirport,
+  searchAirports,
+  type AirportInfo,
+} from "@travel-app/shared";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -116,6 +124,8 @@ export interface SegmentFormState {
   provider: string;
   departureCity: string;
   arrivalCity: string;
+  departureAirport: string;
+  arrivalAirport: string;
   carrier: string;
   routeCode: string;
   coach: string;
@@ -147,6 +157,8 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   provider: "",
   departureCity: "",
   arrivalCity: "",
+  departureAirport: "",
+  arrivalAirport: "",
   carrier: "",
   routeCode: "",
   coach: "",
@@ -163,6 +175,144 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   costCurrency: "USD",
   costDetails: "",
 };
+
+// ─── Airport autocomplete ───────────────────────────────────────────────────
+
+/**
+ * Lightweight typeahead for IATA airport codes. Stores only the 3-letter
+ * code (uppercased) on the form; surfaces the matched city / airport name
+ * in the dropdown so the user can pick by city if they don't remember the
+ * code. Free-text remains accepted — codes outside the static dataset can
+ * still be typed and saved, the rendering layer falls back to the bare code.
+ *
+ * `onPick` fires when the user selects a result from the dropdown so the
+ * caller can also auto-fill the city field.
+ */
+function AirportInput({
+  id,
+  value,
+  placeholder,
+  onChange,
+  onPick,
+}: {
+  id?: string;
+  value: string;
+  placeholder?: string;
+  onChange: (next: string) => void;
+  onPick?: (info: AirportInfo) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const results = useMemo(() => (open && value ? searchAirports(value, 8) : []), [open, value]);
+
+  // Reset the highlighted row whenever the result list changes so a stale
+  // index doesn't persist across queries.
+  useEffect(() => {
+    setHighlight(0);
+  }, [results.length, value]);
+
+  const selectByIndex = (idx: number): void => {
+    const r = results[idx];
+    if (!r) return;
+    onChange(r.code);
+    onPick?.(r);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        placeholder={placeholder}
+        value={value}
+        autoComplete="off"
+        onChange={(e) => {
+          const next = e.target.value.toUpperCase();
+          onChange(next);
+          setOpen(true);
+          // If the typed value matches a known IATA code we also fire onPick
+          // so the caller can backfill derived fields (e.g. city) without the
+          // user having to click the dropdown.
+          const info = lookupAirport(next);
+          if (info) onPick?.(info);
+        }}
+        onFocus={() => setOpen(true)}
+        // Close synchronously on blur. The dropdown buttons preventDefault on
+        // mousedown so a click won't blur the input first; tab moves focus
+        // before this fires, and we don't want a stale dropdown lingering
+        // after the user has already left the field (it caused the focus
+        // trap in the dialog to bounce focus back to the top).
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Tab") {
+            // Tear the dropdown out of the DOM *synchronously* so the
+            // browser's default Tab focus shift can't get tripped up by it.
+            // flushSync forces React to commit the state change before this
+            // handler returns, which is before the default Tab action runs.
+            // Without it the dropdown was occasionally lingering and the
+            // dialog's focus trap would bounce focus back to the top.
+            if (open) flushSync(() => setOpen(false));
+            return;
+          }
+          if (e.key === "ArrowDown") {
+            // Open the list on first ArrowDown, otherwise advance the highlight.
+            e.preventDefault();
+            if (!open) {
+              setOpen(true);
+              return;
+            }
+            setHighlight((i) => Math.min(i + 1, Math.max(results.length - 1, 0)));
+          } else if (e.key === "ArrowUp") {
+            if (!open || results.length === 0) return;
+            e.preventDefault();
+            setHighlight((i) => Math.max(i - 1, 0));
+          } else if (e.key === "Enter") {
+            // Only consume Enter when picking from the dropdown — otherwise
+            // let the form submit handler take over on its own elsewhere.
+            if (open && results.length > 0) {
+              e.preventDefault();
+              selectByIndex(highlight);
+            }
+          } else if (e.key === "Escape") {
+            if (open) {
+              e.preventDefault();
+              setOpen(false);
+            }
+          }
+        }}
+      />
+      {open && results.length > 0 && (
+        <div
+          // Some browsers treat a scrollable container (overflow:auto with
+          // overflowing content) as focusable for keyboard scrolling, which
+          // would put the dropdown into the tab order. Force it out.
+          tabIndex={-1}
+          role="listbox"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+        >
+          {results.map((r, i) => (
+            <button
+              key={r.code}
+              type="button"
+              tabIndex={-1}
+              className={cn(
+                "block w-full cursor-pointer px-3 py-2 text-left text-sm",
+                i === highlight ? "bg-accent" : "hover:bg-accent",
+              )}
+              onMouseDown={(e) => e.preventDefault()}
+              onMouseEnter={() => setHighlight(i)}
+              onClick={() => selectByIndex(i)}
+            >
+              <span className="font-mono font-semibold">{r.code}</span>
+              <span className="ml-2">{r.city}</span>
+              <span className="text-muted-foreground"> · {r.airportName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Type selector with grouped categories ──────────────────────────────────
 
@@ -229,6 +379,30 @@ export function SegmentFormFields({
     isShow,
   } = flags;
   const isOtherTransport = isTransport && !isFlight && !isTrain;
+
+  // For flights, derive `title` from the IATA codes (and the carrier/flight
+  // number when set) whenever both endpoints are filled. We only overwrite
+  // when the title is empty or already follows the auto-format
+  // ("XXX → YYY" or "XXX → YYY (Carrier RouteCode)") so a user who types a
+  // custom title keeps their wording.
+  const flightAutoTitlePattern = /^[A-Z]{3}\s*→\s*[A-Z]{3}(\s*\(.+\))?$/;
+  const applyFlightAutoTitle = (patch: Partial<SegmentFormState>): void => {
+    if (!isFlight) return;
+    const dep = (patch.departureAirport ?? form.departureAirport).trim().toUpperCase();
+    const arr = (patch.arrivalAirport ?? form.arrivalAirport).trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(dep) || !/^[A-Z]{3}$/.test(arr)) return;
+    const carrier = (patch.carrier ?? form.carrier).trim();
+    const route = (patch.routeCode ?? form.routeCode).trim();
+    const flightLabel = [carrier, route].filter(Boolean).join(" ");
+    const auto = flightLabel ? `${dep} → ${arr} (${flightLabel})` : `${dep} → ${arr}`;
+    const current = (patch.title ?? form.title).trim();
+    if (current && !flightAutoTitlePattern.test(current)) return;
+    patch.title = auto;
+  };
+  const pushFlightPatch = (patch: Partial<SegmentFormState>): void => {
+    applyFlightAutoTitle(patch);
+    onChange(patch);
+  };
 
   // Which fields should be visible?
   const showVenue = !isFlight && !isTransport && !isCruise;
@@ -302,21 +476,23 @@ export function SegmentFormFields({
         <>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-dep-city`}>Departure city</Label>
-              <Input
-                id={`${idPrefix}-dep-city`}
-                placeholder="e.g. Seattle"
-                value={form.departureCity}
-                onChange={(e) => onChange({ departureCity: e.target.value })}
+              <Label htmlFor={`${idPrefix}-dep-airport`}>Departure airport</Label>
+              <AirportInput
+                id={`${idPrefix}-dep-airport`}
+                placeholder="e.g. SEA"
+                value={form.departureAirport}
+                onChange={(v) => pushFlightPatch({ departureAirport: v, departureCity: "" })}
+                onPick={(info) => pushFlightPatch({ departureCity: info.city })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-arr-city`}>Arrival city</Label>
-              <Input
-                id={`${idPrefix}-arr-city`}
-                placeholder="e.g. Tokyo"
-                value={form.arrivalCity}
-                onChange={(e) => onChange({ arrivalCity: e.target.value })}
+              <Label htmlFor={`${idPrefix}-arr-airport`}>Arrival airport</Label>
+              <AirportInput
+                id={`${idPrefix}-arr-airport`}
+                placeholder="e.g. NRT"
+                value={form.arrivalAirport}
+                onChange={(v) => pushFlightPatch({ arrivalAirport: v, arrivalCity: "" })}
+                onPick={(info) => pushFlightPatch({ arrivalCity: info.city })}
               />
             </div>
           </div>
@@ -327,7 +503,7 @@ export function SegmentFormFields({
                 id={`${idPrefix}-carrier`}
                 placeholder="e.g. Alaska Airlines"
                 value={form.carrier}
-                onChange={(e) => onChange({ carrier: e.target.value })}
+                onChange={(e) => pushFlightPatch({ carrier: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -336,7 +512,7 @@ export function SegmentFormFields({
                 id={`${idPrefix}-route`}
                 placeholder="e.g. AS123"
                 value={form.routeCode}
-                onChange={(e) => onChange({ routeCode: e.target.value })}
+                onChange={(e) => pushFlightPatch({ routeCode: e.target.value })}
               />
             </div>
           </div>

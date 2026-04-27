@@ -245,6 +245,8 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           ...(s.city ? { city: s.city } : {}),
           ...(s.departureCity ? { departureCity: s.departureCity } : {}),
           ...(s.arrivalCity ? { arrivalCity: s.arrivalCity } : {}),
+          ...(s.departureAirport ? { departureAirport: s.departureAirport } : {}),
+          ...(s.arrivalAirport ? { arrivalAirport: s.arrivalAirport } : {}),
           ...(s.endDate ? { endDate: s.endDate } : {}),
           ...(s.confirmationCode ? { confirmationCode: s.confirmationCode } : {}),
           ...(s.partySize !== undefined ? { partySize: s.partySize } : {}),

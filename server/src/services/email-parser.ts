@@ -26,6 +26,8 @@ Each item in the array must be a JSON object with these fields:
 - "routeCode": ONLY the flight number digits, no airline prefix. For example: "359" (NOT "DL359"), "101" (NOT "AS101"), "2410" (NOT "AA2410"). Strip any letter prefix that matches the airline code.
 - "departureCity": departure city (for flights/trains)
 - "arrivalCity": arrival city (for flights/trains)
+- "departureAirport": departure airport IATA code (for flights ONLY — 3 uppercase letters, e.g. "JFK", "NRT", "LHR"). Extract this whenever the email mentions an airport code.
+- "arrivalAirport": arrival airport IATA code (for flights ONLY — 3 uppercase letters, e.g. "CDG", "HND", "SFO"). Extract this whenever the email mentions an airport code.
 - "seatNumber": ALL seat assignments for this booking as a comma-separated string (e.g. "12A, 12B, 12C"). If the email lists multiple passengers on the same flight, combine all seats into ONE segment, do NOT create separate segments per passenger. For trains, the seat/berth number(s).
 - "coach": for trains only — the coach or car designation (e.g. "Car 7", "Coach B", "Voiture 12"). Free text.
 - "cabinClass": class of service for flights (e.g. "Economy", "Premium Economy", "Business", "First", "Main Cabin", "Comfort+"). Extract exactly as stated in the email.

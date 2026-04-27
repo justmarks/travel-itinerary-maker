@@ -91,7 +91,11 @@ export {
 } from "./utils/currency";
 export { generateId } from "./utils/ids";
 export { migrateTrip } from "./utils/migrations";
-export { formatFlightLabel, applyCruisePortsToDayCities } from "./utils/segments";
+export {
+  formatFlightLabel,
+  formatFlightEndpoint,
+  applyCruisePortsToDayCities,
+} from "./utils/segments";
 export { tripToMarkdown } from "./utils/markdown";
 export { tripToOneNoteHtml } from "./utils/onenote";
 export {
@@ -101,3 +105,10 @@ export {
 export type { MealSuggestion } from "./utils/meal-suggester";
 export { tripToIcal } from "./utils/ical-generator";
 export { getCityTimezone, preloadCityTimezone } from "./utils/city-timezone";
+export {
+  lookupAirport,
+  getAirportTimezone,
+  formatAirportLabel,
+  searchAirports,
+} from "./utils/airport-lookup";
+export type { AirportInfo } from "./utils/airport-lookup";

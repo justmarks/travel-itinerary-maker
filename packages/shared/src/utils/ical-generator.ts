@@ -14,8 +14,9 @@
  */
 
 import type { Trip, TripDay, Segment } from "../types/trip";
-import { formatFlightLabel } from "./segments";
+import { formatFlightLabel, formatFlightEndpoint } from "./segments";
 import { getCityTimezone } from "./city-timezone";
+import { getAirportTimezone, lookupAirport } from "./airport-lookup";
 
 // ─── iCal text helpers ────────────────────────────────────────────────────────
 
@@ -277,12 +278,14 @@ function segmentToVEvent(
 ): string[] {
   const label = TYPE_LABELS[segment.type] ?? segment.type;
 
-  const startTz = getCityTimezone(
-    segment.departureCity ?? segment.city ?? day.city,
-  );
-  const endTz = getCityTimezone(
-    segment.arrivalCity ?? segment.city ?? day.city,
-  );
+  // Prefer airport-derived timezones for flights when the IATA codes are
+  // present; fall back to the city lookup for legacy data and other transport.
+  const startTz =
+    getAirportTimezone(segment.departureAirport) ??
+    getCityTimezone(segment.departureCity ?? segment.city ?? day.city);
+  const endTz =
+    getAirportTimezone(segment.arrivalAirport) ??
+    getCityTimezone(segment.arrivalCity ?? segment.city ?? day.city);
   const localTz = getCityTimezone(segment.city ?? day.city);
 
   let summary = "";
@@ -295,9 +298,10 @@ function segmentToVEvent(
     case "flight":
     case "train": {
       const carrier = formatFlightLabel(segment);
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
+      const depAirport = lookupAirport(segment.departureAirport);
+      const depLabel = formatFlightEndpoint(segment.departureAirport, segment.departureCity);
+      const arrLabel = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity);
+      const route = [depLabel, arrLabel].filter(Boolean).join(" → ");
       summary = carrier ? `${carrier}: ${route || segment.title}` : `${label}: ${segment.title}`;
       if (route) descParts.push(route);
       if (segment.coach) descParts.push(`Coach: ${segment.coach}`);
@@ -305,7 +309,11 @@ function segmentToVEvent(
       if (segment.cabinClass) descParts.push(`Class: ${segment.cabinClass}`);
       if (segment.baggageInfo) descParts.push(`Baggage: ${segment.baggageInfo}`);
       if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
-      location = segment.departureCity ?? segment.city ?? day.city;
+      location =
+        depAirport?.airportName ??
+        segment.departureCity ??
+        segment.city ??
+        day.city;
       dtStart = dtProp("DTSTART", day.date, segment.startTime, startTz);
       const arrDate = resolveArrivalDate(
         day.date, segment.startTime, startTz, segment.endTime, endTz,

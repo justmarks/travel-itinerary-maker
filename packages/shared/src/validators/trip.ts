@@ -41,6 +41,18 @@ export const SHARE_PERMISSIONS = ["view", "edit"] as const;
 
 const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const timeRegex = /^\d{2}:\d{2}(:\d{2})?$/;
+const iataRegex = /^[A-Za-z]{3}$/;
+
+/**
+ * Zod schema fragment for an IATA airport code. Accepts mixed case so that
+ * forms / email parsers can submit "jfk" or "Jfk"; the route handler
+ * normalises to upper-case before storing.
+ */
+const iataAirportSchema = z
+  .string()
+  .regex(iataRegex, "Must be a 3-letter IATA airport code")
+  .transform((s) => s.toUpperCase())
+  .optional();
 
 export const segmentCostSchema = z.object({
   amount: z.number().min(0),
@@ -80,6 +92,8 @@ export const segmentSchema = z.object({
   provider: z.string().optional(),
   departureCity: z.string().optional(),
   arrivalCity: z.string().optional(),
+  departureAirport: iataAirportSchema,
+  arrivalAirport: iataAirportSchema,
   carrier: z.string().optional(),
   routeCode: z.string().optional(),
   coach: z.string().optional(),
@@ -180,6 +194,8 @@ export const createSegmentSchema = z.object({
   provider: z.string().optional(),
   departureCity: z.string().optional(),
   arrivalCity: z.string().optional(),
+  departureAirport: iataAirportSchema,
+  arrivalAirport: iataAirportSchema,
   carrier: z.string().optional(),
   routeCode: z.string().optional(),
   coach: z.string().optional(),
@@ -276,6 +292,8 @@ export const parsedSegmentSchema = z.object({
   provider: z.string().optional(),
   departureCity: z.string().optional(),
   arrivalCity: z.string().optional(),
+  departureAirport: iataAirportSchema,
+  arrivalAirport: iataAirportSchema,
   carrier: z.string().optional(),
   routeCode: z.string().optional(),
   coach: z.string().optional(),

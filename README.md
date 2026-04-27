@@ -13,6 +13,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Day-by-day itinerary view** — inline segment cards with editing, per-segment costs, and confirmation codes
 - **Timeline view** — Hipmunk-style Gantt grid; toggle between swimlane rows (Transport / Hotel / Activities / Dining) and a single chronological row; hotel stays render as spanning bars; prints cleanly
 - **Map view** — plot hotels, dining, activities, and transport endpoints as pins on an interactive Google Map; KML export for sharing with Google My Maps
+- **Flight endpoints by IATA code** — flights store 3-letter airport codes (e.g. `JFK`, `NRT`) and render consistently as `City (CODE)` everywhere; the segment editor has a typeahead that searches 1,178 commercial airports by code, city, airport name, or alias (so "Tokyo" finds NRT) and the title auto-fills to `DEP → ARR (Carrier RouteCode)` once both endpoints are set
 - **Google OAuth** — sign in with your Google account; no separate credentials needed
 - **Google Drive storage** — trip data stored as JSON in your own Drive (you own your data)
 - **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs; one-click "Confirm all" for a whole batch of auto-parsed segments
@@ -114,11 +115,11 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **465 tests** across 24 test suites.
+Current coverage: **479 tests** across 25 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 181 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, overlap detection, segment matching |
+| `packages/shared` | 195 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, IATA airport lookup (code/city/name/keyword search, timezone resolution, normalisation), overlap detection, segment matching |
 | `server` | 284 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF + iCal), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar sync + unsync (all-day events for hotels/car rentals, timed events with TZID for flights), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, ShareRegistry |
 
 ## Google OAuth Setup
@@ -238,7 +239,7 @@ Demo mode uses a mock API client with sample trip data. No backend required. The
 
 **Times are wall-clock local to the segment's city.** A 09:00 flight out of Tokyo and a 09:00 dinner in Paris are both stored and displayed as `09:00` — the app does not display, convert, or annotate time zones in the UI, even on multi-country trips. This keeps the day-by-day view simple: the time you read is the time you'll see on the clock when you're there.
 
-The one place times are zone-aware is **calendar export**. Both Google Calendar sync and iCal export attach the correct IANA time zone per segment so events land at the right wall-clock time regardless of the user's device zone. iCal files include `VTIMEZONE` blocks (with DST transition dates computed via `Intl`) so Outlook and other clients that look up timezone offsets from their own database get the correct summer/winter offset rather than always using standard time. Overnight flights (e.g. LA → Paris) have their `DTEND` advanced to the next calendar day when the arrival UTC time is earlier in the day than the departure UTC time.
+The one place times are zone-aware is **calendar export**. Both Google Calendar sync and iCal export attach the correct IANA time zone per segment so events land at the right wall-clock time regardless of the user's device zone. For flights, the timezone is derived from the departure / arrival IATA airport code via the static `airport-lookup` table; non-flight segments fall back to the city-name lookup. iCal files include `VTIMEZONE` blocks (with DST transition dates computed via `Intl`) so Outlook and other clients that look up timezone offsets from their own database get the correct summer/winter offset rather than always using standard time. Overnight flights (e.g. LA → Paris) have their `DTEND` advanced to the next calendar day when the arrival UTC time is earlier in the day than the departure UTC time.
 
 ## Contributing
 
@@ -292,6 +293,7 @@ Two related cleanups surfaced while auditing this area:
 - [x] **Debt payoff batch** — Gmail scanner label resolution + body extraction tests, `schemaVersion` on trip JSON, Sentry error tracking, rate limiting on `/emails/scan`
 - [x] **Google Calendar sync** — push trip segments to any writable Google Calendar; hotels and car rentals as all-day events; flights/trains carry the correct IANA time zone per city; re-sync updates existing events; unsync removes them; calendar picker lets you choose the target calendar; `calendarId` stored on trip so unsync always hits the right calendar
 - [x] **iCal export** — download trip as a `.ics` file named after the trip; VTIMEZONE blocks with DST-aware transitions for Outlook compatibility; overnight flight `DTEND` advanced to next day when UTC arrival precedes UTC departure
+- [x] **IATA airport codes for flights** — flight segments carry `departureAirport` / `arrivalAirport` (3-letter IATA) backed by a 1,178-entry shared lookup; render as `City (CODE)` everywhere; segment editor exposes a keyboard-navigable typeahead (search by code, city, airport name, or alias); title auto-fills to `DEP → ARR (Carrier RouteCode)` once both endpoints are set; calendar sync derives the per-leg IANA timezone from the airport code with city-name fallback for legacy data and other transport
 
 **Up next:**
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)

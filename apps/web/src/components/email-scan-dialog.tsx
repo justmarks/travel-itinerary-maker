@@ -381,6 +381,8 @@ export function EmailScanDialog({
         provider: s.provider,
         departureCity: s.departureCity,
         arrivalCity: s.arrivalCity,
+        departureAirport: s.departureAirport,
+        arrivalAirport: s.arrivalAirport,
         carrier: s.carrier,
         routeCode: s.routeCode,
         partySize: s.partySize,

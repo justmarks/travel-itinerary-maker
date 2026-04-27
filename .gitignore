@@ -12,3 +12,7 @@ coverage/
 android/
 ios/
 .claude/settings.local.json
+
+# Source data for scripts/build-airports.mjs — large; the generated
+# packages/shared/src/utils/airports-data.ts is the committed artifact.
+airports.csv

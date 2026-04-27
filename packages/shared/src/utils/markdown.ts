@@ -1,6 +1,6 @@
 import type { Trip, Segment, CostSummaryItem } from "../types/trip";
 import { formatCurrency, sumByCurrency } from "./currency";
-import { formatFlightLabel } from "./segments";
+import { formatFlightLabel, formatFlightEndpoint } from "./segments";
 
 /** Get the itinerary table column value for a segment */
 function formatSegmentForTable(segment: Segment): string {
@@ -9,9 +9,9 @@ function formatSegmentForTable(segment: Segment): string {
   switch (segment.type) {
     case "flight":
     case "train": {
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
+      const depLabel = formatFlightEndpoint(segment.departureAirport, segment.departureCity);
+      const arrLabel = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity);
+      const route = [depLabel, arrLabel].filter(Boolean).join(" → ");
       const carrier = formatFlightLabel(segment);
       parts.push(carrier || segment.title);
       if (route) parts.push(route);

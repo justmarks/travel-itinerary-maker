@@ -1,4 +1,5 @@
 import type { Segment, Trip } from "../types/trip";
+import { lookupAirport } from "./airport-lookup";
 
 /**
  * Combine `carrier` and `routeCode` into a display label like
@@ -8,6 +9,33 @@ export function formatFlightLabel(
   segment: Pick<Segment, "carrier" | "routeCode">,
 ): string {
   return [segment.carrier, segment.routeCode].filter(Boolean).join(" ");
+}
+
+/**
+ * Format one end of a flight (departure or arrival) for display.
+ *
+ * Resolution order:
+ *  1. IATA code known: `City (CODE)` (e.g. "New York (JFK)")
+ *  2. IATA code unknown but provided: bare code (e.g. "XYZ")
+ *  3. No code, only city: city
+ *  4. Neither: undefined
+ *
+ * `style: "compact"` returns just the IATA code when one is set, falling
+ * back to the city. Use it in tight layouts (timeline pills) where the
+ * code alone is enough to identify the leg.
+ */
+export function formatFlightEndpoint(
+  airportCode: string | undefined,
+  fallbackCity: string | undefined,
+  style: "full" | "compact" = "full",
+): string | undefined {
+  const code = airportCode?.trim().toUpperCase();
+  if (code && /^[A-Z]{3}$/.test(code)) {
+    if (style === "compact") return code;
+    const info = lookupAirport(code);
+    return info ? `${info.city} (${code})` : code;
+  }
+  return fallbackCity?.trim() || undefined;
 }
 
 /**

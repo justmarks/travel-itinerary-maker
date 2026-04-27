@@ -67,6 +67,8 @@ export function AddSegmentDialog({
         provider: form.provider || undefined,
         departureCity: form.departureCity || undefined,
         arrivalCity: form.arrivalCity || undefined,
+        departureAirport: form.departureAirport || undefined,
+        arrivalAirport: form.arrivalAirport || undefined,
         carrier: form.carrier || undefined,
         routeCode: form.routeCode || undefined,
         coach: form.coach || undefined,

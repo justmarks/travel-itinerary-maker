@@ -33,6 +33,9 @@ function segmentDedupeKey(seg: ParsedSegment): string {
   if (seg.type === "flight" && seg.routeCode) {
     return `flight:${seg.date}:${seg.routeCode}`;
   }
+  if (seg.type === "flight" && seg.departureAirport && seg.arrivalAirport) {
+    return `flight:${seg.date}:${seg.departureAirport}-${seg.arrivalAirport}`;
+  }
   if (seg.type === "flight" && seg.departureCity && seg.arrivalCity) {
     return `flight:${seg.date}:${seg.departureCity}-${seg.arrivalCity}`;
   }
@@ -125,6 +128,8 @@ const COMPARABLE_FIELDS = [
   "provider",
   "departureCity",
   "arrivalCity",
+  "departureAirport",
+  "arrivalAirport",
   "carrier",
   "routeCode",
   "partySize",
@@ -347,6 +352,8 @@ function applySegmentFields(
     "provider",
     "departureCity",
     "arrivalCity",
+    "departureAirport",
+    "arrivalAirport",
     "carrier",
     "routeCode",
     "partySize",
@@ -1151,6 +1158,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             provider: seg.provider,
             departureCity: seg.departureCity,
             arrivalCity: seg.arrivalCity,
+            departureAirport: seg.departureAirport,
+            arrivalAirport: seg.arrivalAirport,
             carrier: seg.carrier,
             routeCode: seg.routeCode,
             partySize: seg.partySize,
