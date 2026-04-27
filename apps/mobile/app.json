@@ -39,8 +39,10 @@
     "scheme": "travel-itinerary-maker",
     "extra": {
       "eas": {
-        "projectId": "b0f047ce-a23a-4a3f-af56-82453683cda7"
-      }
-    }
+        "projectId": "27b89c97-67d8-4196-ac5a-30c8b6665c6d"
+      },
+      "router": {}
+    },
+    "owner": "justmarks"
   }
 }
