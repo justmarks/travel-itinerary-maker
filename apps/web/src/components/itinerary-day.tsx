@@ -121,10 +121,15 @@ function SegmentRow({
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
 
+  // The flight title now bakes in the carrier + flight # via the form's
+  // auto-title (e.g. "SEA → CDG (Air France 337)") so we don't append the
+  // carrier label again. Only fall back to suffixing it when the user has
+  // typed a custom title that doesn't already include it.
   const flightLabel = isFlight ? formatFlightLabel(segment) : "";
-  const titleText = flightLabel
-    ? `${segment.title} (${flightLabel})`
-    : segment.title;
+  const titleText =
+    flightLabel && !segment.title.includes(flightLabel)
+      ? `${segment.title} (${flightLabel})`
+      : segment.title;
 
   return (
     <div className="group/seg flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
