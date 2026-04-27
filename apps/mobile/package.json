@@ -20,7 +20,9 @@
     "expo-status-bar": "~2.2.0",
     "expo-web-browser": "~14.0.0",
     "react": "19.0.0",
-    "react-native": "0.77.1"
+    "react-dom": "19.0.0",
+    "react-native": "0.77.1",
+    "react-native-web": "~0.19.13"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",

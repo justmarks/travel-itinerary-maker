@@ -24,8 +24,13 @@
       "ignoreMissing": [],
       "allowedVersions": {
         "react": "19",
+        "react-dom": "19",
         "@types/react": "19"
       }
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }
