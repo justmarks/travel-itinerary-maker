@@ -68,7 +68,7 @@ function formatDateRange(start: string, end: string): string {
   return `${startStr} – ${endStr}`;
 }
 
-export function TripCard({ trip }: { trip: TripSummary }) {
+export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const deleteTrip = useDeleteTrip();
   const updateTrip = useUpdateTrip(trip.id);
   const [renaming, setRenaming] = useState(false);

@@ -44,7 +44,7 @@ export function EditTodoDialog({
   todo: Todo;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): React.JSX.Element {
   const [text, setText] = useState(todo.text);
   const [details, setDetails] = useState(todo.details ?? "");
   const [category, setCategory] = useState<string>(todo.category ?? NO_CATEGORY);

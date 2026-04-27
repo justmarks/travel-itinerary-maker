@@ -17,7 +17,7 @@ export function MarkdownText({
 }: {
   children: string;
   className?: string;
-}) {
+}): React.JSX.Element {
   return (
     <div className={cn("space-y-1", className)}>
       <ReactMarkdown

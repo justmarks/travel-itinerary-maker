@@ -54,7 +54,7 @@ export function XlsxImportDialog({
   hideTrigger?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-} = {}) {
+} = {}): React.JSX.Element {
   const router = useRouter();
   const importXlsx = useImportXlsxTrip();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);

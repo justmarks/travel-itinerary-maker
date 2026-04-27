@@ -69,7 +69,7 @@ export function EditSegmentDialog({
   date: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): React.JSX.Element {
   const [form, setForm] = useState<SegmentFormState>(
     segmentToFormState(segment, date),
   );

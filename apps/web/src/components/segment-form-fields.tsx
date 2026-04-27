@@ -324,7 +324,7 @@ export function SegmentTypeSelect({
   value: string;
   onValueChange: (v: string) => void;
   id?: string;
-}) {
+}): React.JSX.Element {
   return (
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger id={id}>
@@ -365,7 +365,7 @@ export function SegmentFormFields({
    * so we don't pop the keyboard on mobile just for tapping a row open.
    */
   autoFocusTitle?: boolean;
-}) {
+}): React.JSX.Element {
   const flags = getTypeFlags(form.type);
   const {
     isFlight,

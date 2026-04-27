@@ -9,7 +9,7 @@ import { useDemoMode } from "@/lib/demo";
  * Wraps children and redirects to /login if the user is not authenticated.
  * In demo mode (?demo=true), auth is bypassed entirely.
  */
-export function RequireAuth({ children }: { children: React.ReactNode }) {
+export function RequireAuth({ children }: { children: React.ReactNode }): React.JSX.Element {
   const isDemo = useDemoMode();
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();

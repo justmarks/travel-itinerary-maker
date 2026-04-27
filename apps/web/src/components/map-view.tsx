@@ -324,7 +324,7 @@ function MapInner({
 
 // ── Public export ─────────────────────────────────────────────
 
-export function MapView({ trip }: { trip: Trip }) {
+export function MapView({ trip }: { trip: Trip }): React.JSX.Element {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const rawPins = buildRawPins(trip);
 

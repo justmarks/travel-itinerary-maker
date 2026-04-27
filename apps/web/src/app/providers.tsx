@@ -47,7 +47,7 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
   // Boot Sentry once on client hydration. No-op when NEXT_PUBLIC_SENTRY_DSN
   // is unset (dev, CI, and any deployment that hasn't opted in yet).
   useEffect(() => {

@@ -6,7 +6,7 @@ import { TripCard } from "./trip-card";
 import { AppLogo } from "./app-logo";
 import { Button } from "@/components/ui/button";
 
-export function TripList() {
+export function TripList(): React.JSX.Element {
   const { data: trips, isLoading, error } = useTrips();
   const [showCompleted, setShowCompleted] = useState(false);
 
