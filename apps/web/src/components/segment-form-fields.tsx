@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   addDays,
   lookupAirport,
@@ -243,6 +244,16 @@ function AirportInput({
         // trap in the dialog to bounce focus back to the top).
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
+          if (e.key === "Tab") {
+            // Tear the dropdown out of the DOM *synchronously* so the
+            // browser's default Tab focus shift can't get tripped up by it.
+            // flushSync forces React to commit the state change before this
+            // handler returns, which is before the default Tab action runs.
+            // Without it the dropdown was occasionally lingering and the
+            // dialog's focus trap would bounce focus back to the top.
+            if (open) flushSync(() => setOpen(false));
+            return;
+          }
           if (e.key === "ArrowDown") {
             // Open the list on first ArrowDown, otherwise advance the highlight.
             e.preventDefault();
@@ -268,12 +279,17 @@ function AirportInput({
               setOpen(false);
             }
           }
-          // Tab: do not preventDefault; default browser behaviour moves focus
-          // to the next field. The blur handler above closes the dropdown.
         }}
       />
       {open && results.length > 0 && (
-        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+        <div
+          // Some browsers treat a scrollable container (overflow:auto with
+          // overflowing content) as focusable for keyboard scrolling, which
+          // would put the dropdown into the tab order. Force it out.
+          tabIndex={-1}
+          role="listbox"
+          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md"
+        >
           {results.map((r, i) => (
             <button
               key={r.code}
