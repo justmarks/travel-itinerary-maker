@@ -20,6 +20,10 @@
     "node": ">=20.0.0"
   },
   "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.14",
+      "@types/react-dom": "19.2.3"
+    },
     "peerDependencyRules": {
       "ignoreMissing": [],
       "allowedVersions": {
