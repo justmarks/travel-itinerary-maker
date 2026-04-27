@@ -32,15 +32,13 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
       "expo-dev-client"
     ],
     "scheme": "travel-itinerary-maker",
     "extra": {
       "eas": {
         "projectId": "27b89c97-67d8-4196-ac5a-30c8b6665c6d"
-      },
-      "router": {}
+      }
     },
     "owner": "justmarks"
   }

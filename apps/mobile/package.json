@@ -1,7 +1,7 @@
 {
   "name": "@travel-app/mobile",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "expo/AppEntry",
   "private": true,
   "scripts": {
     "start": "expo start",
