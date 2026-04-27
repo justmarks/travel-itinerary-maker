@@ -229,6 +229,7 @@ function AirportInput({
             <button
               key={r.code}
               type="button"
+              tabIndex={-1}
               className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-accent"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
