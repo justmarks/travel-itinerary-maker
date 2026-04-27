@@ -11,7 +11,7 @@ import { AlertCircle, Info } from "lucide-react";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
-export default function LoginPage() {
+export default function LoginPage(): React.JSX.Element {
   const { isAuthenticated, isLoading, login } = useAuth();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);

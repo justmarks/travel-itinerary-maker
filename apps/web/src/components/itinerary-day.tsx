@@ -473,7 +473,7 @@ export function ItineraryDay({
   day: TripDay;
   tripId?: string;
   readOnly?: boolean;
-}) {
+}): React.JSX.Element | null {
   const segments = [...day.segments].sort((a, b) => {
     if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
     if (a.startTime) return -1;

@@ -25,7 +25,7 @@ export function AddSegmentDialog({
 }: {
   tripId: string;
   date: string;
-}) {
+}): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<SegmentFormState>({
     ...EMPTY_FORM_STATE,

@@ -53,7 +53,7 @@ export function TripTodos({
    * tab; the sidebar render on the Itinerary tab keeps the chrome minimal.
    */
   showSuggestButton?: boolean;
-}) {
+}): React.JSX.Element {
   const updateTodo = useUpdateTodo(tripId);
   const createTodo = useCreateTodo(tripId);
 

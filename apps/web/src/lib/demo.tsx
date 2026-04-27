@@ -46,7 +46,7 @@ function subscribe(callback: () => void): () => void {
 
 const DemoContext = createContext(false);
 
-export function DemoProvider({ children }: { children: React.ReactNode }) {
+export function DemoProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const isDemo = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   return (

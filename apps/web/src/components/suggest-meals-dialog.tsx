@@ -32,7 +32,7 @@ export function SuggestMealsDialog({
   todos: Todo[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}) {
+}): React.JSX.Element {
   // Compute suggestions whenever the dialog opens against the current trip.
   // Memoised so re-renders during the dialog session don't flicker the list.
   const suggestions = useMemo(() => {

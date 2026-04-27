@@ -59,7 +59,7 @@ function saveAuth(state: AuthState) {
   }
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [state, setState] = useState<AuthState>({
     user: null,
     accessToken: null,

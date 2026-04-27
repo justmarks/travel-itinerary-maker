@@ -259,7 +259,7 @@ function Legend() {
 
 // ── Main export ───────────────────────────────────────────────
 
-export function TimelineView({ trip }: { trip: Trip }) {
+export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
   const [mode, setMode] = useState<"grouped" | "chrono">("grouped");
   const { days } = trip;
   const hotels = extractHotels(days);

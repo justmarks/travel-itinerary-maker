@@ -21,7 +21,7 @@ function SharedPageInner() {
   return <SharedTripClient token={token} />;
 }
 
-export default function SharedPage() {
+export default function SharedPage(): React.JSX.Element {
   return (
     <Suspense
       fallback={

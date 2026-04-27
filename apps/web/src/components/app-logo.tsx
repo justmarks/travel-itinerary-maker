@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
  * and so the logo doesn't pop in after a separate image fetch. Mirrors
  * the favicon at apps/web/src/app/icon.svg — keep them in sync.
  */
-export function AppLogo({ className }: { className?: string }) {
+export function AppLogo({ className }: { className?: string }): React.JSX.Element {
   return (
     <svg
       viewBox="0 0 64 64"

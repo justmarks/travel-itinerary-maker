@@ -10,7 +10,7 @@ function formatDateRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-export default function SharedTripClient({ token }: { token: string }) {
+export default function SharedTripClient({ token }: { token: string }): React.JSX.Element {
   const { data: trip, isLoading } = useSharedTrip(token);
 
   if (isLoading) {

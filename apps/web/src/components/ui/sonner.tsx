@@ -2,7 +2,7 @@
 
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-export function Toaster(props: ToasterProps) {
+export function Toaster(props: ToasterProps): React.JSX.Element {
   return (
     <Sonner
       className="toaster group"

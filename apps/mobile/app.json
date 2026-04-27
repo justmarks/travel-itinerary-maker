@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Travel Itinerary Maker",
+    "slug": "travel-itinerary-maker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.justmarks.travelitinerarymaker",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Not used.",
+        "NSMicrophoneUsageDescription": "Not used."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.justmarks.travelitinerarymaker",
+      "permissions": []
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-dev-client"
+    ],
+    "scheme": "travel-itinerary-maker",
+    "extra": {
+      "eas": {
+        "projectId": "27b89c97-67d8-4196-ac5a-30c8b6665c6d"
+      }
+    },
+    "owner": "justmarks"
+  }
+}

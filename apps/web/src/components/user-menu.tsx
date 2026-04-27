@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogIn, LogOut, User } from "lucide-react";
 
-export function UserMenu() {
+export function UserMenu(): React.JSX.Element | null {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
 

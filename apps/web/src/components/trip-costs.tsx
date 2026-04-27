@@ -38,7 +38,7 @@ function categoryLabel(category: string): string {
   );
 }
 
-export function TripCosts({ tripId }: { tripId: string }) {
+export function TripCosts({ tripId }: { tripId: string }): React.JSX.Element {
   const { data, isLoading } = useCostSummary(tripId);
 
   return (

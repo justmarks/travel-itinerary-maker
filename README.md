@@ -32,10 +32,11 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI |
+| Mobile | Expo SDK 55 · React Native 0.77 · expo-auth-session |
 | Backend | Express 5 · TypeScript · Google Drive API · Gmail API |
 | AI | Claude API (Anthropic) for email parsing |
 | Shared packages | Zod validators · TanStack React Query · typed API client |
-| Auth | Google OAuth (auth-code flow) |
+| Auth | Google OAuth (auth-code flow + PKCE for native) |
 | Monorepo | pnpm 10 workspaces · Turborepo |
 | CI/CD | GitHub Actions · auto version bumping · GitHub Pages deploy |
 | Hosting | GitHub Pages (web, static export) · Railway (API) — all free tier |
@@ -45,7 +46,8 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 ```
 travel-itinerary-maker/
 ├── apps/
-│   └── web/                  # Next.js 15 frontend (App Router)
+│   ├── web/                  # Next.js 15 frontend (App Router)
+│   └── mobile/               # Expo SDK 55 React Native app (Android)
 ├── packages/
 │   ├── shared/               # Types, Zod schemas, utilities (framework-agnostic)
 │   └── api-client/           # Typed fetch client + React Query hooks
@@ -299,7 +301,7 @@ Two related cleanups surfaced while auditing this area:
 - [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
-- [ ] **Android mobile** — Expo + React Native, offline/cached active trip for airport use (no push notifications in v1)
+- [ ] **Android mobile** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
 
 ## License

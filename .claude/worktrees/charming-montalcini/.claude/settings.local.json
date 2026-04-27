@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch *)",
+      "Bash(git checkout *)",
+      "Bash(git rebase *)",
+      "Bash(git add *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "Bash(pnpm install *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(gh pr *)",
+      "Bash(xargs grep *)",
+      "Bash(node -e \"require\\('sharp'\\)\")",
+      "Bash(node -e \"require\\('./node_modules/sharp'\\)\")",
+      "Bash(where inkscape *)",
+      "Bash(where magick *)",
+      "Bash(where ffmpeg *)",
+      "Bash(where svgexport *)",
+      "Bash(node -e \"console.log\\(process.version\\)\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "Bash(where chrome *)",
+      "Bash(where \"chrome.exe\")",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
+      "Bash(node -e ' *)",
+      "Bash(rm \"C:/Users/justm/Claude Projects/Travel Itinerary Maker/scripts/gen-mobile-assets.mjs\")"
+    ]
+  }
+}
