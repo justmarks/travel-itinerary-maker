@@ -720,7 +720,7 @@ const TAB_LABELS: Record<Tab, string> = {
   todos:     "To-do",
 };
 
-export default function TripDetailClient({ tripId }: { tripId: string }): React.JSX.Element {
+export default function TripDetailClient({ tripId }: { tripId: string }): React.JSX.Element | null {
   const { data: trip, isLoading } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");

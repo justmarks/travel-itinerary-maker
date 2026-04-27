@@ -108,7 +108,7 @@ export function EmailScanDialog({
   triggerLabel?: string;
   triggerVariant?: "outline" | "default" | "ghost";
   triggerSize?: "sm" | "default" | "lg";
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<ScanStep>("loading");
   const [selectedLabel, setSelectedLabel] = useState<string>("");

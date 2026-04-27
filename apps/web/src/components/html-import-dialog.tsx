@@ -124,7 +124,7 @@ export function HtmlImportDialog({
   hideTrigger?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-}): React.JSX.Element {
+}): React.JSX.Element | null {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = useCallback(
