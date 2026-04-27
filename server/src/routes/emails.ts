@@ -33,6 +33,9 @@ function segmentDedupeKey(seg: ParsedSegment): string {
   if (seg.type === "flight" && seg.routeCode) {
     return `flight:${seg.date}:${seg.routeCode}`;
   }
+  if (seg.type === "flight" && seg.departureAirport && seg.arrivalAirport) {
+    return `flight:${seg.date}:${seg.departureAirport}-${seg.arrivalAirport}`;
+  }
   if (seg.type === "flight" && seg.departureCity && seg.arrivalCity) {
     return `flight:${seg.date}:${seg.departureCity}-${seg.arrivalCity}`;
   }

@@ -1,7 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addDays, searchAirports, type AirportInfo } from "@travel-app/shared";
+import {
+  addDays,
+  lookupAirport,
+  searchAirports,
+  type AirportInfo,
+} from "@travel-app/shared";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -205,8 +210,14 @@ function AirportInput({
         value={value}
         autoComplete="off"
         onChange={(e) => {
-          onChange(e.target.value.toUpperCase());
+          const next = e.target.value.toUpperCase();
+          onChange(next);
           setOpen(true);
+          // If the typed value matches a known IATA code we also fire onPick
+          // so the caller can backfill derived fields (e.g. city) without the
+          // user having to click the dropdown.
+          const info = lookupAirport(next);
+          if (info) onPick?.(info);
         }}
         onFocus={() => setOpen(true)}
         // Delay close so the click handler on a result fires first.
@@ -303,6 +314,25 @@ export function SegmentFormFields({
   } = flags;
   const isOtherTransport = isTransport && !isFlight && !isTrain;
 
+  // For flights, derive `title` from the IATA codes whenever both endpoints
+  // are filled. We only overwrite when the title is empty or already follows
+  // the auto-format ("XXX → YYY"), so a user who types a custom title keeps
+  // their wording.
+  const flightAutoTitlePattern = /^[A-Z]{3}\s*→\s*[A-Z]{3}$/;
+  const applyFlightAutoTitle = (patch: Partial<SegmentFormState>): void => {
+    if (!isFlight) return;
+    const dep = (patch.departureAirport ?? form.departureAirport).trim().toUpperCase();
+    const arr = (patch.arrivalAirport ?? form.arrivalAirport).trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(dep) || !/^[A-Z]{3}$/.test(arr)) return;
+    const current = (patch.title ?? form.title).trim();
+    if (current && !flightAutoTitlePattern.test(current)) return;
+    patch.title = `${dep} → ${arr}`;
+  };
+  const pushFlightPatch = (patch: Partial<SegmentFormState>): void => {
+    applyFlightAutoTitle(patch);
+    onChange(patch);
+  };
+
   // Which fields should be visible?
   const showVenue = !isFlight && !isTransport && !isCruise;
   const showAddress = !isFlight && !isCruise;
@@ -380,14 +410,8 @@ export function SegmentFormFields({
                 id={`${idPrefix}-dep-airport`}
                 placeholder="e.g. SEA"
                 value={form.departureAirport}
-                onChange={(v) => onChange({ departureAirport: v })}
-                onPick={(info) => {
-                  // Auto-fill the city when the user picks from the list,
-                  // unless they've already typed something custom.
-                  const patch: Partial<SegmentFormState> = {};
-                  if (!form.departureCity) patch.departureCity = info.city;
-                  if (Object.keys(patch).length) onChange(patch);
-                }}
+                onChange={(v) => pushFlightPatch({ departureAirport: v, departureCity: "" })}
+                onPick={(info) => pushFlightPatch({ departureCity: info.city })}
               />
             </div>
             <div className="space-y-2">
@@ -396,32 +420,8 @@ export function SegmentFormFields({
                 id={`${idPrefix}-arr-airport`}
                 placeholder="e.g. NRT"
                 value={form.arrivalAirport}
-                onChange={(v) => onChange({ arrivalAirport: v })}
-                onPick={(info) => {
-                  const patch: Partial<SegmentFormState> = {};
-                  if (!form.arrivalCity) patch.arrivalCity = info.city;
-                  if (Object.keys(patch).length) onChange(patch);
-                }}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-dep-city`}>Departure city</Label>
-              <Input
-                id={`${idPrefix}-dep-city`}
-                placeholder="e.g. Seattle"
-                value={form.departureCity}
-                onChange={(e) => onChange({ departureCity: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-arr-city`}>Arrival city</Label>
-              <Input
-                id={`${idPrefix}-arr-city`}
-                placeholder="e.g. Tokyo"
-                value={form.arrivalCity}
-                onChange={(e) => onChange({ arrivalCity: e.target.value })}
+                onChange={(v) => pushFlightPatch({ arrivalAirport: v, arrivalCity: "" })}
+                onPick={(info) => pushFlightPatch({ arrivalCity: info.city })}
               />
             </div>
           </div>
