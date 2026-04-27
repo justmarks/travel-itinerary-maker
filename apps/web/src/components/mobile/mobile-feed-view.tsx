@@ -1,0 +1,160 @@
+"use client";
+
+import { useMemo } from "react";
+import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import { MapPin, ArrowDown, Plane, Train } from "lucide-react";
+import { MobileSegmentCard } from "./mobile-segment-card";
+
+function fmtDayHeader(date: string, dayOfWeek: string) {
+  const d = new Date(date + "T00:00:00");
+  const md = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return { weekday: dayOfWeek, md };
+}
+
+function sortSegments(segments: readonly Segment[]): Segment[] {
+  return [...segments].sort((a, b) => {
+    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
+    if (a.startTime) return -1;
+    if (b.startTime) return 1;
+    return a.sortOrder - b.sortOrder;
+  });
+}
+
+/**
+ * Picks the inter-day connection (flight, train, or generic transport) when a
+ * segment of that type starts the next day — used to render a small chip
+ * between days so the reader can see "how do we get from Tokyo to Kyoto?".
+ */
+function findIntercityConnection(nextDay: TripDay): Segment | null {
+  for (const seg of nextDay.segments) {
+    if (seg.type === "flight" || seg.type === "train") return seg;
+  }
+  return null;
+}
+
+export function MobileFeedView({ trip }: { trip: Trip }): React.JSX.Element {
+  const days = useMemo(() => trip.days, [trip.days]);
+
+  const tripStats = useMemo(() => {
+    const cities = new Set<string>();
+    let segmentCount = 0;
+    for (const day of days) {
+      if (day.city) cities.add(day.city);
+      segmentCount += day.segments.length;
+    }
+    return { cities: Array.from(cities), segmentCount };
+  }, [days]);
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {/* Trip cover */}
+      <div className="bg-gradient-to-br from-zinc-900 to-zinc-700 px-5 pb-6 pt-5 text-zinc-50">
+        <h1 className="text-2xl font-bold leading-tight">{trip.title}</h1>
+        <p className="mt-1 text-sm text-zinc-200">
+          {formatTripRange(trip.startDate, trip.endDate)}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-200">
+          <span>
+            <span className="font-semibold text-zinc-50">{days.length}</span>{" "}
+            {days.length === 1 ? "day" : "days"}
+          </span>
+          <span>
+            <span className="font-semibold text-zinc-50">
+              {tripStats.segmentCount}
+            </span>{" "}
+            {tripStats.segmentCount === 1 ? "segment" : "segments"}
+          </span>
+          {tripStats.cities.length > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {tripStats.cities.join(" · ")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Days */}
+      <div className="pb-10">
+        {days.map((day, i) => {
+          const { weekday, md } = fmtDayHeader(day.date, day.dayOfWeek);
+          const sorted = sortSegments(day.segments);
+          const prevDay = i > 0 ? days[i - 1] : null;
+          const cityChanged =
+            prevDay && prevDay.city && day.city && prevDay.city !== day.city;
+          const connector = cityChanged ? findIntercityConnection(day) : null;
+
+          return (
+            <section key={day.date}>
+              {/* Inter-day transition chip */}
+              {cityChanged && (
+                <div className="flex items-center justify-center px-5 py-3">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border bg-muted px-3 py-1 text-xs text-muted-foreground">
+                    <ArrowDown className="h-3 w-3" />
+                    {prevDay?.city} → {day.city}
+                    {connector && connector.type === "flight" && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <Plane className="h-3 w-3" />
+                        <span>{connector.title.replace(/\s*\(.*\)\s*$/, "")}</span>
+                      </>
+                    )}
+                    {connector && connector.type === "train" && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <Train className="h-3 w-3" />
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Sticky day header */}
+              <div className="sticky top-0 z-20 -mb-px border-b border-border/60 bg-background/90 px-5 py-2.5 backdrop-blur">
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Day {i + 1}
+                    </span>
+                    <h2 className="text-base font-semibold">
+                      {weekday}, {md}
+                    </h2>
+                  </div>
+                  {day.city && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {day.city}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Segments */}
+              <div className="flex flex-col gap-2.5 px-4 py-4">
+                {sorted.length === 0 ? (
+                  <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+                    Nothing planned.
+                  </p>
+                ) : (
+                  sorted.map((seg) => (
+                    <MobileSegmentCard key={seg.id} segment={seg} />
+                  ))
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatTripRange(start: string, end: string) {
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  };
+  const fmt = (d: string) =>
+    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
+  return `${fmt(start)} – ${fmt(end)}`;
+}

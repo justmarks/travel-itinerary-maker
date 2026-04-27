@@ -58,6 +58,7 @@ import {
   AlertTriangle,
   MoreHorizontal,
   FileCode2,
+  Smartphone,
 } from "lucide-react";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
@@ -347,6 +348,7 @@ function TripActionsMenu({
 }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
+  const mobilePreviewHref = useDemoHref(`/m/trip?id=${tripId}&v=feed`);
 
   const runExport = async (fn: () => Promise<void>) => {
     setExporting(true);
@@ -400,6 +402,12 @@ function TripActionsMenu({
         <DropdownMenuItem onSelect={onImportEmail}>
           <FileCode2 className="mr-2 h-4 w-4" />
           Import email
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href={mobilePreviewHref}>
+            <Smartphone className="mr-2 h-4 w-4" />
+            Mobile preview
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
