@@ -61,6 +61,15 @@ export interface Segment {
   // Transport-specific
   departureCity?: string;
   arrivalCity?: string;
+  /**
+   * Flight-only: 3-letter IATA airport codes for the departure and arrival
+   * airports (e.g. "JFK", "NRT"). When set, these are the source of truth
+   * for the displayed endpoint label and the IANA timezone used at calendar
+   * export. Older trips and non-flight transport segments may have only the
+   * `*City` fields populated.
+   */
+  departureAirport?: string;
+  arrivalAirport?: string;
   carrier?: string;
   routeCode?: string;
   // Train-specific (reuses departureCity/arrivalCity as the station names)
@@ -234,6 +243,8 @@ export interface ParsedSegment {
   provider?: string;
   departureCity?: string;
   arrivalCity?: string;
+  departureAirport?: string;
+  arrivalAirport?: string;
   carrier?: string;
   routeCode?: string;
   coach?: string;

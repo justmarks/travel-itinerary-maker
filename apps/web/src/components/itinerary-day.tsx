@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatFlightLabel } from "@travel-app/shared";
+import { formatFlightLabel, formatFlightEndpoint } from "@travel-app/shared";
 import type { TripDay, Segment } from "@travel-app/shared";
 import {
   useDeleteSegment,
@@ -234,14 +234,21 @@ function SegmentRow({
         </div>
 
         {/* Route info (flights / trains / transport).
-            For flights, the airline + number already live in the title. */}
-        {segment.departureCity && segment.arrivalCity && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {segment.departureCity} → {segment.arrivalCity}
-            {!isFlight && segment.carrier && ` · ${segment.carrier}`}
-            {!isFlight && segment.routeCode && ` ${segment.routeCode}`}
-          </p>
-        )}
+            For flights, the airline + number already live in the title.
+            Endpoints render as "City (CODE)" when the IATA airport is known,
+            "City" when only a city is set, and the bare code otherwise. */}
+        {(() => {
+          const depLabel = formatFlightEndpoint(segment.departureAirport, segment.departureCity);
+          const arrLabel = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity);
+          if (!depLabel || !arrLabel) return null;
+          return (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {depLabel} → {arrLabel}
+              {!isFlight && segment.carrier && ` · ${segment.carrier}`}
+              {!isFlight && segment.routeCode && ` ${segment.routeCode}`}
+            </p>
+          );
+        })()}
 
         {/* Cabin class, seats, baggage (flights) */}
         {isFlight && (segment.seatNumber || segment.cabinClass) && (

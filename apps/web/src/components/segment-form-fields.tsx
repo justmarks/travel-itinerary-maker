@@ -1,6 +1,7 @@
 "use client";
 
-import { addDays } from "@travel-app/shared";
+import { useMemo, useState } from "react";
+import { addDays, searchAirports, type AirportInfo } from "@travel-app/shared";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -116,6 +117,8 @@ export interface SegmentFormState {
   provider: string;
   departureCity: string;
   arrivalCity: string;
+  departureAirport: string;
+  arrivalAirport: string;
   carrier: string;
   routeCode: string;
   coach: string;
@@ -147,6 +150,8 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   provider: "",
   departureCity: "",
   arrivalCity: "",
+  departureAirport: "",
+  arrivalAirport: "",
   carrier: "",
   routeCode: "",
   coach: "",
@@ -163,6 +168,74 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   costCurrency: "USD",
   costDetails: "",
 };
+
+// ─── Airport autocomplete ───────────────────────────────────────────────────
+
+/**
+ * Lightweight typeahead for IATA airport codes. Stores only the 3-letter
+ * code (uppercased) on the form; surfaces the matched city / airport name
+ * in the dropdown so the user can pick by city if they don't remember the
+ * code. Free-text remains accepted — codes outside the static dataset can
+ * still be typed and saved, the rendering layer falls back to the bare code.
+ *
+ * `onPick` fires when the user selects a result from the dropdown so the
+ * caller can also auto-fill the city field.
+ */
+function AirportInput({
+  id,
+  value,
+  placeholder,
+  onChange,
+  onPick,
+}: {
+  id?: string;
+  value: string;
+  placeholder?: string;
+  onChange: (next: string) => void;
+  onPick?: (info: AirportInfo) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const results = useMemo(() => (open && value ? searchAirports(value, 8) : []), [open, value]);
+
+  return (
+    <div className="relative">
+      <Input
+        id={id}
+        placeholder={placeholder}
+        value={value}
+        autoComplete="off"
+        onChange={(e) => {
+          onChange(e.target.value.toUpperCase());
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        // Delay close so the click handler on a result fires first.
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && results.length > 0 && (
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+          {results.map((r) => (
+            <button
+              key={r.code}
+              type="button"
+              className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-accent"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(r.code);
+                onPick?.(r);
+                setOpen(false);
+              }}
+            >
+              <span className="font-mono font-semibold">{r.code}</span>
+              <span className="ml-2">{r.city}</span>
+              <span className="text-muted-foreground"> · {r.airportName}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Type selector with grouped categories ──────────────────────────────────
 
@@ -300,6 +373,38 @@ export function SegmentFormFields({
       {/* ── Flight fields: Route, Airline, Flight #, Cabin, Seats, Baggage ── */}
       {isFlight && (
         <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-dep-airport`}>Departure airport</Label>
+              <AirportInput
+                id={`${idPrefix}-dep-airport`}
+                placeholder="e.g. SEA"
+                value={form.departureAirport}
+                onChange={(v) => onChange({ departureAirport: v })}
+                onPick={(info) => {
+                  // Auto-fill the city when the user picks from the list,
+                  // unless they've already typed something custom.
+                  const patch: Partial<SegmentFormState> = {};
+                  if (!form.departureCity) patch.departureCity = info.city;
+                  if (Object.keys(patch).length) onChange(patch);
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-arr-airport`}>Arrival airport</Label>
+              <AirportInput
+                id={`${idPrefix}-arr-airport`}
+                placeholder="e.g. NRT"
+                value={form.arrivalAirport}
+                onChange={(v) => onChange({ arrivalAirport: v })}
+                onPick={(info) => {
+                  const patch: Partial<SegmentFormState> = {};
+                  if (!form.arrivalCity) patch.arrivalCity = info.city;
+                  if (Object.keys(patch).length) onChange(patch);
+                }}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-dep-city`}>Departure city</Label>

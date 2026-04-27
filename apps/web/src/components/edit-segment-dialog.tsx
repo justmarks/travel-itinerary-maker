@@ -36,6 +36,8 @@ function segmentToFormState(
     provider: segment.provider ?? "",
     departureCity: segment.departureCity ?? "",
     arrivalCity: segment.arrivalCity ?? "",
+    departureAirport: segment.departureAirport ?? "",
+    arrivalAirport: segment.arrivalAirport ?? "",
     carrier: segment.carrier ?? "",
     routeCode: segment.routeCode ?? "",
     coach: segment.coach ?? "",
@@ -117,6 +119,8 @@ export function EditSegmentDialog({
     if (flags.isFlight) {
       updates.departureCity = form.departureCity || undefined;
       updates.arrivalCity = form.arrivalCity || undefined;
+      updates.departureAirport = form.departureAirport || undefined;
+      updates.arrivalAirport = form.arrivalAirport || undefined;
       updates.carrier = form.carrier || undefined;
       updates.routeCode = form.routeCode || undefined;
       updates.seatNumber = form.seatNumber || undefined;

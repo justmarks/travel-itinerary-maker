@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
+import { formatFlightEndpoint } from "@travel-app/shared";
 import { cn } from "@/lib/utils";
 
 // ── Category helpers ──────────────────────────────────────────
@@ -100,15 +101,28 @@ function Pill({ segment, showIcon }: { segment: Segment; showIcon: boolean }) {
       ? `${segment.startTime}–${segment.endTime}`
       : segment.startTime
     : null;
+  // Flights with IATA codes get the compact "JFK → NRT" form regardless of
+  // what the user typed in the title — keeps the timeline consistent with
+  // the other views and avoids bare city names crammed into a tiny pill.
+  const label = segmentPillLabel(segment);
   return (
     <div className={cn("rounded-md px-2 py-1.5 text-xs leading-tight mb-1 last:mb-0", PILL_STYLES[cat])}>
       <div className="font-semibold truncate">
         {showIcon && <span className="mr-1">{SEGMENT_ICON[segment.type]}</span>}
-        {segment.title}
+        {label}
       </div>
       {timeStr && <div className="opacity-70 text-[10.5px] mt-px">{timeStr}</div>}
     </div>
   );
+}
+
+function segmentPillLabel(segment: Segment): string {
+  if (segment.type === "flight") {
+    const dep = formatFlightEndpoint(segment.departureAirport, segment.departureCity, "compact");
+    const arr = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity, "compact");
+    if (dep && arr) return `${dep} → ${arr}`;
+  }
+  return segment.title;
 }
 
 function RowLabel({ icon, name }: { icon: string; name: string }) {

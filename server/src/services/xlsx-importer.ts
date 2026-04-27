@@ -1,5 +1,6 @@
 import ExcelJS, { ValueType } from "exceljs";
 import type { SegmentType, SegmentCost } from "@travel-app/shared";
+import { lookupAirport } from "@travel-app/shared";
 
 /**
  * A segment as parsed from the spreadsheet — a strict subset of the fields
@@ -18,6 +19,9 @@ export interface ParsedWorkbookSegment {
   city?: string;
   departureCity?: string;
   arrivalCity?: string;
+  /** 3-letter IATA airport codes for flight legs (e.g. "JFK"). */
+  departureAirport?: string;
+  arrivalAirport?: string;
   /** Check-out date for hotels (YYYY-MM-DD) */
   endDate?: string;
   confirmationCode?: string;
@@ -513,73 +517,11 @@ function hasCreditCardHold(text: string): boolean {
   return /\bCC\b/.test(text);
 }
 
-/** A small IATA airport-code → city lookup for the routes we see most
- *  often. This isn't exhaustive — the inference chain falls back to the
- *  day's city / next day's city when a code isn't in the table. */
-const AIRPORT_CODES: Record<string, string> = {
-  SEA: "Seattle",
-  SFO: "San Francisco",
-  LAX: "Los Angeles",
-  JFK: "New York",
-  EWR: "Newark",
-  LGA: "New York",
-  BOS: "Boston",
-  ORD: "Chicago",
-  IAD: "Washington",
-  DCA: "Washington",
-  MIA: "Miami",
-  LHR: "London",
-  LGW: "London",
-  STN: "London",
-  LCY: "London",
-  CDG: "Paris",
-  ORY: "Paris",
-  FRA: "Frankfurt",
-  MUC: "Munich",
-  BER: "Berlin",
-  AMS: "Amsterdam",
-  BRU: "Brussels",
-  DUB: "Dublin",
-  EDI: "Edinburgh",
-  MAN: "Manchester",
-  ZRH: "Zurich",
-  GVA: "Geneva",
-  VIE: "Vienna",
-  PRG: "Prague",
-  BCN: "Barcelona",
-  MAD: "Madrid",
-  LIS: "Lisbon",
-  FCO: "Rome",
-  CIA: "Rome",
-  MXP: "Milan",
-  LIN: "Milan",
-  VCE: "Venice",
-  NAP: "Naples",
-  ATH: "Athens",
-  IST: "Istanbul",
-  HND: "Tokyo",
-  NRT: "Tokyo",
-  KIX: "Osaka",
-  SYD: "Sydney",
-  MEL: "Melbourne",
-  YVR: "Vancouver",
-  YYZ: "Toronto",
-  MEX: "Mexico City",
-  GRU: "São Paulo",
-  EZE: "Buenos Aires",
-  CPT: "Cape Town",
-  JNB: "Johannesburg",
-  DXB: "Dubai",
-  SIN: "Singapore",
-  HKG: "Hong Kong",
-  PEK: "Beijing",
-  PVG: "Shanghai",
-};
-
 /**
  * Look for an "XXX-YYY" style airport-code pair in the text. Returns the
- * pair if both look like IATA codes (3 uppercase letters). We check against
- * the lookup table to avoid matching generic 3-letter runs in titles.
+ * pair if both look like IATA codes (3 uppercase letters). We require at
+ * least one side to resolve in the shared airport lookup so generic
+ * three-letter runs in titles don't get misidentified as routes.
  */
 function extractAirportCodes(text: string):
   | { from: string; to: string; fromCity?: string; toCity?: string }
@@ -588,14 +530,14 @@ function extractAirportCodes(text: string):
   if (!match) return undefined;
   const from = match[1]!;
   const to = match[2]!;
-  // Only treat as airports if at least one side is a known IATA code — this
-  // guards against matching three-letter abbreviations elsewhere in the text.
-  if (!(from in AIRPORT_CODES) && !(to in AIRPORT_CODES)) return undefined;
+  const fromInfo = lookupAirport(from);
+  const toInfo = lookupAirport(to);
+  if (!fromInfo && !toInfo) return undefined;
   return {
     from,
     to,
-    fromCity: AIRPORT_CODES[from],
-    toCity: AIRPORT_CODES[to],
+    fromCity: fromInfo?.city,
+    toCity: toInfo?.city,
   };
 }
 
@@ -1022,6 +964,10 @@ function enrichTransportCities(days: ParsedWorkbookDay[]): void {
         }
         if (!seg.arrivalCity) {
           seg.arrivalCity = codes.toCity || codes.to;
+        }
+        if (seg.type === "flight") {
+          if (!seg.departureAirport) seg.departureAirport = codes.from;
+          if (!seg.arrivalAirport) seg.arrivalAirport = codes.to;
         }
       }
 
