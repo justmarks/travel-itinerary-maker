@@ -28,6 +28,10 @@ concurrency:
 # quiet it is at the Node process level.
 env:
   NODE_OPTIONS: --disable-warning=DEP0040
+  # peaceiris/actions-gh-pages@v4 still declares `using: node20` and has no
+  # Node 24 release yet. Opt the runner into Node 24 for any node20 actions
+  # so we're not riding the deprecation warning until a v5 lands.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build-and-deploy-preview:
@@ -87,7 +91,7 @@ jobs:
           commit_message: "preview: PR #${{ env.PR_NUMBER }} → ${{ env.PREVIEW_PATH }}"
 
       - name: Comment preview URL on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         env:
           PREVIEW_URL: https://${{ github.repository_owner }}.github.io/travel-itinerary-maker/previews/pr-${{ env.PR_NUMBER }}/
         with:
