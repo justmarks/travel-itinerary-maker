@@ -10,14 +10,25 @@
 import type { Trip, TripDay } from "../types/trip";
 
 export interface PrimaryLocation {
-  /** Display city as it appears on the day (preserves diacritics + casing). */
+  /**
+   * Display label for the trip's hero. Usually a city, but for cruise-
+   * dominant trips this is the ship name (e.g. "Disney Fantasy") so the
+   * UI can pull a recognisable picture of the ship rather than a forgettable
+   * port photo.
+   */
   city: string;
-  /** ISO 3166-1 alpha-2 country code, when known. */
+  /** ISO 3166-1 alpha-2 country code, when known. Undefined for cruise ships. */
   countryCode?: string;
-  /** Human-readable country name, when known. */
+  /** Human-readable country name, when known. Undefined for cruise ships. */
   country?: string;
-  /** Number of days spent in that city (i.e. the winning count). */
+  /** Number of trip days this location/ship covers. */
   dayCount: number;
+  /**
+   * What kind of subject `city` refers to. The UI uses this to skip
+   * country-flag rendering for ships and to relax the "Untitled
+   * destination" copy when a ship has no flag.
+   */
+  kind: "city" | "cruise";
 }
 
 /** Lowercase + strip diacritics. Used internally for map lookups. */
@@ -145,14 +156,73 @@ function lookupCountry(rawCity: string): { code: string; name: string } | undefi
 }
 
 /**
- * Pick the city the user spends the most days in. Returns `undefined` for
- * trips with no usable city data (all empty / all "at sea").
+ * Cruise titles in this app commonly read "Ship Name — descriptor",
+ * "Ship Name · descriptor", or "Ship Name – descriptor" — split on the
+ * first such separator and trim. Some real ship names contain hyphens
+ * (e.g. "Norwegian Pearl-Star"), so unspaced `-` is intentionally NOT a
+ * separator here.
+ */
+function extractShipName(title: string | undefined): string | undefined {
+  if (!title) return undefined;
+  const match = title.match(/^(.*?)\s*[—·–]\s/u);
+  const head = (match ? match[1] : title).trim();
+  return head || undefined;
+}
+
+/**
+ * Look for a cruise segment that dominates the trip and return it as the
+ * "primary location" (using the ship name) when it covers at least half
+ * the trip's days. Without this, the cruise's embarkation port wins the
+ * city tally and the user gets a picture of Port Canaveral instead of
+ * the Disney Fantasy.
+ *
+ * Coverage = inclusive count of trip days from the day where the cruise
+ * segment lives through `segment.endDate`. Cruise segments without an
+ * `endDate` are skipped (we can't tell how long they last).
+ */
+function findCruiseLocation(trip: Pick<Trip, "days">): PrimaryLocation | undefined {
+  if (trip.days.length === 0) return undefined;
+  const dateIndex = new Map<string, number>();
+  trip.days.forEach((d, i) => dateIndex.set(d.date, i));
+
+  let best: { name: string; coverage: number } | undefined;
+  trip.days.forEach((day: TripDay, dayIdx: number) => {
+    for (const seg of day.segments) {
+      if (seg.type !== "cruise") continue;
+      if (!seg.endDate) continue;
+      const endIdx = dateIndex.get(seg.endDate);
+      if (endIdx === undefined || endIdx < dayIdx) continue;
+      const coverage = endIdx - dayIdx + 1;
+      const name = extractShipName(seg.title);
+      if (!name) continue;
+      if (!best || coverage > best.coverage) {
+        best = { name, coverage };
+      }
+    }
+  });
+
+  if (!best) return undefined;
+  // Require the cruise to cover at least half the trip to take precedence
+  // over city-based aggregation. A 2-night cruise on a 10-day trip
+  // shouldn't replace the rest of the itinerary's hero.
+  if (best.coverage * 2 < trip.days.length) return undefined;
+  return { city: best.name, dayCount: best.coverage, kind: "cruise" };
+}
+
+/**
+ * Pick the most representative location for a trip's hero image. For
+ * cruise-dominant trips this is the ship name; otherwise it's the city the
+ * user spends the most days in. Returns `undefined` for trips with no
+ * usable data (all empty / all "at sea" with no cruise segment).
  *
  * Cities are grouped by their normalised form so "Reykjavík" and "Reykjavik"
  * are treated as the same place; the displayed `city` is taken from the
  * first day in that group (preserving the user's original casing/diacritics).
  */
 export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | undefined {
+  const cruise = findCruiseLocation(trip);
+  if (cruise) return cruise;
+
   const groups = new Map<string, { display: string; count: number; firstIndex: number }>();
   trip.days.forEach((day: TripDay, idx: number) => {
     const key = normalizeCity(day.city);
@@ -186,5 +256,6 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
     countryCode: country?.code,
     country: country?.name,
     dayCount: winner.count,
+    kind: "city",
   };
 }
