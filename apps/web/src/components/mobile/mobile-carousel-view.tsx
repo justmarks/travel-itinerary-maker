@@ -8,9 +8,10 @@ import {
   useState,
 } from "react";
 import type { Trip, Segment } from "@travel-app/shared";
-import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import { ChevronLeft, ChevronRight, MapPin, LayoutList } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
+import { MobileDaysList } from "./mobile-feed-view";
 import { cn } from "@/lib/utils";
 
 function sortSegments(segments: readonly Segment[]): Segment[] {
@@ -29,16 +30,24 @@ function dayShort(date: string) {
   });
 }
 
+/**
+ * Carousel layout: an "All" overview page at index 0, followed by one page
+ * per day. The map header up top swaps to match the active page — fitting
+ * to all pins for "All", and to that day's pins for individual days.
+ */
 export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element {
   const days = trip.days;
+  // Index 0 = "All" overview; indices 1..days.length = individual days.
+  const totalPages = days.length + 1;
+
   const [activeIdx, setActiveIdx] = useState(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
 
-  const activeDay = days[activeIdx] ?? days[0];
+  const isAllView = activeIdx === 0;
+  const activeDay = isAllView ? null : days[activeIdx - 1] ?? null;
 
-  // Detect which day card is centred in the horizontal scroller.
   const handleScroll = useCallback(() => {
     if (isProgrammaticScroll.current) return;
     const el = scrollerRef.current;
@@ -47,24 +56,21 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
     setActiveIdx((current) => (current === idx ? current : idx));
   }, []);
 
-  // When the active day changes (via tap on day strip), keep the day strip
-  // chip scrolled into view so the user can always see what's selected.
   useEffect(() => {
     const strip = dayStripRef.current;
     if (!strip) return;
-    const chip = strip.querySelector<HTMLElement>(`[data-day-idx="${activeIdx}"]`);
+    const chip = strip.querySelector<HTMLElement>(`[data-page-idx="${activeIdx}"]`);
     if (chip) {
       chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
   }, [activeIdx]);
 
-  const goToDay = useCallback((idx: number) => {
+  const goToPage = useCallback((idx: number) => {
     const el = scrollerRef.current;
     if (!el) return;
     isProgrammaticScroll.current = true;
     el.scrollTo({ left: idx * el.clientWidth, behavior: "smooth" });
     setActiveIdx(idx);
-    // Release the lock after the smooth-scroll likely completes.
     window.setTimeout(() => {
       isProgrammaticScroll.current = false;
     }, 400);
@@ -72,8 +78,12 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
   const tripStats = useMemo(() => {
     const cities = new Set<string>();
-    for (const d of days) if (d.city) cities.add(d.city);
-    return { cities: Array.from(cities) };
+    let segmentCount = 0;
+    for (const d of days) {
+      if (d.city) cities.add(d.city);
+      segmentCount += d.segments.length;
+    }
+    return { cities: Array.from(cities), segmentCount };
   }, [days]);
 
   return (
@@ -83,7 +93,7 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="truncate text-lg font-bold">{trip.title}</h1>
           <span className="shrink-0 text-xs text-muted-foreground">
-            Day {activeIdx + 1}/{days.length}
+            {isAllView ? "Overview" : `Day ${activeIdx}/${days.length}`}
           </span>
         </div>
         {tripStats.cities.length > 0 && (
@@ -100,13 +110,27 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
           ref={dayStripRef}
           className="no-scrollbar flex gap-1.5 overflow-x-auto px-3 py-2"
         >
+          <button
+            data-page-idx={0}
+            onClick={() => goToPage(0)}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              isAllView
+                ? "border-foreground bg-foreground text-background"
+                : "border-border bg-background text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <LayoutList className="h-3 w-3" />
+            All
+          </button>
           {days.map((d, i) => {
-            const active = i === activeIdx;
+            const pageIdx = i + 1;
+            const active = pageIdx === activeIdx;
             return (
               <button
                 key={d.date}
-                data-day-idx={i}
-                onClick={() => goToDay(i)}
+                data-page-idx={pageIdx}
+                onClick={() => goToPage(pageIdx)}
                 className={cn(
                   "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                   active
@@ -124,28 +148,28 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
       {/* Map header (shared, swaps as user swipes) */}
       <div className="shrink-0 border-b bg-zinc-100">
-        {activeDay && (
-          <MobileDayMap trip={trip} activeDate={activeDay.date} height={210} />
-        )}
+        <MobileDayMap trip={trip} activeDate={activeDay?.date} height={210} />
         <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <MapPin className="h-3 w-3" />
-            {activeDay?.city ?? "—"}
+            {isAllView
+              ? `${tripStats.segmentCount} segment${tripStats.segmentCount === 1 ? "" : "s"} · ${days.length} days`
+              : (activeDay?.city ?? "—")}
           </span>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => activeIdx > 0 && goToDay(activeIdx - 1)}
+              onClick={() => activeIdx > 0 && goToPage(activeIdx - 1)}
               disabled={activeIdx === 0}
               className="flex h-7 w-7 items-center justify-center rounded-full border bg-background disabled:opacity-30"
-              aria-label="Previous day"
+              aria-label="Previous"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
-              onClick={() => activeIdx < days.length - 1 && goToDay(activeIdx + 1)}
-              disabled={activeIdx === days.length - 1}
+              onClick={() => activeIdx < totalPages - 1 && goToPage(activeIdx + 1)}
+              disabled={activeIdx === totalPages - 1}
               className="flex h-7 w-7 items-center justify-center rounded-full border bg-background disabled:opacity-30"
-              aria-label="Next day"
+              aria-label="Next"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -153,12 +177,18 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
         </div>
       </div>
 
-      {/* Horizontal swipe carousel of day pages */}
+      {/* Horizontal swipe carousel */}
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
         className="flex flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden no-scrollbar overscroll-x-contain"
       >
+        {/* All-overview page */}
+        <div className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto">
+          <MobileDaysList days={days} />
+        </div>
+
+        {/* Per-day pages */}
         {days.map((day) => {
           const sorted = sortSegments(day.segments);
           return (
@@ -196,11 +226,11 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
       {/* Pager dots */}
       <div className="shrink-0 border-t bg-background py-2">
         <div className="flex items-center justify-center gap-1.5">
-          {days.map((d, i) => (
+          {Array.from({ length: totalPages }, (_, i) => (
             <button
-              key={d.date}
-              onClick={() => goToDay(i)}
-              aria-label={`Go to day ${i + 1}`}
+              key={i}
+              onClick={() => goToPage(i)}
+              aria-label={i === 0 ? "Overview" : `Go to day ${i}`}
               className={cn(
                 "h-1.5 rounded-full transition-all",
                 i === activeIdx

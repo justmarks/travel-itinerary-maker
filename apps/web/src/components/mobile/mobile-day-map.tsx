@@ -73,14 +73,15 @@ function rawPinsForTrip(trip: Trip): RawPin[] {
  * Renders a slim map widget keyed by `activeDate` — the parent decides which
  * day is visible, and the inner map fits its bounds to that day's resolved
  * pins. All pins for the trip are geocoded once on mount and cached, so
- * swiping between days is cheap.
+ * swiping between days is cheap. When `activeDate` is undefined, the map
+ * shows the entire trip (used by the carousel's "All" page).
  */
 function DayMapInner({
   rawPins,
   activeDate,
 }: {
   rawPins: RawPin[];
-  activeDate: string;
+  activeDate: string | undefined;
 }) {
   const map = useMap();
   const geocodingLib = useMapsLibrary("geocoding");
@@ -107,23 +108,34 @@ function DayMapInner({
     });
   }, [geocodingLib, rawPins, done]);
 
-  const dayPins = useMemo(
-    () => resolved.filter((p) => p.date === activeDate),
+  const visiblePins = useMemo(
+    () => (activeDate ? resolved.filter((p) => p.date === activeDate) : resolved),
     [resolved, activeDate],
   );
 
-  // Fit the map to the active day's pins as the parent swipes between days.
+  // Number pins per-day so the visual order matches the segment list. When
+  // viewing the whole trip, pins are numbered by their day's order.
+  const numbered = useMemo(() => {
+    const counters: Record<string, number> = {};
+    return visiblePins.map((p) => {
+      const n = (counters[p.date] ?? 0) + 1;
+      counters[p.date] = n;
+      return { ...p, label: activeDate ? `${n}` : "" };
+    });
+  }, [visiblePins, activeDate]);
+
+  // Fit the map to the visible pins as the parent swipes between days.
   useEffect(() => {
-    if (!map || dayPins.length === 0) return;
-    if (dayPins.length === 1) {
-      map.panTo(dayPins[0].position);
+    if (!map || visiblePins.length === 0) return;
+    if (visiblePins.length === 1) {
+      map.panTo(visiblePins[0].position);
       map.setZoom(14);
       return;
     }
     const bounds = new google.maps.LatLngBounds();
-    dayPins.forEach((p) => bounds.extend(p.position));
+    visiblePins.forEach((p) => bounds.extend(p.position));
     map.fitBounds(bounds, 60);
-  }, [map, dayPins]);
+  }, [map, visiblePins]);
 
   return (
     <Map
@@ -134,13 +146,13 @@ function DayMapInner({
       gestureHandling="greedy"
       disableDefaultUI={true}
     >
-      {dayPins.map((pin, i) => (
+      {numbered.map((pin) => (
         <AdvancedMarker key={pin.id} position={pin.position}>
           <Pin
             background={PIN_COLOR[pin.category]}
             glyphColor="#fff"
             borderColor={PIN_COLOR[pin.category]}
-            glyph={`${i + 1}`}
+            glyph={pin.label || undefined}
             scale={0.9}
           />
         </AdvancedMarker>
@@ -155,19 +167,21 @@ export function MobileDayMap({
   height = 200,
 }: {
   trip: Trip;
-  activeDate: string;
+  /** Date to focus on. Omit to show the entire trip. */
+  activeDate?: string;
   height?: number;
 }): React.JSX.Element {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const rawPins = useMemo(() => rawPinsForTrip(trip), [trip]);
-  const dayCount = useMemo(
-    () => rawPins.filter((p) => p.date === activeDate).length,
+  const visibleCount = useMemo(
+    () =>
+      activeDate
+        ? rawPins.filter((p) => p.date === activeDate).length
+        : rawPins.length,
     [rawPins, activeDate],
   );
 
   if (!apiKey) {
-    // Graceful fallback: a stylised placeholder so the UX still reads
-    // correctly when the demo deployment doesn't have the maps key.
     return (
       <div
         style={{ height }}
@@ -175,7 +189,10 @@ export function MobileDayMap({
       >
         <MapPin className="h-5 w-5" />
         <p className="text-xs font-medium">Map preview</p>
-        <p className="text-[10px]">{dayCount} location{dayCount === 1 ? "" : "s"}</p>
+        <p className="text-[10px]">
+          {visibleCount} location{visibleCount === 1 ? "" : "s"}
+          {activeDate ? "" : " · whole trip"}
+        </p>
       </div>
     );
   }
