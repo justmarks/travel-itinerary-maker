@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
@@ -157,6 +157,11 @@ function ActionButton({
   );
 }
 
+/** Drag-to-close threshold in px. Past this, releasing closes the sheet. */
+const DISMISS_THRESHOLD_PX = 100;
+/** Drag-to-expand threshold in px. Past this, releasing snaps to full height. */
+const EXPAND_THRESHOLD_PX = 60;
+
 export function MobileSegmentDetailSheet({
   segment,
   date,
@@ -169,6 +174,11 @@ export function MobileSegmentDetailSheet({
 }): React.JSX.Element | null {
   const open = !!segment;
 
+  const [expanded, setExpanded] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const dragStartY = useRef<number | null>(null);
+  const isDragging = dragStartY.current !== null;
+
   // Close on Escape so desktop testing isn't a trap.
   useEffect(() => {
     if (!open) return;
@@ -178,6 +188,15 @@ export function MobileSegmentDetailSheet({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
+
+  // Reset drag + expanded state every time a new segment opens so each open
+  // starts from the default snap point.
+  useEffect(() => {
+    if (!open) return;
+    setExpanded(false);
+    setDragY(0);
+    dragStartY.current = null;
+  }, [open, segment?.id]);
 
   // Lock background scroll while the sheet is up so the carousel doesn't
   // drift behind the backdrop.
@@ -189,6 +208,57 @@ export function MobileSegmentDetailSheet({
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartY.current = e.clientY;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    const dy = e.clientY - dragStartY.current;
+    // Allow free downward drag. When already expanded, also allow upward
+    // pull but it's a no-op until threshold (handled on release). When NOT
+    // expanded, an upward pull translates the sheet up but only up to the
+    // expand threshold so the sheet visibly leans into the gesture.
+    if (!expanded && dy < 0) {
+      setDragY(Math.max(dy, -EXPAND_THRESHOLD_PX * 1.5));
+    } else if (expanded && dy < 0) {
+      setDragY(0);
+    } else {
+      setDragY(dy);
+    }
+  };
+
+  const handlePointerUp = () => {
+    if (dragStartY.current === null) return;
+    const offset = dragY;
+    dragStartY.current = null;
+
+    // Pulled down past the dismiss threshold.
+    if (offset > DISMISS_THRESHOLD_PX) {
+      if (expanded) {
+        // From expanded → snap back to default height.
+        setExpanded(false);
+        setDragY(0);
+      } else {
+        // From default → close.
+        setDragY(0);
+        onClose();
+      }
+      return;
+    }
+
+    // Pulled up past the expand threshold (only relevant from default).
+    if (!expanded && offset < -EXPAND_THRESHOLD_PX) {
+      setExpanded(true);
+      setDragY(0);
+      return;
+    }
+
+    // Otherwise: snap back to current state.
+    setDragY(0);
+  };
 
   if (!segment) return null;
 
@@ -291,13 +361,28 @@ export function MobileSegmentDetailSheet({
           `overflow-hidden` on MobileFrame's inner div. */}
       <div
         className={cn(
-          "fixed bottom-0 left-1/2 flex w-full max-w-[430px] -translate-x-1/2 flex-col",
-          "max-h-[85dvh] rounded-t-3xl bg-background shadow-2xl",
+          "fixed bottom-0 left-1/2 flex w-full max-w-[430px] flex-col",
+          "rounded-t-3xl bg-background shadow-2xl",
+          expanded ? "max-h-[95dvh]" : "max-h-[85dvh]",
+          // Skip the snap transition while the user is actively dragging so
+          // the sheet tracks the finger 1:1, then animate when they release.
+          !isDragging && "transition-[max-height,transform] duration-200 ease-out",
         )}
+        style={{
+          // Combine the centring -50% with the in-flight drag offset.
+          transform: `translate(-50%, ${dragY}px)`,
+        }}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-2.5">
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+        {/* Drag handle — bigger touch target than the visible pill so the
+            gesture catches reliably on a phone. */}
+        <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
+        >
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/40" />
         </div>
 
         {/* Header */}
