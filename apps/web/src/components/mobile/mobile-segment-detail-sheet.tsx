@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
@@ -23,6 +23,7 @@ import {
   Anchor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 const RESTAURANT_TYPES = new Set([
   "restaurant_breakfast",
@@ -73,7 +74,6 @@ function formatCost(cost?: { amount: number; currency: string; details?: string 
   return `${sym}${cost.amount.toLocaleString()}`;
 }
 
-/** Builds a query for native maps deep links (geo: / maps://). */
 function mapsQuery(segment: Segment): string | null {
   if (segment.address) return segment.address;
   if (segment.venueName && segment.city) return `${segment.venueName}, ${segment.city}`;
@@ -157,11 +157,6 @@ function ActionButton({
   );
 }
 
-/** Drag-to-close threshold in px. Past this, releasing closes the sheet. */
-const DISMISS_THRESHOLD_PX = 100;
-/** Drag-to-expand threshold in px. Past this, releasing snaps to full height. */
-const EXPAND_THRESHOLD_PX = 60;
-
 export function MobileSegmentDetailSheet({
   segment,
   date,
@@ -172,123 +167,12 @@ export function MobileSegmentDetailSheet({
   date?: string;
   onClose: () => void;
 }): React.JSX.Element | null {
-  const open = !!segment;
-
-  const [expanded, setExpanded] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const dragStartY = useRef<number | null>(null);
-  // Sheet height (px) at drag start. Used so upward drag grows the sheet
-  // from its current natural height instead of jumping to a baseline.
-  const [dragStartHeight, setDragStartHeight] = useState<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement | null>(null);
-  const isDragging = dragStartY.current !== null;
-
-  // Close on Escape so desktop testing isn't a trap.
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
-
-  // Reset drag + expanded state every time a new segment opens so each open
-  // starts from the default snap point.
-  useEffect(() => {
-    if (!open) return;
-    setExpanded(false);
-    setDragY(0);
-    setDragStartHeight(null);
-    dragStartY.current = null;
-  }, [open, segment?.id]);
-
-  // Lock background scroll while the sheet is up so the carousel doesn't
-  // drift behind the backdrop.
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    dragStartY.current = e.clientY;
-    // Snapshot the sheet's current height so upward drag grows from where
-    // we started, not from an arbitrary baseline. Without this, a sheet
-    // that's currently taller (or shorter) than the default snap would
-    // jump to the baseline before starting to grow.
-    setDragStartHeight(sheetRef.current?.offsetHeight ?? null);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartY.current === null) return;
-    const dy = e.clientY - dragStartY.current;
-    setDragY(dy);
-  };
-
-  const handlePointerUp = () => {
-    if (dragStartY.current === null) return;
-    const offset = dragY;
-    dragStartY.current = null;
-    setDragStartHeight(null);
-
-    // Pulled down past the dismiss threshold.
-    if (offset > DISMISS_THRESHOLD_PX) {
-      if (expanded) {
-        setExpanded(false);
-        setDragY(0);
-      } else {
-        setDragY(0);
-        onClose();
-      }
-      return;
-    }
-
-    // Pulled up past the expand threshold (only relevant from default).
-    if (!expanded && offset < -EXPAND_THRESHOLD_PX) {
-      setExpanded(true);
-      setDragY(0);
-      return;
-    }
-
-    // Otherwise: snap back to current state.
-    setDragY(0);
-  };
-
-  if (!segment) return null;
-
-  // Drag splits into two effects:
-  // - Downward drag (dy > 0): translate the sheet down toward dismiss.
-  // - Upward drag (dy < 0): grow the sheet's height from its starting
-  //   height (snapshotted on pointer-down) so it tracks the finger 1:1
-  //   without jumping to a baseline.
-  const downTranslatePx = Math.max(0, dragY);
-  const upGrowthPx = Math.max(0, -dragY);
-
-  let sheetStyle: React.CSSProperties;
-  if (isDragging && upGrowthPx > 0 && dragStartHeight !== null) {
-    // Mid-drag, pulling up: explicit height = snapshotted height + drag,
-    // capped at 95dvh.
-    sheetStyle = {
-      height: `min(95dvh, ${dragStartHeight + upGrowthPx}px)`,
-      transform: "translate(-50%, 0px)",
-    };
-  } else if (expanded) {
-    // Expanded snap point: sheet always fills 95dvh, content scrolls.
-    sheetStyle = {
-      height: "95dvh",
-      transform: `translate(-50%, ${downTranslatePx}px)`,
-    };
-  } else {
-    // Default snap point: content-driven height, capped at 85dvh.
-    sheetStyle = {
-      maxHeight: "85dvh",
-      transform: `translate(-50%, ${downTranslatePx}px)`,
-    };
+  if (!segment) {
+    return (
+      <MobileBottomSheet open={false} onClose={onClose} ariaLabel="Segment details">
+        <div />
+      </MobileBottomSheet>
+    );
   }
 
   const isHotel = segment.type === "hotel";
@@ -314,8 +198,6 @@ export function MobileSegmentDetailSheet({
 
   const mapsQ = mapsQuery(segment);
 
-  // Time-row label varies by type. For most segments "When" is fine; for
-  // multi-stage bookings (hotel, car rental, cruise) we render two rows.
   const timeLine = (() => {
     if (!startTime && !endTime) return null;
     if (isHotel) {
@@ -368,304 +250,265 @@ export function MobileSegmentDetailSheet({
   })();
 
   return (
-    <div
-      className="fixed inset-0 z-50"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
+    <MobileBottomSheet
+      open
+      onClose={onClose}
+      ariaLabel={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
     >
-      {/* Backdrop — covers the full viewport even when the MobileFrame is
-          centred on a wide screen. */}
-      <button
-        type="button"
-        aria-label="Close details"
-        onClick={onClose}
-        className="absolute inset-0 bg-black/40"
-      />
-
-      {/* Sheet — `fixed` positioned to the viewport bottom and centred so it
-          tracks the MobileFrame on desktop. `dvh` keeps iOS Safari's URL-bar
-          collapse from changing the height mid-interaction. The previous
-          `absolute` + flex layout was getting clipped by the
-          `overflow-hidden` on MobileFrame's inner div. */}
-      <div
-        ref={sheetRef}
-        className={cn(
-          "fixed bottom-0 left-1/2 flex w-full max-w-[430px] flex-col",
-          "rounded-t-3xl bg-background shadow-2xl",
-          // Skip the snap transition while the user is actively dragging so
-          // the sheet tracks the finger 1:1, then animate when they release.
-          !isDragging && "transition-[height,max-height,transform] duration-200 ease-out",
-        )}
-        style={sheetStyle}
-      >
-        {/* Drag handle — bigger touch target than the visible pill so the
-            gesture catches reliably on a phone. */}
-        <div
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
-        >
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/40" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-start gap-3 px-5 pb-3 pt-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {TYPE_LABEL[segment.type] ?? "Segment"}
+      {/* Header */}
+      <div className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {TYPE_LABEL[segment.type] ?? "Segment"}
+          </p>
+          <h2 className="mt-0.5 text-lg font-semibold leading-snug">
+            {titleText}
+          </h2>
+          {date && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {fmtDateLong(date)}
             </p>
-            <h2 className="mt-0.5 text-lg font-semibold leading-snug">
-              {titleText}
-            </h2>
-            {date && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {fmtDateLong(date)}
-              </p>
-            )}
-            {segment.needsReview ? (
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
-                <AlertCircle className="h-3 w-3" />
-                Needs review
-              </span>
-            ) : segment.source === "email_confirmed" ? (
-              <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-                <CheckCircle2 className="h-3 w-3" />
-                Confirmed
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          )}
+          {segment.needsReview ? (
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+              <AlertCircle className="h-3 w-3" />
+              Needs review
+            </span>
+          ) : segment.source === "email_confirmed" ? (
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+              <CheckCircle2 className="h-3 w-3" />
+              Confirmed
+            </span>
+          ) : null}
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
 
-        {/* Detail rows */}
-        <div className="flex-1 overflow-y-auto px-5 pb-6">
-          {timeLine && <Row label="When">{timeLine}</Row>}
+      {/* Detail rows */}
+      <div className="flex-1 overflow-y-auto px-5 pb-6">
+        {timeLine && <Row label="When">{timeLine}</Row>}
 
-          {(depLabel || arrLabel) && (
-            <Row label={isFlight ? "Route" : "From / To"}>
-              <div className="space-y-0.5">
-                {depLabel && (
-                  <p>
-                    <span className="font-medium">{depLabel}</span>
-                  </p>
-                )}
-                {arrLabel && (
-                  <p>
-                    <span className="font-medium">→ {arrLabel}</span>
-                  </p>
-                )}
-                {!isFlight && (segment.carrier || segment.routeCode) && (
-                  <p className="text-xs text-muted-foreground">
-                    {[segment.carrier, segment.routeCode].filter(Boolean).join(" · ")}
-                  </p>
-                )}
-              </div>
-            </Row>
-          )}
-
-          {(segment.venueName || segment.address) && (
-            <Row label="Where">
-              {segment.venueName && (
-                <p className="font-medium">{segment.venueName}</p>
-              )}
-              {segment.address && (
-                <p className="text-muted-foreground">{segment.address}</p>
-              )}
-            </Row>
-          )}
-
-          {isFlight && (segment.cabinClass || segment.seatNumber || segment.baggageInfo) && (
-            <Row label="Cabin & seat">
-              <div className="space-y-1">
-                {(segment.cabinClass || segment.seatNumber) && (
-                  <p className="inline-flex items-center gap-1.5">
-                    <Armchair className="h-3.5 w-3.5 text-muted-foreground" />
-                    {segment.cabinClass}
-                    {segment.cabinClass && segment.seatNumber && " · "}
-                    {segment.seatNumber && `Seats ${segment.seatNumber}`}
-                  </p>
-                )}
-                {segment.baggageInfo && (
-                  <p className="text-xs text-muted-foreground">
-                    {segment.baggageInfo}
-                  </p>
-                )}
-              </div>
-            </Row>
-          )}
-
-          {isTrain && (segment.coach || segment.seatNumber) && (
-            <Row label="Coach & seat">
-              <p className="inline-flex items-center gap-1.5">
-                <Armchair className="h-3.5 w-3.5 text-muted-foreground" />
-                {segment.coach}
-                {segment.coach && segment.seatNumber && " · "}
-                {segment.seatNumber && `Seat ${segment.seatNumber}`}
-              </p>
-            </Row>
-          )}
-
-          {isHotel && segment.breakfastIncluded !== undefined && (
-            <Row label="Breakfast">
-              <p
-                className={cn(
-                  "inline-flex items-center gap-1.5",
-                  segment.breakfastIncluded
-                    ? "text-green-700"
-                    : "text-muted-foreground",
-                )}
-              >
-                <Coffee className="h-3.5 w-3.5" />
-                {segment.breakfastIncluded ? "Included" : "Not included"}
-              </p>
-            </Row>
-          )}
-
-          {isRestaurant && (segment.partySize || segment.creditCardHold) && (
-            <Row label="Reservation">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                {segment.partySize && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                    Party of {segment.partySize}
-                  </span>
-                )}
-                {segment.creditCardHold && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                    Credit-card hold
-                  </span>
-                )}
-              </div>
-              {segment.cancellationDeadline && (
-                <p className="mt-1 text-xs text-amber-700">
-                  Cancel by {fmtDateLong(segment.cancellationDeadline)}
+        {(depLabel || arrLabel) && (
+          <Row label={isFlight ? "Route" : "From / To"}>
+            <div className="space-y-0.5">
+              {depLabel && (
+                <p>
+                  <span className="font-medium">{depLabel}</span>
                 </p>
               )}
-            </Row>
-          )}
+              {arrLabel && (
+                <p>
+                  <span className="font-medium">→ {arrLabel}</span>
+                </p>
+              )}
+              {!isFlight && (segment.carrier || segment.routeCode) && (
+                <p className="text-xs text-muted-foreground">
+                  {[segment.carrier, segment.routeCode].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </div>
+          </Row>
+        )}
 
-          {isCarService && segment.contactName && (
-            <Row label="Driver">
-              <p className="inline-flex items-center gap-1.5">
-                <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
-                {segment.contactName}
+        {(segment.venueName || segment.address) && (
+          <Row label="Where">
+            {segment.venueName && (
+              <p className="font-medium">{segment.venueName}</p>
+            )}
+            {segment.address && (
+              <p className="text-muted-foreground">{segment.address}</p>
+            )}
+          </Row>
+        )}
+
+        {isFlight && (segment.cabinClass || segment.seatNumber || segment.baggageInfo) && (
+          <Row label="Cabin & seat">
+            <div className="space-y-1">
+              {(segment.cabinClass || segment.seatNumber) && (
+                <p className="inline-flex items-center gap-1.5">
+                  <Armchair className="h-3.5 w-3.5 text-muted-foreground" />
+                  {segment.cabinClass}
+                  {segment.cabinClass && segment.seatNumber && " · "}
+                  {segment.seatNumber && `Seats ${segment.seatNumber}`}
+                </p>
+              )}
+              {segment.baggageInfo && (
+                <p className="text-xs text-muted-foreground">
+                  {segment.baggageInfo}
+                </p>
+              )}
+            </div>
+          </Row>
+        )}
+
+        {isTrain && (segment.coach || segment.seatNumber) && (
+          <Row label="Coach & seat">
+            <p className="inline-flex items-center gap-1.5">
+              <Armchair className="h-3.5 w-3.5 text-muted-foreground" />
+              {segment.coach}
+              {segment.coach && segment.seatNumber && " · "}
+              {segment.seatNumber && `Seat ${segment.seatNumber}`}
+            </p>
+          </Row>
+        )}
+
+        {isHotel && segment.breakfastIncluded !== undefined && (
+          <Row label="Breakfast">
+            <p
+              className={cn(
+                "inline-flex items-center gap-1.5",
+                segment.breakfastIncluded
+                  ? "text-green-700"
+                  : "text-muted-foreground",
+              )}
+            >
+              <Coffee className="h-3.5 w-3.5" />
+              {segment.breakfastIncluded ? "Included" : "Not included"}
+            </p>
+          </Row>
+        )}
+
+        {isRestaurant && (segment.partySize || segment.creditCardHold) && (
+          <Row label="Reservation">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {segment.partySize && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  Party of {segment.partySize}
+                </span>
+              )}
+              {segment.creditCardHold && (
+                <span className="inline-flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                  Credit-card hold
+                </span>
+              )}
+            </div>
+            {segment.cancellationDeadline && (
+              <p className="mt-1 text-xs text-amber-700">
+                Cancel by {fmtDateLong(segment.cancellationDeadline)}
               </p>
-            </Row>
-          )}
+            )}
+          </Row>
+        )}
 
-          {(segment.confirmationCode || segment.provider) && (
-            <Row label="Booking">
-              <div className="space-y-1">
-                {segment.provider && (
-                  <p className="text-muted-foreground">{segment.provider}</p>
-                )}
-                {segment.confirmationCode && (
-                  <p className="flex items-center">
-                    <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
-                      #{segment.confirmationCode}
-                    </span>
-                    <CopyButton
-                      text={segment.confirmationCode}
-                      label="confirmation code"
-                    />
-                  </p>
-                )}
-              </div>
-            </Row>
-          )}
+        {isCarService && segment.contactName && (
+          <Row label="Driver">
+            <p className="inline-flex items-center gap-1.5">
+              <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+              {segment.contactName}
+            </p>
+          </Row>
+        )}
 
-          {cost && (
-            <Row label="Cost">
-              <p className="text-base font-semibold">
-                {cost}
-                {segment.cost?.details && (
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    · {segment.cost.details}
+        {(segment.confirmationCode || segment.provider) && (
+          <Row label="Booking">
+            <div className="space-y-1">
+              {segment.provider && (
+                <p className="text-muted-foreground">{segment.provider}</p>
+              )}
+              {segment.confirmationCode && (
+                <p className="flex items-center">
+                  <span className="rounded bg-muted px-2 py-0.5 font-mono text-xs">
+                    #{segment.confirmationCode}
                   </span>
-                )}
-              </p>
-            </Row>
-          )}
+                  <CopyButton
+                    text={segment.confirmationCode}
+                    label="confirmation code"
+                  />
+                </p>
+              )}
+            </div>
+          </Row>
+        )}
 
-          {isCruise && segment.portsOfCall && segment.portsOfCall.length > 0 && (
-            <Row label="Ports of call">
-              <ul className="space-y-1.5">
-                {segment.portsOfCall.map((p) => (
-                  <li
-                    key={p.date}
-                    className="flex items-start gap-2 text-sm"
-                  >
-                    {p.atSea ? (
-                      <Ship className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <Anchor className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="text-muted-foreground">
-                        {fmtDateLong(p.date)}
-                      </span>
-                      {p.atSea ? (
-                        <span className="ml-1.5 italic text-muted-foreground">
-                          At sea
-                        </span>
-                      ) : (
-                        p.port && <span className="ml-1.5 font-medium">{p.port}</span>
-                      )}
-                      {(p.arrivalTime || p.departureTime) && !p.atSea && (
-                        <span className="ml-1.5 text-xs text-muted-foreground">
-                          {p.arrivalTime && `Arr ${fmt12h(p.arrivalTime)}`}
-                          {p.arrivalTime && p.departureTime && " · "}
-                          {p.departureTime && `Dep ${fmt12h(p.departureTime)}`}
-                        </span>
-                      )}
+        {cost && (
+          <Row label="Cost">
+            <p className="text-base font-semibold">
+              {cost}
+              {segment.cost?.details && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  · {segment.cost.details}
+                </span>
+              )}
+            </p>
+          </Row>
+        )}
+
+        {isCruise && segment.portsOfCall && segment.portsOfCall.length > 0 && (
+          <Row label="Ports of call">
+            <ul className="space-y-1.5">
+              {segment.portsOfCall.map((p) => (
+                <li
+                  key={p.date}
+                  className="flex items-start gap-2 text-sm"
+                >
+                  {p.atSea ? (
+                    <Ship className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <Anchor className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="text-muted-foreground">
+                      {fmtDateLong(p.date)}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          )}
-        </div>
-
-        {/* Actions */}
-        {(mapsQ || segment.url || ((isRestaurant || isCarService) && segment.phone)) && (
-          <div className="flex shrink-0 gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-            {mapsQ && (
-              <ActionButton
-                href={mapsUrl(mapsQ)}
-                icon={MapPin}
-                label="Maps"
-                external
-              />
-            )}
-            {(isRestaurant || isCarService) && segment.phone && (
-              <ActionButton
-                href={`tel:${segment.phone}`}
-                icon={Phone}
-                label="Call"
-              />
-            )}
-            {segment.url && (
-              <ActionButton
-                href={segment.url}
-                icon={ExternalLink}
-                label="Open"
-                external
-              />
-            )}
-          </div>
+                    {p.atSea ? (
+                      <span className="ml-1.5 italic text-muted-foreground">
+                        At sea
+                      </span>
+                    ) : (
+                      p.port && <span className="ml-1.5 font-medium">{p.port}</span>
+                    )}
+                    {(p.arrivalTime || p.departureTime) && !p.atSea && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">
+                        {p.arrivalTime && `Arr ${fmt12h(p.arrivalTime)}`}
+                        {p.arrivalTime && p.departureTime && " · "}
+                        {p.departureTime && `Dep ${fmt12h(p.departureTime)}`}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Row>
         )}
       </div>
-    </div>
+
+      {/* Actions */}
+      {(mapsQ || segment.url || ((isRestaurant || isCarService) && segment.phone)) && (
+        <div className="flex shrink-0 gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+          {mapsQ && (
+            <ActionButton
+              href={mapsUrl(mapsQ)}
+              icon={MapPin}
+              label="Maps"
+              external
+            />
+          )}
+          {(isRestaurant || isCarService) && segment.phone && (
+            <ActionButton
+              href={`tel:${segment.phone}`}
+              icon={Phone}
+              label="Call"
+            />
+          )}
+          {segment.url && (
+            <ActionButton
+              href={segment.url}
+              icon={ExternalLink}
+              label="Open"
+              external
+            />
+          )}
+        </div>
+      )}
+    </MobileBottomSheet>
   );
 }

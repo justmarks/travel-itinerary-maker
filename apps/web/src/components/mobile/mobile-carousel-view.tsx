@@ -8,11 +8,20 @@ import {
   useState,
 } from "react";
 import type { Trip, Segment } from "@travel-app/shared";
-import { ChevronLeft, ChevronRight, MapPin, LayoutList } from "lucide-react";
+import {
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  DollarSign,
+  LayoutList,
+  MapPin,
+} from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
+import { MobileCostsSheet } from "./mobile-costs-sheet";
+import { MobileTodosSheet } from "./mobile-todos-sheet";
 import { cn } from "@/lib/utils";
 
 function sortSegments(segments: readonly Segment[]): Segment[] {
@@ -46,9 +55,17 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const [costsOpen, setCostsOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
+
+  const todoSummary = useMemo(() => {
+    const total = trip.todos.length;
+    const remaining = trip.todos.filter((t) => !t.isCompleted).length;
+    return { total, remaining };
+  }, [trip.todos]);
 
   const isAllView = activeIdx === 0;
   const activeDay = isAllView ? null : days[activeIdx - 1] ?? null;
@@ -241,30 +258,68 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
         })}
       </div>
 
-      {/* Pager dots */}
-      <div className="shrink-0 border-t bg-background py-2">
-        <div className="flex items-center justify-center gap-1.5">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => goToPage(i)}
-              aria-label={i === 0 ? "Overview" : `Go to day ${i}`}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                i === activeIdx
-                  ? "w-4 bg-foreground"
-                  : "w-1.5 bg-muted-foreground/30",
-              )}
-            />
-          ))}
+      {/* Footer: Costs / Todos triggers flank the page-dot indicator. */}
+      <div className="shrink-0 border-t bg-background pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
+        <div className="flex items-center gap-2 px-3">
+          <button
+            type="button"
+            onClick={() => setCostsOpen(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-xs font-medium text-foreground active:bg-muted/40"
+            aria-label="Open costs"
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            Costs
+          </button>
+
+          <div className="flex flex-1 items-center justify-center gap-1.5">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => goToPage(i)}
+                aria-label={i === 0 ? "Overview" : `Go to day ${i}`}
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  i === activeIdx
+                    ? "w-4 bg-foreground"
+                    : "w-1.5 bg-muted-foreground/30",
+                )}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setTodosOpen(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full border bg-background px-3 text-xs font-medium text-foreground active:bg-muted/40"
+            aria-label={`Open to-dos${todoSummary.total ? ` (${todoSummary.remaining} remaining)` : ""}`}
+          >
+            <CheckSquare className="h-3.5 w-3.5" />
+            To-do
+            {todoSummary.remaining > 0 && (
+              <span className="ml-0.5 rounded-full bg-foreground px-1.5 py-px text-[10px] font-semibold text-background tabular-nums">
+                {todoSummary.remaining}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Detail sheet — overlays the whole MobileFrame */}
+      {/* Sheets — they overlay the whole MobileFrame */}
       <MobileSegmentDetailSheet
         segment={selectedSegment}
         date={segmentDate}
         onClose={() => setSelectedSegment(null)}
+      />
+      <MobileCostsSheet
+        tripId={trip.id}
+        open={costsOpen}
+        onClose={() => setCostsOpen(false)}
+      />
+      <MobileTodosSheet
+        tripId={trip.id}
+        todos={trip.todos}
+        open={todosOpen}
+        onClose={() => setTodosOpen(false)}
       />
     </div>
   );
