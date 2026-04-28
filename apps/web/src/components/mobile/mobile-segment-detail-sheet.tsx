@@ -270,12 +270,13 @@ export function MobileSegmentDetailSheet({
 
   return (
     <div
-      className="absolute inset-0 z-40"
+      className="fixed inset-0 z-50"
       role="dialog"
       aria-modal="true"
       aria-label={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
     >
-      {/* Backdrop */}
+      {/* Backdrop — covers the full viewport even when the MobileFrame is
+          centred on a wide screen. */}
       <button
         type="button"
         aria-label="Close details"
@@ -283,13 +284,15 @@ export function MobileSegmentDetailSheet({
         className="absolute inset-0 bg-black/40"
       />
 
-      {/* Sheet — anchored to the bottom of the positioned ancestor
-          (MobileFrame inner div). Uses dvh so iOS Safari's URL-bar
-          collapse doesn't change the sheet height mid-interaction. */}
+      {/* Sheet — `fixed` positioned to the viewport bottom and centred so it
+          tracks the MobileFrame on desktop. `dvh` keeps iOS Safari's URL-bar
+          collapse from changing the height mid-interaction. The previous
+          `absolute` + flex layout was getting clipped by the
+          `overflow-hidden` on MobileFrame's inner div. */}
       <div
         className={cn(
-          "absolute bottom-0 left-0 right-0 flex max-h-[85dvh] flex-col",
-          "rounded-t-3xl bg-background shadow-2xl",
+          "fixed bottom-0 left-1/2 flex w-full max-w-[430px] -translate-x-1/2 flex-col",
+          "max-h-[85dvh] rounded-t-3xl bg-background shadow-2xl",
         )}
       >
         {/* Drag handle */}
