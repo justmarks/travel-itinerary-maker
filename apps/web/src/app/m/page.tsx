@@ -6,17 +6,22 @@ import { useTrips } from "@travel-app/api-client";
 import type { TripSummary } from "@travel-app/api-client";
 import {
   AlertCircle,
+  Calendar,
   CalendarDays,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
-  MapPin,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { AppLogo } from "@/components/app-logo";
+import {
+  daysUntil,
+  flagEmoji,
+  gradientFor,
+  useCityImage,
+} from "@/lib/trip-card-visuals";
 
 type TripBucket = "current" | "upcoming" | "past";
 
@@ -54,6 +59,69 @@ const BUCKET_LABEL: Record<TripBucket, string> = {
   past: "Past",
 };
 
+/**
+ * Hero band rendered above every mobile TripRow. Mirrors the desktop
+ * TripCard hero: city photo from Wikipedia, deterministic gradient
+ * fallback, country flag + city name overlaid bottom-left, and an
+ * upcoming-trip countdown top-right. For cruise-dominant trips the
+ * "city" is the ship name and there's no flag.
+ */
+function MobileTripHero({ trip }: { trip: TripSummary }) {
+  const image = useCityImage(trip.primaryCity, trip.primaryCountry);
+  const flag = flagEmoji(trip.primaryCountryCode);
+  const seed = trip.primaryCity ?? trip.title;
+  const gradient = gradientFor(seed);
+  const delta = daysUntil(trip.startDate);
+  const showCountdown = delta > 0 && delta <= 60 && trip.status !== "cancelled";
+  const countdownLabel =
+    delta === 1 ? "Tomorrow" : showCountdown ? `In ${delta} days` : null;
+
+  return (
+    <div
+      className="relative h-32 w-full overflow-hidden"
+      style={{
+        backgroundImage: `linear-gradient(135deg, ${gradient.from}, ${gradient.to})`,
+      }}
+    >
+      {image ? (
+        // Wikipedia thumbnails — see trip-card.tsx for why we use a plain
+        // <img> instead of next/image.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image.url}
+          alt={trip.primaryCity ?? trip.title}
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        !trip.primaryCity && (
+          <div className="absolute inset-0 flex items-center justify-center text-white/70">
+            <CalendarDays className="h-7 w-7" />
+          </div>
+        )
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      {countdownLabel && (
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+          {countdownLabel}
+        </span>
+      )}
+      {trip.primaryCity && (
+        <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
+          {flag && (
+            <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
+              {flag}
+            </span>
+          )}
+          <span className="truncate text-base font-semibold leading-tight drop-shadow-sm">
+            {trip.primaryCity}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TripRow({
   trip,
   hrefSuffix,
@@ -64,26 +132,23 @@ function TripRow({
   return (
     <Link
       href={`/m/trip?id=${trip.id}&v=carousel${hrefSuffix}`}
-      className="group flex items-center gap-3 rounded-2xl border bg-card p-4 transition-transform active:scale-[0.99] active:bg-muted/40"
+      className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-transform active:scale-[0.99] active:bg-muted/40"
     >
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-600 text-white">
-        <CalendarDays className="h-5 w-5" />
-      </div>
-      <div className="min-w-0 flex-1">
+      <MobileTripHero trip={trip} />
+      <div className="flex flex-col gap-1 p-3">
         <p className="truncate text-sm font-semibold">{trip.title}</p>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Calendar className="h-3 w-3" />
           {fmtRange(trip.startDate, trip.endDate)}
         </p>
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <span className="capitalize">{trip.status}</span>
           <span aria-hidden>·</span>
-          <span className="inline-flex items-center gap-0.5">
-            <MapPin className="h-3 w-3" />
+          <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
     </Link>
   );
 }

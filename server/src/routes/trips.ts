@@ -14,6 +14,7 @@ import {
   findOverlappingTrips,
   convertToUsd,
   applyCruisePortsToDayCities,
+  primaryLocationFor,
   CURRENT_TRIP_SCHEMA_VERSION,
   type Trip,
   type TripDay,
@@ -51,17 +52,23 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       const storage = getStorage(req);
       const trips = await storage.listTrips();
       // Return summary list (without full day/segment data)
-      const summaries = trips.map((t) => ({
-        id: t.id,
-        title: t.title,
-        startDate: t.startDate,
-        endDate: t.endDate,
-        status: t.status,
-        dayCount: t.days.length,
-        todoCount: t.todos.filter((td) => !td.isCompleted).length,
-        createdAt: t.createdAt,
-        updatedAt: t.updatedAt,
-      }));
+      const summaries = trips.map((t) => {
+        const primary = primaryLocationFor(t);
+        return {
+          id: t.id,
+          title: t.title,
+          startDate: t.startDate,
+          endDate: t.endDate,
+          status: t.status,
+          dayCount: t.days.length,
+          todoCount: t.todos.filter((td) => !td.isCompleted).length,
+          primaryCity: primary?.city,
+          primaryCountryCode: primary?.countryCode,
+          primaryCountry: primary?.country,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+        };
+      });
       res.json(summaries);
     } catch (err) {
       console.error("GET /trips error:", err);

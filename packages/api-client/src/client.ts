@@ -38,6 +38,17 @@ export interface TripSummary {
   status: string;
   dayCount: number;
   todoCount: number;
+  /**
+   * The city the user spends the most days in, derived server-side from
+   * `TripDay.city`. Undefined for trips with no usable city data (e.g. a
+   * freshly-created trip whose days are all blank, or a cruise where every
+   * day is "At Sea"). Used by the trip card to pick a hero image.
+   */
+  primaryCity?: string;
+  /** ISO 3166-1 alpha-2 code for `primaryCity`, when known. */
+  primaryCountryCode?: string;
+  /** Display country name for `primaryCity`, when known. */
+  primaryCountry?: string;
   createdAt: string;
   updatedAt: string;
 }

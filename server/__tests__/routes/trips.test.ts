@@ -146,6 +146,48 @@ describe("Trip CRUD", () => {
       // Summaries should not include full days array
       expect(res.body[0].days).toBeUndefined();
     });
+
+    it("includes the primary city (longest stay) and country code", async () => {
+      const createRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Adventure",
+          startDate: "2025-04-10",
+          endDate: "2025-04-14",
+        });
+
+      // Day 0: Tokyo, Day 1: Tokyo, Day 2: Kyoto, Day 3: Kyoto, Day 4: Kyoto
+      const trip = createRes.body;
+      const updated = {
+        ...trip,
+        days: trip.days.map((d: { date: string; dayOfWeek: string }, i: number) => ({
+          ...d,
+          city: i < 2 ? "Tokyo" : "Kyoto",
+          segments: [],
+        })),
+      };
+      // Direct storage update to set day cities (no days endpoint for this)
+      await storage.saveTrip(updated);
+
+      const res = await request(app).get("/api/v1/trips");
+      expect(res.status).toBe(200);
+      expect(res.body[0].primaryCity).toBe("Kyoto");
+      expect(res.body[0].primaryCountryCode).toBe("JP");
+      expect(res.body[0].primaryCountry).toBe("Japan");
+    });
+
+    it("omits primary location for trips with no usable city data", async () => {
+      await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Empty Trip",
+          startDate: "2025-06-01",
+          endDate: "2025-06-02",
+        });
+      const res = await request(app).get("/api/v1/trips");
+      expect(res.body[0].primaryCity).toBeUndefined();
+      expect(res.body[0].primaryCountryCode).toBeUndefined();
+    });
   });
 
   describe("GET /api/v1/trips/:tripId", () => {
