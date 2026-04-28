@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
@@ -157,6 +157,11 @@ function ActionButton({
   );
 }
 
+/** Drag-to-close threshold in px. Past this, releasing closes the sheet. */
+const DISMISS_THRESHOLD_PX = 100;
+/** Drag-to-expand threshold in px. Past this, releasing snaps to full height. */
+const EXPAND_THRESHOLD_PX = 60;
+
 export function MobileSegmentDetailSheet({
   segment,
   date,
@@ -169,6 +174,15 @@ export function MobileSegmentDetailSheet({
 }): React.JSX.Element | null {
   const open = !!segment;
 
+  const [expanded, setExpanded] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const dragStartY = useRef<number | null>(null);
+  // Sheet height (px) at drag start. Used so upward drag grows the sheet
+  // from its current natural height instead of jumping to a baseline.
+  const [dragStartHeight, setDragStartHeight] = useState<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
+  const isDragging = dragStartY.current !== null;
+
   // Close on Escape so desktop testing isn't a trap.
   useEffect(() => {
     if (!open) return;
@@ -178,6 +192,16 @@ export function MobileSegmentDetailSheet({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
+
+  // Reset drag + expanded state every time a new segment opens so each open
+  // starts from the default snap point.
+  useEffect(() => {
+    if (!open) return;
+    setExpanded(false);
+    setDragY(0);
+    setDragStartHeight(null);
+    dragStartY.current = null;
+  }, [open, segment?.id]);
 
   // Lock background scroll while the sheet is up so the carousel doesn't
   // drift behind the backdrop.
@@ -190,7 +214,82 @@ export function MobileSegmentDetailSheet({
     };
   }, [open]);
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStartY.current = e.clientY;
+    // Snapshot the sheet's current height so upward drag grows from where
+    // we started, not from an arbitrary baseline. Without this, a sheet
+    // that's currently taller (or shorter) than the default snap would
+    // jump to the baseline before starting to grow.
+    setDragStartHeight(sheetRef.current?.offsetHeight ?? null);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartY.current === null) return;
+    const dy = e.clientY - dragStartY.current;
+    setDragY(dy);
+  };
+
+  const handlePointerUp = () => {
+    if (dragStartY.current === null) return;
+    const offset = dragY;
+    dragStartY.current = null;
+    setDragStartHeight(null);
+
+    // Pulled down past the dismiss threshold.
+    if (offset > DISMISS_THRESHOLD_PX) {
+      if (expanded) {
+        setExpanded(false);
+        setDragY(0);
+      } else {
+        setDragY(0);
+        onClose();
+      }
+      return;
+    }
+
+    // Pulled up past the expand threshold (only relevant from default).
+    if (!expanded && offset < -EXPAND_THRESHOLD_PX) {
+      setExpanded(true);
+      setDragY(0);
+      return;
+    }
+
+    // Otherwise: snap back to current state.
+    setDragY(0);
+  };
+
   if (!segment) return null;
+
+  // Drag splits into two effects:
+  // - Downward drag (dy > 0): translate the sheet down toward dismiss.
+  // - Upward drag (dy < 0): grow the sheet's height from its starting
+  //   height (snapshotted on pointer-down) so it tracks the finger 1:1
+  //   without jumping to a baseline.
+  const downTranslatePx = Math.max(0, dragY);
+  const upGrowthPx = Math.max(0, -dragY);
+
+  let sheetStyle: React.CSSProperties;
+  if (isDragging && upGrowthPx > 0 && dragStartHeight !== null) {
+    // Mid-drag, pulling up: explicit height = snapshotted height + drag,
+    // capped at 95dvh.
+    sheetStyle = {
+      height: `min(95dvh, ${dragStartHeight + upGrowthPx}px)`,
+      transform: "translate(-50%, 0px)",
+    };
+  } else if (expanded) {
+    // Expanded snap point: sheet always fills 95dvh, content scrolls.
+    sheetStyle = {
+      height: "95dvh",
+      transform: `translate(-50%, ${downTranslatePx}px)`,
+    };
+  } else {
+    // Default snap point: content-driven height, capped at 85dvh.
+    sheetStyle = {
+      maxHeight: "85dvh",
+      transform: `translate(-50%, ${downTranslatePx}px)`,
+    };
+  }
 
   const isHotel = segment.type === "hotel";
   const isFlight = segment.type === "flight";
@@ -270,12 +369,13 @@ export function MobileSegmentDetailSheet({
 
   return (
     <div
-      className="absolute inset-0 z-40 flex flex-col"
+      className="fixed inset-0 z-50"
       role="dialog"
       aria-modal="true"
       aria-label={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
     >
-      {/* Backdrop */}
+      {/* Backdrop — covers the full viewport even when the MobileFrame is
+          centred on a wide screen. */}
       <button
         type="button"
         aria-label="Close details"
@@ -283,16 +383,32 @@ export function MobileSegmentDetailSheet({
         className="absolute inset-0 bg-black/40"
       />
 
-      {/* Sheet */}
+      {/* Sheet — `fixed` positioned to the viewport bottom and centred so it
+          tracks the MobileFrame on desktop. `dvh` keeps iOS Safari's URL-bar
+          collapse from changing the height mid-interaction. The previous
+          `absolute` + flex layout was getting clipped by the
+          `overflow-hidden` on MobileFrame's inner div. */}
       <div
+        ref={sheetRef}
         className={cn(
-          "relative mt-auto flex max-h-[88%] flex-col rounded-t-3xl bg-background shadow-2xl",
-          "animate-in slide-in-from-bottom duration-200",
+          "fixed bottom-0 left-1/2 flex w-full max-w-[430px] flex-col",
+          "rounded-t-3xl bg-background shadow-2xl",
+          // Skip the snap transition while the user is actively dragging so
+          // the sheet tracks the finger 1:1, then animate when they release.
+          !isDragging && "transition-[height,max-height,transform] duration-200 ease-out",
         )}
+        style={sheetStyle}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-2.5">
-          <div className="h-1 w-10 rounded-full bg-muted-foreground/30" />
+        {/* Drag handle — bigger touch target than the visible pill so the
+            gesture catches reliably on a phone. */}
+        <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          className="flex cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
+        >
+          <div className="h-1 w-10 rounded-full bg-muted-foreground/40" />
         </div>
 
         {/* Header */}
