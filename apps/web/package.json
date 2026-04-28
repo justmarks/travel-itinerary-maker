@@ -1,6 +1,6 @@
 {
   "name": "@travel-app/web",
-  "version": "0.37.0",
+  "version": "0.37.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
