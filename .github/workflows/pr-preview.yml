@@ -22,6 +22,13 @@ concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# Silence DEP0040 from transitive uri-js (ajv@6 via ESLint, octokit deps in
+# actions/github-script, etc.). require('punycode') resolves to Node's
+# deprecated built-in regardless of any node_modules entry, so the only way to
+# quiet it is at the Node process level.
+env:
+  NODE_OPTIONS: --disable-warning=DEP0040
+
 jobs:
   build-and-deploy-preview:
     # Skip drafts and PRs from forks (forks can't access secrets and the
