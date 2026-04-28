@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import type { TripSummary } from "@travel-app/api-client";
 import type { TripStatus } from "@travel-app/shared";
@@ -102,13 +101,17 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
       }
     >
       {image && (
-        <Image
+        // Wikipedia thumbnails come from upload.wikimedia.org and don't
+        // benefit from Next/Image optimisation (this app is static-exported
+        // with images.unoptimized=true). Plain <img> keeps the layout
+        // predictable and avoids the cases where next/image's remote-URL
+        // handling silently drops the element.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={image.url}
           alt={trip.primaryCity ?? trip.title}
-          fill
-          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-          className="object-cover"
-          unoptimized
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />

@@ -46,7 +46,9 @@ async function fetchSummary(query: string): Promise<WikipediaSummary | undefined
 
 function pickImageFromSummary(summary: WikipediaSummary | undefined): CityImage | undefined {
   if (!summary) return undefined;
-  const source = summary.originalimage?.source ?? summary.thumbnail?.source;
+  // Prefer the thumbnail (~320px) — the hero band is only ~128px tall, so the
+  // full-resolution `originalimage` (often >5MP) wastes bandwidth.
+  const source = summary.thumbnail?.source ?? summary.originalimage?.source;
   if (!source) return undefined;
   return { url: source, pageUrl: summary.content_urls?.desktop?.page };
 }
