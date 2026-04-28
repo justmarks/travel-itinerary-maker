@@ -2,6 +2,7 @@ import { ApiClient } from "@travel-app/api-client";
 import {
   convertToUsd,
   applyCruisePortsToDayCities,
+  primaryLocationFor,
   CURRENT_TRIP_SCHEMA_VERSION,
 } from "@travel-app/shared";
 import type {
@@ -1219,6 +1220,7 @@ export class MockApiClient extends ApiClient {
   }
 
   private tripToSummary(t: Trip): TripSummary {
+    const primary = primaryLocationFor(t);
     return {
       id: t.id,
       title: t.title,
@@ -1227,6 +1229,9 @@ export class MockApiClient extends ApiClient {
       status: t.status,
       dayCount: t.days.length,
       todoCount: t.todos.length,
+      primaryCity: primary?.city,
+      primaryCountryCode: primary?.countryCode,
+      primaryCountry: primary?.country,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };

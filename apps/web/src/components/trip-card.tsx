@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import type { TripSummary } from "@travel-app/api-client";
 import type { TripStatus } from "@travel-app/shared";
@@ -8,11 +9,15 @@ import { useDemoHref } from "@/lib/demo";
 import { useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
 import { cn } from "@/lib/utils";
 import {
+  daysUntil,
+  flagEmoji,
+  gradientFor,
+  useCityImage,
+} from "@/lib/trip-card-visuals";
+import {
   Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
   CardContent,
+  CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +30,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Calendar,
-  MapPin,
   MoreVertical,
   Trash2,
   Pencil,
@@ -68,6 +72,70 @@ function formatDateRange(start: string, end: string): string {
   return `${startStr} – ${endStr}`;
 }
 
+/**
+ * Hero band rendered at the top of every TripCard. Shows a Wikipedia
+ * thumbnail of the primary city when available, with a deterministic
+ * gradient fallback. The city + country flag are overlaid bottom-left, and
+ * an upcoming-trip countdown sits top-right.
+ */
+function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
+  const image = useCityImage(trip.primaryCity, trip.primaryCountry);
+  const flag = flagEmoji(trip.primaryCountryCode);
+  const seed = trip.primaryCity ?? trip.title;
+  const gradient = gradientFor(seed);
+  const delta = daysUntil(trip.startDate);
+  // Show countdown only for trips that haven't started yet — but skip
+  // cancelled trips, where "in 12 days" reads as misleading optimism.
+  const showCountdown = delta > 0 && trip.status !== "cancelled";
+  const countdownLabel =
+    delta === 1 ? "Tomorrow" : delta <= 60 ? `In ${delta} days` : null;
+
+  return (
+    <div
+      className="relative h-32 w-full overflow-hidden"
+      style={
+        image
+          ? undefined
+          : {
+              backgroundImage: `linear-gradient(135deg, ${gradient.from}, ${gradient.to})`,
+            }
+      }
+    >
+      {image && (
+        <Image
+          src={image.url}
+          alt={trip.primaryCity ?? trip.title}
+          fill
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+          className="object-cover"
+          unoptimized
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      {showCountdown && countdownLabel && (
+        <Badge
+          variant="secondary"
+          className="absolute right-2 top-2 z-10 bg-white/90 text-foreground shadow-sm backdrop-blur-sm"
+        >
+          {countdownLabel}
+        </Badge>
+      )}
+      {trip.primaryCity && (
+        <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
+          {flag && (
+            <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
+              {flag}
+            </span>
+          )}
+          <span className="truncate text-lg font-semibold leading-tight drop-shadow-sm">
+            {trip.primaryCity}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const deleteTrip = useDeleteTrip();
   const updateTrip = useUpdateTrip(trip.id);
@@ -99,11 +167,16 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   };
 
   return (
-    <Card className="group relative flex h-full flex-col transition-shadow hover:shadow-md">
+    <Card className="group relative flex h-full flex-col gap-4 overflow-hidden pt-0 transition-shadow hover:shadow-md">
       {!renaming && (
-        <Link href={tripHref} className="absolute inset-0 z-0" />
+        <Link
+          href={tripHref}
+          className="absolute inset-0 z-0"
+          aria-label={trip.title}
+        />
       )}
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
+      <TripCardHero trip={trip} />
+      <div className="flex flex-row items-start justify-between gap-2 px-6">
         <div className="min-w-0 flex-1 space-y-1">
           {renaming ? (
             <form
@@ -148,14 +221,12 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
               </Button>
             </form>
           ) : (
-            // Reserve space for up to 2 lines so dates always sit in the
-            // same vertical position across cards regardless of title length.
-            <CardTitle
-              className="line-clamp-2 min-h-[3.5rem] text-lg leading-tight"
+            <h3
+              className="line-clamp-2 text-base font-semibold leading-tight"
               title={trip.title}
             >
               {trip.title}
-            </CardTitle>
+            </h3>
           )}
         </div>
         <DropdownMenu>
@@ -188,8 +259,8 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </CardHeader>
-      <CardContent className="mt-auto space-y-3">
+      </div>
+      <CardContent className="mt-auto space-y-2">
         <CardDescription className="flex items-center gap-1">
           <Calendar className="h-3.5 w-3.5" />
           {formatDateRange(trip.startDate, trip.endDate)}
@@ -206,8 +277,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
               {trip.status}
             </button>
           </Badge>
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="h-3.5 w-3.5" />
+          <span className="text-sm text-muted-foreground">
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
           {trip.todoCount > 0 && (
