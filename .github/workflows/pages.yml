@@ -26,6 +26,10 @@ concurrency:
 # level.
 env:
   NODE_OPTIONS: --disable-warning=DEP0040
+  # peaceiris/actions-gh-pages@v4 still declares `using: node20` and has no
+  # Node 24 release yet. Opt the runner into Node 24 for any node20 actions
+  # so we're not riding the deprecation warning until a v5 lands.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build-and-deploy:
