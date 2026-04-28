@@ -217,17 +217,11 @@ export function MobileSegmentDetailSheet({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dragStartY.current === null) return;
     const dy = e.clientY - dragStartY.current;
-    // Allow free downward drag. When already expanded, also allow upward
-    // pull but it's a no-op until threshold (handled on release). When NOT
-    // expanded, an upward pull translates the sheet up but only up to the
-    // expand threshold so the sheet visibly leans into the gesture.
-    if (!expanded && dy < 0) {
-      setDragY(Math.max(dy, -EXPAND_THRESHOLD_PX * 1.5));
-    } else if (expanded && dy < 0) {
-      setDragY(0);
-    } else {
-      setDragY(dy);
-    }
+    // Always store the raw delta; the JSX splits this into a downward
+    // translate (positive dy) and an upward height-grow (negative dy) so
+    // the sheet visibly grows from the top when the user drags up rather
+    // than just translating up and leaving a gap below.
+    setDragY(dy);
   };
 
   const handlePointerUp = () => {
@@ -261,6 +255,19 @@ export function MobileSegmentDetailSheet({
   };
 
   if (!segment) return null;
+
+  // Split the in-flight drag into separate visual effects: dragging down
+  // translates the sheet (revealing the page behind it); dragging up grows
+  // the sheet's max-height so the *top* edge follows the finger while the
+  // bottom stays anchored. Capped at 95dvh so we never exceed the
+  // expanded snap point.
+  const downTranslatePx = Math.max(0, dragY);
+  const upGrowthPx = Math.max(0, -dragY);
+  const baseMaxDvh = expanded ? 95 : 85;
+  const sheetMaxHeight =
+    upGrowthPx > 0
+      ? `min(95dvh, calc(${baseMaxDvh}dvh + ${upGrowthPx}px))`
+      : `${baseMaxDvh}dvh`;
 
   const isHotel = segment.type === "hotel";
   const isFlight = segment.type === "flight";
@@ -363,14 +370,16 @@ export function MobileSegmentDetailSheet({
         className={cn(
           "fixed bottom-0 left-1/2 flex w-full max-w-[430px] flex-col",
           "rounded-t-3xl bg-background shadow-2xl",
-          expanded ? "max-h-[95dvh]" : "max-h-[85dvh]",
           // Skip the snap transition while the user is actively dragging so
           // the sheet tracks the finger 1:1, then animate when they release.
           !isDragging && "transition-[max-height,transform] duration-200 ease-out",
         )}
         style={{
-          // Combine the centring -50% with the in-flight drag offset.
-          transform: `translate(-50%, ${dragY}px)`,
+          // Centring -50% combined with the downward drag offset (upward
+          // drag is reflected in maxHeight instead, so the sheet grows
+          // from the top rather than translating off-screen).
+          transform: `translate(-50%, ${downTranslatePx}px)`,
+          maxHeight: sheetMaxHeight,
         }}
       >
         {/* Drag handle — bigger touch target than the visible pill so the
