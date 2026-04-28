@@ -16,8 +16,11 @@ const SITE_URL =
 
 // Mirrors the basePath set in next.config.ts. Needed for metadata fields
 // where Next does NOT auto-prepend basePath (notably icons.apple).
+// Reads NEXT_PUBLIC_BASE_PATH first so PR previews stay self-contained
+// under their own subdirectory of the gh-pages site.
 const BASE_PATH =
-  process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "";
+  process.env.NEXT_PUBLIC_BASE_PATH ??
+  (process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -9,7 +9,10 @@
       // only 404s we expect are old bookmarks for dynamic routes from
       // before the query-param refactor. Map those to the new URLs.
       (function () {
-        var basePath = "/travel-itinerary-maker";
+        // __BASE_PATH__ is replaced at postbuild time with the build's
+        // configured basePath (default /travel-itinerary-maker, override
+        // via NEXT_PUBLIC_BASE_PATH for PR previews).
+        var basePath = "__BASE_PATH__";
         var l = window.location;
         var path = l.pathname;
         if (path.indexOf(basePath) === 0) path = path.slice(basePath.length);
