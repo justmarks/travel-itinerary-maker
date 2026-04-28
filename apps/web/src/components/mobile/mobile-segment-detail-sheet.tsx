@@ -270,7 +270,7 @@ export function MobileSegmentDetailSheet({
 
   return (
     <div
-      className="absolute inset-0 z-40 flex flex-col"
+      className="absolute inset-0 z-40"
       role="dialog"
       aria-modal="true"
       aria-label={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
@@ -283,11 +283,13 @@ export function MobileSegmentDetailSheet({
         className="absolute inset-0 bg-black/40"
       />
 
-      {/* Sheet */}
+      {/* Sheet — anchored to the bottom of the positioned ancestor
+          (MobileFrame inner div). Uses dvh so iOS Safari's URL-bar
+          collapse doesn't change the sheet height mid-interaction. */}
       <div
         className={cn(
-          "relative mt-auto flex max-h-[88%] flex-col rounded-t-3xl bg-background shadow-2xl",
-          "animate-in slide-in-from-bottom duration-200",
+          "absolute bottom-0 left-0 right-0 flex max-h-[85dvh] flex-col",
+          "rounded-t-3xl bg-background shadow-2xl",
         )}
       >
         {/* Drag handle */}
