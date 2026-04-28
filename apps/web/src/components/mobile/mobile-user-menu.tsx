@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
+import { setDesktopOverride } from "@/lib/mobile-redirect";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,17 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogIn, LogOut, Monitor, User } from "lucide-react";
 
-const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
-
 export function MobileUserMenu(): React.JSX.Element {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
 
   const handleSwitchToDesktop = () => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(DESKTOP_OVERRIDE_KEY, "1");
-    }
+    setDesktopOverride();
     router.replace("/");
   };
 

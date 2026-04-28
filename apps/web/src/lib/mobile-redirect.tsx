@@ -3,8 +3,28 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
+export const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
 const MOBILE_BREAKPOINT_PX = 768;
+
+/** Persist "prefer the desktop site" so future visits to / skip the redirect. */
+export function setDesktopOverride(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(DESKTOP_OVERRIDE_KEY, "1");
+  } catch {
+    // Private mode / storage disabled — caller should still navigate.
+  }
+}
+
+/** Clear the desktop preference so mobile-sized viewports auto-redirect again. */
+export function clearDesktopOverride(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(DESKTOP_OVERRIDE_KEY);
+  } catch {
+    // Same as setDesktopOverride — silent fallback is fine.
+  }
+}
 
 /**
  * Redirects mobile-sized viewports from the desktop home (/) to /m once on
@@ -29,12 +49,7 @@ export function useMobileHomeRedirect(): void {
 
     // URL override — record the preference and stay on desktop.
     if (searchParams.get("desktop") === "1") {
-      try {
-        localStorage.setItem(DESKTOP_OVERRIDE_KEY, "1");
-      } catch {
-        // Private mode / storage disabled: respect the URL flag for this
-        // session only.
-      }
+      setDesktopOverride();
       return;
     }
 
