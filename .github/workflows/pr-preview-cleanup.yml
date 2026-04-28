@@ -16,6 +16,13 @@ concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
+# Silence DEP0040 from transitive uri-js in actions/github-script's octokit
+# deps. require('punycode') resolves to Node's deprecated built-in regardless
+# of any node_modules entry, so the only way to quiet it is at the Node process
+# level.
+env:
+  NODE_OPTIONS: --disable-warning=DEP0040
+
 jobs:
   cleanup:
     if: github.event.pull_request.head.repo.full_name == github.repository

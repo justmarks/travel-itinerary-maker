@@ -6,6 +6,12 @@ on:
   push:
     branches: [main]
 
+# Silence DEP0040 from transitive uri-js (ajv@6 via ESLint). require('punycode')
+# resolves to Node's deprecated built-in regardless of any node_modules entry,
+# so the only way to quiet it is at the Node process level.
+env:
+  NODE_OPTIONS: --disable-warning=DEP0040
+
 jobs:
   test:
     runs-on: ubuntu-latest
