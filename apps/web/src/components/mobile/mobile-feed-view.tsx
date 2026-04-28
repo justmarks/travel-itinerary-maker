@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { TripDay, Segment } from "@travel-app/shared";
 import { MapPin, ArrowDown, Plane, Train } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 
@@ -34,20 +33,24 @@ function findIntercityConnection(nextDay: TripDay): Segment | null {
 
 /**
  * Renders the trip as a single vertical scroll with sticky day headers and
- * inter-day transition chips. Used standalone (Alt 1) and as the "All" page
- * inside the carousel (Alt 2).
+ * inter-day transition chips. Used as the "All" page inside the carousel.
  *
- * `stickyHeaderTopClass` lets the caller tune where day headers stick — when
+ * `stickyHeaderTopClass` lets the caller tune where day headers stick. When
  * embedded under additional sticky chrome (the carousel's day strip + map),
  * a zero offset is correct because the parent already creates a fresh
  * scrolling context.
+ *
+ * `onSelectSegment` (optional) makes each card tappable; passing it lets the
+ * parent open a detail sheet.
  */
 export function MobileDaysList({
   days,
   stickyHeaderTopClass = "top-0",
+  onSelectSegment,
 }: {
   days: readonly TripDay[];
   stickyHeaderTopClass?: string;
+  onSelectSegment?: (segment: Segment) => void;
 }): React.JSX.Element {
   return (
     <div className="pb-10">
@@ -111,7 +114,11 @@ export function MobileDaysList({
                 </p>
               ) : (
                 sorted.map((seg) => (
-                  <MobileSegmentCard key={seg.id} segment={seg} />
+                  <MobileSegmentCard
+                    key={seg.id}
+                    segment={seg}
+                    onSelect={onSelectSegment}
+                  />
                 ))
               )}
             </div>
@@ -120,60 +127,4 @@ export function MobileDaysList({
       })}
     </div>
   );
-}
-
-export function MobileFeedView({ trip }: { trip: Trip }): React.JSX.Element {
-  const days = trip.days;
-
-  const tripStats = useMemo(() => {
-    const cities = new Set<string>();
-    let segmentCount = 0;
-    for (const day of days) {
-      if (day.city) cities.add(day.city);
-      segmentCount += day.segments.length;
-    }
-    return { cities: Array.from(cities), segmentCount };
-  }, [days]);
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="bg-gradient-to-br from-zinc-900 to-zinc-700 px-5 pb-6 pt-5 text-zinc-50">
-        <h1 className="text-2xl font-bold leading-tight">{trip.title}</h1>
-        <p className="mt-1 text-sm text-zinc-200">
-          {formatTripRange(trip.startDate, trip.endDate)}
-        </p>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-200">
-          <span>
-            <span className="font-semibold text-zinc-50">{days.length}</span>{" "}
-            {days.length === 1 ? "day" : "days"}
-          </span>
-          <span>
-            <span className="font-semibold text-zinc-50">
-              {tripStats.segmentCount}
-            </span>{" "}
-            {tripStats.segmentCount === 1 ? "segment" : "segments"}
-          </span>
-          {tripStats.cities.length > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {tripStats.cities.join(" · ")}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <MobileDaysList days={days} />
-    </div>
-  );
-}
-
-function formatTripRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  };
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  return `${fmt(start)} – ${fmt(end)}`;
 }

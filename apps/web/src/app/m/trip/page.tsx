@@ -7,12 +7,7 @@ import { useTrip } from "@travel-app/api-client";
 import { AlertCircle } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
-import {
-  MobileFrame,
-  MobileHeader,
-  ViewSwitcher,
-} from "@/components/mobile/mobile-shell";
-import { MobileFeedView } from "@/components/mobile/mobile-feed-view";
+import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
 import { MobileShareButton } from "@/components/mobile/mobile-share-button";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
@@ -39,11 +34,9 @@ function HeaderActions({
   );
 }
 
-function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "carousel" }) {
+function MobileTripInner({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/m");
-  const feedHref = useDemoHref(`/m/trip?id=${tripId}&v=feed`);
-  const carouselHref = useDemoHref(`/m/trip?id=${tripId}&v=carousel`);
 
   if (isLoading) {
     return (
@@ -58,7 +51,6 @@ function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "car
           <div className="h-24 rounded-2xl bg-muted" />
           <div className="h-24 rounded-2xl bg-muted" />
         </div>
-        <ViewSwitcher active={view} feedHref={feedHref} carouselHref={carouselHref} />
       </MobileFrame>
     );
   }
@@ -126,12 +118,7 @@ function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "car
           />
         }
       />
-      {view === "feed" ? (
-        <MobileFeedView trip={trip} />
-      ) : (
-        <MobileCarouselView trip={trip} />
-      )}
-      <ViewSwitcher active={view} feedHref={feedHref} carouselHref={carouselHref} />
+      <MobileCarouselView trip={trip} />
     </MobileFrame>
   );
 }
@@ -140,8 +127,6 @@ function MobileTripPageInner() {
   const searchParams = useSearchParams();
   const tripId = searchParams.get("id");
   const homeHref = useDemoHref("/m");
-  const viewParam = searchParams.get("v");
-  const view: "feed" | "carousel" = viewParam === "carousel" ? "carousel" : "feed";
 
   if (!tripId) {
     return (
@@ -158,7 +143,7 @@ function MobileTripPageInner() {
     );
   }
 
-  return <MobileTripInner tripId={tripId} view={view} />;
+  return <MobileTripInner tripId={tripId} />;
 }
 
 export default function MobileTripPage(): React.JSX.Element {

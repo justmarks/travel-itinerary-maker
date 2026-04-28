@@ -21,7 +21,7 @@ import {
   Phone,
   Users,
   CreditCard,
-  ExternalLink,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +83,19 @@ function formatCost(cost?: { amount: number; currency: string; details?: string 
   return `${sym}${cost.amount.toLocaleString()}`;
 }
 
-export function MobileSegmentCard({ segment }: { segment: Segment }): React.JSX.Element {
+/**
+ * Compact summary card for a segment. When `onSelect` is provided the whole
+ * card becomes tappable and any inline links (URL, tel:) are flattened — the
+ * detail sheet handles those actions instead so we don't nest interactive
+ * elements inside a button.
+ */
+export function MobileSegmentCard({
+  segment,
+  onSelect,
+}: {
+  segment: Segment;
+  onSelect?: (segment: Segment) => void;
+}): React.JSX.Element {
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
   const Icon = config.icon;
 
@@ -108,205 +120,208 @@ export function MobileSegmentCard({ segment }: { segment: Segment }): React.JSX.
   const depLabel = formatFlightEndpoint(segment.departureAirport, segment.departureCity);
   const arrLabel = formatFlightEndpoint(segment.arrivalAirport, segment.arrivalCity);
 
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border bg-card border-l-4 shadow-sm overflow-hidden",
-        config.accent,
-      )}
-    >
-      <div className="flex gap-3 p-4">
-        <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-            config.bg,
+  const interactive = !!onSelect;
+
+  const cardBody = (
+    <div className="flex w-full gap-3 p-4 text-left">
+      <div
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
+          config.bg,
+        )}
+      >
+        <Icon className={cn("h-5 w-5", config.iconColor)} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        {/* Type label + time */}
+        <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+          <span className="font-medium">{config.label}</span>
+          {(startTime || endTime) && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1 normal-case tracking-normal">
+                <Clock className="h-3 w-3 shrink-0" />
+                {isHotel ? (
+                  <>
+                    {startTime && <span>Check-in {startTime}</span>}
+                    {!startTime && endTime && <span>Check-out {endTime}</span>}
+                  </>
+                ) : isCarRental ? (
+                  <>
+                    {startTime && <span>Pickup {startTime}</span>}
+                    {!startTime && endTime && <span>Dropoff {endTime}</span>}
+                  </>
+                ) : isCruise ? (
+                  <>
+                    {startTime && <span>Board {startTime}</span>}
+                    {!startTime && endTime && <span>Disembark {endTime}</span>}
+                  </>
+                ) : (
+                  <span>
+                    {startTime}
+                    {endTime ? ` – ${endTime}` : ""}
+                  </span>
+                )}
+              </span>
+            </>
           )}
-        >
-          <Icon className={cn("h-5 w-5", config.iconColor)} />
         </div>
 
-        <div className="min-w-0 flex-1">
-          {/* Type label + time */}
-          <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-            <span className="font-medium">{config.label}</span>
-            {(startTime || endTime) && (
+        {/* Title */}
+        <div className="mt-1 flex flex-wrap items-start gap-2">
+          <span className="text-base font-semibold leading-snug">
+            {titleText}
+          </span>
+          {segment.needsReview ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+              <AlertCircle className="h-2.5 w-2.5" />
+              Review
+            </span>
+          ) : segment.source === "email_confirmed" ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Confirmed
+            </span>
+          ) : null}
+        </div>
+
+        {/* Route */}
+        {depLabel && arrLabel && (
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{depLabel}</span>
+            {" → "}
+            <span className="font-medium text-foreground">{arrLabel}</span>
+            {!isFlight && segment.carrier && ` · ${segment.carrier}`}
+            {!isFlight && segment.routeCode && ` ${segment.routeCode}`}
+          </p>
+        )}
+
+        {/* Venue / address */}
+        {segment.venueName && !depLabel && (
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {segment.venueName}
+            {segment.address && (
               <>
-                <span aria-hidden>·</span>
-                <span className="inline-flex items-center gap-1 normal-case tracking-normal">
-                  <Clock className="h-3 w-3 shrink-0" />
-                  {isHotel ? (
-                    <>
-                      {startTime && <span>Check-in {startTime}</span>}
-                      {!startTime && endTime && <span>Check-out {endTime}</span>}
-                    </>
-                  ) : isCarRental ? (
-                    <>
-                      {startTime && <span>Pickup {startTime}</span>}
-                      {!startTime && endTime && <span>Dropoff {endTime}</span>}
-                    </>
-                  ) : isCruise ? (
-                    <>
-                      {startTime && <span>Board {startTime}</span>}
-                      {!startTime && endTime && <span>Disembark {endTime}</span>}
-                    </>
-                  ) : (
-                    <span>
-                      {startTime}
-                      {endTime ? ` – ${endTime}` : ""}
-                    </span>
-                  )}
-                </span>
+                <br />
+                <span className="text-xs">{segment.address}</span>
               </>
             )}
-          </div>
+          </p>
+        )}
 
-          {/* Title */}
-          <div className="mt-1 flex flex-wrap items-start gap-2">
-            {segment.url ? (
-              <a
-                href={segment.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-baseline gap-1 text-base font-semibold leading-snug hover:underline"
-              >
-                {titleText}
-                <ExternalLink className="h-3 w-3 shrink-0 self-center text-muted-foreground" />
-              </a>
-            ) : (
-              <span className="text-base font-semibold leading-snug">
-                {titleText}
+        {/* Hotel multi-night */}
+        {isHotel && segment.endDate && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Check-out {fmt12h(segment.endTime) ?? "—"} · {fmtDate(segment.endDate)}
+          </p>
+        )}
+
+        {/* Flight cabin / seats */}
+        {isFlight && (segment.cabinClass || segment.seatNumber) && (
+          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Armchair className="h-3 w-3 shrink-0" />
+            {segment.cabinClass}
+            {segment.cabinClass && segment.seatNumber && " · "}
+            {segment.seatNumber && `Seat ${segment.seatNumber}`}
+          </p>
+        )}
+
+        {/* Train coach + seat */}
+        {isTrain && (segment.coach || segment.seatNumber) && (
+          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Armchair className="h-3 w-3 shrink-0" />
+            {segment.coach}
+            {segment.coach && segment.seatNumber && " · "}
+            {segment.seatNumber && `Seat ${segment.seatNumber}`}
+          </p>
+        )}
+
+        {/* Hotel breakfast */}
+        {isHotel && segment.breakfastIncluded !== undefined && (
+          <p
+            className={cn(
+              "mt-1 inline-flex items-center gap-1 text-xs",
+              segment.breakfastIncluded ? "text-green-700" : "text-muted-foreground",
+            )}
+          >
+            <Coffee className="h-3 w-3 shrink-0" />
+            {segment.breakfastIncluded ? "Breakfast included" : "No breakfast"}
+          </p>
+        )}
+
+        {/* Restaurant party + cc hold */}
+        {isRestaurant && (segment.partySize || segment.creditCardHold) && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {segment.partySize && (
+              <span className="inline-flex items-center gap-1">
+                <Users className="h-3 w-3 shrink-0" />
+                Party of {segment.partySize}
               </span>
             )}
-            {segment.needsReview ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                <AlertCircle className="h-2.5 w-2.5" />
-                Review
+            {segment.creditCardHold && (
+              <span className="inline-flex items-center gap-1">
+                <CreditCard className="h-3 w-3 shrink-0" />
+                CC hold
               </span>
-            ) : segment.source === "email_confirmed" ? (
-              <span className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
-                <CheckCircle2 className="h-2.5 w-2.5" />
-                Confirmed
-              </span>
-            ) : null}
+            )}
           </div>
+        )}
 
-          {/* Route */}
-          {depLabel && arrLabel && (
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{depLabel}</span>
-              {" → "}
-              <span className="font-medium text-foreground">{arrLabel}</span>
-              {!isFlight && segment.carrier && ` · ${segment.carrier}`}
-              {!isFlight && segment.routeCode && ` ${segment.routeCode}`}
-            </p>
-          )}
+        {/* Phone (rendered as a hint when the card is interactive — the
+            sheet exposes the actual tel: action so the button wrapper
+            doesn't nest an anchor). */}
+        {(isRestaurant || isCarService) && segment.phone && (
+          <p className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+            <Phone className="h-3 w-3 shrink-0" />
+            {segment.phone}
+          </p>
+        )}
 
-          {/* Venue / address */}
-          {segment.venueName && !depLabel && (
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {segment.venueName}
-              {segment.address && (
-                <>
-                  <br />
-                  <span className="text-xs">{segment.address}</span>
-                </>
-              )}
-            </p>
-          )}
-
-          {/* Hotel multi-night */}
-          {isHotel && segment.endDate && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Check-out {fmt12h(segment.endTime) ?? "—"} · {fmtDate(segment.endDate)}
-            </p>
-          )}
-
-          {/* Flight cabin / seats */}
-          {isFlight && (segment.cabinClass || segment.seatNumber) && (
-            <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Armchair className="h-3 w-3 shrink-0" />
-              {segment.cabinClass}
-              {segment.cabinClass && segment.seatNumber && " · "}
-              {segment.seatNumber && `Seat ${segment.seatNumber}`}
-            </p>
-          )}
-
-          {/* Train coach + seat */}
-          {isTrain && (segment.coach || segment.seatNumber) && (
-            <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Armchair className="h-3 w-3 shrink-0" />
-              {segment.coach}
-              {segment.coach && segment.seatNumber && " · "}
-              {segment.seatNumber && `Seat ${segment.seatNumber}`}
-            </p>
-          )}
-
-          {/* Hotel breakfast */}
-          {isHotel && segment.breakfastIncluded !== undefined && (
-            <p
-              className={cn(
-                "mt-1 inline-flex items-center gap-1 text-xs",
-                segment.breakfastIncluded ? "text-green-700" : "text-muted-foreground",
-              )}
-            >
-              <Coffee className="h-3 w-3 shrink-0" />
-              {segment.breakfastIncluded ? "Breakfast included" : "No breakfast"}
-            </p>
-          )}
-
-          {/* Restaurant party + cc hold */}
-          {isRestaurant && (segment.partySize || segment.creditCardHold) && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-              {segment.partySize && (
-                <span className="inline-flex items-center gap-1">
-                  <Users className="h-3 w-3 shrink-0" />
-                  Party of {segment.partySize}
-                </span>
-              )}
-              {segment.creditCardHold && (
-                <span className="inline-flex items-center gap-1">
-                  <CreditCard className="h-3 w-3 shrink-0" />
-                  CC hold
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Phone (tap to call) */}
-          {(isRestaurant || isCarService) && segment.phone && (
-            <p className="mt-1 inline-flex items-center gap-1 text-xs">
-              <Phone className="h-3 w-3 shrink-0 text-muted-foreground" />
-              <a
-                href={`tel:${segment.phone}`}
-                className="text-foreground underline-offset-2 hover:underline"
-              >
-                {segment.phone}
-              </a>
-            </p>
-          )}
-
-          {/* Confirmation + cost */}
-          {(segment.confirmationCode || cost) && (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-              {segment.confirmationCode && (
-                <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  #{segment.confirmationCode}
-                </span>
-              )}
-              {cost && (
-                <span className="text-sm font-semibold text-foreground">
-                  {cost}
-                  {segment.cost?.details && (
-                    <span className="ml-1 text-xs font-normal text-muted-foreground">
-                      · {segment.cost.details}
-                    </span>
-                  )}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+        {/* Confirmation + cost */}
+        {(segment.confirmationCode || cost) && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            {segment.confirmationCode && (
+              <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                #{segment.confirmationCode}
+              </span>
+            )}
+            {cost && (
+              <span className="text-sm font-semibold text-foreground">
+                {cost}
+                {segment.cost?.details && (
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    · {segment.cost.details}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {interactive && (
+        <ChevronRight className="mt-1 h-4 w-4 shrink-0 self-center text-muted-foreground" />
+      )}
     </div>
   );
+
+  const baseClasses = cn(
+    "block w-full rounded-2xl border bg-card border-l-4 shadow-sm overflow-hidden",
+    config.accent,
+  );
+
+  if (interactive) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect?.(segment)}
+        className={cn(baseClasses, "transition-transform active:scale-[0.99] active:bg-muted/40")}
+      >
+        {cardBody}
+      </button>
+    );
+  }
+
+  return <div className={baseClasses}>{cardBody}</div>;
 }

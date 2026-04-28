@@ -17,9 +17,20 @@ work moves between phases.
       "Add to Calendar" action sheet, falls back to a download on Android.
       *Deferred from Phase 1 to keep that PR scoped to navigation/auth/share.*
 - [ ] **Native maps deep links** — `geo:` (Android), `maps://` (iOS),
-      `https://maps.google.com` fallback.
+      `https://maps.google.com` fallback. *Partially landed via the
+      segment detail sheet's "Maps" button which opens Google Maps
+      directly; still want the proper geo: / maps:// scheme detection.*
 - [ ] **Long-trip day strip behaviour** — verify the auto-scroll-into-view
       chip selection still feels right at 14+ days.
+- [ ] **Rich per-trip link previews** — `navigator.share` already passes
+      a `text` field with title + dates, but the link-preview *card*
+      receivers render is generic ("Travel Itinerary Maker / Auto-
+      generated trip plans…") because static export bakes one set of OG
+      tags into every page. Per-trip metadata needs a serverless OG
+      endpoint (Cloudflare Worker / Vercel edge) that reads the trip ID
+      from the URL, fetches the trip from the public-share API, and
+      renders a custom OG image + meta tags. Out of scope for static GH
+      Pages; revisit if we add a serverless layer.
 
 ## Phase 3 — Offline + PWA
 

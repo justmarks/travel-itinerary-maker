@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, MapPin, LayoutList } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
+import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
 import { cn } from "@/lib/utils";
 
 function sortSegments(segments: readonly Segment[]): Segment[] {
@@ -34,6 +35,9 @@ function dayShort(date: string) {
  * Carousel layout: an "All" overview page at index 0, followed by one page
  * per day. The map header up top swaps to match the active page — fitting
  * to all pins for "All", and to that day's pins for individual days.
+ *
+ * Tapping a segment opens a bottom-sheet detail view (state lives here so
+ * only one sheet is ever open across pages).
  */
 export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element {
   const days = trip.days;
@@ -41,12 +45,22 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
   const totalPages = days.length + 1;
 
   const [activeIdx, setActiveIdx] = useState(0);
+  const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
 
   const isAllView = activeIdx === 0;
   const activeDay = isAllView ? null : days[activeIdx - 1] ?? null;
+
+  // Find which day a segment belongs to so the detail sheet can show its
+  // date — the carousel's per-day pages don't pass it through directly.
+  const segmentDate = useMemo(() => {
+    if (!selectedSegment) return undefined;
+    return days.find((d) =>
+      d.segments.some((s) => s.id === selectedSegment.id),
+    )?.date;
+  }, [days, selectedSegment]);
 
   const handleScroll = useCallback(() => {
     if (isProgrammaticScroll.current) return;
@@ -185,7 +199,7 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
       >
         {/* All-overview page */}
         <div className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto">
-          <MobileDaysList days={days} />
+          <MobileDaysList days={days} onSelectSegment={setSelectedSegment} />
         </div>
 
         {/* Per-day pages */}
@@ -213,7 +227,11 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
                   </p>
                 ) : (
                   sorted.map((seg) => (
-                    <MobileSegmentCard key={seg.id} segment={seg} />
+                    <MobileSegmentCard
+                      key={seg.id}
+                      segment={seg}
+                      onSelect={setSelectedSegment}
+                    />
                   ))
                 )}
                 <div className="h-4" />
@@ -241,6 +259,13 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
           ))}
         </div>
       </div>
+
+      {/* Detail sheet — overlays the whole MobileFrame */}
+      <MobileSegmentDetailSheet
+        segment={selectedSegment}
+        date={segmentDate}
+        onClose={() => setSelectedSegment(null)}
+      />
     </div>
   );
 }
