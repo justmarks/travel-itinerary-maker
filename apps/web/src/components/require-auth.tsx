@@ -1,24 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 
 /**
  * Wraps children and redirects to /login if the user is not authenticated.
  * In demo mode (?demo=true), auth is bypassed entirely.
+ *
+ * Mobile-aware: requests that originate from /m/* routes redirect to the
+ * mobile login at /m/login so users keep the mobile chrome rather than
+ * bouncing through the desktop login.
  */
-export function RequireAuth({ children }: { children: React.ReactNode }): React.JSX.Element | null {
+export function RequireAuth({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element | null {
   const isDemo = useDemoMode();
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const isMobileRoute = pathname?.startsWith("/m") ?? false;
 
   useEffect(() => {
     if (!isDemo && !isLoading && !isAuthenticated) {
-      router.replace("/login");
+      router.replace(isMobileRoute ? "/m/login" : "/login");
     }
-  }, [isDemo, isAuthenticated, isLoading, router]);
+  }, [isDemo, isAuthenticated, isLoading, isMobileRoute, router]);
 
   if (isDemo) return <>{children}</>;
 

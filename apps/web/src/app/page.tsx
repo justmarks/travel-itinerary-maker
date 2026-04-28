@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { CreateTripDialog } from "@/components/create-trip-dialog";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
@@ -21,6 +21,12 @@ import {
   FileSpreadsheet,
   MoreHorizontal,
 } from "lucide-react";
+import { useMobileHomeRedirect } from "@/lib/mobile-redirect";
+
+function MobileRedirect(): null {
+  useMobileHomeRedirect();
+  return null;
+}
 
 export default function Home(): React.JSX.Element {
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
@@ -28,6 +34,9 @@ export default function Home(): React.JSX.Element {
 
   return (
     <RequireAuth>
+      <Suspense fallback={null}>
+        <MobileRedirect />
+      </Suspense>
       <main className="min-h-screen p-4 sm:p-8">
         <div className="mx-auto max-w-5xl">
           <div className="mb-8 flex items-center justify-between gap-2">

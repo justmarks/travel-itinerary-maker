@@ -1,20 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
+import { clearDesktopOverride } from "@/lib/mobile-redirect";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogIn, LogOut, User } from "lucide-react";
+import { LogIn, LogOut, Smartphone, User } from "lucide-react";
 
 export function UserMenu(): React.JSX.Element | null {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
+  const router = useRouter();
+
+  // Clears the persisted "prefer desktop" flag and routes to the mobile
+  // site. Without this clear, the mobile-home redirect would bounce the
+  // user straight back to /.
+  const handleSwitchToMobile = () => {
+    clearDesktopOverride();
+    router.push("/m");
+  };
 
   // In demo mode without auth, show a "Sign in" button
   if (isDemo && (!isAuthenticated || !user)) {
@@ -56,6 +68,11 @@ export function UserMenu(): React.JSX.Element | null {
         <div className="px-2 py-1.5 text-sm text-muted-foreground">
           {user.email}
         </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleSwitchToMobile}>
+          <Smartphone className="mr-2 h-4 w-4" />
+          Use mobile site
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
