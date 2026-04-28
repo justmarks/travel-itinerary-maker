@@ -1,21 +1,27 @@
 name: Deploy to GitHub Pages
 
+# Publishes the production build to the `gh-pages` branch root. PR previews
+# (see pr-preview.yml) push to `gh-pages:/previews/pr-NN/`, so this workflow
+# uses `keep_files: true` to avoid wiping live preview directories during a
+# main deploy.
+#
+# One-time setup: in repo Settings → Pages, set Source = "Deploy from a
+# branch", Branch = `gh-pages`, Folder = `/ (root)`. See docs/pr-previews.md.
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-deploy
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -33,7 +39,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared packages
-        run: pnpm --filter @travel-app/shared build && pnpm --filter @travel-app/api-client build
+        run: |
+          pnpm --filter @travel-app/shared build
+          pnpm --filter @travel-app/api-client build
 
       - name: Build web app
         # NEXT_PUBLIC_* vars are inlined into the static bundle at build time,
@@ -42,22 +50,22 @@ jobs:
         run: pnpm --filter web build
         env:
           NODE_ENV: production
+          NEXT_PUBLIC_BASE_PATH: /travel-itinerary-maker
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: apps/web/out
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v5
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: apps/web/out
+          publish_branch: gh-pages
+          # Keep the previews/ subtree intact when the main site redeploys.
+          # Trade-off: deleted main-build files won't be cleaned up. Acceptable
+          # because Next exports tend to be additive, and any cruft lives at
+          # paths nobody links to.
+          keep_files: true
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "deploy: main → gh-pages (${{ github.sha }})"
