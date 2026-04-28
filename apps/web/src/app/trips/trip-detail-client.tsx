@@ -348,7 +348,7 @@ function TripActionsMenu({
 }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
-  const mobilePreviewHref = useDemoHref(`/m/trip?id=${tripId}&v=feed`);
+  const mobilePreviewHref = useDemoHref(`/m/trip?id=${tripId}&v=carousel`);
 
   const runExport = async (fn: () => Promise<void>) => {
     setExporting(true);

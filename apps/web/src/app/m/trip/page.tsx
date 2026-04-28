@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
+import { AlertCircle } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import {
@@ -13,6 +14,8 @@ import {
 } from "@/components/mobile/mobile-shell";
 import { MobileFeedView } from "@/components/mobile/mobile-feed-view";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
+import { MobileShareButton } from "@/components/mobile/mobile-share-button";
+import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 
 function fmtRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -21,8 +24,23 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+function HeaderActions({
+  shareTitle,
+  shareText,
+}: {
+  shareTitle: string;
+  shareText?: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-1">
+      <MobileShareButton title={shareTitle} text={shareText} />
+      <MobileUserMenu />
+    </div>
+  );
+}
+
 function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "carousel" }) {
-  const { data: trip, isLoading } = useTrip(tripId);
+  const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/m");
   const feedHref = useDemoHref(`/m/trip?id=${tripId}&v=feed`);
   const carouselHref = useDemoHref(`/m/trip?id=${tripId}&v=carousel`);
@@ -30,7 +48,11 @@ function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "car
   if (isLoading) {
     return (
       <MobileFrame>
-        <MobileHeader title="Loading…" backHref={homeHref} />
+        <MobileHeader
+          title="Loading…"
+          backHref={homeHref}
+          right={<MobileUserMenu />}
+        />
         <div className="flex-1 animate-pulse space-y-3 p-4">
           <div className="h-24 rounded-2xl bg-muted" />
           <div className="h-24 rounded-2xl bg-muted" />
@@ -41,10 +63,39 @@ function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "car
     );
   }
 
+  if (isError) {
+    return (
+      <MobileFrame>
+        <MobileHeader
+          title="Couldn't load trip"
+          backHref={homeHref}
+          right={<MobileUserMenu />}
+        />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <p className="text-sm text-muted-foreground">
+            Something went wrong. Check your connection and try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
+          >
+            Retry
+          </button>
+        </div>
+      </MobileFrame>
+    );
+  }
+
   if (!trip) {
     return (
       <MobileFrame>
-        <MobileHeader title="Trip not found" backHref={homeHref} />
+        <MobileHeader
+          title="Trip not found"
+          backHref={homeHref}
+          right={<MobileUserMenu />}
+        />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           <p className="text-sm text-muted-foreground">
             We couldn&apos;t find that trip.
@@ -60,12 +111,20 @@ function MobileTripInner({ tripId, view }: { tripId: string; view: "feed" | "car
     );
   }
 
+  const dateRange = fmtRange(trip.startDate, trip.endDate);
+
   return (
     <MobileFrame>
       <MobileHeader
         title={trip.title}
-        subtitle={`${fmtRange(trip.startDate, trip.endDate)} · ${trip.days.length} days`}
+        subtitle={`${dateRange} · ${trip.days.length} days`}
         backHref={homeHref}
+        right={
+          <HeaderActions
+            shareTitle={trip.title}
+            shareText={`${trip.title} · ${dateRange}`}
+          />
+        }
       />
       {view === "feed" ? (
         <MobileFeedView trip={trip} />
@@ -87,7 +146,11 @@ function MobileTripPageInner() {
   if (!tripId) {
     return (
       <MobileFrame>
-        <MobileHeader title="No trip" backHref={homeHref} />
+        <MobileHeader
+          title="No trip"
+          backHref={homeHref}
+          right={<MobileUserMenu />}
+        />
         <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
           No trip selected.
         </div>
