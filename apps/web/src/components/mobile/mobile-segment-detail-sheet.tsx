@@ -177,6 +177,10 @@ export function MobileSegmentDetailSheet({
   const [expanded, setExpanded] = useState(false);
   const [dragY, setDragY] = useState(0);
   const dragStartY = useRef<number | null>(null);
+  // Sheet height (px) at drag start. Used so upward drag grows the sheet
+  // from its current natural height instead of jumping to a baseline.
+  const [dragStartHeight, setDragStartHeight] = useState<number | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const isDragging = dragStartY.current !== null;
 
   // Close on Escape so desktop testing isn't a trap.
@@ -195,6 +199,7 @@ export function MobileSegmentDetailSheet({
     if (!open) return;
     setExpanded(false);
     setDragY(0);
+    setDragStartHeight(null);
     dragStartY.current = null;
   }, [open, segment?.id]);
 
@@ -211,16 +216,17 @@ export function MobileSegmentDetailSheet({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     dragStartY.current = e.clientY;
+    // Snapshot the sheet's current height so upward drag grows from where
+    // we started, not from an arbitrary baseline. Without this, a sheet
+    // that's currently taller (or shorter) than the default snap would
+    // jump to the baseline before starting to grow.
+    setDragStartHeight(sheetRef.current?.offsetHeight ?? null);
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (dragStartY.current === null) return;
     const dy = e.clientY - dragStartY.current;
-    // Always store the raw delta; the JSX splits this into a downward
-    // translate (positive dy) and an upward height-grow (negative dy) so
-    // the sheet visibly grows from the top when the user drags up rather
-    // than just translating up and leaving a gap below.
     setDragY(dy);
   };
 
@@ -228,15 +234,14 @@ export function MobileSegmentDetailSheet({
     if (dragStartY.current === null) return;
     const offset = dragY;
     dragStartY.current = null;
+    setDragStartHeight(null);
 
     // Pulled down past the dismiss threshold.
     if (offset > DISMISS_THRESHOLD_PX) {
       if (expanded) {
-        // From expanded → snap back to default height.
         setExpanded(false);
         setDragY(0);
       } else {
-        // From default → close.
         setDragY(0);
         onClose();
       }
@@ -256,18 +261,35 @@ export function MobileSegmentDetailSheet({
 
   if (!segment) return null;
 
-  // Split the in-flight drag into separate visual effects: dragging down
-  // translates the sheet (revealing the page behind it); dragging up grows
-  // the sheet's max-height so the *top* edge follows the finger while the
-  // bottom stays anchored. Capped at 95dvh so we never exceed the
-  // expanded snap point.
+  // Drag splits into two effects:
+  // - Downward drag (dy > 0): translate the sheet down toward dismiss.
+  // - Upward drag (dy < 0): grow the sheet's height from its starting
+  //   height (snapshotted on pointer-down) so it tracks the finger 1:1
+  //   without jumping to a baseline.
   const downTranslatePx = Math.max(0, dragY);
   const upGrowthPx = Math.max(0, -dragY);
-  const baseMaxDvh = expanded ? 95 : 85;
-  const sheetMaxHeight =
-    upGrowthPx > 0
-      ? `min(95dvh, calc(${baseMaxDvh}dvh + ${upGrowthPx}px))`
-      : `${baseMaxDvh}dvh`;
+
+  let sheetStyle: React.CSSProperties;
+  if (isDragging && upGrowthPx > 0 && dragStartHeight !== null) {
+    // Mid-drag, pulling up: explicit height = snapshotted height + drag,
+    // capped at 95dvh.
+    sheetStyle = {
+      height: `min(95dvh, ${dragStartHeight + upGrowthPx}px)`,
+      transform: "translate(-50%, 0px)",
+    };
+  } else if (expanded) {
+    // Expanded snap point: sheet always fills 95dvh, content scrolls.
+    sheetStyle = {
+      height: "95dvh",
+      transform: `translate(-50%, ${downTranslatePx}px)`,
+    };
+  } else {
+    // Default snap point: content-driven height, capped at 85dvh.
+    sheetStyle = {
+      maxHeight: "85dvh",
+      transform: `translate(-50%, ${downTranslatePx}px)`,
+    };
+  }
 
   const isHotel = segment.type === "hotel";
   const isFlight = segment.type === "flight";
@@ -367,20 +389,15 @@ export function MobileSegmentDetailSheet({
           `absolute` + flex layout was getting clipped by the
           `overflow-hidden` on MobileFrame's inner div. */}
       <div
+        ref={sheetRef}
         className={cn(
           "fixed bottom-0 left-1/2 flex w-full max-w-[430px] flex-col",
           "rounded-t-3xl bg-background shadow-2xl",
           // Skip the snap transition while the user is actively dragging so
           // the sheet tracks the finger 1:1, then animate when they release.
-          !isDragging && "transition-[max-height,transform] duration-200 ease-out",
+          !isDragging && "transition-[height,max-height,transform] duration-200 ease-out",
         )}
-        style={{
-          // Centring -50% combined with the downward drag offset (upward
-          // drag is reflected in maxHeight instead, so the sheet grows
-          // from the top rather than translating off-screen).
-          transform: `translate(-50%, ${downTranslatePx}px)`,
-          maxHeight: sheetMaxHeight,
-        }}
+        style={sheetStyle}
       >
         {/* Drag handle — bigger touch target than the visible pill so the
             gesture catches reliably on a phone. */}
