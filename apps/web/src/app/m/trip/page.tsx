@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
 import type { Trip } from "@travel-app/shared";
-import { AlertCircle, CheckSquare, DollarSign } from "lucide-react";
+import { AlertCircle, CheckSquare, DollarSign, Share2 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
 import { MobileCostsSheet } from "@/components/mobile/mobile-costs-sheet";
 import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
-import { MobileShareButton } from "@/components/mobile/mobile-share-button";
+import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 
 function fmtRange(start: string, end: string) {
@@ -28,22 +28,23 @@ function fmtUsdCompact(n: number): string {
 }
 
 function HeaderActions({
-  shareTitle,
-  shareText,
   usdTotal,
   todoRemaining,
   todoTotal,
   onOpenCosts,
   onOpenTodos,
+  onOpenShare,
 }: {
-  shareTitle: string;
-  shareText?: string;
   usdTotal: number | null;
   todoRemaining: number;
   todoTotal: number;
   onOpenCosts: () => void;
   onOpenTodos: () => void;
+  onOpenShare: () => void;
 }): React.JSX.Element {
+  // The avatar lives on /m only — the trip-detail header was getting
+  // squeezed by Costs + Todos + Share + Avatar all crowding the title.
+  // Tap back-arrow → home to reach the user menu.
   const todoLabel =
     todoTotal === 0 ? "To-do" : todoRemaining === 0 ? "✓" : todoRemaining;
   return (
@@ -68,8 +69,14 @@ function HeaderActions({
         <CheckSquare className="h-3.5 w-3.5" />
         <span className="tabular-nums">{todoLabel}</span>
       </button>
-      <MobileShareButton title={shareTitle} text={shareText} />
-      <MobileUserMenu />
+      <button
+        type="button"
+        onClick={onOpenShare}
+        aria-label="Share trip"
+        className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
+      >
+        <Share2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -103,6 +110,7 @@ function MobileTripInner({ tripId }: { tripId: string }) {
   const homeHref = useDemoHref("/m");
   const [costsOpen, setCostsOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -179,10 +187,13 @@ function MobileTripInner({ tripId }: { tripId: string }) {
         homeHref={homeHref}
         costsOpen={costsOpen}
         todosOpen={todosOpen}
+        shareOpen={shareOpen}
         onOpenCosts={() => setCostsOpen(true)}
         onCloseCosts={() => setCostsOpen(false)}
         onOpenTodos={() => setTodosOpen(true)}
         onCloseTodos={() => setTodosOpen(false)}
+        onOpenShare={() => setShareOpen(true)}
+        onCloseShare={() => setShareOpen(false)}
       />
     </MobileFrame>
   );
@@ -194,20 +205,26 @@ function TripFrame({
   homeHref,
   costsOpen,
   todosOpen,
+  shareOpen,
   onOpenCosts,
   onCloseCosts,
   onOpenTodos,
   onCloseTodos,
+  onOpenShare,
+  onCloseShare,
 }: {
   trip: Trip;
   dateRange: string;
   homeHref: string;
   costsOpen: boolean;
   todosOpen: boolean;
+  shareOpen: boolean;
   onOpenCosts: () => void;
   onCloseCosts: () => void;
   onOpenTodos: () => void;
   onCloseTodos: () => void;
+  onOpenShare: () => void;
+  onCloseShare: () => void;
 }): React.JSX.Element {
   const { usdTotal, todoSummary } = useTripSummary(trip);
 
@@ -219,13 +236,12 @@ function TripFrame({
         backHref={homeHref}
         right={
           <HeaderActions
-            shareTitle={trip.title}
-            shareText={`${trip.title} · ${dateRange}`}
             usdTotal={usdTotal}
             todoRemaining={todoSummary.remaining}
             todoTotal={todoSummary.total}
             onOpenCosts={onOpenCosts}
             onOpenTodos={onOpenTodos}
+            onOpenShare={onOpenShare}
           />
         }
       />
@@ -240,6 +256,12 @@ function TripFrame({
         todos={trip.todos}
         open={todosOpen}
         onClose={onCloseTodos}
+      />
+      <MobileShareSheet
+        tripId={trip.id}
+        tripTitle={trip.title}
+        open={shareOpen}
+        onClose={onCloseShare}
       />
     </>
   );

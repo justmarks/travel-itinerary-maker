@@ -35,13 +35,81 @@ async function fetchSummary(query: string): Promise<WikipediaSummary | undefined
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
     query.replace(/\s+/g, "_"),
   )}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      // Wikimedia REST policy requires identifying the caller. Without a
+      // distinct Api-User-Agent header, requests from a popular CDN
+      // origin can get rate-limited or blocked silently. Using the
+      // browser's `User-Agent` isn't enough — they want an app-level
+      // identifier.
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "travel-itinerary-maker (justmarks.github.io)",
+      },
+    });
+  } catch (err) {
+    // Network error — log so it shows up in DevTools and the caller can
+    // fall back to the gradient placeholder.
+    console.warn(
+      `[trip-card-visuals] Wikipedia fetch failed for "${query}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
   if (!res.ok) return undefined;
   const data = (await res.json()) as WikipediaSummary;
   // Wikipedia returns 200 with `type === "disambiguation"` for ambiguous
   // queries — those don't have a useful representative image.
   if (data.type === "disambiguation") return undefined;
   return data;
+}
+
+interface WikipediaSearchHit {
+  title: string;
+}
+
+interface WikipediaSearchResponse {
+  query?: {
+    search?: WikipediaSearchHit[];
+  };
+}
+
+/**
+ * Falls back to MediaWiki's search API when the direct summary endpoint
+ * 404s. The summary endpoint requires an exact canonical title, so cities
+ * with disambiguators ("Palm Desert" → "Palm Desert, California") miss it
+ * entirely. Search returns the top relevance hit, which we then feed back
+ * into `fetchSummary` to get the article's image.
+ */
+async function searchForArticleTitle(
+  query: string,
+  hint?: string,
+): Promise<string | undefined> {
+  const fullQuery = hint ? `${query} ${hint}` : query;
+  const url =
+    `https://en.wikipedia.org/w/api.php` +
+    `?action=query&format=json&list=search&srlimit=1` +
+    `&srsearch=${encodeURIComponent(fullQuery)}` +
+    // origin=* permits the CORS request from arbitrary origins.
+    `&origin=*`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "travel-itinerary-maker (justmarks.github.io)",
+      },
+    });
+    if (!res.ok) return undefined;
+    const data = (await res.json()) as WikipediaSearchResponse;
+    return data.query?.search?.[0]?.title;
+  } catch (err) {
+    console.warn(
+      `[trip-card-visuals] Wikipedia search failed for "${fullQuery}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
 }
 
 function pickImageFromSummary(summary: WikipediaSummary | undefined): CityImage | undefined {
@@ -54,10 +122,12 @@ function pickImageFromSummary(summary: WikipediaSummary | undefined): CityImage 
 }
 
 /**
- * React Query hook that resolves a hero image URL for a city. Falls back to
- * the country article when the city has no Wikipedia thumbnail. Returns
+ * React Query hook that resolves a hero image URL for a city. Tries, in
+ * order: a direct summary by raw city name, a MediaWiki search-then-summary
+ * (handles cities like "Palm Desert" whose canonical title is "Palm
+ * Desert, California"), and finally the country article. Returns
  * `undefined` while loading and on total miss — callers should render a
- * gradient placeholder in that case.
+ * gradient placeholder.
  *
  * Cached forever (`staleTime: Infinity`) per (city, country) tuple.
  */
@@ -73,16 +143,28 @@ export function useCityImage(
     gcTime: Infinity,
     retry: false,
     queryFn: async (): Promise<CityImage | null> => {
-      // Try the raw city first; if it 404s and we have a country, try the
-      // country article so cruise stops and small towns still show *something*
-      // recognisable.
       const cityHead = city!.split(",")[0]?.trim() ?? city!;
-      const cityResult = pickImageFromSummary(await fetchSummary(cityHead));
-      if (cityResult) return cityResult;
+
+      // 1) Try the raw title — fast path for unambiguous cities.
+      const direct = pickImageFromSummary(await fetchSummary(cityHead));
+      if (direct) return direct;
+
+      // 2) Search for the article. Use the country (if known) as a hint
+      //    so "Palm Desert" lands on "Palm Desert, California" rather
+      //    than disambiguating to a generic landform.
+      const matchedTitle = await searchForArticleTitle(cityHead, country);
+      if (matchedTitle) {
+        const searched = pickImageFromSummary(await fetchSummary(matchedTitle));
+        if (searched) return searched;
+      }
+
+      // 3) Country fallback so cruise stops and small towns still show
+      //    *something* recognisable.
       if (country) {
         const countryResult = pickImageFromSummary(await fetchSummary(country));
         if (countryResult) return countryResult;
       }
+
       return null;
     },
   });

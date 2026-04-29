@@ -41,6 +41,16 @@ export function clearDesktopOverride(): void {
  * a one-time redirect; subsequent navigations within /m don't re-trigger.
  */
 export function useMobileHomeRedirect(): void {
+  useMobileRedirectTo("/m");
+}
+
+/**
+ * Same redirect logic as `useMobileHomeRedirect`, parameterised by the
+ * mobile-equivalent path. Used so a recipient who opens a desktop share
+ * URL on their phone bumps to the mobile shared viewer instead of the
+ * desktop layout.
+ */
+export function useMobileRedirectTo(targetPath: string): void {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -66,9 +76,9 @@ export function useMobileHomeRedirect(): void {
       window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches;
     if (!isMobileViewport) return;
 
-    // Preserve the demo flag (and any other params) when redirecting.
+    // Preserve the existing query (token, demo, etc.) when redirecting.
     const qs = searchParams.toString();
-    const target = qs ? `/m?${qs}` : "/m";
+    const target = qs ? `${targetPath}?${qs}` : targetPath;
     router.replace(target);
-  }, [router, searchParams]);
+  }, [router, searchParams, targetPath]);
 }

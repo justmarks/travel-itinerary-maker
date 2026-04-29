@@ -3,6 +3,14 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import SharedTripClient from "./shared-trip-client";
+import { useMobileRedirectTo } from "@/lib/mobile-redirect";
+
+function MobileSharedRedirect(): null {
+  // Mirror the home-page redirect: phone-sized viewports get the mobile
+  // shared viewer at /m/shared (preserving the share token in the query).
+  useMobileRedirectTo("/m/shared");
+  return null;
+}
 
 function SharedPageInner() {
   const searchParams = useSearchParams();
@@ -33,6 +41,7 @@ export default function SharedPage(): React.JSX.Element {
         </main>
       }
     >
+      <MobileSharedRedirect />
       <SharedPageInner />
     </Suspense>
   );
