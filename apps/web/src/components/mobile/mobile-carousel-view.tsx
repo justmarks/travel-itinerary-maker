@@ -8,11 +8,20 @@ import {
   useState,
 } from "react";
 import type { Trip, Segment } from "@travel-app/shared";
-import { ChevronLeft, ChevronRight, MapPin, LayoutList } from "lucide-react";
+import {
+  CheckSquare,
+  ChevronLeft,
+  ChevronRight,
+  DollarSign,
+  LayoutList,
+  MapPin,
+} from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
+import { MobileCostsSheet } from "./mobile-costs-sheet";
+import { MobileTodosSheet } from "./mobile-todos-sheet";
 import { cn } from "@/lib/utils";
 
 function sortSegments(segments: readonly Segment[]): Segment[] {
@@ -46,9 +55,42 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
   const [activeIdx, setActiveIdx] = useState(0);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const [costsOpen, setCostsOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
+
+  const todoSummary = useMemo(() => {
+    const total = trip.todos.length;
+    const remaining = trip.todos.filter((t) => !t.isCompleted).length;
+    return { total, remaining };
+  }, [trip.todos]);
+
+  // Quick USD total for the footer "Costs" pill. Recomputed from the trip's
+  // segment costs since we don't fetch the full cost summary at this level.
+  // Foreign currencies without USD conversion are excluded — the sheet shows
+  // them as separate totals.
+  const usdTotal = useMemo(() => {
+    let sum = 0;
+    let any = false;
+    for (const day of trip.days) {
+      for (const seg of day.segments) {
+        if (seg.cost?.currency === "USD" && typeof seg.cost.amount === "number") {
+          sum += seg.cost.amount;
+          any = true;
+        }
+      }
+    }
+    return any ? sum : null;
+  }, [trip.days]);
+
+  function fmtUsdCompact(n: number): string {
+    if (n >= 10000) {
+      return `$${(n / 1000).toFixed(1)}k`;
+    }
+    return `$${Math.round(n).toLocaleString()}`;
+  }
 
   const isAllView = activeIdx === 0;
   const activeDay = isAllView ? null : days[activeIdx - 1] ?? null;
@@ -102,20 +144,51 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Compact trip header */}
-      <div className="shrink-0 border-b bg-background px-4 pb-2 pt-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 className="truncate text-lg font-bold">{trip.title}</h1>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {isAllView ? "Overview" : `Day ${activeIdx}/${days.length}`}
-          </span>
+      {/* Trip header — title + Costs/Todos action pills on the right.
+          The day strip below already indicates which day is active, so
+          the old "Overview / Day X/Y" text was redundant. */}
+      <div className="shrink-0 border-b bg-background px-3 pb-2 pt-2.5">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-bold leading-tight">
+              {trip.title}
+            </h1>
+            {tripStats.cities.length > 0 && (
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                <span className="truncate">{tripStats.cities.join(" · ")}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCostsOpen(true)}
+              className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-semibold text-foreground active:bg-muted/70"
+              aria-label="Open costs"
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              <span className="tabular-nums">
+                {usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodosOpen(true)}
+              className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-semibold text-foreground active:bg-muted/70"
+              aria-label={`Open to-dos${todoSummary.total ? ` (${todoSummary.remaining} remaining)` : ""}`}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              <span className="tabular-nums">
+                {todoSummary.total === 0
+                  ? "To-do"
+                  : todoSummary.remaining === 0
+                    ? "✓"
+                    : todoSummary.remaining}
+              </span>
+            </button>
+          </div>
         </div>
-        {tripStats.cities.length > 0 && (
-          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            {tripStats.cities.join(" · ")}
-          </p>
-        )}
       </div>
 
       {/* Day strip */}
@@ -241,30 +314,22 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
         })}
       </div>
 
-      {/* Pager dots */}
-      <div className="shrink-0 border-t bg-background py-2">
-        <div className="flex items-center justify-center gap-1.5">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => goToPage(i)}
-              aria-label={i === 0 ? "Overview" : `Go to day ${i}`}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                i === activeIdx
-                  ? "w-4 bg-foreground"
-                  : "w-1.5 bg-muted-foreground/30",
-              )}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Detail sheet — overlays the whole MobileFrame */}
+      {/* Sheets — they overlay the whole MobileFrame */}
       <MobileSegmentDetailSheet
         segment={selectedSegment}
         date={segmentDate}
         onClose={() => setSelectedSegment(null)}
+      />
+      <MobileCostsSheet
+        tripId={trip.id}
+        open={costsOpen}
+        onClose={() => setCostsOpen(false)}
+      />
+      <MobileTodosSheet
+        tripId={trip.id}
+        todos={trip.todos}
+        open={todosOpen}
+        onClose={() => setTodosOpen(false)}
       />
     </div>
   );

@@ -5,10 +5,9 @@ work moves between phases.
 
 ## Phase 2 — Feature completeness for consumption
 
-- [ ] **Costs sheet** — bottom sheet pulled up from a footer button on the
-      carousel/feed; reuses `useTripCosts`; totals by currency + per-segment
-      list.
-- [ ] **Todos sheet** — same pattern; tap to toggle complete via
+- [x] **Costs sheet** — bottom sheet pulled up from a footer button on the
+      carousel/feed; reuses `useCostSummary`; totals + per-segment list.
+- [x] **Todos sheet** — same pattern; tap to toggle complete via
       `useUpdateTodo`; group by category.
 - [ ] **Shared trip route** at `/m/shared?token=…` — same `MobileFrame`,
       no auth required, no write actions exposed.
