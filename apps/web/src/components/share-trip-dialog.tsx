@@ -7,6 +7,7 @@ import {
   useShares,
 } from "@travel-app/api-client";
 import type { TripShare } from "@travel-app/shared";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -443,9 +444,18 @@ export function ShareTripDialog({
                   key={share.id}
                   share={share}
                   onRevoke={() => {
-                    if (window.confirm("Revoke this share link?")) {
-                      deleteShare.mutate(share.id);
-                    }
+                    if (!window.confirm("Revoke this share link?")) return;
+                    // Optimistic mutation removes the row immediately;
+                    // surface a toast on success or failure (the row
+                    // restores itself on error).
+                    deleteShare.mutate(share.id, {
+                      onSuccess: () => toast.success("Share link revoked"),
+                      onError: (err) =>
+                        toast.error("Couldn't revoke share link", {
+                          description:
+                            err instanceof Error ? err.message : undefined,
+                        }),
+                    });
                   }}
                 />
               ))}

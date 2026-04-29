@@ -35,7 +35,28 @@ async function fetchSummary(query: string): Promise<WikipediaSummary | undefined
   const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
     query.replace(/\s+/g, "_"),
   )}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      // Wikimedia REST policy requires identifying the caller. Without a
+      // distinct Api-User-Agent header, requests from a popular CDN
+      // origin can get rate-limited or blocked silently. Using the
+      // browser's `User-Agent` isn't enough — they want an app-level
+      // identifier.
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "travel-itinerary-maker (justmarks.github.io)",
+      },
+    });
+  } catch (err) {
+    // Network error — log so it shows up in DevTools and the caller can
+    // fall back to the gradient placeholder.
+    console.warn(
+      `[trip-card-visuals] Wikipedia fetch failed for "${query}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
   if (!res.ok) return undefined;
   const data = (await res.json()) as WikipediaSummary;
   // Wikipedia returns 200 with `type === "disambiguation"` for ambiguous

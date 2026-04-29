@@ -609,7 +609,29 @@ export function useDeleteShare(tripId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (shareId: string) => client.deleteShare(tripId, shareId),
-    onSuccess: () => {
+    // Optimistic remove from the cached shares list so the UI updates the
+    // moment the user taps "revoke", even when the network round-trip is
+    // slow. On error we restore the prior list and the caller can surface
+    // a toast.
+    onMutate: async (shareId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.shares(tripId) });
+      const previous = queryClient.getQueryData<TripShare[]>(
+        queryKeys.shares(tripId),
+      );
+      if (previous) {
+        queryClient.setQueryData<TripShare[]>(
+          queryKeys.shares(tripId),
+          previous.filter((s) => s.id !== shareId),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _shareId, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(queryKeys.shares(tripId), ctx.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.shares(tripId) });
     },
   });

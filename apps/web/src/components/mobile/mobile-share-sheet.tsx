@@ -17,6 +17,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -377,11 +378,19 @@ export function MobileShareSheet({
                   tripTitle={tripTitle}
                   onRevoke={() => {
                     if (
-                      typeof window !== "undefined" &&
-                      window.confirm("Revoke this share link?")
+                      typeof window === "undefined" ||
+                      !window.confirm("Revoke this share link?")
                     ) {
-                      deleteShare.mutate(share.id);
+                      return;
                     }
+                    deleteShare.mutate(share.id, {
+                      onSuccess: () => toast.success("Share link revoked"),
+                      onError: (err) =>
+                        toast.error("Couldn't revoke share link", {
+                          description:
+                            err instanceof Error ? err.message : undefined,
+                        }),
+                    });
                   }}
                 />
               ))}
