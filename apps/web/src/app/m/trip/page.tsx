@@ -1,14 +1,17 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
-import { AlertCircle, Share2 } from "lucide-react";
+import type { Trip } from "@travel-app/shared";
+import { AlertCircle, CheckSquare, DollarSign, Share2 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
+import { MobileCostsSheet } from "@/components/mobile/mobile-costs-sheet";
+import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 
@@ -19,9 +22,96 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+function fmtUsdCompact(n: number): string {
+  if (n >= 10000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+function HeaderActions({
+  usdTotal,
+  todoRemaining,
+  todoTotal,
+  onOpenCosts,
+  onOpenTodos,
+  onOpenShare,
+}: {
+  usdTotal: number | null;
+  todoRemaining: number;
+  todoTotal: number;
+  onOpenCosts: () => void;
+  onOpenTodos: () => void;
+  onOpenShare: () => void;
+}): React.JSX.Element {
+  const todoLabel =
+    todoTotal === 0 ? "To-do" : todoRemaining === 0 ? "✓" : todoRemaining;
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onOpenCosts}
+        className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-semibold text-foreground active:bg-muted/70"
+        aria-label="Open costs"
+      >
+        <DollarSign className="h-3.5 w-3.5" />
+        <span className="tabular-nums">
+          {usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenTodos}
+        className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-semibold text-foreground active:bg-muted/70"
+        aria-label={`Open to-dos${todoTotal ? ` (${todoRemaining} remaining)` : ""}`}
+      >
+        <CheckSquare className="h-3.5 w-3.5" />
+        <span className="tabular-nums">{todoLabel}</span>
+      </button>
+      {/* Share opens the share sheet which creates a share link and hands
+          the URL off to the OS share sheet. The previous button only
+          shared the current URL — fine for re-sharing an existing link
+          but not what users expect when first sharing a trip. */}
+      <button
+        type="button"
+        onClick={onOpenShare}
+        aria-label="Share trip"
+        className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
+      >
+        <Share2 className="h-4 w-4" />
+      </button>
+      <MobileUserMenu />
+    </div>
+  );
+}
+
+function useTripSummary(trip: Trip) {
+  const usdTotal = useMemo(() => {
+    let sum = 0;
+    let any = false;
+    for (const day of trip.days) {
+      for (const seg of day.segments) {
+        if (seg.cost?.currency === "USD" && typeof seg.cost.amount === "number") {
+          sum += seg.cost.amount;
+          any = true;
+        }
+      }
+    }
+    return any ? sum : null;
+  }, [trip.days]);
+
+  const todoSummary = useMemo(() => {
+    const total = trip.todos.length;
+    const remaining = trip.todos.filter((t) => !t.isCompleted).length;
+    return { total, remaining };
+  }, [trip.todos]);
+
+  return { usdTotal, todoSummary };
+}
+
 function MobileTripInner({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/m");
+  const [costsOpen, setCostsOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
   if (isLoading) {
@@ -93,32 +183,89 @@ function MobileTripInner({ tripId }: { tripId: string }) {
 
   return (
     <MobileFrame>
+      <TripFrame
+        trip={trip}
+        dateRange={dateRange}
+        homeHref={homeHref}
+        costsOpen={costsOpen}
+        todosOpen={todosOpen}
+        shareOpen={shareOpen}
+        onOpenCosts={() => setCostsOpen(true)}
+        onCloseCosts={() => setCostsOpen(false)}
+        onOpenTodos={() => setTodosOpen(true)}
+        onCloseTodos={() => setTodosOpen(false)}
+        onOpenShare={() => setShareOpen(true)}
+        onCloseShare={() => setShareOpen(false)}
+      />
+    </MobileFrame>
+  );
+}
+
+function TripFrame({
+  trip,
+  dateRange,
+  homeHref,
+  costsOpen,
+  todosOpen,
+  shareOpen,
+  onOpenCosts,
+  onCloseCosts,
+  onOpenTodos,
+  onCloseTodos,
+  onOpenShare,
+  onCloseShare,
+}: {
+  trip: Trip;
+  dateRange: string;
+  homeHref: string;
+  costsOpen: boolean;
+  todosOpen: boolean;
+  shareOpen: boolean;
+  onOpenCosts: () => void;
+  onCloseCosts: () => void;
+  onOpenTodos: () => void;
+  onCloseTodos: () => void;
+  onOpenShare: () => void;
+  onCloseShare: () => void;
+}): React.JSX.Element {
+  const { usdTotal, todoSummary } = useTripSummary(trip);
+
+  return (
+    <>
       <MobileHeader
         title={trip.title}
         subtitle={`${dateRange} · ${trip.days.length} days`}
         backHref={homeHref}
         right={
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShareOpen(true)}
-              aria-label="Share trip"
-              className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
-            >
-              <Share2 className="h-4 w-4" />
-            </button>
-            <MobileUserMenu />
-          </div>
+          <HeaderActions
+            usdTotal={usdTotal}
+            todoRemaining={todoSummary.remaining}
+            todoTotal={todoSummary.total}
+            onOpenCosts={onOpenCosts}
+            onOpenTodos={onOpenTodos}
+            onOpenShare={onOpenShare}
+          />
         }
       />
       <MobileCarouselView trip={trip} />
+      <MobileCostsSheet
+        tripId={trip.id}
+        open={costsOpen}
+        onClose={onCloseCosts}
+      />
+      <MobileTodosSheet
+        tripId={trip.id}
+        todos={trip.todos}
+        open={todosOpen}
+        onClose={onCloseTodos}
+      />
       <MobileShareSheet
         tripId={trip.id}
         tripTitle={trip.title}
         open={shareOpen}
-        onClose={() => setShareOpen(false)}
+        onClose={onCloseShare}
       />
-    </MobileFrame>
+    </>
   );
 }
 
