@@ -342,13 +342,17 @@ function downloadBlobDirect(blob: Blob, filename: string) {
 function TripActionsMenu({
   tripId,
   tripTitle,
+  trip,
   onImportEmail,
-  onShare,
 }: {
   tripId: string;
   tripTitle: string;
+  trip: {
+    id: string;
+    calendarId?: string;
+    days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
+  };
   onImportEmail: () => void;
-  onShare: () => void;
 }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
@@ -403,18 +407,31 @@ function TripActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          onSelect={(e) => {
-            // Keep the dropdown from auto-closing before the dialog can mount;
-            // closing the menu first steals focus and Radix's portal-mounted
-            // dialog briefly flashes the unstyled fallback.
-            e.preventDefault();
-            onShare();
-          }}
-        >
-          <Share2 className="mr-2 h-4 w-4" />
-          Share trip…
-        </DropdownMenuItem>
+        <CalendarSyncButton
+          trip={trip}
+          renderTrigger={({ isSynced, syncedCount, syncing, open }) => (
+            <DropdownMenuItem
+              disabled={syncing}
+              onSelect={(e) => {
+                // Keep the dropdown from auto-closing before the calendar
+                // dialog can take over focus.
+                e.preventDefault();
+                open();
+              }}
+            >
+              {isSynced ? (
+                <CalendarCheck className="mr-2 h-4 w-4 text-green-600" />
+              ) : (
+                <CalendarPlus className="mr-2 h-4 w-4" />
+              )}
+              {syncing
+                ? "Syncing…"
+                : isSynced
+                  ? `Calendar synced (${syncedCount})`
+                  : "Sync to Calendar…"}
+            </DropdownMenuItem>
+          )}
+        />
         <DropdownMenuItem onSelect={onImportEmail}>
           <FileCode2 className="mr-2 h-4 w-4" />
           Import email
@@ -490,14 +507,28 @@ function NeedsReviewBanner({
   );
 }
 
+interface CalendarSyncTriggerArgs {
+  isSynced: boolean;
+  syncedCount: number;
+  syncing: boolean;
+  open: () => void;
+}
+
 function CalendarSyncButton({
   trip,
+  renderTrigger,
 }: {
   trip: {
     id: string;
     calendarId?: string;
     days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
   };
+  /**
+   * Optional override for the trigger element. Defaults to a standalone
+   * outline Button matching the desktop trip header. Provide a custom
+   * render-prop to host the trigger inside e.g. a DropdownMenuItem.
+   */
+  renderTrigger?: (args: CalendarSyncTriggerArgs) => React.ReactNode;
 }) {
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -602,23 +633,27 @@ function CalendarSyncButton({
 
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={syncing}
-        onClick={openDialog}
-      >
-        {isSynced ? (
-          <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
-        ) : (
-          <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-        )}
-        {syncing
-          ? "Syncing…"
-          : isSynced
-            ? `Synced (${syncedCount})`
-            : "Sync to Calendar"}
-      </Button>
+      {renderTrigger ? (
+        renderTrigger({ isSynced, syncedCount, syncing, open: openDialog })
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={syncing}
+          onClick={openDialog}
+        >
+          {isSynced ? (
+            <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+          ) : (
+            <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+          )}
+          {syncing
+            ? "Syncing…"
+            : isSynced
+              ? `Synced (${syncedCount})`
+              : "Sync to Calendar"}
+        </Button>
+      )}
 
       {/* ── Calendar picker (not yet synced) ── */}
       <Dialog open={dialog === "pick"} onOpenChange={(o) => !o && setDialog(null)}>
@@ -794,12 +829,20 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           </Link>
           <div className="flex items-center gap-2">
             <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
-            <CalendarSyncButton trip={trip} />
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShareOpen(true)}
+              className="gap-1.5"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </Button>
             <TripActionsMenu
               tripId={trip.id}
               tripTitle={trip.title}
+              trip={trip}
               onImportEmail={() => setHtmlImportOpen(true)}
-              onShare={() => setShareOpen(true)}
             />
             <HtmlImportDialog
               tripId={trip.id}
