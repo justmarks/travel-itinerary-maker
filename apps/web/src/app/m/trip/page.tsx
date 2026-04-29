@@ -1,15 +1,15 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Share2 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
-import { MobileShareButton } from "@/components/mobile/mobile-share-button";
+import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 
 function fmtRange(start: string, end: string) {
@@ -19,24 +19,10 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
-function HeaderActions({
-  shareTitle,
-  shareText,
-}: {
-  shareTitle: string;
-  shareText?: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center gap-1">
-      <MobileShareButton title={shareTitle} text={shareText} />
-      <MobileUserMenu />
-    </div>
-  );
-}
-
 function MobileTripInner({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/m");
+  const [shareOpen, setShareOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -112,13 +98,26 @@ function MobileTripInner({ tripId }: { tripId: string }) {
         subtitle={`${dateRange} · ${trip.days.length} days`}
         backHref={homeHref}
         right={
-          <HeaderActions
-            shareTitle={trip.title}
-            shareText={`${trip.title} · ${dateRange}`}
-          />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              aria-label="Share trip"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+            <MobileUserMenu />
+          </div>
         }
       />
       <MobileCarouselView trip={trip} />
+      <MobileShareSheet
+        tripId={trip.id}
+        tripTitle={trip.title}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </MobileFrame>
   );
 }

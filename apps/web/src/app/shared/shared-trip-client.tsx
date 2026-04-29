@@ -2,7 +2,7 @@
 
 import { useSharedTrip } from "@travel-app/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
-import { Calendar, MapPin, Plane } from "lucide-react";
+import { Calendar, MapPin, Pencil, Plane } from "lucide-react";
 
 function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
@@ -38,6 +38,8 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     );
   }
 
+  const isEditShare = trip.permission === "edit";
+
   return (
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-5xl">
@@ -57,6 +59,17 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
             </span>
           </div>
         </div>
+
+        {isEditShare && (
+          <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <strong>Edit access</strong> — editing shared trips ships in the
+              next release. For now you can view everything; once contributor
+              edit lands you&apos;ll be able to make changes here.
+            </span>
+          </div>
+        )}
 
         <div className="flex flex-col gap-8">
           {trip.days.map((day) => (

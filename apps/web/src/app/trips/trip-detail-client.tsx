@@ -59,7 +59,9 @@ import {
   MoreHorizontal,
   FileCode2,
   Smartphone,
+  Share2,
 } from "lucide-react";
+import { ShareTripDialog } from "@/components/share-trip-dialog";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
@@ -341,10 +343,12 @@ function TripActionsMenu({
   tripId,
   tripTitle,
   onImportEmail,
+  onShare,
 }: {
   tripId: string;
   tripTitle: string;
   onImportEmail: () => void;
+  onShare: () => void;
 }) {
   const client = useApiClient();
   const [exporting, setExporting] = useState(false);
@@ -399,6 +403,18 @@ function TripActionsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onSelect={(e) => {
+            // Keep the dropdown from auto-closing before the dialog can mount;
+            // closing the menu first steals focus and Radix's portal-mounted
+            // dialog briefly flashes the unstyled fallback.
+            e.preventDefault();
+            onShare();
+          }}
+        >
+          <Share2 className="mr-2 h-4 w-4" />
+          Share trip…
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={onImportEmail}>
           <FileCode2 className="mr-2 h-4 w-4" />
           Import email
@@ -733,6 +749,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const updateTripStatus = useUpdateTrip(tripId);
 
   if (isLoading) {
@@ -782,12 +799,18 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               tripId={trip.id}
               tripTitle={trip.title}
               onImportEmail={() => setHtmlImportOpen(true)}
+              onShare={() => setShareOpen(true)}
             />
             <HtmlImportDialog
               tripId={trip.id}
               hideTrigger
               open={htmlImportOpen}
               onOpenChange={setHtmlImportOpen}
+            />
+            <ShareTripDialog
+              tripId={trip.id}
+              open={shareOpen}
+              onOpenChange={setShareOpen}
             />
             <UserMenu />
           </div>
