@@ -34,6 +34,16 @@ export class TokenStore {
     return this.tokens.get(userId);
   }
 
+  /**
+   * List every userId we currently have a refresh token for. Used by the
+   * shared-route recovery path: if the in-memory share registry was wiped
+   * by a server restart but the tokenStore is still populated, we can
+   * scan known users' Drives looking for the requested share token.
+   */
+  listUserIds(): string[] {
+    return Array.from(this.tokens.keys());
+  }
+
   /** Get a fresh access token for a user using their stored refresh token */
   async getAccessToken(userId: string): Promise<string | null> {
     const entry = this.get(userId);

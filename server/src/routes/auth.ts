@@ -2,13 +2,22 @@ import { Router, type Request, type Response } from "express";
 import { google } from "googleapis";
 import { config } from "../config/env";
 import type { TokenStore } from "../services/token-store";
+import type { ShareRegistry } from "../services/share-registry";
+import { rebuildRegistryForUser } from "../services/registry-rebuild";
 
 export interface AuthRoutesOptions {
   tokenStore?: TokenStore;
+  /**
+   * Optional. When provided, the login handler pre-warms the registry by
+   * scanning the user's trips and re-registering every share they own.
+   * Lets recipient share-URLs resolve immediately after a server restart
+   * once any owner logs back in.
+   */
+  shareRegistry?: ShareRegistry;
 }
 
 export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
-  const { tokenStore } = options;
+  const { tokenStore, shareRegistry } = options;
   const router = Router();
 
   /**
@@ -58,6 +67,32 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
           tokens.refresh_token,
           userInfo.data.email || "",
         );
+
+        // Pre-warm the share registry: walk this user's trips and
+        // re-register every share entry. After a server restart the
+        // registry is empty, but as soon as any owner logs back in
+        // their share links start working again. Fire-and-forget so the
+        // login response isn't gated on a Drive scan.
+        if (shareRegistry) {
+          rebuildRegistryForUser(
+            userInfo.data.id,
+            shareRegistry,
+            tokenStore,
+          )
+            .then((result) => {
+              if (result && result.registered > 0) {
+                console.log(
+                  `[auth] pre-warmed registry: ${result.registered} share(s) re-registered for user ${userInfo.data.id}`,
+                );
+              }
+            })
+            .catch((err) => {
+              console.warn(
+                `[auth] registry pre-warm failed for ${userInfo.data.id}:`,
+                err instanceof Error ? err.message : err,
+              );
+            });
+        }
       }
 
       res.json({
