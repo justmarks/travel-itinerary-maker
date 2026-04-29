@@ -3,6 +3,7 @@ import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { TokenStore } from "../services/token-store";
 import { DriveStorage } from "../services/google-drive/drive-storage";
+import { rebuildRegistryForUser } from "../services/registry-rebuild";
 
 export interface SharedRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -57,23 +58,64 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
           return;
         }
       } else {
+        // Recovery scan: the in-memory registry is empty (most commonly
+        // because the server restarted), but the tokenStore may still
+        // know about owners we can scan. Walk every known user, rebuild
+        // their registry entries, then retry the lookup.
         console.warn(
-          `[shared/${tokenLabel}] token not in registry — falling back to request storage. ` +
-            `If the server restarted since the share was created, the in-memory registry was reset.`,
+          `[shared/${tokenLabel}] registry miss — scanning ${tokenStore.listUserIds().length} known user(s) to rebuild`,
         );
-        try {
-          storage = getStorage(req);
-        } catch (err) {
-          // Drive mode without auth on the request; nothing we can do.
-          console.warn(
-            `[shared/${tokenLabel}] cannot fall back to request storage:`,
-            err instanceof Error ? err.message : err,
+        let recoveredEntry;
+        for (const userId of tokenStore.listUserIds()) {
+          await rebuildRegistryForUser(userId, shareRegistry, tokenStore);
+          const found = shareRegistry.lookup(token);
+          if (found) {
+            recoveredEntry = found;
+            console.log(
+              `[shared/${tokenLabel}] recovered token from user ${userId}`,
+            );
+            break;
+          }
+        }
+
+        if (recoveredEntry) {
+          // Treat the recovered entry just like a normal hit: fetch the
+          // owner's storage and continue.
+          registryHit = true;
+          const accessToken = await tokenStore.getAccessToken(
+            recoveredEntry.ownerUserId,
           );
-          res.status(404).json({
-            error: "Shared trip not found",
-            reason: "registry-miss",
-          });
-          return;
+          if (!accessToken) {
+            console.warn(
+              `[shared/${tokenLabel}] recovered entry has no usable owner access token`,
+            );
+            res.status(503).json({
+              error: "Shared trip unavailable",
+              reason: "owner-auth-expired",
+            });
+            return;
+          }
+          storage = new DriveStorage({ accessToken });
+        } else {
+          // Recovery scan didn't find the token across the known users.
+          // Last-resort fallback: try the request-level storage. In dev
+          // mode that's a shared in-memory store that holds all trips
+          // (and exercises the test path where the registry isn't
+          // populated by createShare). In drive mode this throws because
+          // the public /shared route has no auth, so we return 404.
+          try {
+            storage = getStorage(req);
+          } catch (err) {
+            console.warn(
+              `[shared/${tokenLabel}] recovery scan exhausted, request storage unavailable:`,
+              err instanceof Error ? err.message : err,
+            );
+            res.status(404).json({
+              error: "Shared trip not found",
+              reason: "registry-miss",
+            });
+            return;
+          }
         }
       }
     } else {

@@ -75,7 +75,9 @@ export function createApp(options: AppOptions): express.Express {
   });
 
   // Auth routes (no auth required)
-  app.use("/api/v1/auth", createAuthRoutes({ tokenStore }));
+  // Pass shareRegistry so a successful login pre-warms registry entries
+  // for the user's trips — recovers from server restarts without Redis.
+  app.use("/api/v1/auth", createAuthRoutes({ tokenStore, shareRegistry }));
 
   // Trip routes — require auth in drive mode
   if (mode === "drive") {
