@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
+  convertToUsd,
 } from "@travel-app/shared";
 import type { Segment } from "@travel-app/shared";
 import {
@@ -67,8 +68,30 @@ function fmtDateLong(iso?: string): string | null {
   });
 }
 
+function fmtUsd(amount: number) {
+  return `$${amount.toLocaleString("en-US", {
+    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
+ * Returns the cost in USD when the source currency has a known FX rate;
+ * otherwise the native-currency formatting (e.g. "points"). Pairs with
+ * formatCostOriginal below to render "$X (€Y)" for foreign cards.
+ */
 function formatCost(cost?: { amount: number; currency: string; details?: string }) {
   if (!cost) return null;
+  const usd = convertToUsd(cost.amount, cost.currency);
+  if (usd !== undefined) return fmtUsd(usd);
+  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
+  const sym = symbols[cost.currency] ?? `${cost.currency} `;
+  return `${sym}${cost.amount.toLocaleString()}`;
+}
+
+function formatCostOriginal(cost?: { amount: number; currency: string }) {
+  if (!cost || cost.currency === "USD") return null;
+  if (convertToUsd(cost.amount, cost.currency) === undefined) return null;
   const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
   const sym = symbols[cost.currency] ?? `${cost.currency} `;
   return `${sym}${cost.amount.toLocaleString()}`;
@@ -186,6 +209,7 @@ export function MobileSegmentDetailSheet({
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
   const cost = formatCost(segment.cost);
+  const costOriginal = formatCostOriginal(segment.cost);
 
   const flightLabel = isFlight ? formatFlightLabel(segment) : "";
   const titleText =
@@ -433,6 +457,11 @@ export function MobileSegmentDetailSheet({
           <Row label="Cost">
             <p className="text-base font-semibold">
               {cost}
+              {costOriginal && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  ({costOriginal})
+                </span>
+              )}
               {segment.cost?.details && (
                 <span className="ml-1 text-xs font-normal text-muted-foreground">
                   · {segment.cost.details}
