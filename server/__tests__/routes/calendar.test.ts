@@ -1,4 +1,5 @@
 import request from "supertest";
+import type express from "express";
 import { createApp } from "../../src/app";
 import { InMemoryStorage } from "../../src/services/storage";
 
@@ -18,12 +19,12 @@ const mockSync = syncTripToCalendar as jest.MockedFunction<typeof syncTripToCale
 const mockUnsync = unsyncTripFromCalendar as jest.MockedFunction<typeof unsyncTripFromCalendar>;
 
 let storage: InMemoryStorage;
-let app: ReturnType<typeof createApp>;
+let app: express.Express;
 let tripId: string;
 
 beforeEach(async () => {
   storage = new InMemoryStorage();
-  app = createApp({ mode: "memory", storage });
+  app = await createApp({ mode: "memory", storage, disableRedis: true });
 
   // Create a trip with one segment
   const tripRes = await request(app)
@@ -119,7 +120,7 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
 
   it("returns 401 in drive mode when no Authorization header is sent", async () => {
     // In drive mode, requireAuth middleware rejects requests without a token
-    const driveApp = createApp({ mode: "drive" });
+    const driveApp = await createApp({ mode: "drive", disableRedis: true });
 
     const res = await request(driveApp)
       .post("/api/v1/trips/any-id/calendar/sync");

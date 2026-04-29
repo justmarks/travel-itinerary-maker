@@ -191,11 +191,11 @@ jest.mock("../../src/services/email-parser", () => {
 });
 
 let storage: InMemoryStorage;
-let app: ReturnType<typeof createApp>;
+let app: import("express").Express;
 
-beforeEach(() => {
+beforeEach(async () => {
   storage = new InMemoryStorage();
-  app = createApp({ mode: "memory", storage });
+  app = await createApp({ mode: "memory", storage, disableRedis: true });
 });
 
 describe("Email Routes", () => {

@@ -10,6 +10,7 @@ import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
+import { createRedisStore } from "./services/redis-store";
 import { reportError } from "./services/monitoring";
 import { config } from "./config/env";
 
@@ -24,11 +25,23 @@ export interface AppOptions {
    * Required when mode is "memory". The shared storage instance.
    */
   storage?: StorageProvider;
+  /**
+   * Test override: skip Redis even if env vars are set. Lets tests run
+   * deterministically without a live Redis instance.
+   */
+  disableRedis?: boolean;
 }
 
-export function createApp(options: AppOptions): express.Express {
+/**
+ * Async because TokenStore + ShareRegistry hydrate from Redis on boot
+ * when persistence is configured. Hydration is fire-and-forget-safe
+ * (failures fall back to in-memory), but awaiting here lets the entry
+ * point start the listener with a warm cache so the very first
+ * post-restart request doesn't miss.
+ */
+export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
-  const { mode, storage } = options;
+  const { mode, storage, disableRedis } = options;
 
   app.use(cors({ origin: config.corsOrigin }));
   // Raised from the 100kb default so users can paste/upload full .eml or
@@ -46,9 +59,15 @@ export function createApp(options: AppOptions): express.Express {
     });
   });
 
-  // Shared services for production mode
-  const tokenStore = new TokenStore();
-  const shareRegistry = new ShareRegistry();
+  // Shared services. When UPSTASH_REDIS_REST_URL/_TOKEN are set the
+  // stores write through to Redis and survive process restarts; without
+  // those env vars they're plain in-memory (legacy behaviour).
+  const redisStore = disableRedis ? null : createRedisStore();
+  const tokenStore = new TokenStore(redisStore);
+  const shareRegistry = new ShareRegistry(redisStore);
+
+  // Hydrate caches from Redis. No-op without persistence configured.
+  await Promise.all([tokenStore.hydrate(), shareRegistry.hydrate()]);
 
   // Build the storage resolver based on mode
   let resolveStorage: StorageResolver | StorageProvider;
