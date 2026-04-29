@@ -1,14 +1,17 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
-import { AlertCircle } from "lucide-react";
+import type { Trip } from "@travel-app/shared";
+import { AlertCircle, CheckSquare, DollarSign } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
+import { MobileCostsSheet } from "@/components/mobile/mobile-costs-sheet";
+import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareButton } from "@/components/mobile/mobile-share-button";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 
@@ -19,24 +22,87 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+function fmtUsdCompact(n: number): string {
+  if (n >= 10000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
 function HeaderActions({
   shareTitle,
   shareText,
+  usdTotal,
+  todoRemaining,
+  todoTotal,
+  onOpenCosts,
+  onOpenTodos,
 }: {
   shareTitle: string;
   shareText?: string;
+  usdTotal: number | null;
+  todoRemaining: number;
+  todoTotal: number;
+  onOpenCosts: () => void;
+  onOpenTodos: () => void;
 }): React.JSX.Element {
+  const todoLabel =
+    todoTotal === 0 ? "To-do" : todoRemaining === 0 ? "✓" : todoRemaining;
   return (
     <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onOpenCosts}
+        className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-semibold text-foreground active:bg-muted/70"
+        aria-label="Open costs"
+      >
+        <DollarSign className="h-3.5 w-3.5" />
+        <span className="tabular-nums">
+          {usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={onOpenTodos}
+        className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-semibold text-foreground active:bg-muted/70"
+        aria-label={`Open to-dos${todoTotal ? ` (${todoRemaining} remaining)` : ""}`}
+      >
+        <CheckSquare className="h-3.5 w-3.5" />
+        <span className="tabular-nums">{todoLabel}</span>
+      </button>
       <MobileShareButton title={shareTitle} text={shareText} />
       <MobileUserMenu />
     </div>
   );
 }
 
+function useTripSummary(trip: Trip) {
+  const usdTotal = useMemo(() => {
+    let sum = 0;
+    let any = false;
+    for (const day of trip.days) {
+      for (const seg of day.segments) {
+        if (seg.cost?.currency === "USD" && typeof seg.cost.amount === "number") {
+          sum += seg.cost.amount;
+          any = true;
+        }
+      }
+    }
+    return any ? sum : null;
+  }, [trip.days]);
+
+  const todoSummary = useMemo(() => {
+    const total = trip.todos.length;
+    const remaining = trip.todos.filter((t) => !t.isCompleted).length;
+    return { total, remaining };
+  }, [trip.todos]);
+
+  return { usdTotal, todoSummary };
+}
+
 function MobileTripInner({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/m");
+  const [costsOpen, setCostsOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -107,6 +173,46 @@ function MobileTripInner({ tripId }: { tripId: string }) {
 
   return (
     <MobileFrame>
+      <TripFrame
+        trip={trip}
+        dateRange={dateRange}
+        homeHref={homeHref}
+        costsOpen={costsOpen}
+        todosOpen={todosOpen}
+        onOpenCosts={() => setCostsOpen(true)}
+        onCloseCosts={() => setCostsOpen(false)}
+        onOpenTodos={() => setTodosOpen(true)}
+        onCloseTodos={() => setTodosOpen(false)}
+      />
+    </MobileFrame>
+  );
+}
+
+function TripFrame({
+  trip,
+  dateRange,
+  homeHref,
+  costsOpen,
+  todosOpen,
+  onOpenCosts,
+  onCloseCosts,
+  onOpenTodos,
+  onCloseTodos,
+}: {
+  trip: Trip;
+  dateRange: string;
+  homeHref: string;
+  costsOpen: boolean;
+  todosOpen: boolean;
+  onOpenCosts: () => void;
+  onCloseCosts: () => void;
+  onOpenTodos: () => void;
+  onCloseTodos: () => void;
+}): React.JSX.Element {
+  const { usdTotal, todoSummary } = useTripSummary(trip);
+
+  return (
+    <>
       <MobileHeader
         title={trip.title}
         subtitle={`${dateRange} · ${trip.days.length} days`}
@@ -115,11 +221,27 @@ function MobileTripInner({ tripId }: { tripId: string }) {
           <HeaderActions
             shareTitle={trip.title}
             shareText={`${trip.title} · ${dateRange}`}
+            usdTotal={usdTotal}
+            todoRemaining={todoSummary.remaining}
+            todoTotal={todoSummary.total}
+            onOpenCosts={onOpenCosts}
+            onOpenTodos={onOpenTodos}
           />
         }
       />
       <MobileCarouselView trip={trip} />
-    </MobileFrame>
+      <MobileCostsSheet
+        tripId={trip.id}
+        open={costsOpen}
+        onClose={onCloseCosts}
+      />
+      <MobileTodosSheet
+        tripId={trip.id}
+        todos={trip.todos}
+        open={todosOpen}
+        onClose={onCloseTodos}
+      />
+    </>
   );
 }
 
