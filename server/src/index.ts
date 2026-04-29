@@ -24,12 +24,28 @@ initMonitoring();
 
 const isProduction = config.nodeEnv === "production";
 
-const app = isProduction
-  ? createApp({ mode: "drive" })
-  : createApp({ mode: "memory", storage: new InMemoryStorage() });
+// `createApp` is async — TokenStore + ShareRegistry hydrate from
+// Redis (when persistence is configured) before the server starts
+// accepting requests. Synchronous boot is preserved when there's no
+// Redis (hydrate becomes a no-op).
+async function bootstrap(): Promise<void> {
+  const app = isProduction
+    ? await createApp({ mode: "drive" })
+    : await createApp({ mode: "memory", storage: new InMemoryStorage() });
 
-app.listen(config.port, () => {
-  console.log(`Server running on http://localhost:${config.port}`);
-  console.log(`Environment: ${config.nodeEnv}`);
-  console.log(`Storage: ${isProduction ? "Google Drive" : "In-Memory"}`);
+  app.listen(config.port, () => {
+    console.log(`Server running on http://localhost:${config.port}`);
+    console.log(`Environment: ${config.nodeEnv}`);
+    console.log(`Storage: ${isProduction ? "Google Drive" : "In-Memory"}`);
+    if (config.redis.url && config.redis.token) {
+      console.log("Persistence: Upstash Redis (token store + share registry)");
+    } else {
+      console.log("Persistence: in-memory only (no Redis configured)");
+    }
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error("Server failed to start:", err);
+  process.exit(1);
 });

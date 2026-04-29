@@ -1,13 +1,16 @@
 import request from "supertest";
+import type express from "express";
 import { createApp } from "../../src/app";
 import { InMemoryStorage } from "../../src/services/storage";
 
 let storage: InMemoryStorage;
-let app: ReturnType<typeof createApp>;
+let app: express.Express;
 
-beforeEach(() => {
+beforeEach(async () => {
   storage = new InMemoryStorage();
-  app = createApp({ mode: "memory", storage });
+  // disableRedis ensures tests never reach for live Upstash credentials
+  // even when those env vars happen to be set in the developer's shell.
+  app = await createApp({ mode: "memory", storage, disableRedis: true });
 });
 
 describe("GET /health", () => {
