@@ -51,33 +51,38 @@ export function MobileCostsSheet({
   const { data, isLoading, isError, refetch } = useCostSummary(tripId);
 
   // Currencies without a USD conversion (e.g. "points") get their own
-  // total line so we don't mix them into the headline grand total.
-  const unconvertedCurrencies = data
-    ? Object.entries(data.totalsByCurrency).filter(([currency]) =>
-        data.items.some(
-          (i) => i.currency === currency && i.amountUsd === undefined,
-        ),
-      )
+  // total line in the receipt footer so we don't mix them into the
+  // headline grand total.
+  const unconvertedTotals = data
+    ? Object.entries(data.totalsByCurrency)
+        .filter(([currency]) =>
+          data.items.some(
+            (i) => i.currency === currency && i.amountUsd === undefined,
+          ),
+        )
+        .map(([currency]) => {
+          const total = data.items
+            .filter((i) => i.currency === currency && i.amountUsd === undefined)
+            .reduce((sum, i) => sum + i.amount, 0);
+          return { currency, total };
+        })
     : [];
 
   return (
     <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Trip costs">
       {/* Header */}
-      <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-2 pt-1">
+      <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Costs
+            Total · USD
           </p>
-          {data?.totalUsd !== undefined && (
-            <h2 className="mt-0.5 text-2xl font-bold leading-tight tabular-nums">
-              {fmtUsd(data.totalUsd)}
-            </h2>
-          )}
-          {data && data.totalUsd === undefined && data.items.length > 0 && (
-            <h2 className="mt-0.5 text-base font-semibold text-muted-foreground">
-              {data.items.length}{" "}
-              {data.items.length === 1 ? "item" : "items"}
-            </h2>
+          <h2 className="mt-0.5 text-3xl font-bold leading-tight tabular-nums">
+            {data?.totalUsd !== undefined ? fmtUsd(data.totalUsd) : "—"}
+          </h2>
+          {data && data.items.length > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {data.items.length} {data.items.length === 1 ? "item" : "items"}
+            </p>
           )}
         </div>
         <button
@@ -91,7 +96,7 @@ export function MobileCostsSheet({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto px-5 pb-6">
+      <div className="flex-1 overflow-y-auto px-5 pb-2">
         {isLoading ? (
           <div className="space-y-2">
             {[1, 2, 3, 4].map((i) => (
@@ -117,77 +122,79 @@ export function MobileCostsSheet({
             No costs recorded yet.
           </p>
         ) : (
-          <>
-            <ul className="divide-y divide-border/50">
-              {data.items.map((item) => {
-                const label = categoryLabel(item.category);
-                const primary = item.city ? `${item.city}: ${label}` : label;
-                const isForeign =
-                  item.amountUsd !== undefined && item.currency !== "USD";
-                const showSubtitle =
-                  item.description &&
-                  item.description.trim().toLowerCase() !== label.toLowerCase();
-                return (
-                  <li
-                    key={item.segmentId}
-                    className="flex items-start justify-between gap-3 py-2.5"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium" title={primary}>
-                        {primary}
+          <ul className="divide-y divide-border/50">
+            {data.items.map((item) => {
+              const label = categoryLabel(item.category);
+              const primary = item.city ? `${item.city}: ${label}` : label;
+              const isForeign =
+                item.amountUsd !== undefined && item.currency !== "USD";
+              const showSubtitle =
+                item.description &&
+                item.description.trim().toLowerCase() !== label.toLowerCase();
+              return (
+                <li
+                  key={item.segmentId}
+                  className="flex items-start justify-between gap-3 py-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium" title={primary}>
+                      {primary}
+                    </p>
+                    {showSubtitle && (
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={item.description}
+                      >
+                        {item.description}
                       </p>
-                      {showSubtitle && (
-                        <p
-                          className="truncate text-xs text-muted-foreground"
-                          title={item.description}
-                        >
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold tabular-nums">
-                        {item.amountUsd !== undefined
-                          ? fmtUsd(item.amountUsd)
-                          : formatCurrency(item.amount, item.currency)}
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-semibold tabular-nums">
+                      {item.amountUsd !== undefined
+                        ? fmtUsd(item.amountUsd)
+                        : formatCurrency(item.amount, item.currency)}
+                    </p>
+                    {isForeign && (
+                      <p className="text-[11px] text-muted-foreground tabular-nums">
+                        {formatCurrency(item.amount, item.currency)}
                       </p>
-                      {isForeign && (
-                        <p className="text-[11px] text-muted-foreground tabular-nums">
-                          {formatCurrency(item.amount, item.currency)}
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {unconvertedCurrencies.length > 0 && (
-              <div className="mt-4 flex flex-col gap-1 border-t pt-3 text-sm">
-                {unconvertedCurrencies.map(([currency]) => {
-                  const unconvertedTotal = data.items
-                    .filter(
-                      (i) =>
-                        i.currency === currency && i.amountUsd === undefined,
-                    )
-                    .reduce((sum, i) => sum + i.amount, 0);
-                  return (
-                    <div
-                      key={currency}
-                      className="flex items-center justify-between text-muted-foreground"
-                    >
-                      <span>Total ({currency})</span>
-                      <span className="font-medium tabular-nums">
-                        {formatCurrency(unconvertedTotal, currency)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
+
+      {/* Receipt-style sticky total. Pinned to the sheet bottom so it stays
+          visible while the user scrolls the items list. Mirrors the headline
+          USD figure plus any non-convertible currencies so the user has a
+          clear summary regardless of where they are in the list. */}
+      {data && data.items.length > 0 && (
+        <div className="shrink-0 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+          {data.totalUsd !== undefined && (
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-semibold">Total (USD)</span>
+              <span className="text-base font-bold tabular-nums">
+                {fmtUsd(data.totalUsd)}
+              </span>
+            </div>
+          )}
+          {unconvertedTotals.map(({ currency, total }) => (
+            <div
+              key={currency}
+              className="flex items-baseline justify-between text-xs text-muted-foreground"
+            >
+              <span>Total ({currency})</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrency(total, currency)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </MobileBottomSheet>
   );
 }
