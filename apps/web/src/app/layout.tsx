@@ -57,7 +57,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <Providers>{children}</Providers>
-        <Toaster richColors position="top-right" />
+        {/* top-center keeps toasts from overlapping the top-right header
+            controls (avatar, share button, action pills) on the mobile
+            trip page where vertical space is tight. */}
+        <Toaster richColors position="top-center" />
       </body>
     </html>
   );

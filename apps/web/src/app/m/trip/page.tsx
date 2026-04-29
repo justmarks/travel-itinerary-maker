@@ -42,6 +42,9 @@ function HeaderActions({
   onOpenTodos: () => void;
   onOpenShare: () => void;
 }): React.JSX.Element {
+  // The avatar lives on /m only — the trip-detail header was getting
+  // squeezed by Costs + Todos + Share + Avatar all crowding the title.
+  // Tap back-arrow → home to reach the user menu.
   const todoLabel =
     todoTotal === 0 ? "To-do" : todoRemaining === 0 ? "✓" : todoRemaining;
   return (
@@ -66,10 +69,6 @@ function HeaderActions({
         <CheckSquare className="h-3.5 w-3.5" />
         <span className="tabular-nums">{todoLabel}</span>
       </button>
-      {/* Share opens the share sheet which creates a share link and hands
-          the URL off to the OS share sheet. The previous button only
-          shared the current URL — fine for re-sharing an existing link
-          but not what users expect when first sharing a trip. */}
       <button
         type="button"
         onClick={onOpenShare}
@@ -78,7 +77,6 @@ function HeaderActions({
       >
         <Share2 className="h-4 w-4" />
       </button>
-      <MobileUserMenu />
     </div>
   );
 }
