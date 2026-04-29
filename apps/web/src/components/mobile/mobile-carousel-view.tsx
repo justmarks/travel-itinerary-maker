@@ -144,20 +144,51 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Compact trip header */}
-      <div className="shrink-0 border-b bg-background px-4 pb-2 pt-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h1 className="truncate text-lg font-bold">{trip.title}</h1>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {isAllView ? "Overview" : `Day ${activeIdx}/${days.length}`}
-          </span>
+      {/* Trip header — title + Costs/Todos action pills on the right.
+          The day strip below already indicates which day is active, so
+          the old "Overview / Day X/Y" text was redundant. */}
+      <div className="shrink-0 border-b bg-background px-3 pb-2 pt-2.5">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-bold leading-tight">
+              {trip.title}
+            </h1>
+            {tripStats.cities.length > 0 && (
+              <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                <MapPin className="h-3 w-3" />
+                <span className="truncate">{tripStats.cities.join(" · ")}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCostsOpen(true)}
+              className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-semibold text-foreground active:bg-muted/70"
+              aria-label="Open costs"
+            >
+              <DollarSign className="h-3.5 w-3.5" />
+              <span className="tabular-nums">
+                {usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTodosOpen(true)}
+              className="inline-flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-xs font-semibold text-foreground active:bg-muted/70"
+              aria-label={`Open to-dos${todoSummary.total ? ` (${todoSummary.remaining} remaining)` : ""}`}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              <span className="tabular-nums">
+                {todoSummary.total === 0
+                  ? "To-do"
+                  : todoSummary.remaining === 0
+                    ? "✓"
+                    : todoSummary.remaining}
+              </span>
+            </button>
+          </div>
         </div>
-        {tripStats.cities.length > 0 && (
-          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            {tripStats.cities.join(" · ")}
-          </p>
-        )}
       </div>
 
       {/* Day strip */}
@@ -281,55 +312,6 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
             </div>
           );
         })}
-      </div>
-
-      {/* Footer: prominent dual pill buttons with value-at-a-glance, plus
-          the page-dot indicator above. Bigger touch targets and filled
-          backgrounds make the buttons obvious without needing to scan. */}
-      <div className="shrink-0 border-t bg-background pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2">
-        <div className="flex items-center justify-center gap-1.5 pb-2">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => goToPage(i)}
-              aria-label={i === 0 ? "Overview" : `Go to day ${i}`}
-              className={cn(
-                "h-1.5 rounded-full transition-all",
-                i === activeIdx
-                  ? "w-4 bg-foreground"
-                  : "w-1.5 bg-muted-foreground/30",
-              )}
-            />
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 px-3">
-          <button
-            type="button"
-            onClick={() => setCostsOpen(true)}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-muted text-sm font-semibold text-foreground transition-colors active:bg-muted/70"
-            aria-label="Open costs"
-          >
-            <DollarSign className="h-4 w-4" />
-            <span>{usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setTodosOpen(true)}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-muted text-sm font-semibold text-foreground transition-colors active:bg-muted/70"
-            aria-label={`Open to-dos${todoSummary.total ? ` (${todoSummary.remaining} remaining)` : ""}`}
-          >
-            <CheckSquare className="h-4 w-4" />
-            <span>
-              {todoSummary.total === 0
-                ? "To-do"
-                : todoSummary.remaining === 0
-                  ? "All done"
-                  : `${todoSummary.remaining} left`}
-            </span>
-          </button>
-        </div>
       </div>
 
       {/* Sheets — they overlay the whole MobileFrame */}
