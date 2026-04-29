@@ -43,10 +43,18 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
         if (accessToken) {
           storage = new DriveStorage({ accessToken });
         } else {
+          // Owner's refresh token expired/missing. In drive mode the
+          // request has no auth (this is the public /shared route), so
+          // `getStorage(req)` would throw. Surface a clean 503 instead
+          // of letting it hit the global 500 handler.
           console.warn(
-            `[shared/${tokenLabel}] registry entry found but tokenStore returned no access token for owner ${entry.ownerUserId} — falling back to request storage`,
+            `[shared/${tokenLabel}] registry entry found but tokenStore returned no access token for owner ${entry.ownerUserId}`,
           );
-          storage = getStorage(req);
+          res.status(503).json({
+            error: "Shared trip unavailable",
+            reason: "owner-auth-expired",
+          });
+          return;
         }
       } else {
         console.warn(
@@ -70,7 +78,19 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
       }
     } else {
       // Development mode — use the shared in-memory storage
-      storage = getStorage(req);
+      try {
+        storage = getStorage(req);
+      } catch (err) {
+        console.warn(
+          `[shared/${tokenLabel}] dev-mode storage resolve failed:`,
+          err instanceof Error ? err.message : err,
+        );
+        res.status(404).json({
+          error: "Shared trip not found",
+          reason: "no-storage",
+        });
+        return;
+      }
     }
 
     let trips;
