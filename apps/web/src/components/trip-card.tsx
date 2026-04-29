@@ -74,8 +74,8 @@ function formatDateRange(start: string, end: string): string {
 /**
  * Hero band rendered at the top of every TripCard. Shows a Wikipedia
  * thumbnail of the primary city when available, with a deterministic
- * gradient fallback. The city + country flag are overlaid bottom-left, and
- * an upcoming-trip countdown sits top-right.
+ * gradient fallback. The trip title + country flag are overlaid
+ * bottom-left, and an upcoming-trip countdown sits top-right.
  */
 function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
   const image = useCityImage(trip.primaryCity, trip.primaryCountry);
@@ -109,7 +109,7 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={image.url}
-          alt={trip.primaryCity ?? trip.title}
+          alt={trip.title}
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -123,18 +123,16 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
           {countdownLabel}
         </Badge>
       )}
-      {trip.primaryCity && (
-        <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
-          {flag && (
-            <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
-              {flag}
-            </span>
-          )}
-          <span className="truncate text-lg font-semibold leading-tight drop-shadow-sm">
-            {trip.primaryCity}
+      <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
+        {flag && (
+          <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
+            {flag}
           </span>
-        </div>
-      )}
+        )}
+        <span className="line-clamp-2 text-lg font-semibold leading-tight drop-shadow-sm">
+          {trip.title}
+        </span>
+      </div>
     </div>
   );
 }
@@ -180,8 +178,8 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
       )}
       <TripCardHero trip={trip} />
       <div className="flex flex-row items-start justify-between gap-2 px-6">
-        <div className="min-w-0 flex-1 space-y-1">
-          {renaming ? (
+        <div className="min-w-0 flex-1">
+          {renaming && (
             <form
               className="relative z-10 flex items-center gap-1.5"
               onSubmit={(e) => {
@@ -223,13 +221,6 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
                 <X className="h-3.5 w-3.5" />
               </Button>
             </form>
-          ) : (
-            <h3
-              className="line-clamp-2 text-base font-semibold leading-tight"
-              title={trip.title}
-            >
-              {trip.title}
-            </h3>
           )}
         </div>
         <DropdownMenu>

@@ -62,9 +62,8 @@ const BUCKET_LABEL: Record<TripBucket, string> = {
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
  * TripCard hero: city photo from Wikipedia, deterministic gradient
- * fallback, country flag + city name overlaid bottom-left, and an
- * upcoming-trip countdown top-right. For cruise-dominant trips the
- * "city" is the ship name and there's no flag.
+ * fallback, country flag + trip title overlaid bottom-left, and an
+ * upcoming-trip countdown top-right.
  */
 function MobileTripHero({ trip }: { trip: TripSummary }) {
   const image = useCityImage(trip.primaryCity, trip.primaryCountry);
@@ -89,7 +88,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={image.url}
-          alt={trip.primaryCity ?? trip.title}
+          alt={trip.title}
           loading="lazy"
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -106,18 +105,16 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
           {countdownLabel}
         </span>
       )}
-      {trip.primaryCity && (
-        <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
-          {flag && (
-            <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
-              {flag}
-            </span>
-          )}
-          <span className="truncate text-base font-semibold leading-tight drop-shadow-sm">
-            {trip.primaryCity}
+      <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
+        {flag && (
+          <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
+            {flag}
           </span>
-        </div>
-      )}
+        )}
+        <span className="line-clamp-2 text-base font-semibold leading-tight drop-shadow-sm">
+          {trip.title}
+        </span>
+      </div>
     </div>
   );
 }
@@ -136,7 +133,6 @@ function TripRow({
     >
       <MobileTripHero trip={trip} />
       <div className="flex flex-col gap-1 p-3">
-        <p className="truncate text-sm font-semibold">{trip.title}</p>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
           {fmtRange(trip.startDate, trip.endDate)}
