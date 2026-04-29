@@ -173,7 +173,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
       {!renaming && (
         <Link
           href={tripHref}
-          className="absolute inset-0 z-0"
+          className="absolute inset-0 z-10"
           aria-label={trip.title}
         />
       )}
