@@ -271,10 +271,17 @@ export function ShareTripDialog({
         if (!o) reset();
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      {/* `overflow-hidden` + `[&>*]:min-w-0` defends against children that
+          contain long unbreakable strings (the share URL, recipient email)
+          forcing the dialog wider than its constraints. shadcn's
+          DialogContent uses a CSS grid which lets `min-content` items
+          push the parent unless we explicitly clamp the children. */}
+      <DialogContent className="overflow-hidden sm:max-w-md [&>*]:min-w-0">
         <DialogHeader>
-          <DialogTitle>Share trip</DialogTitle>
-          <DialogDescription>
+          {/* pr-8 keeps the title from sliding under the absolute-positioned
+              close button shadcn renders at top-4 right-4. */}
+          <DialogTitle className="pr-8">Share trip</DialogTitle>
+          <DialogDescription className="pr-8">
             {inSuccessState
               ? "Send this link to anyone you want to share with."
               : "Send a link so others can view — or invite a Gmail account that can edit."}
