@@ -154,7 +154,8 @@ Current coverage: **479 tests** across 25 test suites.
 |----------|-------|-------------|
 | `PORT` | server | Express port (default: `3001`) |
 | `NODE_ENV` | server | `development` / `production` / `test` |
-| `CORS_ORIGIN` | server | Allowed origin (default: `http://localhost:3000`) |
+| `CORS_ORIGIN` | server | Comma-separated list of allowed origins (default: `http://localhost:3000`) |
+| `CORS_ORIGIN_PATTERN` | server | Optional regex (as a string) for dynamic origins. A request is allowed if its `Origin` matches any literal in `CORS_ORIGIN` **or** this pattern. Used to accept Vercel per-deploy preview URLs without re-listing every hash. Example: `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`. Leave unset in dev. |
 | `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
@@ -257,7 +258,7 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 - `fix:` — bug fix (bumps patch version)
 - `feat!:` or `BREAKING CHANGE` — breaking change (bumps major version)
 
-Version is auto-incremented on merge to main via GitHub Actions.
+Version is auto-incremented on merge to main via GitHub Actions. `vercel.json` at the repo root carries an `ignoreCommand` so Vercel skips the no-op build for the auto-generated `chore: bump version ... [skip ci]` commits — only real merges trigger a production deploy.
 
 ## Known Limitations
 
