@@ -28,6 +28,15 @@ export const config = {
     token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
   },
   /**
+   * 32-byte encryption key (hex-encoded, 64 chars) for at-rest
+   * encryption of refresh tokens written to Redis. When unset, refresh
+   * tokens persist as plaintext (legacy behaviour — fine for dev /
+   * tests, not recommended for production). Generate one with
+   * `openssl rand -hex 32`. See `services/token-crypto.ts` for the
+   * format and `docs/redis-persistence.md` for the rotation story.
+   */
+  tokenEncryptionKey: process.env.TOKEN_ENCRYPTION_KEY || "",
+  /**
    * Comma-separated list of literal allowed origins (e.g.
    * `https://project-yhbyn.vercel.app,http://localhost:3000`).
    * Combined with `corsOriginPattern` below — a request's `Origin`

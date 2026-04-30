@@ -57,6 +57,54 @@ A typical trip yields one `shares` entry per share link. A typical user
 yields one `tokens` entry total. Even at 10K users + 10K shares the
 combined storage stays well under 1MB.
 
+## Refresh-token encryption at rest
+
+By default the `refreshToken` field on each `tokens` entry is written as
+plaintext. That's fine for dev / tests, but in production it means
+anyone with read access to the Redis database (a leaked Upstash REST
+token, a careless backup, a compromised host) can use those tokens
+directly to call Google APIs as the user.
+
+When `TOKEN_ENCRYPTION_KEY` is set, the server **AES-256-GCM-encrypts**
+the refresh token before persisting. Other fields stay plaintext for
+debuggability — they aren't credentials. The on-disk format is
+`v1:<nonce-hex>:<ciphertext-hex>:<tag-hex>` with a versioned prefix so
+we can migrate to a stronger scheme later without breaking old entries.
+
+### Generating a key
+
+```bash
+openssl rand -hex 32
+```
+
+Set the result as `TOKEN_ENCRYPTION_KEY` on the API server. The key
+must decode to exactly 32 bytes (= 64 hex chars); the server fails fast
+at boot if it's malformed, rather than silently disabling encryption.
+
+### Lazy migration
+
+Existing plaintext entries in Redis stay readable after you flip on
+encryption — `hydrate()` detects the missing `v1:` prefix and loads
+them as-is. The next time each user signs in, the rewrite goes through
+the encrypted path, so the population migrates over naturally without a
+maintenance window.
+
+### Key rotation
+
+The current implementation supports a single active key. Rotating it
+invalidates all entries encrypted under the old key — `hydrate()` logs
+and skips the unreadable rows, and affected users have to sign in again
+(after which their entries are re-written under the new key). For the
+single-user / family scale this app targets, that's an acceptable
+manual recovery; if user counts grow, a multi-key (kid-tagged)
+rotation scheme would be the natural next step.
+
+### Dev / test behaviour
+
+If `TOKEN_ENCRYPTION_KEY` is unset, the store falls through to the
+legacy plaintext path. Tests use this default — they don't need a key
+to exercise the in-memory or Redis-mock paths.
+
 ## Write-through reliability
 
 Writes are fire-and-forget — the in-memory cache is updated
