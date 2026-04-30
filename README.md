@@ -133,13 +133,13 @@ Current coverage: **479 tests** across 25 test suites.
 5. Add authorized JavaScript origins:
    - `http://localhost:3000` (local dev)
    - Your Vercel origin (e.g., `https://project-yhbyn.vercel.app` or your custom domain)
-6. Add authorized redirect URIs:
-   - `http://localhost:3001/api/v1/auth/google/callback`
+6. Add authorized redirect URIs (these are where Google bounces the user back to after consent):
+   - `http://localhost:3000/auth/callback` (local dev)
+   - `https://project-yhbyn.vercel.app/auth/callback` (or your production origin)
 7. Copy credentials into `server/.env`:
    ```
    GOOGLE_CLIENT_ID=your-client-id
    GOOGLE_CLIENT_SECRET=your-client-secret
-   GOOGLE_REDIRECT_URI=http://localhost:3001/api/v1/auth/google/callback
    ```
 8. Set the frontend env var in `apps/web/.env.local`:
    ```
@@ -260,12 +260,11 @@ Version is auto-incremented on merge to main via GitHub Actions. `vercel.json` a
 
 ## Known Limitations
 
-### Refresh-token capture for returning users
+### Refresh tokens are not encrypted at rest
 
-The `TokenStore` and `ShareRegistry` are now persisted to Upstash Redis (see `docs/redis-persistence.md`), so refresh tokens and share links survive redeploys and Railway sleep cycles. Two related gaps remain:
+The `TokenStore` and `ShareRegistry` are persisted to Upstash Redis (see `docs/redis-persistence.md`), so refresh tokens and share links survive redeploys and Railway sleep cycles. The login flow uses a full-page Google OAuth redirect with `access_type=offline` + `prompt=consent`, so every successful sign-in yields a fresh refresh token that gets written through to Redis.
 
-- **Returning users may not yield a refresh token.** `POST /auth/google` only stores a refresh token when Google actually returns one — first consent, or when `access_type=offline` + `prompt=consent` are requested. The web flow currently uses the default `@react-oauth/google` popup, so returning users can silently skip the refresh-token write. The fix is to set `access_type=offline` + `prompt=consent` on the login flow so the server reliably ends up with a usable refresh token for every signed-in user.
-- **Refresh tokens are not encrypted at rest.** They're written to Redis as JSON. Adding application-level encryption (e.g. libsodium with a key supplied via env) before persisting would close that gap.
+What's still outstanding: refresh tokens are stored in Redis as plain JSON. Adding application-level encryption (e.g. libsodium with a key supplied via env) before persisting would close that gap.
 
 ## Roadmap
 
