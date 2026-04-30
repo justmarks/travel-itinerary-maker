@@ -63,7 +63,7 @@ const SAMPLE_TRIPS: Trip[] = [
     title: "Japan Adventure",
     startDate: "2025-04-10",
     endDate: "2025-04-16",
-    status: "planning",
+    status: "completed",
     createdAt: "2025-03-01T10:00:00Z",
     updatedAt: "2025-03-15T14:30:00Z",
     schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
