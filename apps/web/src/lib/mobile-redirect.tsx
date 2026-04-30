@@ -36,9 +36,10 @@ export function clearDesktopOverride(): void {
  *      mobile user menu's "Use desktop site" action.
  *   3. `?demo=true` — keeps the demo flag intact when redirecting.
  *
- * Static export means we can't use Next middleware in production, so this
- * runs client-side. The brief flash of the desktop page is acceptable for
- * a one-time redirect; subsequent navigations within /m don't re-trigger.
+ * Runs client-side rather than as middleware so the redirect honors the
+ * three escape hatches above (which all live on the client). The brief
+ * flash of the desktop page is acceptable for a one-time redirect;
+ * subsequent navigations within /m don't re-trigger.
  */
 export function useMobileHomeRedirect(): void {
   useMobileRedirectTo("/m");

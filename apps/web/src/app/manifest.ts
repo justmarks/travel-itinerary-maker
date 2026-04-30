@@ -3,13 +3,7 @@ import type { MetadataRoute } from "next";
 /**
  * Web app manifest. Lets the site be added to a phone's home screen
  * with the brand icon (paper plane) instead of a generic screenshot.
- *
- * Paths are app-relative — Next.js prepends the configured `basePath`
- * automatically, so the same manifest works in dev (no basePath) and
- * the GH Pages build (basePath=/travel-itinerary-maker).
  */
-// `output: "export"` requires manifest routes to declare themselves
-// as static so Next can pre-render them at build time.
 export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {

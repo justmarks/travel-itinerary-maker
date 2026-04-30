@@ -893,6 +893,110 @@ describe("Share routes", () => {
   });
 });
 
+describe("Share routes — snapshot persistence", () => {
+  let snapshotApp: express.Express;
+  let snapshotStorage: InMemoryStorage;
+  let mockRedis: {
+    hgetall: jest.Mock;
+    hset: jest.Mock;
+    hdel: jest.Mock;
+  };
+  let snapshotTripId: string;
+
+  beforeEach(async () => {
+    mockRedis = {
+      hgetall: jest.fn().mockResolvedValue({}),
+      hset: jest.fn().mockResolvedValue(undefined),
+      hdel: jest.fn().mockResolvedValue(undefined),
+    };
+    snapshotStorage = new InMemoryStorage();
+    snapshotApp = await createApp({
+      mode: "memory",
+      storage: snapshotStorage,
+      redisStore: mockRedis,
+    });
+
+    const res = await request(snapshotApp)
+      .post("/api/v1/trips")
+      .send({
+        title: "Iceland Ring Road",
+        startDate: "2025-06-01",
+        endDate: "2025-06-10",
+      });
+    snapshotTripId = res.body.id;
+    // beforeEach trip-create writes don't matter for these assertions;
+    // clear the mock so each test only sees its own redis traffic.
+    mockRedis.hset.mockClear();
+    mockRedis.hdel.mockClear();
+  });
+
+  // Fire-and-forget writes need a microtask flush before assertions.
+  const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
+
+  it("writes a share snapshot to Redis when a share is created", async () => {
+    const shareRes = await request(snapshotApp)
+      .post(`/api/v1/trips/${snapshotTripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    await flushAsync();
+
+    expect(mockRedis.hset).toHaveBeenCalledWith(
+      "share-snapshots",
+      shareRes.body.shareToken,
+      {
+        title: "Iceland Ring Road",
+        startDate: "2025-06-01",
+        endDate: "2025-06-10",
+        dayCount: 10,
+      },
+    );
+  });
+
+  it("removes the snapshot from Redis when the share is deleted", async () => {
+    const shareRes = await request(snapshotApp)
+      .post(`/api/v1/trips/${snapshotTripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    await flushAsync();
+    mockRedis.hdel.mockClear();
+
+    await request(snapshotApp).delete(
+      `/api/v1/trips/${snapshotTripId}/shares/${shareRes.body.id}`,
+    );
+
+    await flushAsync();
+
+    expect(mockRedis.hdel).toHaveBeenCalledWith(
+      "share-snapshots",
+      shareRes.body.shareToken,
+    );
+  });
+
+  it("removes every share snapshot when the parent trip is deleted", async () => {
+    const s1 = await request(snapshotApp)
+      .post(`/api/v1/trips/${snapshotTripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+    const s2 = await request(snapshotApp)
+      .post(`/api/v1/trips/${snapshotTripId}/share`)
+      .send({ permission: "edit", showCosts: true, showTodos: true });
+
+    await flushAsync();
+    mockRedis.hdel.mockClear();
+
+    await request(snapshotApp).delete(`/api/v1/trips/${snapshotTripId}`);
+    await flushAsync();
+
+    expect(mockRedis.hdel).toHaveBeenCalledWith(
+      "share-snapshots",
+      s1.body.shareToken,
+    );
+    expect(mockRedis.hdel).toHaveBeenCalledWith(
+      "share-snapshots",
+      s2.body.shareToken,
+    );
+  });
+});
+
 describe("Export routes", () => {
   let tripId: string;
 

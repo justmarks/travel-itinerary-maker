@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/postbuild.mjs",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -14,6 +14,7 @@
     "@tanstack/react-query": "^5.96.2",
     "@travel-app/api-client": "workspace:*",
     "@travel-app/shared": "workspace:*",
+    "@upstash/redis": "^1.37.0",
     "@vis.gl/react-google-maps": "^1.8.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

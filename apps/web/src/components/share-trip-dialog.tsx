@@ -32,19 +32,19 @@ import {
 import { cn } from "@/lib/utils";
 
 function buildShareUrl(token: string): string {
-  if (typeof window === "undefined") return `/shared/?token=${token}`;
-  // Use the same origin + basePath the rest of the app is served from. The
-  // recipient lands at /shared and the in-app smart redirect bumps mobile
-  // viewports to /m/shared.
-  const basePath =
-    process.env.NEXT_PUBLIC_BASE_PATH ??
-    (process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "");
-  // Carry `?demo=true` through to the recipient so the mock client boots
-  // and resolves the (deterministic) demo token. No-op for real shares.
+  // Path form (`/shared/<token>`) so the Cloudflare Pages Edge runtime
+  // can resolve the token in `generateMetadata` and produce a per-trip
+  // unfurl preview. The recipient lands at /shared/<token> and the
+  // in-app smart redirect bumps mobile viewports to /m/shared/<token>.
+  // Carry `?demo=true` through to the recipient when the sharer is in
+  // demo mode so the mock client boots and resolves the (deterministic)
+  // demo token. No-op for real shares.
+  const slug = encodeURIComponent(token);
+  if (typeof window === "undefined") return `/shared/${slug}`;
   const isDemo =
     new URLSearchParams(window.location.search).get("demo") === "true";
-  const demoSuffix = isDemo ? "&demo=true" : "";
-  return `${window.location.origin}${basePath}/shared/?token=${encodeURIComponent(token)}${demoSuffix}`;
+  const demoSuffix = isDemo ? "?demo=true" : "";
+  return `${window.location.origin}/shared/${slug}${demoSuffix}`;
 }
 
 function permissionLabel(p: TripShare["permission"]): string {

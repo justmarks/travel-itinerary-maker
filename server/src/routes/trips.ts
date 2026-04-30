@@ -22,6 +22,7 @@ import {
 } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
+import type { ShareSnapshotStore } from "../services/share-snapshot-store";
 import {
   XlsxTripImporter,
   extractYearHint,
@@ -32,10 +33,11 @@ import {
 export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
   shareRegistry?: ShareRegistry;
+  shareSnapshotStore?: ShareSnapshotStore;
 }
 
 export function createTripRoutes(options: TripRoutesOptions): Router {
-  const { resolveStorage, shareRegistry } = options;
+  const { resolveStorage, shareRegistry, shareSnapshotStore } = options;
 
   // Support both a resolver function and a direct storage instance
   const getStorage: StorageResolver =
@@ -395,9 +397,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     const storage = getStorage(req);
     const tripId = req.params.tripId as string;
 
+    // Capture the share tokens BEFORE deleting the trip so we can cascade
+    // the cleanup to the snapshot store. The trip object is the source of
+    // truth for which tokens existed; the registry only knows tokens that
+    // hydrated successfully on the current process.
+    const trip = await storage.getTrip(tripId);
+    const shareTokens = trip?.shares.map((s) => s.shareToken) ?? [];
+
     // Clean up share registry entries when a trip is deleted
     if (shareRegistry) {
       shareRegistry.removeByTrip(tripId);
+    }
+    if (shareSnapshotStore && shareTokens.length > 0) {
+      shareSnapshotStore.deleteMany(shareTokens);
     }
 
     const deleted = await storage.deleteTrip(tripId);
@@ -908,6 +920,18 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         shareRegistry.register(share.shareToken, trip.id, req.userId);
       }
 
+      // Persist a display-only snapshot for the unfurl preview. The Edge
+      // runtime reads this in `generateMetadata` to render the trip's
+      // title and date range without calling back to the API.
+      if (shareSnapshotStore) {
+        shareSnapshotStore.set(share.shareToken, {
+          title: trip.title,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          dayCount: trip.days.length,
+        });
+      }
+
       res.status(201).json(share);
     },
   );
@@ -945,6 +969,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       const removedShare = trip.shares[idx];
       if (shareRegistry && removedShare) {
         shareRegistry.remove(removedShare.shareToken);
+      }
+      if (shareSnapshotStore && removedShare) {
+        shareSnapshotStore.delete(removedShare.shareToken);
       }
 
       trip.shares.splice(idx, 1);

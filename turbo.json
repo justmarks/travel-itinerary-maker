@@ -1,5 +1,13 @@
 {
   "$schema": "https://v2-9-6.turborepo.dev/schema.json",
+  "globalEnv": [
+    "UPSTASH_REDIS_REST_URL",
+    "UPSTASH_REDIS_REST_TOKEN",
+    "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_SITE_URL",
+    "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
+    "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
