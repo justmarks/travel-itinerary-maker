@@ -27,5 +27,18 @@ export const config = {
     url: process.env.UPSTASH_REDIS_REST_URL || "",
     token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
   },
+  /**
+   * Comma-separated list of literal allowed origins (e.g.
+   * `https://project-yhbyn.vercel.app,http://localhost:3000`).
+   * Combined with `corsOriginPattern` below — a request's `Origin`
+   * header is allowed if it matches any literal here OR the pattern.
+   */
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  /**
+   * Optional regex (as a string) for dynamic origins like Vercel
+   * preview URLs that change per deployment. Example for this project:
+   *   ^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$
+   * Unset means "no pattern matching"; literal `corsOrigin` still applies.
+   */
+  corsOriginPattern: process.env.CORS_ORIGIN_PATTERN || "",
 };
