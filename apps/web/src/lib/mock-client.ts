@@ -1602,12 +1602,23 @@ export class MockApiClient extends ApiClient {
   override createShare(tripId: string, input: CreateShareInput): Promise<TripShare> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
+    const permission = input.permission ?? "view";
+    const showCosts = input.showCosts ?? true;
+    const showTodos = input.showTodos ?? false;
+    // Demo share tokens are self-describing: trip ID + display flags are
+    // encoded directly in the token. Real shares persist server-side, but
+    // demo state is per-browser — without this encoding a recipient on a
+    // fresh tab would hit "not found" because their MockApiClient never
+    // observed the share creation. The trailing random segment lets the
+    // owner revoke their copy locally without invalidating the token's
+    // resolve-by-tripId behaviour for other browsers.
+    const shareToken = `demo:${tripId}:${permission}:${showCosts ? "1" : "0"}:${showTodos ? "1" : "0"}:${uid()}`;
     const share: TripShare = {
       id: `share-${uid()}`,
-      shareToken: uid(),
-      permission: input.permission ?? "view",
-      showCosts: input.showCosts ?? true,
-      showTodos: input.showTodos ?? false,
+      shareToken,
+      permission,
+      showCosts,
+      showTodos,
       sharedWithEmail: input.sharedWithEmail,
       createdAt: now(),
     };
@@ -1625,6 +1636,38 @@ export class MockApiClient extends ApiClient {
   // ─── Shared (public) ────────────────────────────────────
 
   override getSharedTrip(token: string) {
+    // Self-describing demo token: `demo:tripId:perm:costs:todos:nonce`.
+    // We resolve from the recipient's local SAMPLE_TRIPS rather than the
+    // (per-browser) shares map so links work across tabs/devices.
+    if (token.startsWith("demo:")) {
+      const parts = token.split(":");
+      if (parts.length >= 5) {
+        const [, tripId, permission, costs, todos] = parts;
+        const trip = this.trips.get(tripId);
+        if (!trip) return Promise.reject(new Error("Shared trip not found"));
+        const showCosts = costs === "1";
+        const showTodos = todos === "1";
+        return Promise.resolve({
+          id: trip.id,
+          title: trip.title,
+          startDate: trip.startDate,
+          endDate: trip.endDate,
+          status: trip.status,
+          days: trip.days.map((day) => ({
+            ...day,
+            segments: day.segments.map((seg) => ({
+              ...seg,
+              cost: showCosts ? seg.cost : undefined,
+            })),
+          })),
+          todos: showTodos ? trip.todos : [],
+          permission: permission === "edit" ? "edit" : "view",
+        });
+      }
+    }
+
+    // Legacy in-memory lookup (kept so any pre-existing tokens in the
+    // current session still resolve).
     for (const trip of this.trips.values()) {
       const share = trip.shares.find((s) => s.shareToken === token);
       if (share) {

@@ -36,9 +36,15 @@ function buildShareUrl(token: string): string {
   // can resolve the token in `generateMetadata` and produce a per-trip
   // unfurl preview. The recipient lands at /shared/<token> and the
   // in-app smart redirect bumps mobile viewports to /m/shared/<token>.
+  // Carry `?demo=true` through to the recipient when the sharer is in
+  // demo mode so the mock client boots and resolves the (deterministic)
+  // demo token. No-op for real shares.
   const slug = encodeURIComponent(token);
   if (typeof window === "undefined") return `/shared/${slug}`;
-  return `${window.location.origin}/shared/${slug}`;
+  const isDemo =
+    new URLSearchParams(window.location.search).get("demo") === "true";
+  const demoSuffix = isDemo ? "?demo=true" : "";
+  return `${window.location.origin}/shared/${slug}${demoSuffix}`;
 }
 
 function permissionLabel(p: TripShare["permission"]): string {
