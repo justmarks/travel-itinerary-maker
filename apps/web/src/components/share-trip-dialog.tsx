@@ -39,7 +39,12 @@ function buildShareUrl(token: string): string {
   const basePath =
     process.env.NEXT_PUBLIC_BASE_PATH ??
     (process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "");
-  return `${window.location.origin}${basePath}/shared/?token=${encodeURIComponent(token)}`;
+  // Carry `?demo=true` through to the recipient so the mock client boots
+  // and resolves the (deterministic) demo token. No-op for real shares.
+  const isDemo =
+    new URLSearchParams(window.location.search).get("demo") === "true";
+  const demoSuffix = isDemo ? "&demo=true" : "";
+  return `${window.location.origin}${basePath}/shared/?token=${encodeURIComponent(token)}${demoSuffix}`;
 }
 
 function permissionLabel(p: TripShare["permission"]): string {
