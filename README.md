@@ -4,9 +4,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 [![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
 
-<!-- Live demo URL is set after the Vercel cutover; update once the
-deployment URL or custom domain is provisioned. -->
-**Live Demo:** _(deploy in progress — link coming)_
+**Live Demo:** [project-yhbyn.vercel.app](https://project-yhbyn.vercel.app/) · [demo mode (no sign-in)](https://project-yhbyn.vercel.app/?demo=true)
 
 ---
 
@@ -134,7 +132,7 @@ Current coverage: **479 tests** across 25 test suites.
 4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID**
 5. Add authorized JavaScript origins:
    - `http://localhost:3000` (local dev)
-   - Your Vercel origin (e.g., `https://travel-itinerary-maker.vercel.app` or your custom domain)
+   - Your Vercel origin (e.g., `https://project-yhbyn.vercel.app` or your custom domain)
 6. Add authorized redirect URIs:
    - `http://localhost:3001/api/v1/auth/google/callback`
 7. Copy credentials into `server/.env`:
@@ -163,7 +161,7 @@ Current coverage: **479 tests** across 25 test suites.
 | `UPSTASH_REDIS_REST_URL` | server **and** apps/web | Upstash Redis REST URL. Server uses it for token/share registry persistence; web reads it on the Edge runtime to render share unfurl previews. |
 | `UPSTASH_REDIS_REST_TOKEN` | server **and** apps/web | Upstash Redis REST token (server-only on web — set as a non-public Vercel env var). |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
-| `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://travel-itinerary-maker.vercel.app`). |
+| `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://project-yhbyn.vercel.app`). |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
@@ -238,7 +236,7 @@ The app scans your Gmail for travel confirmation emails and uses Claude AI to ex
 
 The app supports a runtime demo mode for trying it without Google credentials. Append `?demo=true` to any URL:
 
-- **Live demo**: _(URL coming once the Vercel deploy is provisioned; will be `<vercel-url>/?demo=true`)_
+- **Live demo**: https://project-yhbyn.vercel.app/?demo=true
 - **Local**: http://localhost:3000/?demo=true
 
 Demo mode uses a mock API client with sample trip data. No backend required. The demo and real login flow are served from the same build — toggle via the URL parameter.
@@ -262,29 +260,12 @@ Version is auto-incremented on merge to main via GitHub Actions. `vercel.json` a
 
 ## Known Limitations
 
-### In-memory TokenStore and ShareRegistry
+### Refresh-token capture for returning users
 
-`TokenStore` and `ShareRegistry` (in `server/src/services/`) are currently held in process memory. This means:
+The `TokenStore` and `ShareRegistry` are now persisted to Upstash Redis (see `docs/redis-persistence.md`), so refresh tokens and share links survive redeploys and Railway sleep cycles. Two related gaps remain:
 
-- **On redeploy or server restart**, all stored refresh tokens and share links are lost. Users will need to re-authenticate, and any existing share links will stop resolving.
-- **On Railway free-tier sleep cycles**, the server process restarts on first request, wiping both stores.
-
-The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedicated app folder), the same way trip data is persisted. Until that's done, share links and seamless token refresh are best-effort in production.
-
-Two related cleanups surfaced while auditing this area:
-
-- `GET /shared/:token` returns **500 instead of 404** when the registry has no entry for a token. In drive mode, the fallback path in `server/src/routes/shared.ts` calls `getStorage(req)`, which throws because shared routes are unauthenticated and `req.accessToken` is undefined. Should be handled as a clean 404.
-- `POST /auth/google` only stores a refresh token **when Google actually returns one**, which it does on first consent or when `access_type=offline` + `prompt=consent` are requested. Today the frontend uses the default `@react-oauth/google` popup flow, so returning users silently don't get a refresh token stored server-side. Tokens written to disk should also be encrypted at rest.
-
-**Plan to harden:**
-
-1. Add `DriveTokenStore` and `DriveShareRegistry` implementations alongside the existing in-memory classes.
-2. On write, serialize to a known Drive file (`token-store.json` / `share-registry.json` in the app's root Drive folder), with refresh tokens encrypted at rest.
-3. On read, lazy-load from Drive with a short in-process TTL cache to avoid a Drive API call on every request.
-4. Wire them into `server/src/index.ts` behind an env flag (`PERSIST_TOKEN_STORE=true`) so local dev keeps the fast in-memory path.
-5. Request `access_type=offline` + `prompt=consent` on the login flow so returning users reliably yield a refresh token.
-6. Fix the shared-route fallback to return 404 (not 500) when a share token is unknown.
-7. Add integration tests using a Drive API mock (or a dedicated test Drive folder), including a "server restart" scenario that verifies share links keep working.
+- **Returning users may not yield a refresh token.** `POST /auth/google` only stores a refresh token when Google actually returns one — first consent, or when `access_type=offline` + `prompt=consent` are requested. The web flow currently uses the default `@react-oauth/google` popup, so returning users can silently skip the refresh-token write. The fix is to set `access_type=offline` + `prompt=consent` on the login flow so the server reliably ends up with a usable refresh token for every signed-in user.
+- **Refresh tokens are not encrypted at rest.** They're written to Redis as JSON. Adding application-level encryption (e.g. libsodium with a key supplied via env) before persisting would close that gap.
 
 ## Roadmap
 
@@ -302,9 +283,9 @@ Two related cleanups surfaced while auditing this area:
 - [x] **Google Calendar sync** — push trip segments to any writable Google Calendar; hotels and car rentals as all-day events; flights/trains carry the correct IANA time zone per city; re-sync updates existing events; unsync removes them; calendar picker lets you choose the target calendar; `calendarId` stored on trip so unsync always hits the right calendar
 - [x] **iCal export** — download trip as a `.ics` file named after the trip; VTIMEZONE blocks with DST-aware transitions for Outlook compatibility; overnight flight `DTEND` advanced to next day when UTC arrival precedes UTC departure
 - [x] **IATA airport codes for flights** — flight segments carry `departureAirport` / `arrivalAirport` (3-letter IATA) backed by a 1,178-entry shared lookup; render as `City (CODE)` everywhere; segment editor exposes a keyboard-navigable typeahead (search by code, city, airport name, or alias); title auto-fills to `DEP → ARR (Carrier RouteCode)` once both endpoints are set; calendar sync derives the per-leg IANA timezone from the airport code with city-name fallback for legacy data and other transport
+- [x] **Persist TokenStore + ShareRegistry** — both stores now write through to Upstash Redis when `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are set, and hydrate on server startup; refresh tokens and share entries survive redeploys and Railway sleep cycles. Without those env vars the stores stay pure in-memory (existing dev/test behaviour). `GET /shared/:token` now returns a clean 404/503 (with reason codes) instead of 500 when a token is unknown or the owner's auth has expired. See `docs/redis-persistence.md` for setup.
 
 **Up next:**
-- [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
 - [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
 - [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
 - [ ] **Android mobile** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
