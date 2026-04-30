@@ -40,6 +40,22 @@ function now() {
 
 // ─── Sample Data ─────────────────────────────────────────────────────────────
 
+/**
+ * Trip IDs that should appear as "shared with you" in the demo so the
+ * contributor-flow UI (badge, no Delete option, etc.) is exercised on
+ * the demo dashboard. The Trip itself still lives in the same
+ * `SAMPLE_TRIPS` array — the override is purely a UI affordance.
+ */
+const SHARED_DEMO_OVERRIDES: Record<
+  string,
+  { sharedFromEmail: string; sharedPermission: "view" | "edit" }
+> = {
+  "demo-3": {
+    sharedFromEmail: "alex@example.com",
+    sharedPermission: "edit",
+  },
+};
+
 const SAMPLE_TRIPS: Trip[] = [
   // ── Demo 1: Japan Adventure ───────────────────────────────────────────────
   {
@@ -1234,6 +1250,10 @@ export class MockApiClient extends ApiClient {
       primaryCountry: primary?.country,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      // Demo "shared with you" trips — exercises the contributor flow
+      // badge in the trip list. The third sample trip is treated as
+      // shared by a fictional friend with edit permission.
+      ...(SHARED_DEMO_OVERRIDES[t.id] ?? {}),
     };
   }
 

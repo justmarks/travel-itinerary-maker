@@ -10,6 +10,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  Users,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoMode } from "@/lib/demo";
@@ -103,6 +104,12 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
       {countdownLabel && (
         <span className="absolute right-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
           {countdownLabel}
+        </span>
+      )}
+      {trip.sharedFromEmail && (
+        <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+          <Users className="h-3 w-3" />
+          {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
         </span>
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">

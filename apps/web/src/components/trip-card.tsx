@@ -33,6 +33,7 @@ import {
   Trash2,
   Pencil,
   Check,
+  Users,
   X,
 } from "lucide-react";
 
@@ -124,6 +125,18 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
           {countdownLabel}
         </Badge>
       )}
+      {trip.sharedFromEmail && (
+        // Shared-with-you marker. Sits below the countdown when both
+        // are present so the corner doesn't get crowded.
+        <Badge
+          variant="secondary"
+          className="absolute left-2 z-10 bg-white/90 text-foreground shadow-sm backdrop-blur-sm"
+          style={{ top: showCountdown && countdownLabel ? "2.25rem" : "0.5rem" }}
+        >
+          <Users className="mr-1 h-3 w-3" />
+          {trip.sharedPermission === "edit" ? "Shared · Editor" : "Shared · Viewer"}
+        </Badge>
+      )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
         {flag && (
           <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
@@ -145,6 +158,14 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const [newTitle, setNewTitle] = useState(trip.title);
   const tripHref = useDemoHref(`/trips/?id=${trip.id}`);
 
+  // Capabilities — owner does everything, edit-share contributors can
+  // rename + cycle status but not delete, view-share recipients can
+  // only open the trip.
+  const isShared = !!trip.sharedFromEmail;
+  const canEdit = !isShared || trip.sharedPermission === "edit";
+  const canDelete = !isShared;
+  const showMenu = canEdit || canDelete;
+
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
       deleteTrip.mutate(trip.id);
@@ -165,6 +186,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     // the chip doesn't also navigate into the trip.
     e.preventDefault();
     e.stopPropagation();
+    if (!canEdit) return;
     updateTrip.mutate({ status: nextStatus(trip.status) });
   };
 
@@ -179,36 +201,42 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
       )}
       <div className="relative">
         <TripCardHero trip={trip} />
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-foreground shadow-sm backdrop-blur-sm hover:bg-white"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setNewTitle(trip.title);
-                setRenaming(true);
-              }}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              onClick={handleDelete}
-              disabled={deleteTrip.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {showMenu && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-foreground shadow-sm backdrop-blur-sm hover:bg-white"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {canEdit && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setNewTitle(trip.title);
+                    setRenaming(true);
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Rename
+                </DropdownMenuItem>
+              )}
+              {canDelete && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={handleDelete}
+                  disabled={deleteTrip.isPending}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {renaming && (
         <form
@@ -263,9 +291,18 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             <button
               type="button"
               onClick={cycleStatus}
-              disabled={updateTrip.isPending}
-              title={`Status: ${trip.status}. Click to advance.`}
-              className="cursor-pointer px-2 py-0.5 capitalize hover:opacity-80 disabled:cursor-wait"
+              disabled={updateTrip.isPending || !canEdit}
+              title={
+                canEdit
+                  ? `Status: ${trip.status}. Click to advance.`
+                  : `Status: ${trip.status}`
+              }
+              className={cn(
+                "px-2 py-0.5 capitalize",
+                canEdit
+                  ? "cursor-pointer hover:opacity-80 disabled:cursor-wait"
+                  : "cursor-default",
+              )}
             >
               {trip.status}
             </button>
