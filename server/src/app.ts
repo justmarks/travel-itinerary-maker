@@ -13,6 +13,7 @@ import { ShareRegistry } from "./services/share-registry";
 import { ShareSnapshotStore } from "./services/share-snapshot-store";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { reportError } from "./services/monitoring";
+import { buildCorsOriginCheck } from "./middleware/cors-origin";
 import { config } from "./config/env";
 
 export interface AppOptions {
@@ -51,7 +52,21 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
   const { mode, storage, disableRedis, redisStore: redisStoreOverride } = options;
 
-  app.use(cors({ origin: config.corsOrigin }));
+  // CORS allowlist combines a comma-separated literal list (CORS_ORIGIN)
+  // with an optional regex pattern (CORS_ORIGIN_PATTERN) so Vercel
+  // per-deploy preview URLs work without re-listing every hash.
+  const allowedOrigins = config.corsOrigin
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowedOriginPattern = config.corsOriginPattern
+    ? new RegExp(config.corsOriginPattern)
+    : null;
+  app.use(
+    cors({
+      origin: buildCorsOriginCheck(allowedOrigins, allowedOriginPattern),
+    }),
+  );
   // Raised from the 100kb default so users can paste/upload full .eml or
   // .html email sources (which commonly run 100-500kb with embedded styles
   // and base64 images).

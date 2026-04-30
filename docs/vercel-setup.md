@@ -62,19 +62,40 @@ this whole class of issue evaporates when Vercel is the host.
 After the first deploy, add the new origin to the Google Cloud Console
 OAuth client:
 
-- **Authorized JavaScript origins:** add the Vercel URL
-  (`https://travel-itinerary-maker.vercel.app` and any custom domain).
+- **Authorized JavaScript origins:** add the Vercel **production** URL
+  (e.g. `https://project-yhbyn.vercel.app`) and any custom domain. Do
+  NOT try to add preview URLs — Google doesn't support wildcards in JS
+  origins, and Vercel's preview URLs change per deploy
+  (`<project>-<hash>-<owner>.vercel.app`). Test the OAuth flow on
+  production; use `?demo=true` on previews to exercise the rest of the
+  app without auth.
 - **Authorized redirect URIs:** still the Railway backend's
   `/api/v1/auth/google/callback`; that doesn't change.
 
 ## Updating the backend (Railway)
 
-- Set `CORS_ORIGIN` on the Railway service to the new Vercel origin.
-  Comma-separate to allow both old and new during cutover, then trim
-  once retired.
+CORS now supports both a literal list and a regex pattern so Vercel
+preview URLs work without re-listing every per-deploy hash:
+
+- **`CORS_ORIGIN`** — comma-separated list of literal origins. Set to:
+  ```
+  https://project-yhbyn.vercel.app,http://localhost:3000
+  ```
+  (substitute your real production URL). The localhost entry keeps
+  local dev working from Railway-hosted backends if you ever need it.
+- **`CORS_ORIGIN_PATTERN`** — optional regex (string form) for dynamic
+  origins. For this project's previews:
+  ```
+  ^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$
+  ```
+  An incoming `Origin` header is allowed if it matches any literal in
+  `CORS_ORIGIN` OR this pattern.
 - Confirm `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are
   already set there (they're how the server writes the `share-snapshots`
   hash that the edge reads).
+
+After saving these, restart the Railway service so the new env values
+take effect.
 
 ## Per-PR previews
 
