@@ -21,12 +21,18 @@ monorepo path-doubling that breaks `vercel build` in CI.
      `*.pages.dev` subdomain).
 
 2. **Build configuration.**
-   - **Framework preset:** `Next.js`.
+   - **Framework preset:** `Next.js`. Selecting this is what tells CF
+     Pages to run `@cloudflare/next-on-pages` as part of the build —
+     without it, CF tries to upload `.next/` directly and fails because
+     `.next/cache/webpack/*.pack` exceeds Pages' 25 MiB per-file limit.
    - **Build command:**
      ```
      pnpm install --frozen-lockfile && pnpm --filter @travel-app/shared build && pnpm --filter @travel-app/api-client build && pnpm --filter @travel-app/web build
      ```
-   - **Build output directory:** `apps/web/.next`.
+   - **Build output directory:** `apps/web/.vercel/output/static` —
+     this is what `@cloudflare/next-on-pages` writes after `next build`.
+     Do **not** use `apps/web/.next`; that ships the build-time webpack
+     cache and trips the 25 MiB file-size limit.
    - **Root directory:** _(leave blank — workspace root)_.
    - **Node version:** `22`.
 
