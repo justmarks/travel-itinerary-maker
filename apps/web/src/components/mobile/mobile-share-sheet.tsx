@@ -22,11 +22,11 @@ import { cn } from "@/lib/utils";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 function buildShareUrl(token: string): string {
-  if (typeof window === "undefined") return `/shared/?token=${token}`;
-  const basePath =
-    process.env.NEXT_PUBLIC_BASE_PATH ??
-    (process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "");
-  return `${window.location.origin}${basePath}/shared/?token=${encodeURIComponent(token)}`;
+  // Path form so Cloudflare Pages can render per-trip unfurl metadata.
+  // See share-trip-dialog.tsx for the matching desktop builder.
+  const slug = encodeURIComponent(token);
+  if (typeof window === "undefined") return `/shared/${slug}`;
+  return `${window.location.origin}/shared/${slug}`;
 }
 
 function permissionLabel(p: TripShare["permission"]): string {

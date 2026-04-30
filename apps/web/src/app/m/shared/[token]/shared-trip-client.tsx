@@ -1,8 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
 import { useSharedTrip } from "@travel-app/api-client";
 import type { Segment, Todo } from "@travel-app/shared";
 import { AlertCircle, Lock, MapPin, Pencil } from "lucide-react";
@@ -62,7 +60,11 @@ function ReadOnlyTodos({ todos }: { todos: readonly Todo[] }): React.JSX.Element
   );
 }
 
-function SharedInner({ token }: { token: string }) {
+export default function SharedTripClient({
+  token,
+}: {
+  token: string;
+}): React.JSX.Element {
   const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
@@ -186,44 +188,3 @@ function SharedInner({ token }: { token: string }) {
   );
 }
 
-function MobileSharedInner() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
-
-  if (!token) {
-    return (
-      <MobileFrame>
-        <MobileHeader title="Shared trip" backHref="/" />
-        <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          <p>
-            Missing share token.{" "}
-            <Link href="/" className="underline">
-              Go home
-            </Link>
-            .
-          </p>
-        </div>
-      </MobileFrame>
-    );
-  }
-
-  return <SharedInner token={token} />;
-}
-
-export default function MobileSharedPage(): React.JSX.Element {
-  // No RequireAuth — shared trips are public for view permissions and the
-  // edit-flow gate (auth-required + email match) lands in PR B.
-  return (
-    <Suspense
-      fallback={
-        <MobileFrame>
-          <div className="flex flex-1 items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
-          </div>
-        </MobileFrame>
-      }
-    >
-      <MobileSharedInner />
-    </Suspense>
-  );
-}

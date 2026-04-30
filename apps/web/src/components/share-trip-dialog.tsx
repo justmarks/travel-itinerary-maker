@@ -32,14 +32,13 @@ import {
 import { cn } from "@/lib/utils";
 
 function buildShareUrl(token: string): string {
-  if (typeof window === "undefined") return `/shared/?token=${token}`;
-  // Use the same origin + basePath the rest of the app is served from. The
-  // recipient lands at /shared and the in-app smart redirect bumps mobile
-  // viewports to /m/shared.
-  const basePath =
-    process.env.NEXT_PUBLIC_BASE_PATH ??
-    (process.env.NODE_ENV === "production" ? "/travel-itinerary-maker" : "");
-  return `${window.location.origin}${basePath}/shared/?token=${encodeURIComponent(token)}`;
+  // Path form (`/shared/<token>`) so the Cloudflare Pages Edge runtime
+  // can resolve the token in `generateMetadata` and produce a per-trip
+  // unfurl preview. The recipient lands at /shared/<token> and the
+  // in-app smart redirect bumps mobile viewports to /m/shared/<token>.
+  const slug = encodeURIComponent(token);
+  if (typeof window === "undefined") return `/shared/${slug}`;
+  return `${window.location.origin}/shared/${slug}`;
 }
 
 function permissionLabel(p: TripShare["permission"]): string {

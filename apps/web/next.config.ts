@@ -2,24 +2,15 @@ import type { NextConfig } from "next";
 import path from "path";
 import pkg from "./package.json";
 
-const isProd = process.env.NODE_ENV === "production";
-
-// Allow per-build basePath overrides for PR previews. The preview workflow
-// sets NEXT_PUBLIC_BASE_PATH=/travel-itinerary-maker/previews/pr-NN so each
-// preview is served from its own subdirectory of the gh-pages site.
-// `NEXT_PUBLIC_*` is required so client code (404.html shim, layout meta)
-// can read the same value via process.env.
-const basePath =
-  process.env.NEXT_PUBLIC_BASE_PATH ??
-  (isProd ? "/travel-itinerary-maker" : "");
-
 const nextConfig: NextConfig = {
-  // Static export only in production (GitHub Pages). In dev mode, use the
-  // normal Next.js server so dynamic route params work for real trips.
-  ...(isProd ? { output: "export" as const } : {}),
-  basePath,
-  trailingSlash: true,
+  // Cloudflare Pages serves the site at the project's root (or a custom
+  // domain), so we no longer need GitHub Pages' `/travel-itinerary-maker`
+  // basePath nor the static-export pipeline. The Edge runtime in
+  // `app/shared/[token]/page.tsx` requires SSR.
   images: {
+    // Keep unoptimised: we deploy to CF Pages and don't run Next's
+    // optimiser server. Trip card hero images come from Wikipedia and
+    // Unsplash and don't need transforming.
     unoptimized: true,
   },
   transpilePackages: ["@travel-app/shared", "@travel-app/api-client"],

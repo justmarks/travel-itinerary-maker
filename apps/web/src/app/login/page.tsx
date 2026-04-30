@@ -132,8 +132,7 @@ export default function LoginPage(): React.JSX.Element {
           Plain <a> tag (not next/link) on purpose: we want a full page
           reload so the next page mounts with ?demo=true in the URL from
           the start, avoiding any RequireAuth → /login → / flicker loop.
-          Relative href "../?demo=true" works in both dev and the GitHub
-          Pages build (which uses basePath=/travel-itinerary-maker).
+          Relative href stays out of @next/next/no-html-link-for-pages.
         */}
         <a
           href="../?demo=true"

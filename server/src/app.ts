@@ -10,7 +10,8 @@ import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
-import { createRedisStore } from "./services/redis-store";
+import { ShareSnapshotStore } from "./services/share-snapshot-store";
+import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { reportError } from "./services/monitoring";
 import { config } from "./config/env";
 
@@ -30,6 +31,13 @@ export interface AppOptions {
    * deterministically without a live Redis instance.
    */
   disableRedis?: boolean;
+  /**
+   * Test override: inject a fake RedisStore (e.g. for asserting that
+   * write-through paths called the expected hash methods). Takes
+   * precedence over both `disableRedis` and the env-driven Upstash
+   * client constructed by `createRedisStore()`.
+   */
+  redisStore?: RedisStore | null;
 }
 
 /**
@@ -41,7 +49,7 @@ export interface AppOptions {
  */
 export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
-  const { mode, storage, disableRedis } = options;
+  const { mode, storage, disableRedis, redisStore: redisStoreOverride } = options;
 
   app.use(cors({ origin: config.corsOrigin }));
   // Raised from the 100kb default so users can paste/upload full .eml or
@@ -62,9 +70,18 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // Shared services. When UPSTASH_REDIS_REST_URL/_TOKEN are set the
   // stores write through to Redis and survive process restarts; without
   // those env vars they're plain in-memory (legacy behaviour).
-  const redisStore = disableRedis ? null : createRedisStore();
+  // Tests can pass `redisStore` directly to inject a fake; otherwise
+  // `disableRedis` skips persistence entirely, and the default path
+  // builds a real Upstash client from env.
+  const redisStore =
+    redisStoreOverride !== undefined
+      ? redisStoreOverride
+      : disableRedis
+        ? null
+        : createRedisStore();
   const tokenStore = new TokenStore(redisStore);
   const shareRegistry = new ShareRegistry(redisStore);
+  const shareSnapshotStore = new ShareSnapshotStore(redisStore);
 
   // Hydrate caches from Redis. No-op without persistence configured.
   await Promise.all([tokenStore.hydrate(), shareRegistry.hydrate()]);
@@ -103,11 +120,13 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     app.use("/api/v1/trips", requireAuth, createTripRoutes({
       resolveStorage,
       shareRegistry,
+      shareSnapshotStore,
     }));
   } else {
     app.use("/api/v1/trips", createTripRoutes({
       resolveStorage,
       shareRegistry,
+      shareSnapshotStore,
     }));
   }
 

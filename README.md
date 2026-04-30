@@ -4,7 +4,9 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 [![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
 
-**[Live Demo →](https://justmarks.github.io/travel-itinerary-maker/?demo=true)**
+<!-- Live demo URL is set after the Cloudflare Pages cutover; update once
+the *.pages.dev URL or custom domain is provisioned. -->
+**Live Demo:** _(deploy in progress — link coming)_
 
 ---
 
@@ -38,8 +40,8 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 | Shared packages | Zod validators · TanStack React Query · typed API client |
 | Auth | Google OAuth (auth-code flow + PKCE for native) |
 | Monorepo | pnpm 10 workspaces · Turborepo |
-| CI/CD | GitHub Actions · auto version bumping · GitHub Pages deploy |
-| Hosting | GitHub Pages (web, static export) · Railway (API) — all free tier |
+| CI/CD | GitHub Actions · auto version bumping · Cloudflare Pages deploy |
+| Hosting | Cloudflare Pages (web, SSR via @cloudflare/next-on-pages) · Railway (API) · Upstash Redis (share-token persistence) — all free tier |
 
 ## Project Structure
 
@@ -57,7 +59,7 @@ travel-itinerary-maker/
 │   │   ├── services/         # Google Drive, Gmail scanner, email parser, token store
 │   │   └── middleware/       # Auth
 │   └── __tests__/
-├── .github/workflows/        # CI + auto version bump + GitHub Pages deploy
+├── .github/workflows/        # CI + auto version bump + Cloudflare Pages deploy
 ├── turbo.json                # Build pipeline
 └── pnpm-workspace.yaml       # Workspace config
 ```
@@ -132,7 +134,7 @@ Current coverage: **479 tests** across 25 test suites.
 4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID**
 5. Add authorized JavaScript origins:
    - `http://localhost:3000` (local dev)
-   - Your production domain (e.g., `https://justmarks.github.io`)
+   - Your Cloudflare Pages origin (e.g., `https://travel-itinerary-maker.pages.dev` or your custom domain)
 6. Add authorized redirect URIs:
    - `http://localhost:3001/api/v1/auth/google/callback`
 7. Copy credentials into `server/.env`:
@@ -157,7 +159,10 @@ Current coverage: **479 tests** across 25 test suites.
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
 | `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
+| `UPSTASH_REDIS_REST_URL` | server **and** apps/web | Upstash Redis REST URL. Server uses it for token/share registry persistence; web reads it on the Edge runtime to render share unfurl previews. |
+| `UPSTASH_REDIS_REST_TOKEN` | server **and** apps/web | Upstash Redis REST token (server-only on web — set as a non-public Pages env var). |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
+| `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://travel-itinerary-maker.pages.dev`). |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
@@ -232,7 +237,7 @@ The app scans your Gmail for travel confirmation emails and uses Claude AI to ex
 
 The app supports a runtime demo mode for trying it without Google credentials. Append `?demo=true` to any URL:
 
-- **Live demo**: https://justmarks.github.io/travel-itinerary-maker/?demo=true
+- **Live demo**: _(URL coming once Cloudflare Pages deploy is provisioned; will be `<pages-url>/?demo=true`)_
 - **Local**: http://localhost:3000/?demo=true
 
 Demo mode uses a mock API client with sample trip data. No backend required. The demo and real login flow are served from the same build — toggle via the URL parameter.
