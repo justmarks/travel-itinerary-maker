@@ -69,8 +69,14 @@ OAuth client:
   (`<project>-<hash>-<owner>.vercel.app`). Test the OAuth flow on
   production; use `?demo=true` on previews to exercise the rest of the
   app without auth.
-- **Authorized redirect URIs:** still the Railway backend's
-  `/api/v1/auth/google/callback`; that doesn't change.
+- **Authorized redirect URIs:** add `<origin>/auth/callback` for each
+  origin you sign in from. The web flow does a full-page redirect to
+  Google with `redirect_uri=<origin>/auth/callback` (the
+  `prompt=consent` flow needed to reliably issue refresh tokens), and
+  Google rejects any URI not in this list with `redirect_uri_mismatch`.
+  Production: `https://project-yhbyn.vercel.app/auth/callback`. Local
+  dev: `http://localhost:3000/auth/callback`. Same wildcard limitation
+  as JS origins — preview URLs aren't supported.
 
 ## Updating the backend (Railway)
 

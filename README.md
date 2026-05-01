@@ -134,14 +134,14 @@ Current coverage: **479 tests** across 25 test suites.
 4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID**
 5. Add authorized JavaScript origins:
    - `http://localhost:3000` (local dev)
-   - Your Vercel origin (e.g., `https://travel-itinerary-maker.vercel.app` or your custom domain)
-6. Add authorized redirect URIs:
-   - `http://localhost:3001/api/v1/auth/google/callback`
+   - Your Vercel origin (e.g., `https://project-yhbyn.vercel.app` or your custom domain)
+6. Add authorized redirect URIs (Google bounces the user back here after consent):
+   - `http://localhost:3000/auth/callback`
+   - `https://project-yhbyn.vercel.app/auth/callback` (or your production origin)
 7. Copy credentials into `server/.env`:
    ```
    GOOGLE_CLIENT_ID=your-client-id
    GOOGLE_CLIENT_SECRET=your-client-secret
-   GOOGLE_REDIRECT_URI=http://localhost:3001/api/v1/auth/google/callback
    ```
 8. Set the frontend env var in `apps/web/.env.local`:
    ```
@@ -158,7 +158,6 @@ Current coverage: **479 tests** across 25 test suites.
 | `CORS_ORIGIN_PATTERN` | server | Optional regex (as a string) for dynamic origins. A request is allowed if its `Origin` matches any literal in `CORS_ORIGIN` **or** this pattern. Used to accept Vercel per-deploy preview URLs without re-listing every hash. Example: `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`. Leave unset in dev. |
 | `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
 | `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
 | `UPSTASH_REDIS_REST_URL` | server **and** apps/web | Upstash Redis REST URL. Server uses it for token/share registry persistence; web reads it on the Edge runtime to render share unfurl previews. |
 | `UPSTASH_REDIS_REST_TOKEN` | server **and** apps/web | Upstash Redis REST token (server-only on web — set as a non-public Vercel env var). |

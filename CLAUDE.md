@@ -209,7 +209,6 @@ User-triggered actions — rename, delete, status cycle, todo check, segment add
 | `CORS_ORIGIN` | server | Allowed origin (default: `http://localhost:3000`) |
 | `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | server | OAuth callback URL |
 | `ANTHROPIC_API_KEY` | server | For planned AI email-parsing feature |
 | `SENTRY_DSN` | server | Sentry error-reporting DSN. Unset in dev/CI disables Sentry entirely. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend base URL (default: `http://localhost:3001/api/v1`) |
