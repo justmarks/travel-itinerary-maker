@@ -980,6 +980,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   day={day}
                   tripId={trip.id}
                   readOnly={isReadOnly}
+                  showCosts={showCosts}
                 />
               ))}
             </div>

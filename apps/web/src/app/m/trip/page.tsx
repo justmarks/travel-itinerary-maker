@@ -268,7 +268,7 @@ function TripFrame({
           />
         }
       />
-      <MobileCarouselView trip={trip} />
+      <MobileCarouselView trip={trip} showCosts={permission.showCosts} />
       {/* Sheets are only mounted when the corresponding pill is allowed
           to open them — keeps the data off the page entirely for shares
           that asked to hide costs / todos. */}
