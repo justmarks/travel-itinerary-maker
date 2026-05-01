@@ -43,7 +43,9 @@ function fold(raw: string): string {
 /**
  * Normalise a city string for lookup: fold + take the first comma-separated
  * part. "Reykjavík" → "reykjavik"; "Orlando, FL" → "orlando". Returns "" for
- * skip-worthy entries (empty / "at sea" cruise days).
+ * skip-worthy entries (empty / "at sea" cruise days). Slashes are kept as
+ * part of the key (so transfer-day strings stay distinct) — see
+ * `normalizeCities` for the per-city split.
  */
 function normalizeCity(raw: string): string {
   if (!raw) return "";
@@ -51,6 +53,36 @@ function normalizeCity(raw: string): string {
   if (!folded || folded === "at sea") return "";
   const head = folded.split(",")[0]?.trim() ?? folded;
   return head;
+}
+
+/**
+ * Normalise a city string into one entry per city. Transfer days encoded
+ * with a slash ("Paris / Rome", "Tokyo/Kyoto") count toward each city's
+ * tally. For non-slash inputs the result is a single-element array
+ * equivalent to `normalizeCity`. The original (trimmed) part is preserved
+ * as `display` so casing and diacritics survive into the trip card.
+ */
+function normalizeCities(
+  raw: string,
+): Array<{ key: string; display: string }> {
+  if (!raw) return [];
+  const hasSlash = raw.includes("/");
+  // Without a slash, treat the whole string as one city so "Orlando, FL"
+  // keeps its original display form (matches pre-slash behaviour).
+  const parts = hasSlash
+    ? raw
+        .split("/")
+        .map((p) => p.trim())
+        .filter(Boolean)
+    : [raw];
+  return parts
+    .map((part) => {
+      const folded = fold(part);
+      if (!folded || folded === "at sea") return null;
+      const head = folded.split(",")[0]?.trim() ?? folded;
+      return head ? { key: head, display: part } : null;
+    })
+    .filter((x): x is { key: string; display: string } => x !== null);
 }
 
 /**
@@ -210,6 +242,33 @@ function findCruiseLocation(trip: Pick<Trip, "days">): PrimaryLocation | undefin
 }
 
 /**
+ * Identify a "home" bookend city. If the first and last usable days of a
+ * trip share the same city string, that city is most likely the user's
+ * origin/return point (e.g. SEA → Europe → SEA), not a destination — so it
+ * should be excluded from the primary tally. Returns the normalised key,
+ * or undefined when no bookend pattern is detected (different first/last
+ * cities, or only one usable day).
+ */
+function findBookendKey(trip: Pick<Trip, "days">): string | undefined {
+  let firstKey: string | undefined;
+  let lastKey: string | undefined;
+  let firstIdx = -1;
+  let lastIdx = -1;
+  for (let i = 0; i < trip.days.length; i++) {
+    const k = normalizeCity(trip.days[i].city);
+    if (!k) continue;
+    if (firstKey === undefined) {
+      firstKey = k;
+      firstIdx = i;
+    }
+    lastKey = k;
+    lastIdx = i;
+  }
+  if (!firstKey || !lastKey || firstIdx === lastIdx) return undefined;
+  return firstKey === lastKey ? firstKey : undefined;
+}
+
+/**
  * Pick the most representative location for a trip's hero image. For
  * cruise-dominant trips this is the ship name; otherwise it's the city the
  * user spends the most days in. Returns `undefined` for trips with no
@@ -218,23 +277,59 @@ function findCruiseLocation(trip: Pick<Trip, "days">): PrimaryLocation | undefin
  * Cities are grouped by their normalised form so "Reykjavík" and "Reykjavik"
  * are treated as the same place; the displayed `city` is taken from the
  * first day in that group (preserving the user's original casing/diacritics).
+ *
+ * Two refinements beyond pure day-count:
+ * 1. Transfer days encoded as "Paris / Rome" count toward each city
+ *    individually (see `normalizeCities`).
+ * 2. If the first and last days of the trip share the same city, that
+ *    city is treated as a bookend "home" and excluded from the tally —
+ *    so a SEA → Europe → SEA itinerary picks the European primary, not
+ *    the airport you started and ended at. The exclusion is dropped
+ *    automatically if it would leave the trip with no candidates (e.g.
+ *    a local Seattle staycation), in which case the bookend wins as
+ *    primary after all.
  */
 export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | undefined {
   const cruise = findCruiseLocation(trip);
   if (cruise) return cruise;
 
-  const groups = new Map<string, { display: string; count: number; firstIndex: number }>();
-  trip.days.forEach((day: TripDay, idx: number) => {
-    const key = normalizeCity(day.city);
-    if (!key) return;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      groups.set(key, { display: day.city, count: 1, firstIndex: idx });
-    }
-  });
+  const bookendKey = findBookendKey(trip);
+  // Split bookend on "/" so a transfer-day bookend like "Seattle / Paris"
+  // (only matches when both ends are the same string) excludes both halves.
+  const bookendParts = new Set(
+    bookendKey
+      ? bookendKey
+          .split("/")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [],
+  );
 
+  const tally = (excludeBookend: boolean) => {
+    const groups = new Map<
+      string,
+      { display: string; count: number; firstIndex: number }
+    >();
+    trip.days.forEach((day: TripDay, idx: number) => {
+      for (const { key, display } of normalizeCities(day.city)) {
+        if (excludeBookend && bookendParts.has(key)) continue;
+        const existing = groups.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          groups.set(key, { display, count: 1, firstIndex: idx });
+        }
+      }
+    });
+    return groups;
+  };
+
+  let groups = tally(true);
+  if (groups.size === 0 && bookendKey) {
+    // The trip has nothing but the bookend city — local/staycation pattern.
+    // Fall back to including the bookend so the card shows that city.
+    groups = tally(false);
+  }
   if (groups.size === 0) return undefined;
 
   // Highest count, tie-break on earliest first appearance.
@@ -249,6 +344,23 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
     }
   }
   if (!winner) return undefined;
+
+  // TEMPORARY DEBUG (option C from the rebrand session) — logs the per-trip
+  // city tally so we can see why a particular city won. Gated to dev so
+  // tests stay quiet and prod logs aren't noisy. Remove once we're done
+  // diagnosing mis-classified trips.
+  if (
+    typeof process !== "undefined" &&
+    process.env?.NODE_ENV === "development"
+  ) {
+    // eslint-disable-next-line no-console
+    console.log("[primary-location]", {
+      bookend: bookendKey,
+      bookendParts: [...bookendParts],
+      groups: Array.from(groups.entries()).map(([k, v]) => ({ key: k, ...v })),
+      winner,
+    });
+  }
 
   const country = lookupCountry(winner.display);
   return {

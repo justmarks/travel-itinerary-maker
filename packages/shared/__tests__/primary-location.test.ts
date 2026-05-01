@@ -123,6 +123,101 @@ describe("primaryLocationFor", () => {
     expect(result?.kind).toBe("city");
   });
 
+  describe("bookend exclusion", () => {
+    it("ignores the bookend city when first and last days are the same (home → trip → home)", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Seattle"),
+          day("2024-04-02", "Paris"),
+          day("2024-04-03", "Paris"),
+          day("2024-04-04", "Rome"),
+          day("2024-04-05", "Seattle"),
+        ],
+      });
+      // Without bookend exclusion Seattle would tie Rome (1-1) and lose
+      // to Paris on count anyway. With exclusion, Seattle is dropped
+      // entirely and the result reflects the actual destination.
+      expect(result?.city).toBe("Paris");
+      expect(result?.dayCount).toBe(2);
+      expect(result?.countryCode).toBe("FR");
+    });
+
+    it("does not exclude when first and last cities differ", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Seattle"),
+          day("2024-04-02", "Paris"),
+          day("2024-04-03", "Paris"),
+          day("2024-04-04", "Tokyo"),
+        ],
+      });
+      // Seattle ≠ Tokyo so neither is a bookend; Paris still wins on count.
+      expect(result?.city).toBe("Paris");
+    });
+
+    it("falls back to the bookend when no other city exists (staycation)", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Seattle"),
+          day("2024-04-02", "Seattle"),
+          day("2024-04-03", "Seattle"),
+        ],
+      });
+      expect(result?.city).toBe("Seattle");
+      expect(result?.dayCount).toBe(3);
+    });
+
+    it("does not treat a single-day trip as a bookend", () => {
+      const result = primaryLocationFor({
+        days: [day("2024-04-01", "Seattle")],
+      });
+      expect(result?.city).toBe("Seattle");
+    });
+  });
+
+  describe("slash-separated transfer days", () => {
+    it("counts both halves of a slash-separated transfer day", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Paris"),
+          day("2024-04-02", "Paris"),
+          day("2024-04-03", "Paris / Rome"),
+          day("2024-04-04", "Rome"),
+          day("2024-04-05", "Rome"),
+        ],
+      });
+      // Paris: 3 (days 1, 2, transfer), Rome: 3 (transfer, days 4, 5).
+      // Tie at 3 → earliest first appearance wins → Paris.
+      expect(result?.city).toBe("Paris");
+      expect(result?.dayCount).toBe(3);
+    });
+
+    it("handles slash without surrounding spaces", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Tokyo/Kyoto"),
+          day("2024-04-02", "Kyoto"),
+          day("2024-04-03", "Kyoto"),
+        ],
+      });
+      // Tokyo: 1, Kyoto: 3 → Kyoto wins.
+      expect(result?.city).toBe("Kyoto");
+      expect(result?.dayCount).toBe(3);
+    });
+
+    it("preserves the trimmed display for each slash part", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Reykjavík / Selfoss"),
+          day("2024-04-02", "Reykjavík"),
+        ],
+      });
+      // Reykjavík appears twice (transfer + day 2), Selfoss once.
+      expect(result?.city).toBe("Reykjavík");
+      expect(result?.countryCode).toBe("IS");
+    });
+  });
+
   describe("cruise detection", () => {
     it("uses the ship name when a cruise covers most of the trip", () => {
       const result = primaryLocationFor({
