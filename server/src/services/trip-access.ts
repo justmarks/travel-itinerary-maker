@@ -153,6 +153,9 @@ export interface SharedTripWithMeta {
   trip: Trip;
   ownerEmail?: string;
   permission: SharePermission;
+  /** Per-share visibility flags chosen by the owner at share creation. */
+  showCosts: boolean;
+  showTodos: boolean;
 }
 
 /**
@@ -199,6 +202,8 @@ export async function listSharedTrips(opts: {
           trip,
           ownerEmail: share.ownerEmail,
           permission: share.permission,
+          showCosts: share.showCosts,
+          showTodos: share.showTodos,
         });
       } catch {
         // Drive read failed for this trip — skip; the rest of the

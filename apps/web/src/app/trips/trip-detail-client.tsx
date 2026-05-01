@@ -791,9 +791,21 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
 
   // Permission for the active user — view-only contributors get a
   // read-only render; edit contributors keep most affordances; only the
-  // owner sees Share / Calendar sync / Email scan / Delete.
+  // owner sees Share / Calendar sync / Email scan / Delete. The
+  // showCosts / showTodos flags mirror the share's per-recipient
+  // visibility toggles set at share creation.
   const permission = useTripPermission(tripId);
-  const { isReadOnly, isOwner, sharedFromEmail } = permission;
+  const { isReadOnly, isOwner, sharedFromEmail, showCosts, showTodos } = permission;
+  // Build the tab list dynamically so tabs the share hides don't even
+  // appear. Itinerary / Timeline / Map are always shown; Costs and
+  // To-do drop out for shares with the matching toggle off.
+  const visibleTabs = (
+    ["itinerary", "timeline", "map", "costs", "todos"] as Tab[]
+  ).filter((t) => {
+    if (t === "costs") return showCosts;
+    if (t === "todos") return showTodos;
+    return true;
+  });
 
   if (isLoading) {
     return (
@@ -942,7 +954,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
 
         {/* Tab navigation — hidden when printing */}
         <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-gray-200 print-hidden">
-          {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -972,16 +984,20 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               ))}
             </div>
             <div className="flex flex-col gap-6">
-              <div className="rounded-xl border p-5">
-                <TripTodos
-                  tripId={trip.id}
-                  todos={trip.todos}
-                  readOnly={isReadOnly}
-                />
-              </div>
-              <div className="rounded-xl border p-5">
-                <TripCosts tripId={trip.id} />
-              </div>
+              {showTodos && (
+                <div className="rounded-xl border p-5">
+                  <TripTodos
+                    tripId={trip.id}
+                    todos={trip.todos}
+                    readOnly={isReadOnly}
+                  />
+                </div>
+              )}
+              {showCosts && (
+                <div className="rounded-xl border p-5">
+                  <TripCosts tripId={trip.id} />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -990,13 +1006,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
 
         {activeTab === "map" && <MapView trip={trip} />}
 
-        {activeTab === "costs" && (
+        {activeTab === "costs" && showCosts && (
           <div className="rounded-xl border p-6">
             <TripCosts tripId={trip.id} />
           </div>
         )}
 
-        {activeTab === "todos" && (
+        {activeTab === "todos" && showTodos && (
           <div className="rounded-xl border p-6">
             <TripTodos
               tripId={trip.id}

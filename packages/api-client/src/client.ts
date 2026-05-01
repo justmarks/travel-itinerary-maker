@@ -63,6 +63,18 @@ export interface TripSummary {
    * "edit" for contributor write access. Absent on owned trips.
    */
   sharedPermission?: "view" | "edit";
+  /**
+   * Per-share visibility flag — `false` means the owner asked us to hide
+   * costs from this recipient. The contributor UI gates its Costs pill
+   * / sheet / tab on this. Absent on owned trips.
+   */
+  sharedShowCosts?: boolean;
+  /**
+   * Same idea for the to-do list. The summary's `todoCount` is also
+   * forced to 0 server-side when this is `false` so the trip card
+   * doesn't leak the count.
+   */
+  sharedShowTodos?: boolean;
 }
 
 export interface CostSummaryResponse {

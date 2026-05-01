@@ -29,6 +29,14 @@ export interface ShareEntry {
   sharedWithEmail?: string;
   /** Access level granted to the invitee. */
   permission: SharePermission;
+  /**
+   * Per-share visibility flags chosen by the owner at share creation.
+   * Threaded through `listSharedTrips` so the contributor's UI can hide
+   * cost / todo affordances when the owner asked for that — same intent
+   * as the public viewer at /shared/<token>.
+   */
+  showCosts: boolean;
+  showTodos: boolean;
   createdAt: string;
 }
 
@@ -60,10 +68,14 @@ export class ShareRegistry {
       for (const [token, entry] of Object.entries(all)) {
         // Defensive: pre-PR-B entries on disk lack `permission` —
         // default to "view" so the legacy data still resolves cleanly.
+        // Pre-cost/todo-flag entries default to fully-visible (matches
+        // the historical /shared/<token> behaviour).
         const normalized: ShareEntry = {
           ...entry,
           permission: entry.permission ?? "view",
           sharedWithEmail: normalizeEmail(entry.sharedWithEmail),
+          showCosts: entry.showCosts ?? true,
+          showTodos: entry.showTodos ?? true,
         };
         this.entries.set(token, normalized);
         this.indexByEmail(normalized);
@@ -87,6 +99,8 @@ export class ShareRegistry {
     ownerEmail?: string;
     sharedWithEmail?: string;
     permission: SharePermission;
+    showCosts: boolean;
+    showTodos: boolean;
   }): void {
     // Drop the previous email-index entry first — re-registering an
     // existing token (e.g. after rebuild) must not leave a stale email
@@ -100,6 +114,8 @@ export class ShareRegistry {
       ownerEmail: args.ownerEmail,
       sharedWithEmail: normalizeEmail(args.sharedWithEmail),
       permission: args.permission,
+      showCosts: args.showCosts,
+      showTodos: args.showTodos,
       createdAt: new Date().toISOString(),
     };
     this.entries.set(entry.shareToken, entry);

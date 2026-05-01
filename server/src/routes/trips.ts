@@ -143,7 +143,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       const sharedSummaries = shared
         .filter(({ trip }) => !ownedIds.has(trip.id))
-        .map(({ trip, ownerEmail, permission }) => {
+        .map(({ trip, ownerEmail, permission, showCosts, showTodos }) => {
           const primary = primaryLocationFor(trip);
           return {
             id: trip.id,
@@ -152,7 +152,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
             endDate: trip.endDate,
             status: trip.status,
             dayCount: trip.days.length,
-            todoCount: trip.todos.filter((td) => !td.isCompleted).length,
+            // Hide the to-do count in the summary when the share itself
+            // hides to-dos — otherwise the recipient sees "5 todos" on
+            // their card with no way to open them.
+            todoCount: showTodos
+              ? trip.todos.filter((td) => !td.isCompleted).length
+              : 0,
             primaryCity: primary?.city,
             primaryCountryCode: primary?.countryCode,
             primaryCountry: primary?.country,
@@ -160,6 +165,8 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
             updatedAt: trip.updatedAt,
             sharedFromEmail: ownerEmail,
             sharedPermission: permission,
+            sharedShowCosts: showCosts,
+            sharedShowTodos: showTodos,
           };
         });
 
@@ -974,6 +981,8 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           ownerEmail: req.userEmail,
           sharedWithEmail: share.sharedWithEmail,
           permission: share.permission,
+          showCosts: share.showCosts,
+          showTodos: share.showTodos,
         });
       }
 

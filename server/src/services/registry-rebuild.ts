@@ -51,6 +51,8 @@ export async function rebuildRegistryForUser(
         ownerEmail,
         sharedWithEmail: share.sharedWithEmail,
         permission: share.permission,
+        showCosts: share.showCosts,
+        showTodos: share.showTodos,
       });
       registered += 1;
     }

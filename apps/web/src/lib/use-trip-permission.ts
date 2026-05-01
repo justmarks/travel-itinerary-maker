@@ -32,6 +32,14 @@ export interface TripPermission {
   isReadOnly: boolean;
   /** Owner's email when known — useful for "shared by …" affordances. */
   sharedFromEmail?: string;
+  /**
+   * Whether the share allows costs to be visible to the recipient.
+   * Always true for owners. For shared trips, mirrors the per-share
+   * `showCosts` flag the owner picked at share creation.
+   */
+  showCosts: boolean;
+  /** Same idea for the to-do list. Always true for owners. */
+  showTodos: boolean;
 }
 
 export function useTripPermission(tripId: string): TripPermission {
@@ -41,22 +49,20 @@ export function useTripPermission(tripId: string): TripPermission {
   const summary = trips?.find((t) => t.id === tripId);
   // Fallback: assume owner when we can't determine. Avoids flashing a
   // read-only UI for a frame while the trip list is still loading.
-  if (!summary) {
+  if (!summary || !summary.sharedFromEmail) {
     return {
       accessLevel: "owner",
       canEdit: true,
       isOwner: true,
       isReadOnly: false,
+      showCosts: true,
+      showTodos: true,
     };
   }
-  if (!summary.sharedFromEmail) {
-    return {
-      accessLevel: "owner",
-      canEdit: true,
-      isOwner: true,
-      isReadOnly: false,
-    };
-  }
+  // Per-share visibility flags default to true for backwards compat
+  // with shares created before the contributor flow surfaced them.
+  const showCosts = summary.sharedShowCosts ?? true;
+  const showTodos = summary.sharedShowTodos ?? true;
   if (summary.sharedPermission === "edit") {
     return {
       accessLevel: "shared-edit",
@@ -64,6 +70,8 @@ export function useTripPermission(tripId: string): TripPermission {
       isOwner: false,
       isReadOnly: false,
       sharedFromEmail: summary.sharedFromEmail,
+      showCosts,
+      showTodos,
     };
   }
   return {
@@ -72,5 +80,7 @@ export function useTripPermission(tripId: string): TripPermission {
     isOwner: false,
     isReadOnly: true,
     sharedFromEmail: summary.sharedFromEmail,
+    showCosts,
+    showTodos,
   };
 }

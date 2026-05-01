@@ -10,8 +10,12 @@ describe("ShareRegistry", () => {
     sharedWithEmail?: string;
     permission?: "view" | "edit";
     ownerEmail?: string;
+    showCosts?: boolean;
+    showTodos?: boolean;
   }) => ({
     permission: "view" as const,
+    showCosts: true,
+    showTodos: true,
     ...overrides,
   });
 

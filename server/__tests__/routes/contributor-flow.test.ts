@@ -140,6 +140,40 @@ describe("Contributor flow", () => {
       expect(list.body[0].sharedFromEmail).toBeUndefined();
     });
 
+    it("threads sharedShowCosts/sharedShowTodos through to the summary", async () => {
+      const trip = await createTrip(app, "alice", "Tokyo Trip");
+      // Add a couple of segments + todos so the count zeroing is visible
+      await request(app)
+        .post(`/trips/${trip.id}/segments`)
+        .set("x-test-user", "alice")
+        .send({ date: "2027-06-01", type: "activity", title: "Sushi" });
+      await request(app)
+        .post(`/trips/${trip.id}/todos`)
+        .set("x-test-user", "alice")
+        .send({ text: "Pack adapter" });
+
+      // Owner asks the recipient to NOT see costs or todos
+      await request(app)
+        .post(`/trips/${trip.id}/share`)
+        .set("x-test-user", "alice")
+        .send({
+          sharedWithEmail: bob.email,
+          permission: "view",
+          showCosts: false,
+          showTodos: false,
+        })
+        .expect(201);
+
+      const list = await request(app).get("/trips").set("x-test-user", "bob");
+      const entry = list.body.find((t: { id: string }) => t.id === trip.id);
+      expect(entry).toBeDefined();
+      expect(entry.sharedShowCosts).toBe(false);
+      expect(entry.sharedShowTodos).toBe(false);
+      // todoCount must be zeroed when todos are hidden — otherwise the
+      // recipient sees a count they have no way to drill into.
+      expect(entry.todoCount).toBe(0);
+    });
+
     it("excludes trips shared with someone else", async () => {
       const trip = await createTrip(app, "alice", "Tokyo Trip");
       await shareTripWith(app, "alice", trip.id, bob.email, "view");
