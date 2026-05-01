@@ -12,6 +12,7 @@ import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
 import { ShareSnapshotStore } from "./services/share-snapshot-store";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
+import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
 import { buildCorsOriginCheck } from "./middleware/cors-origin";
 import type { ResolveOwnerStorage } from "./services/trip-access";
@@ -108,7 +109,10 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       : disableRedis
         ? null
         : createRedisStore();
-  const tokenStore = new TokenStore(redisStore);
+  // Encrypt refresh tokens at rest when TOKEN_ENCRYPTION_KEY is set.
+  // Unset key = plaintext storage (legacy behaviour, fine for dev/test).
+  const encryptionKey = loadEncryptionKey();
+  const tokenStore = new TokenStore(redisStore, encryptionKey);
   const shareRegistry = new ShareRegistry(redisStore);
   const shareSnapshotStore = new ShareSnapshotStore(redisStore);
 

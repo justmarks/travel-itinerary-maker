@@ -162,6 +162,7 @@ Current coverage: **479 tests** across 25 test suites.
 | `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
 | `UPSTASH_REDIS_REST_URL` | server **and** apps/web | Upstash Redis REST URL. Server uses it for token/share registry persistence; web reads it on the Edge runtime to render share unfurl previews. |
 | `UPSTASH_REDIS_REST_TOKEN` | server **and** apps/web | Upstash Redis REST token (server-only on web — set as a non-public Vercel env var). |
+| `TOKEN_ENCRYPTION_KEY` | server | Hex-encoded 32-byte key (64 hex chars) for AES-256-GCM encryption of refresh tokens at rest. Generate with `openssl rand -hex 32`. Unset = plaintext storage (fine for dev/tests, not recommended in production). See `docs/redis-persistence.md` for the rotation story. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://travel-itinerary-maker.vercel.app`). |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
