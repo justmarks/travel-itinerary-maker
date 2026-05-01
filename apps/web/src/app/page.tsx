@@ -33,7 +33,7 @@ export default function Home(): React.JSX.Element {
   const [xlsxImportOpen, setXlsxImportOpen] = useState(false);
 
   return (
-    <RequireAuth>
+    <RequireAuth redirectTo="/welcome">
       <Suspense fallback={null}>
         <MobileRedirect />
       </Suspense>

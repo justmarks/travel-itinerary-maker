@@ -6,17 +6,20 @@ import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 
 /**
- * Wraps children and redirects to /login if the user is not authenticated.
- * In demo mode (?demo=true), auth is bypassed entirely.
+ * Wraps children and redirects unauthenticated users away. Defaults to
+ * `/login` (or `/m/login` for mobile routes), but pass `redirectTo` to
+ * send users to a different destination — the home page uses this to
+ * bounce signed-out visitors to the marketing landing at `/welcome`
+ * instead of dumping them straight into a sign-in form.
  *
- * Mobile-aware: requests that originate from /m/* routes redirect to the
- * mobile login at /m/login so users keep the mobile chrome rather than
- * bouncing through the desktop login.
+ * In demo mode (?demo=true), auth is bypassed entirely.
  */
 export function RequireAuth({
   children,
+  redirectTo,
 }: {
   children: React.ReactNode;
+  redirectTo?: string;
 }): React.JSX.Element | null {
   const isDemo = useDemoMode();
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,9 +29,11 @@ export function RequireAuth({
 
   useEffect(() => {
     if (!isDemo && !isLoading && !isAuthenticated) {
-      router.replace(isMobileRoute ? "/m/login" : "/login");
+      const fallback =
+        redirectTo ?? (isMobileRoute ? "/m/login" : "/login");
+      router.replace(fallback);
     }
-  }, [isDemo, isAuthenticated, isLoading, isMobileRoute, router]);
+  }, [isDemo, isAuthenticated, isLoading, isMobileRoute, redirectTo, router]);
 
   if (isDemo) return <>{children}</>;
 
