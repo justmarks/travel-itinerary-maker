@@ -82,13 +82,27 @@ export function decodeState(raw: string): OAuthState | null {
 }
 
 /**
+ * Strips trailing slashes from an origin URL. The Vercel "Add Env
+ * Variable" UI is happy to accept `https://example.com/` (with slash)
+ * and `window.location.origin` never has one — without normalization,
+ * the equality check below would treat prod-as-itself as "I'm not the
+ * intended target, relay" (infinite bounce), and `${prodOrigin}/auth/callback`
+ * would render with a double slash that Google rejects with
+ * `redirect_uri_mismatch`. Cheap, defensive, and removes a footgun.
+ */
+function normalizeOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.replace(/\/+$/, "");
+}
+
+/**
  * Returns the redirect URI to send to Google for *this* sign-in.
  * On Vercel previews, this points at production's callback (the only
  * URI registered with Google). Locally and in production, it's just
  * `<self>/auth/callback`.
  */
 export function getOAuthRedirectUri(): string {
-  const prodOrigin = process.env.NEXT_PUBLIC_PROD_ORIGIN;
+  const prodOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_PROD_ORIGIN);
   const currentOrigin = window.location.origin;
   const isLocalhost =
     currentOrigin.startsWith("http://localhost") ||
@@ -109,7 +123,7 @@ export function getOAuthRedirectUri(): string {
  * to `^...$` by the caller) that matches the full origin URL.
  */
 export function isAllowlistedRelayOrigin(origin: string): boolean {
-  const prodOrigin = process.env.NEXT_PUBLIC_PROD_ORIGIN;
+  const prodOrigin = normalizeOrigin(process.env.NEXT_PUBLIC_PROD_ORIGIN);
   if (prodOrigin && origin === prodOrigin) return true;
 
   let parsed: URL;
