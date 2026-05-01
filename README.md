@@ -297,10 +297,10 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 - [x] **Server hardening** — `ShareRegistry` self-heal on registry miss (rebuilds from the owner's Drive once any owner logs back in); Upstash Redis persistence for `TokenStore` + `ShareRegistry` so refresh tokens and share-token mappings survive process restarts
 - [x] **Cross-browser demo shares** — demo-mode share tokens are self-describing (`demo:tripId:perm:costs:todos:nonce`) so a recipient on any other browser running `?demo=true` can resolve them from their local sample trips
 - [x] **Per-trip unfurl previews** — `ShareSnapshotStore` writes a tiny title/dates snapshot to Redis on share creation; the public `/shared/[token]` page reads it on the Vercel Edge runtime in `generateMetadata` and renders a per-trip Open Graph card
-- [ ] **Contributor edit flow (PR B, in progress)** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` gains an email index keyed on `sharedWithEmail` for fast lookup
+- [x] **Contributor edit flow** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` keeps an email index keyed on `sharedWithEmail` for fast lookup
 - [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated (later)
 
-**Up next (cross-cutting):**
+**Potential ideas for the future:**
 
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
