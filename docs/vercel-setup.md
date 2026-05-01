@@ -47,6 +47,14 @@ this whole class of issue evaporates when Vercel is the host.
    - `NEXT_PUBLIC_SITE_URL` — your Vercel deployment origin (e.g.
      `https://travel-itinerary-maker.vercel.app` or your custom
      domain). Used by `metadataBase` to absolutise OG image URLs.
+   - `NEXT_PUBLIC_PROD_ORIGIN` — your **production** Vercel origin
+     (e.g. `https://project-yhbyn.vercel.app`). Set on **Production
+     and Preview** with the same value. Drives the OAuth preview
+     relay (see below).
+   - `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` — anchored regex matching
+     allowed preview origins, e.g.
+     `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`.
+     Set on **Production only** — that's where the relay runs.
    - `UPSTASH_REDIS_REST_URL` — Upstash REST URL. **Server-only — do
      not prefix with `NEXT_PUBLIC_`.** Read by the Edge runtime in
      `app/shared/[token]/page.tsx` to fetch the share snapshot.
@@ -63,20 +71,66 @@ After the first deploy, add the new origin to the Google Cloud Console
 OAuth client:
 
 - **Authorized JavaScript origins:** add the Vercel **production** URL
-  (e.g. `https://project-yhbyn.vercel.app`) and any custom domain. Do
-  NOT try to add preview URLs — Google doesn't support wildcards in JS
-  origins, and Vercel's preview URLs change per deploy
-  (`<project>-<hash>-<owner>.vercel.app`). Test the OAuth flow on
-  production; use `?demo=true` on previews to exercise the rest of the
-  app without auth.
+  (e.g. `https://project-yhbyn.vercel.app`) and any custom domain.
 - **Authorized redirect URIs:** add `<origin>/auth/callback` for each
   origin you sign in from. The web flow does a full-page redirect to
   Google with `redirect_uri=<origin>/auth/callback` (the
   `prompt=consent` flow needed to reliably issue refresh tokens), and
   Google rejects any URI not in this list with `redirect_uri_mismatch`.
   Production: `https://project-yhbyn.vercel.app/auth/callback`. Local
-  dev: `http://localhost:3000/auth/callback`. Same wildcard limitation
-  as JS origins — preview URLs aren't supported.
+  dev: `http://localhost:3000/auth/callback`. **Do not register
+  preview URLs** — Google doesn't support wildcards, and Vercel
+  preview hostnames change per deploy. Previews relay through
+  production instead (see below).
+
+## OAuth on preview deployments
+
+Google's OAuth client only allows a fixed set of redirect URIs (no
+wildcards), but every Vercel preview gets a unique
+`<project>-<hash>-<owner>.vercel.app` hostname. To make sign-in work
+on previews without re-registering URIs every deploy, the web app
+relays the OAuth round-trip through production.
+
+How it works:
+
+1. **Preview** (`branch-foo-yhbyn.vercel.app`) sets Google's
+   `redirect_uri` to **production**'s `/auth/callback` — the only URI
+   registered with Google. The OAuth `state` carries
+   `{ csrf, origin: <preview-origin> }` (base64url-encoded JSON).
+2. **Google** authenticates the user and redirects to
+   `https://project-yhbyn.vercel.app/auth/callback?code=...&state=...`.
+3. **Production**'s callback decodes `state`, sees `state.origin !==
+   window.location.origin`, validates the origin against
+   `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN`, and does a
+   `window.location.replace()` to
+   `<state.origin>/auth/callback?code=...&state=...` — passing the
+   query string through unchanged.
+4. **Preview**'s callback decodes `state`, finds `state.origin ===
+   window.location.origin`, validates `state.csrf` against the token
+   stashed in `sessionStorage` at sign-in time, and POSTs the code to
+   the backend. The `redirectUri` it sends to the backend matches what
+   Google saw — production's URL — so the code exchange succeeds.
+
+Required env vars (already listed in the One-time setup section
+above):
+
+- `NEXT_PUBLIC_PROD_ORIGIN` on **Production and Preview**, same value
+  on both — the production origin URL.
+- `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` on **Production only** — an
+  anchored regex (string form) matching every origin you trust to
+  receive a relayed OAuth code. The relay refuses to bounce to
+  anything that doesn't match, so this is the bit that prevents the
+  callback from becoming an open redirect that leaks codes. Mirror
+  the pattern you use for the server's `CORS_ORIGIN_PATTERN`.
+
+Localhost auto-skips the relay — the helper recognises
+`http://localhost:*` and `http://127.0.0.1:*` and uses the local
+callback directly.
+
+If `NEXT_PUBLIC_PROD_ORIGIN` is unset on a preview deployment, the
+preview will try its own origin as `redirect_uri` and Google will
+reject it with `redirect_uri_mismatch` — same failure mode as before
+this was wired up.
 
 ## Updating the backend (Railway)
 

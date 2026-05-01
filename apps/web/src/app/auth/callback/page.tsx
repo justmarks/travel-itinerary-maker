@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { consumeOAuthState, getRedirectUri } from "@/lib/oauth";
+import {
+  consumeOAuthState,
+  decodeState,
+  getOAuthRedirectUri,
+  isAllowlistedRelayOrigin,
+} from "@/lib/oauth";
 import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
@@ -16,10 +21,8 @@ export default function AuthCallbackPage(): React.JSX.Element {
   useEffect(() => {
     const url = new URL(window.location.href);
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
+    const rawState = url.searchParams.get("state");
     const errorParam = url.searchParams.get("error");
-
-    const { expectedState, returnTo } = consumeOAuthState();
 
     if (errorParam) {
       setError(
@@ -29,11 +32,47 @@ export default function AuthCallbackPage(): React.JSX.Element {
       );
       return;
     }
+    if (!rawState) {
+      setError("Sign-in could not be verified (missing state).");
+      return;
+    }
+    const decoded = decodeState(rawState);
+    if (!decoded) {
+      setError(
+        "Sign-in could not be verified (state could not be decoded). Please try again.",
+      );
+      return;
+    }
+
+    // Relay branch: this deployment is acting as the OAuth proxy for a
+    // preview deployment. Don't touch sessionStorage here — the
+    // preview owns the CSRF token. Just validate the target origin and
+    // bounce the code + state through unchanged.
+    if (decoded.origin !== window.location.origin) {
+      if (!isAllowlistedRelayOrigin(decoded.origin)) {
+        setError(
+          "Sign-in could not be verified (untrusted relay target). Please try again.",
+        );
+        return;
+      }
+      const target = new URL("/auth/callback", decoded.origin);
+      // Forward the original query string verbatim so the preview's
+      // callback sees exactly what Google would have sent it.
+      target.search = url.search;
+      window.location.replace(target.toString());
+      return;
+    }
+
+    // Local-completion branch: state.origin matches us, so this is
+    // either prod completing its own sign-in, localhost completing its
+    // own, or a preview that just got bounced back through the relay.
+    const { expectedCsrf, returnTo } = consumeOAuthState();
+
     if (!code) {
       setError("No authorization code received from Google.");
       return;
     }
-    if (!state || state !== expectedState) {
+    if (!expectedCsrf || decoded.csrf !== expectedCsrf) {
       setError(
         "Sign-in could not be verified (state mismatch). Please try again.",
       );
@@ -42,7 +81,9 @@ export default function AuthCallbackPage(): React.JSX.Element {
 
     void (async () => {
       try {
-        await login(code, getRedirectUri());
+        // The redirect URI sent to the backend MUST match what Google
+        // saw — for previews that's the prod callback, not self.
+        await login(code, getOAuthRedirectUri());
         router.replace(returnTo);
       } catch (err) {
         if (err instanceof TypeError && err.message === "Failed to fetch") {
