@@ -116,9 +116,16 @@ function formatCostOriginal(cost?: { amount: number; currency: string }) {
 export function MobileSegmentCard({
   segment,
   onSelect,
+  showCosts = true,
 }: {
   segment: Segment;
   onSelect?: (segment: Segment) => void;
+  /**
+   * When false (e.g. share with `showCosts: false`), suppress the
+   * inline cost line on the card. Defaults to true so owned-trip
+   * renders are unchanged.
+   */
+  showCosts?: boolean;
 }): React.JSX.Element {
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
   const Icon = config.icon;
@@ -133,8 +140,8 @@ export function MobileSegmentCard({
 
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
-  const cost = formatCost(segment.cost);
-  const costOriginal = formatCostOriginal(segment.cost);
+  const cost = showCosts ? formatCost(segment.cost) : null;
+  const costOriginal = showCosts ? formatCostOriginal(segment.cost) : null;
 
   const flightLabel = isFlight ? formatFlightLabel(segment) : "";
   const titleText =

@@ -40,6 +40,22 @@ function now() {
 
 // ─── Sample Data ─────────────────────────────────────────────────────────────
 
+/**
+ * Trip IDs that should appear as "shared with you" in the demo so the
+ * contributor-flow UI (badge, no Delete option, etc.) is exercised on
+ * the demo dashboard. The Trip itself still lives in the same
+ * `SAMPLE_TRIPS` array — the override is purely a UI affordance.
+ */
+const SHARED_DEMO_OVERRIDES: Record<
+  string,
+  { sharedFromEmail: string; sharedPermission: "view" | "edit" }
+> = {
+  "demo-3": {
+    sharedFromEmail: "alex@example.com",
+    sharedPermission: "edit",
+  },
+};
+
 const SAMPLE_TRIPS: Trip[] = [
   // ── Demo 1: Japan Adventure ───────────────────────────────────────────────
   {
@@ -47,7 +63,7 @@ const SAMPLE_TRIPS: Trip[] = [
     title: "Japan Adventure",
     startDate: "2025-04-10",
     endDate: "2025-04-16",
-    status: "planning",
+    status: "completed",
     createdAt: "2025-03-01T10:00:00Z",
     updatedAt: "2025-03-15T14:30:00Z",
     schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
@@ -587,15 +603,15 @@ const SAMPLE_TRIPS: Trip[] = [
   {
     id: "demo-3",
     title: "Disney Fantasy Caribbean Cruise",
-    startDate: "2025-07-19",
-    endDate: "2025-07-26",
-    status: "completed",
+    startDate: "2026-09-12",
+    endDate: "2026-09-19",
+    status: "planning",
     createdAt: "2025-04-01T10:00:00Z",
     updatedAt: "2025-04-01T10:00:00Z",
     schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     days: [
       {
-        date: "2025-07-19",
+        date: "2026-09-12",
         dayOfWeek: "Sat",
         city: "Orlando, FL",
         segments: [
@@ -642,7 +658,7 @@ const SAMPLE_TRIPS: Trip[] = [
             address: "Ocean Beach Blvd, Cape Canaveral, FL",
             startTime: "15:00",
             endTime: "10:00",
-            endDate: "2025-07-20",
+            endDate: "2026-09-13",
             breakfastIncluded: false,
             confirmationCode: "HMG5RABX7K",
             cost: { amount: 285, currency: "USD", details: "1 night · sleeps 6" },
@@ -654,7 +670,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-20",
+        date: "2026-09-13",
         dayOfWeek: "Sun",
         city: "Port Canaveral, FL",
         segments: [
@@ -682,16 +698,16 @@ const SAMPLE_TRIPS: Trip[] = [
             arrivalCity: "Port Canaveral, FL",
             startTime: "12:00",
             endTime: "08:00",
-            endDate: "2025-07-26",
+            endDate: "2026-09-19",
             confirmationCode: "DCL-2025-F7741",
             portsOfCall: [
-              { date: "2025-07-20", port: "Port Canaveral, FL", departureTime: "16:00" },
-              { date: "2025-07-21", port: "Nassau, Bahamas", arrivalTime: "09:00", departureTime: "17:00" },
-              { date: "2025-07-22", port: "Castaway Cay, Bahamas", arrivalTime: "08:30", departureTime: "16:30" },
-              { date: "2025-07-23", atSea: true },
-              { date: "2025-07-24", atSea: true },
-              { date: "2025-07-25", atSea: true },
-              { date: "2025-07-26", port: "Port Canaveral, FL", arrivalTime: "08:00" },
+              { date: "2026-09-13", port: "Port Canaveral, FL", departureTime: "16:00" },
+              { date: "2026-09-14", port: "Nassau, Bahamas", arrivalTime: "09:00", departureTime: "17:00" },
+              { date: "2026-09-15", port: "Castaway Cay, Bahamas", arrivalTime: "08:30", departureTime: "16:30" },
+              { date: "2026-09-16", atSea: true },
+              { date: "2026-09-17", atSea: true },
+              { date: "2026-09-18", atSea: true },
+              { date: "2026-09-19", port: "Port Canaveral, FL", arrivalTime: "08:00" },
             ],
             cost: { amount: 6200, currency: "USD", details: "7-night Eastern Caribbean · Stateroom 7652" },
             source: "email_confirmed",
@@ -716,7 +732,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-21",
+        date: "2026-09-14",
         dayOfWeek: "Mon",
         city: "Nassau, Bahamas",
         segments: [
@@ -751,7 +767,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-22",
+        date: "2026-09-15",
         dayOfWeek: "Tue",
         city: "Castaway Cay, Bahamas",
         segments: [
@@ -783,7 +799,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-23",
+        date: "2026-09-16",
         dayOfWeek: "Wed",
         city: "At Sea",
         segments: [
@@ -817,7 +833,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-24",
+        date: "2026-09-17",
         dayOfWeek: "Thu",
         city: "At Sea",
         segments: [
@@ -853,7 +869,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-25",
+        date: "2026-09-18",
         dayOfWeek: "Fri",
         city: "At Sea",
         segments: [
@@ -886,7 +902,7 @@ const SAMPLE_TRIPS: Trip[] = [
         ],
       },
       {
-        date: "2025-07-26",
+        date: "2026-09-19",
         dayOfWeek: "Sat",
         city: "Port Canaveral, FL",
         segments: [
@@ -1234,6 +1250,10 @@ export class MockApiClient extends ApiClient {
       primaryCountry: primary?.country,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
+      // Demo "shared with you" trips — exercises the contributor flow
+      // badge in the trip list. The third sample trip is treated as
+      // shared by a fictional friend with edit permission.
+      ...(SHARED_DEMO_OVERRIDES[t.id] ?? {}),
     };
   }
 

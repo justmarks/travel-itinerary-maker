@@ -117,6 +117,20 @@ cd apps/web && pnpm lint
 - Access the API client via `useApiClient()` hook from `ApiClientProvider`.
 - Components use TailwindCSS utility classes. Do not add custom CSS.
 
+### Desktop + mobile parity
+
+- **Every UX change must land in both the desktop site (`apps/web/src/app/trips/...` and the shared `components/`) and the mobile site at `apps/web/src/app/m/...`.** Hiding an action, adding a permission gate, surfacing a new piece of metadata, etc. — make the matching change on both sides in the same PR. Pulling a derivation into a hook (`useTripPermission`, `useShareLinkOwnerRedirect`, etc.) is the easiest way to keep them in sync; if a hook can't be reused, mirror the prop / state contract at minimum.
+- The mobile shell at `/m` is part of the same Next.js bundle, not a separate app. Don't ship an affordance to one and forget the other.
+
+### Action feedback (toasts + responsiveness)
+
+User-triggered actions — rename, delete, status cycle, todo check, segment add/edit/delete, share create/revoke, calendar sync, etc. — must:
+
+- **Be optimistic.** Update the cache via `onMutate` so the UI reflects the change before the server responds. The user should be able to fire several actions back-to-back without each one feeling like a round-trip. This is already the convention for trip / segment / todo mutations in `packages/api-client/src/hooks.ts` — match it for new mutations.
+- **Never appear as ghosts.** If a mutation rolls back on error, the optimistic update must be cleared from the cache in `onError` (use the `prevTrip` / `prevTrips` / etc. snapshot pattern). A failed delete must not leave the trip in a half-deleted state on screen.
+- **Show a toast on failure.** Wire `toast.error("Couldn't <verb>", { description: describeError(err) })` (Sonner) on every mutation call site. `describeError` lives in `apps/web/src/lib/api-error.ts` and pulls a useful message out of `ApiError` / `Error`. For success, only toast when the action wasn't visually obvious — e.g. a successful Calendar sync is worth a toast, but a successful checkbox tick isn't.
+- **Be tappable in rapid succession.** Don't disable buttons just because `isPending` is true; the optimistic update has already shown the result. The only time to disable is when the action is genuinely incompatible with the current state (e.g. Save while still validating). Check that toggling the same checkbox five times in a row works without the UI freezing.
+
 ### Component Library
 
 - **ShadCN UI** (New York style, Zinc colors) with Lucide React icons.

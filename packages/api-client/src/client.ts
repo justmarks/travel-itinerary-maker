@@ -51,6 +51,30 @@ export interface TripSummary {
   primaryCountry?: string;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Set on trips the user does NOT own — populated when the trip is in
+   * the user's list because someone shared it with them. Carries the
+   * owner's email so the UI can render an attribution like "Shared by
+   * alice@…". Absent for the user's own trips.
+   */
+  sharedFromEmail?: string;
+  /**
+   * Permission granted on a shared trip — "view" for read-only access,
+   * "edit" for contributor write access. Absent on owned trips.
+   */
+  sharedPermission?: "view" | "edit";
+  /**
+   * Per-share visibility flag — `false` means the owner asked us to hide
+   * costs from this recipient. The contributor UI gates its Costs pill
+   * / sheet / tab on this. Absent on owned trips.
+   */
+  sharedShowCosts?: boolean;
+  /**
+   * Same idea for the to-do list. The summary's `todoCount` is also
+   * forced to 0 server-side when this is `false` so the trip card
+   * doesn't leak the count.
+   */
+  sharedShowTodos?: boolean;
 }
 
 export interface CostSummaryResponse {

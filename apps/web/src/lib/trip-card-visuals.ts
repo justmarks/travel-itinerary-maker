@@ -147,7 +147,13 @@ export function useCityImage(
 
       // 1) Try the raw title — fast path for unambiguous cities.
       const direct = pickImageFromSummary(await fetchSummary(cityHead));
-      if (direct) return direct;
+      if (direct) {
+        console.log(
+          `[trip-card-visuals] hero for ${JSON.stringify(city)} (${country ?? "—"}) → direct "${cityHead}":`,
+          direct.url,
+        );
+        return direct;
+      }
 
       // 2) Search for the article. Use the country (if known) as a hint
       //    so "Palm Desert" lands on "Palm Desert, California" rather
@@ -155,16 +161,31 @@ export function useCityImage(
       const matchedTitle = await searchForArticleTitle(cityHead, country);
       if (matchedTitle) {
         const searched = pickImageFromSummary(await fetchSummary(matchedTitle));
-        if (searched) return searched;
+        if (searched) {
+          console.log(
+            `[trip-card-visuals] hero for ${JSON.stringify(city)} (${country ?? "—"}) → search-matched "${matchedTitle}":`,
+            searched.url,
+          );
+          return searched;
+        }
       }
 
       // 3) Country fallback so cruise stops and small towns still show
       //    *something* recognisable.
       if (country) {
         const countryResult = pickImageFromSummary(await fetchSummary(country));
-        if (countryResult) return countryResult;
+        if (countryResult) {
+          console.log(
+            `[trip-card-visuals] hero for ${JSON.stringify(city)} (${country}) → country fallback:`,
+            countryResult.url,
+          );
+          return countryResult;
+        }
       }
 
+      console.log(
+        `[trip-card-visuals] hero for ${JSON.stringify(city)} (${country ?? "—"}) → no image found, will render gradient`,
+      );
       return null;
     },
   });

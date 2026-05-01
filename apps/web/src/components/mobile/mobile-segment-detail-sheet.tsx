@@ -184,11 +184,17 @@ export function MobileSegmentDetailSheet({
   segment,
   date,
   onClose,
+  showCosts = true,
 }: {
   segment: Segment | null;
   /** ISO date the segment lives on (the parent day). */
   date?: string;
   onClose: () => void;
+  /**
+   * When false, suppress the cost row inside the sheet — matches the
+   * inline card behaviour when the parent share has `showCosts: false`.
+   */
+  showCosts?: boolean;
 }): React.JSX.Element | null {
   if (!segment) {
     return (
@@ -208,8 +214,8 @@ export function MobileSegmentDetailSheet({
 
   const startTime = fmt12h(segment.startTime);
   const endTime = fmt12h(segment.endTime);
-  const cost = formatCost(segment.cost);
-  const costOriginal = formatCostOriginal(segment.cost);
+  const cost = showCosts ? formatCost(segment.cost) : null;
+  const costOriginal = showCosts ? formatCostOriginal(segment.cost) : null;
 
   const flightLabel = isFlight ? formatFlightLabel(segment) : "";
   const titleText =

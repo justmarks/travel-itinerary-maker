@@ -261,35 +261,9 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 
 Version is auto-incremented on merge to main via GitHub Actions. `vercel.json` at the repo root carries an `ignoreCommand` so Vercel skips the no-op build for the auto-generated `chore: bump version ... [skip ci]` commits — only real merges trigger a production deploy.
 
-## Known Limitations
-
-### In-memory TokenStore and ShareRegistry
-
-`TokenStore` and `ShareRegistry` (in `server/src/services/`) are currently held in process memory. This means:
-
-- **On redeploy or server restart**, all stored refresh tokens and share links are lost. Users will need to re-authenticate, and any existing share links will stop resolving.
-- **On Railway free-tier sleep cycles**, the server process restarts on first request, wiping both stores.
-
-The fix is to persist both stores to Google Drive (e.g., as JSON files in a dedicated app folder), the same way trip data is persisted. Until that's done, share links and seamless token refresh are best-effort in production.
-
-Two related cleanups surfaced while auditing this area:
-
-- `GET /shared/:token` returns **500 instead of 404** when the registry has no entry for a token. In drive mode, the fallback path in `server/src/routes/shared.ts` calls `getStorage(req)`, which throws because shared routes are unauthenticated and `req.accessToken` is undefined. Should be handled as a clean 404.
-- `POST /auth/google` only stores a refresh token **when Google actually returns one**, which it does on first consent or when `access_type=offline` + `prompt=consent` are requested. Today the frontend uses the default `@react-oauth/google` popup flow, so returning users silently don't get a refresh token stored server-side. Tokens written to disk should also be encrypted at rest.
-
-**Plan to harden:**
-
-1. Add `DriveTokenStore` and `DriveShareRegistry` implementations alongside the existing in-memory classes.
-2. On write, serialize to a known Drive file (`token-store.json` / `share-registry.json` in the app's root Drive folder), with refresh tokens encrypted at rest.
-3. On read, lazy-load from Drive with a short in-process TTL cache to avoid a Drive API call on every request.
-4. Wire them into `server/src/index.ts` behind an env flag (`PERSIST_TOKEN_STORE=true`) so local dev keeps the fast in-memory path.
-5. Request `access_type=offline` + `prompt=consent` on the login flow so returning users reliably yield a refresh token.
-6. Fix the shared-route fallback to return 404 (not 500) when a share token is unknown.
-7. Add integration tests using a Drive API mock (or a dedicated test Drive folder), including a "server restart" scenario that verifies share links keep working.
-
 ## Roadmap
 
-**Completed:**
+**Foundation (shipped):**
 
 - [x] **Phase 1** — Foundation: monorepo, types, Zod schemas, Express API, tests
 - [x] **Phase 2** — Core UI: Next.js web app, itinerary table, segment cards, inline editing
@@ -304,11 +278,28 @@ Two related cleanups surfaced while auditing this area:
 - [x] **iCal export** — download trip as a `.ics` file named after the trip; VTIMEZONE blocks with DST-aware transitions for Outlook compatibility; overnight flight `DTEND` advanced to next day when UTC arrival precedes UTC departure
 - [x] **IATA airport codes for flights** — flight segments carry `departureAirport` / `arrivalAirport` (3-letter IATA) backed by a 1,178-entry shared lookup; render as `City (CODE)` everywhere; segment editor exposes a keyboard-navigable typeahead (search by code, city, airport name, or alias); title auto-fills to `DEP → ARR (Carrier RouteCode)` once both endpoints are set; calendar sync derives the per-leg IANA timezone from the airport code with city-name fallback for legacy data and other transport
 
-**Up next:**
-- [ ] **Persist TokenStore + ShareRegistry** — back in-memory token and share stores with Drive-persisted JSON so they survive redeploys; also request `access_type=offline`/`prompt=consent` so returning users yield a refresh token, fix the 500→404 on unknown share tokens, and encrypt stored refresh tokens at rest (see Known Limitations above)
-- [ ] **Sharing with email notifications** — view/edit permissions, email invites via Resend, notifications when a shared trip is updated
-- [ ] **Offline / PWA** — service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
-- [ ] **Android mobile** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
+**Mobile companion (web PWA at `/m`):**
+
+A mobile-first parallel experience focused on consuming a planned trip rather than re-creating the desktop authoring UX. Lives under `/m/*` in the same Next.js bundle and is auto-served when the viewer hits the desktop URL on a phone.
+
+- [x] **Phase 1 — Foundation** — `MobileFrame` (430px max-width on desktop preview), `/m/login` and `/m` trip list with hero images + country flags + grouped current/upcoming/past sections, `/m/trip` detail with day carousel + segment detail bottom sheet, mobile-aware redirect, share button entry point, mobile user menu with "Use desktop site" override
+- [x] **Phase 2 — Costs and Todos** — bottom-sheet for costs (USD-normalised, totals by category) and todos (full CRUD with drag-aware dismissal); pills on the trip header replace a discoverability-poor footer
+- [ ] **Phase 3 — Offline / PWA** — install prompt, service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
+
+**Sharing:**
+
+A trip's owner can publish a read-only or contributor-edit link; recipients open it without signing in (view) or sign in to edit (contributor flow). Backed by a Redis-persisted share registry so links survive server restarts and Railway sleep cycles.
+
+- [x] **Viewer + share creation** — desktop share dialog (`ShareTripDialog`) and mobile share sheet (`MobileShareSheet`); mobile uses `navigator.share` so the OS picks the channel (Messages, Mail, AirDrop, …); recipient lands at `/shared/[token]` (desktop) or `/m/shared` (mobile); per-share toggles for showing costs and todos
+- [x] **Server hardening** — `ShareRegistry` self-heal on registry miss (rebuilds from the owner's Drive once any owner logs back in); Upstash Redis persistence for `TokenStore` + `ShareRegistry` so refresh tokens and share-token mappings survive process restarts
+- [x] **Cross-browser demo shares** — demo-mode share tokens are self-describing (`demo:tripId:perm:costs:todos:nonce`) so a recipient on any other browser running `?demo=true` can resolve them from their local sample trips
+- [x] **Per-trip unfurl previews** — `ShareSnapshotStore` writes a tiny title/dates snapshot to Redis on share creation; the public `/shared/[token]` page reads it on the Vercel Edge runtime in `generateMetadata` and renders a per-trip Open Graph card
+- [ ] **Contributor edit flow (PR B, in progress)** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` gains an email index keyed on `sharedWithEmail` for fast lookup
+- [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated (later)
+
+**Up next (cross-cutting):**
+
+- [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
 
 ## License

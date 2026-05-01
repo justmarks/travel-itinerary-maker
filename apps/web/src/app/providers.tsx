@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
@@ -50,8 +51,14 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
 export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
   // Boot Sentry once on client hydration. No-op when NEXT_PUBLIC_SENTRY_DSN
   // is unset (dev, CI, and any deployment that hasn't opted in yet).
+  //
+  // The flag polyfill injects an `@font-face` rule pointing at a small
+  // Twemoji subset. Windows + Chrome doesn't ship a flag-emoji font and
+  // would otherwise render trip-card flags as country-code letters.
+  // Idempotent — safe to call from a useEffect that re-runs on HMR.
   useEffect(() => {
     initMonitoring();
+    polyfillCountryFlagEmojis();
   }, []);
 
   return (

@@ -20,9 +20,17 @@ import {
   type TripDay,
   type Segment,
 } from "@travel-app/shared";
+import type { SharePermission } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";
+import {
+  resolveTripAccess,
+  listSharedTrips,
+  type AccessResult,
+  type AccessDenied,
+  type ResolveOwnerStorage,
+} from "../services/trip-access";
 import {
   XlsxTripImporter,
   extractYearHint,
@@ -34,10 +42,22 @@ export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
   shareRegistry?: ShareRegistry;
   shareSnapshotStore?: ShareSnapshotStore;
+  /**
+   * Resolves the *owner's* storage for a shared trip — used when a
+   * contributor accesses a trip they don't own. Optional; without it
+   * the contributor flow short-circuits to 404 (the request resolves
+   * via the requester's own storage only).
+   */
+  resolveOwnerStorage?: ResolveOwnerStorage;
 }
 
 export function createTripRoutes(options: TripRoutesOptions): Router {
-  const { resolveStorage, shareRegistry, shareSnapshotStore } = options;
+  const {
+    resolveStorage,
+    shareRegistry,
+    shareSnapshotStore,
+    resolveOwnerStorage,
+  } = options;
 
   // Support both a resolver function and a direct storage instance
   const getStorage: StorageResolver =
@@ -47,14 +67,63 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
   const router = Router();
 
+  // Authorisation gate: every read/write route on `/trips/:tripId` runs
+  // through this so a recipient with an edit-share can mutate the
+  // owner's trip in place. The helper returns a discriminated result —
+  // route handlers branch on `ok`. Owner-only operations (delete,
+  // create/revoke shares) check `accessLevel === "owner"` after the
+  // permission gate.
+  async function accessTrip(
+    req: Request,
+    tripId: string,
+    requiredPermission: SharePermission,
+  ): Promise<AccessResult> {
+    return resolveTripAccess({
+      req,
+      tripId,
+      requiredPermission,
+      getStorage,
+      shareRegistry,
+      resolveOwnerStorage,
+    });
+  }
+
+  function denyAccess(res: Response, denied: AccessDenied): void {
+    const message =
+      denied.reason === "shared-view-only"
+        ? "View-only share — editing not permitted"
+        : denied.reason === "owner-auth-expired"
+          ? "Trip owner needs to re-authenticate"
+          : "Trip not found";
+    res.status(denied.status).json({ error: message, reason: denied.reason });
+  }
+
+  function denyOwnerOnly(res: Response): void {
+    res.status(403).json({
+      error: "Only the trip owner can perform this action",
+      reason: "owner-only",
+    });
+  }
+
   // ─── Trip CRUD ───────────────────────────────────────────
 
   router.get("/", async (req: Request, res: Response) => {
     try {
       const storage = getStorage(req);
-      const trips = await storage.listTrips();
-      // Return summary list (without full day/segment data)
-      const summaries = trips.map((t) => {
+      const ownedTrips = await storage.listTrips();
+      const ownedIds = new Set(ownedTrips.map((t) => t.id));
+
+      // Pull every trip shared with this user (in addition to the ones
+      // they own) so a contributor sees those trips inline in their
+      // dashboard. Shared and owned can technically overlap if a user
+      // gets a share for their own trip — dedupe by id, owned wins.
+      const shared = await listSharedTrips({
+        userEmail: req.userEmail,
+        shareRegistry,
+        resolveOwnerStorage,
+      });
+
+      const ownedSummaries = ownedTrips.map((t) => {
         const primary = primaryLocationFor(t);
         return {
           id: t.id,
@@ -71,7 +140,37 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           updatedAt: t.updatedAt,
         };
       });
-      res.json(summaries);
+
+      const sharedSummaries = shared
+        .filter(({ trip }) => !ownedIds.has(trip.id))
+        .map(({ trip, ownerEmail, permission, showCosts, showTodos }) => {
+          const primary = primaryLocationFor(trip);
+          return {
+            id: trip.id,
+            title: trip.title,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            status: trip.status,
+            dayCount: trip.days.length,
+            // Hide the to-do count in the summary when the share itself
+            // hides to-dos — otherwise the recipient sees "5 todos" on
+            // their card with no way to open them.
+            todoCount: showTodos
+              ? trip.todos.filter((td) => !td.isCompleted).length
+              : 0,
+            primaryCity: primary?.city,
+            primaryCountryCode: primary?.countryCode,
+            primaryCountry: primary?.country,
+            createdAt: trip.createdAt,
+            updatedAt: trip.updatedAt,
+            sharedFromEmail: ownerEmail,
+            sharedPermission: permission,
+            sharedShowCosts: showCosts,
+            sharedShowTodos: showTodos,
+          };
+        });
+
+      res.json([...ownedSummaries, ...sharedSummaries]);
     } catch (err) {
       console.error("GET /trips error:", err);
       res.status(500).json({ error: "Failed to list trips" });
@@ -312,22 +411,15 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   });
 
   router.get("/:tripId", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trip = await storage.getTrip(req.params.tripId as string);
-    if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return;
-    }
-    res.json(trip);
+    const access = await accessTrip(req, req.params.tripId as string, "view");
+    if (!access.ok) return denyAccess(res, access);
+    res.json(access.trip);
   });
 
   router.put("/:tripId", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trip = await storage.getTrip(req.params.tripId as string);
-    if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return;
-    }
+    const access = await accessTrip(req, req.params.tripId as string, "edit");
+    if (!access.ok) return denyAccess(res, access);
+    const { trip, storage } = access;
 
     const parsed = updateTripSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -394,15 +486,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   });
 
   router.delete("/:tripId", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const tripId = req.params.tripId as string;
+    // Trip deletion is owner-only — even an edit-share contributor
+    // shouldn't be able to delete the trip out from under the owner.
+    const access = await accessTrip(req, req.params.tripId as string, "edit");
+    if (!access.ok) return denyAccess(res, access);
+    if (access.accessLevel !== "owner") return denyOwnerOnly(res);
+    const { storage, trip } = access;
+    const tripId = trip.id;
 
     // Capture the share tokens BEFORE deleting the trip so we can cascade
     // the cleanup to the snapshot store. The trip object is the source of
     // truth for which tokens existed; the registry only knows tokens that
     // hydrated successfully on the current process.
-    const trip = await storage.getTrip(tripId);
-    const shareTokens = trip?.shares.map((s) => s.shareToken) ?? [];
+    const shareTokens = trip.shares.map((s) => s.shareToken);
 
     // Clean up share registry entries when a trip is deleted
     if (shareRegistry) {
@@ -423,24 +519,17 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   // ─── Days ────────────────────────────────────────────────
 
   router.get("/:tripId/days", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trip = await storage.getTrip(req.params.tripId as string);
-    if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return;
-    }
-    res.json(trip.days);
+    const access = await accessTrip(req, req.params.tripId as string, "view");
+    if (!access.ok) return denyAccess(res, access);
+    res.json(access.trip.days);
   });
 
   router.put(
     "/:tripId/days/:date",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       const day = trip.days.find((d) => d.date === (req.params.date as string));
       if (!day) {
@@ -460,12 +549,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/segments",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip } = access;
 
       const allSegments: (Segment & { date: string })[] = [];
       for (const day of trip.days) {
@@ -495,12 +581,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.post(
     "/:tripId/segments",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       const { date, ...segmentData } = req.body;
       if (!date) {
@@ -542,12 +625,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.put(
     "/:tripId/segments/:segId",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       let found: Segment | undefined;
       let currentDay: TripDay | undefined;
@@ -619,12 +699,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.delete(
     "/:tripId/segments/:segId",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       let deletedCalendarEventId: string | undefined;
       let deleted = false;
@@ -661,12 +738,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.post(
     "/:tripId/segments/:segId/confirm",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       let found: Segment | undefined;
       for (const day of trip.days) {
@@ -690,12 +764,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.post(
     "/:tripId/segments/confirm-all",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       let confirmed = 0;
       for (const day of trip.days) {
@@ -719,12 +790,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   // ─── Cost Summary ───────────────────────────────────────
 
   router.get("/:tripId/costs", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trip = await storage.getTrip(req.params.tripId as string);
-    if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return;
-    }
+    const access = await accessTrip(req, req.params.tripId as string, "view");
+    if (!access.ok) return denyAccess(res, access);
+    const { trip } = access;
 
     const items: Array<{
       category: string;
@@ -780,24 +848,17 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   // ─── TODOs ──────────────────────────────────────────────
 
   router.get("/:tripId/todos", async (req: Request, res: Response) => {
-    const storage = getStorage(req);
-    const trip = await storage.getTrip(req.params.tripId as string);
-    if (!trip) {
-      res.status(404).json({ error: "Trip not found" });
-      return;
-    }
-    res.json(trip.todos);
+    const access = await accessTrip(req, req.params.tripId as string, "view");
+    if (!access.ok) return denyAccess(res, access);
+    res.json(access.trip.todos);
   });
 
   router.post(
     "/:tripId/todos",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       const parsed = createTodoSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -824,12 +885,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.put(
     "/:tripId/todos/:todoId",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       const todo = trip.todos.find((t) => t.id === (req.params.todoId as string));
       if (!todo) {
@@ -863,12 +921,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.delete(
     "/:tripId/todos/:todoId",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      const { trip, storage } = access;
 
       const idx = trip.todos.findIndex((t) => t.id === (req.params.todoId as string));
       if (idx < 0) {
@@ -888,12 +943,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.post(
     "/:tripId/share",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      // Only the owner may create shares — a contributor with edit
+      // access can mutate the itinerary but not re-share the trip.
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      if (access.accessLevel !== "owner") return denyOwnerOnly(res);
+      const { trip, storage } = access;
 
       const parsed = createShareSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -916,8 +971,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       await storage.saveTrip(trip);
 
       // Register share token in the share registry for public access
+      // and (if `sharedWithEmail` is set) for the recipient's contributor
+      // trip list.
       if (shareRegistry && req.userId) {
-        shareRegistry.register(share.shareToken, trip.id, req.userId);
+        shareRegistry.register({
+          shareToken: share.shareToken,
+          tripId: trip.id,
+          ownerUserId: req.userId,
+          ownerEmail: req.userEmail,
+          sharedWithEmail: share.sharedWithEmail,
+          permission: share.permission,
+          showCosts: share.showCosts,
+          showTodos: share.showTodos,
+        });
       }
 
       // Persist a display-only snapshot for the unfurl preview. The Edge
@@ -939,25 +1005,22 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/shares",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
-      res.json(trip.shares);
+      // Owner-only — a contributor shouldn't see the share list or
+      // discover the recipients of view-shares.
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
+      if (access.accessLevel !== "owner") return denyOwnerOnly(res);
+      res.json(access.trip.shares);
     },
   );
 
   router.delete(
     "/:tripId/shares/:shareId",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      if (!access.ok) return denyAccess(res, access);
+      if (access.accessLevel !== "owner") return denyOwnerOnly(res);
+      const { trip, storage } = access;
 
       const idx = trip.shares.findIndex((s) => s.id === (req.params.shareId as string));
       if (idx < 0) {
@@ -986,13 +1049,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/export/markdown",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
       const { tripToMarkdown } = await import("@travel-app/shared");
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
       const excludeTodos = req.query.exclude?.toString().includes("todos");
@@ -1014,13 +1074,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/export/onenote",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
       const { tripToOneNoteHtml } = await import("@travel-app/shared");
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
       const excludeTodos = req.query.exclude?.toString().includes("todos");
@@ -1042,16 +1099,13 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/export/ical",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
       const [{ tripToIcal }, { resolveTripTimezones }] = await Promise.all([
         import("@travel-app/shared"),
         import("../utils/timezone-lookup"),
       ]);
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const { trip } = access;
 
       await resolveTripTimezones(trip);
       const ics = tripToIcal(trip);
@@ -1067,13 +1121,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.get(
     "/:tripId/export/pdf",
     async (req: Request, res: Response) => {
-      const storage = getStorage(req);
+      const access = await accessTrip(req, req.params.tripId as string, "view");
+      if (!access.ok) return denyAccess(res, access);
       const { generateTripPdf } = await import("../utils/pdf-generator");
-      const trip = await storage.getTrip(req.params.tripId as string);
-      if (!trip) {
-        res.status(404).json({ error: "Trip not found" });
-        return;
-      }
+      const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
       const excludeTodos = req.query.exclude?.toString().includes("todos");
