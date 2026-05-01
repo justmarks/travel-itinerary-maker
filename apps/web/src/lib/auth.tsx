@@ -29,7 +29,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (googleAuthCode: string) => Promise<void>;
+  login: (googleAuthCode: string, redirectUri?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -118,11 +118,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     return () => clearTimeout(timer);
   }, [state.refreshToken, state.expiresAt]);
 
-  const login = useCallback(async (googleAuthCode: string) => {
+  const login = useCallback(async (googleAuthCode: string, redirectUri?: string) => {
     const res = await fetch(`${API_BASE_URL}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: googleAuthCode }),
+      body: JSON.stringify({ code: googleAuthCode, redirectUri }),
     });
 
     if (!res.ok) {

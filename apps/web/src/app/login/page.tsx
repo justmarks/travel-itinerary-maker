@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
+import { startGoogleSignIn } from "@/lib/oauth";
 import { Button } from "@/components/ui/button";
 import { AppLogo } from "@/components/app-logo";
 import { AlertCircle, Info } from "lucide-react";
@@ -12,7 +12,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export default function LoginPage(): React.JSX.Element {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
@@ -27,33 +27,6 @@ export default function LoginPage(): React.JSX.Element {
       .catch(() => setApiAvailable(false));
     return () => controller.abort();
   }, []);
-
-  const googleLogin = useGoogleLogin({
-    flow: "auth-code",
-    onSuccess: async (response) => {
-      setLoginError(null);
-      try {
-        await login(response.code);
-        router.replace("/");
-      } catch (err) {
-        console.error("Login failed:", err);
-        if (err instanceof TypeError && err.message === "Failed to fetch") {
-          setLoginError(
-            "Unable to reach the API server. Sign-in requires a running backend — try demo mode instead, or run the server locally.",
-          );
-        } else {
-          setLoginError(
-            err instanceof Error ? err.message : "Login failed. Please try again.",
-          );
-        }
-      }
-    },
-    onError: (error) => {
-      console.error("Google login error:", error);
-      setLoginError("Google sign-in was cancelled or failed. Please try again.");
-    },
-    scope: "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar",
-  });
 
   useEffect(() => {
     // Note: we intentionally do NOT redirect when isDemo flips to true here.
@@ -105,7 +78,13 @@ export default function LoginPage(): React.JSX.Element {
           disabled={apiAvailable === false}
           onClick={() => {
             setLoginError(null);
-            googleLogin();
+            try {
+              startGoogleSignIn("/");
+            } catch (err) {
+              setLoginError(
+                err instanceof Error ? err.message : "Sign-in is not configured.",
+              );
+            }
           }}
         >
           <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">

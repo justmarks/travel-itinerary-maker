@@ -9,7 +9,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@react-oauth/google": "^0.13.5",
     "@sentry/browser": "^10.49.0",
     "@tanstack/react-query": "^5.96.2",
     "@travel-app/api-client": "workspace:*",

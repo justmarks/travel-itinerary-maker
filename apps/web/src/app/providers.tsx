@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { GoogleOAuthProvider } from "@react-oauth/google";
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -11,7 +10,6 @@ import { initMonitoring } from "@/lib/monitoring";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const mockClient = new MockApiClient();
 
@@ -62,12 +60,10 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   }, []);
 
   return (
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthProvider>
-        <DemoProvider>
-          <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
-        </DemoProvider>
-      </AuthProvider>
-    </GoogleOAuthProvider>
+    <AuthProvider>
+      <DemoProvider>
+        <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+      </DemoProvider>
+    </AuthProvider>
   );
 }
