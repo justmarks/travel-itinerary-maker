@@ -60,6 +60,7 @@ import {
   FileCode2,
   Smartphone,
   Share2,
+  Users,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
 import { ItineraryDay } from "@/components/itinerary-day";
@@ -73,6 +74,7 @@ import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useDemoHref } from "@/lib/demo";
+import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -787,6 +789,31 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   const [shareOpen, setShareOpen] = useState(false);
   const updateTripStatus = useUpdateTrip(tripId);
 
+  // Permission for the active user — view-only contributors get a
+  // read-only render; edit contributors keep most affordances; only the
+  // owner sees Share / Calendar sync / Email scan / Delete. The
+  // showCosts / showTodos flags mirror the share's per-recipient
+  // visibility toggles set at share creation.
+  const permission = useTripPermission(tripId);
+  const { isReadOnly, isOwner, sharedFromEmail } = permission;
+  // While the permission lookup is still in flight, suppress cost /
+  // todo rendering (we'd otherwise flash inline costs / the to-do
+  // sidebar in for a beat before the contributor's restrictive
+  // permission resolved and yanked them away). Owners get a brief
+  // empty beat in exchange — much less jarring than show-then-hide.
+  const showCosts = !permission.isLoading && permission.showCosts;
+  const showTodos = !permission.isLoading && permission.showTodos;
+  // Build the tab list dynamically so tabs the share hides don't even
+  // appear. Itinerary / Timeline / Map are always shown; Costs and
+  // To-do drop out for shares with the matching toggle off.
+  const visibleTabs = (
+    ["itinerary", "timeline", "map", "costs", "todos"] as Tab[]
+  ).filter((t) => {
+    if (t === "costs") return showCosts;
+    if (t === "todos") return showTodos;
+    return true;
+  });
+
   if (isLoading) {
     return (
       <main className="min-h-screen p-8">
@@ -828,61 +855,102 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShareOpen(true)}
-              className="gap-1.5"
-            >
-              <Share2 className="h-3.5 w-3.5" />
-              Share
-            </Button>
-            <TripActionsMenu
-              tripId={trip.id}
-              tripTitle={trip.title}
-              trip={trip}
-              onImportEmail={() => setHtmlImportOpen(true)}
-            />
-            <HtmlImportDialog
-              tripId={trip.id}
-              hideTrigger
-              open={htmlImportOpen}
-              onOpenChange={setHtmlImportOpen}
-            />
-            <ShareTripDialog
-              tripId={trip.id}
-              open={shareOpen}
-              onOpenChange={setShareOpen}
-            />
+            {/* Owner-only: scanning emails / sharing / the actions
+                menu (which carries Calendar sync + Delete) all act on
+                the owner's account, so contributors don't see them.
+                Suppressed entirely while permission is loading so a
+                shared-trip recipient doesn't see the chrome flash in
+                and then disappear once the real permission resolves. */}
+            {!permission.isLoading && isOwner && (
+              <>
+                <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShareOpen(true)}
+                  className="gap-1.5"
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                  Share
+                </Button>
+                <TripActionsMenu
+                  tripId={trip.id}
+                  tripTitle={trip.title}
+                  trip={trip}
+                  onImportEmail={() => setHtmlImportOpen(true)}
+                />
+                <HtmlImportDialog
+                  tripId={trip.id}
+                  hideTrigger
+                  open={htmlImportOpen}
+                  onOpenChange={setHtmlImportOpen}
+                />
+                <ShareTripDialog
+                  tripId={trip.id}
+                  open={shareOpen}
+                  onOpenChange={setShareOpen}
+                />
+              </>
+            )}
             <UserMenu />
           </div>
         </div>
 
         <div className="mb-8">
           <div className="flex flex-wrap items-center gap-3">
-            <EditableTitle tripId={trip.id} title={trip.title} />
-            <button
-              type="button"
-              onClick={() =>
-                updateTripStatus.mutate({ status: nextTripStatus(trip.status) })
-              }
-              disabled={updateTripStatus.isPending}
-              title={`Status: ${trip.status}. Click to advance.`}
-              className={cn(
-                "cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait",
-                STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
-              )}
-            >
-              {trip.status}
-            </button>
+            {isReadOnly ? (
+              <h1 className="text-2xl font-bold">{trip.title}</h1>
+            ) : (
+              <EditableTitle tripId={trip.id} title={trip.title} />
+            )}
+            {isReadOnly ? (
+              <span
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
+                  STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
+                )}
+              >
+                {trip.status}
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  updateTripStatus.mutate({ status: nextTripStatus(trip.status) })
+                }
+                disabled={updateTripStatus.isPending}
+                title={`Status: ${trip.status}. Click to advance.`}
+                className={cn(
+                  "cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait",
+                  STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
+                )}
+              >
+                {trip.status}
+              </button>
+            )}
+            {sharedFromEmail && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                <Users className="h-3 w-3" />
+                Shared by {sharedFromEmail}
+                <span className="ml-1 text-[10px] uppercase tracking-wider opacity-70">
+                  · {isReadOnly ? "view" : "edit"}
+                </span>
+              </span>
+            )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-            <EditableDates
-              tripId={trip.id}
-              startDate={trip.startDate}
-              endDate={trip.endDate}
-            />
+            {isReadOnly ? (
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                {formatDateRange(trip.startDate, trip.endDate)}
+              </span>
+            ) : (
+              <EditableDates
+                tripId={trip.id}
+                startDate={trip.startDate}
+                endDate={trip.endDate}
+              />
+            )}
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5" />
               {trip.days.length} {trip.days.length === 1 ? "day" : "days"}
@@ -890,12 +958,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           </div>
         </div>
 
-        {/* Needs-review banner */}
-        <NeedsReviewBanner trip={trip} />
+        {/* Needs-review banner — owner-only (parsed segments live in the
+            owner's Drive and the contributor can't apply them). */}
+        {isOwner && <NeedsReviewBanner trip={trip} />}
 
         {/* Tab navigation — hidden when printing */}
         <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-gray-200 print-hidden">
-          {(Object.keys(TAB_LABELS) as Tab[]).map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -916,16 +985,30 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
             <div className="flex flex-col gap-8">
               {trip.days.map((day) => (
-                <ItineraryDay key={day.date} day={day} tripId={trip.id} />
+                <ItineraryDay
+                  key={day.date}
+                  day={day}
+                  tripId={trip.id}
+                  readOnly={isReadOnly}
+                  showCosts={showCosts}
+                />
               ))}
             </div>
             <div className="flex flex-col gap-6">
-              <div className="rounded-xl border p-5">
-                <TripTodos tripId={trip.id} todos={trip.todos} />
-              </div>
-              <div className="rounded-xl border p-5">
-                <TripCosts tripId={trip.id} />
-              </div>
+              {showTodos && (
+                <div className="rounded-xl border p-5">
+                  <TripTodos
+                    tripId={trip.id}
+                    todos={trip.todos}
+                    readOnly={isReadOnly}
+                  />
+                </div>
+              )}
+              {showCosts && (
+                <div className="rounded-xl border p-5">
+                  <TripCosts tripId={trip.id} />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -934,19 +1017,20 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
 
         {activeTab === "map" && <MapView trip={trip} />}
 
-        {activeTab === "costs" && (
+        {activeTab === "costs" && showCosts && (
           <div className="rounded-xl border p-6">
             <TripCosts tripId={trip.id} />
           </div>
         )}
 
-        {activeTab === "todos" && (
+        {activeTab === "todos" && showTodos && (
           <div className="rounded-xl border p-6">
             <TripTodos
               tripId={trip.id}
               todos={trip.todos}
               days={trip.days}
-              showSuggestButton
+              showSuggestButton={!isReadOnly}
+              readOnly={isReadOnly}
             />
           </div>
         )}

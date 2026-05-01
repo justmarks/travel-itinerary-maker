@@ -41,16 +41,19 @@ export async function rebuildRegistryForUser(
     return null;
   }
 
-  // ownerEmail is captured from the tokenStore so future code (the PR-B
-  // contributor flow) can attribute shared trips back to the owner without
-  // a second tokenStore lookup. Today's ShareRegistry only persists the
-  // first three positional fields; the others are dropped on re-register.
-  void ownerEmail;
-
   let registered = 0;
   for (const trip of trips) {
     for (const share of trip.shares) {
-      shareRegistry.register(share.shareToken, trip.id, userId);
+      shareRegistry.register({
+        shareToken: share.shareToken,
+        tripId: trip.id,
+        ownerUserId: userId,
+        ownerEmail,
+        sharedWithEmail: share.sharedWithEmail,
+        permission: share.permission,
+        showCosts: share.showCosts,
+        showTodos: share.showTodos,
+      });
       registered += 1;
     }
   }

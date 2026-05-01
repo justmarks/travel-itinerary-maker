@@ -98,18 +98,25 @@ function SegmentRow({
   date,
   tripId,
   readOnly,
+  showCosts = true,
 }: {
   segment: Segment;
   date: string;
   tripId?: string;
   readOnly?: boolean;
+  /**
+   * When false, suppress the cost line on this row. Threaded from the
+   * parent itinerary view so a shared trip with `showCosts: false`
+   * doesn't leak inline costs through the segment list.
+   */
+  showCosts?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const deleteSegment = useDeleteSegment(tripId ?? "");
   const confirmSegment = useConfirmSegment(tripId ?? "");
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
   const Icon = config.icon;
-  const cost = formatCost(segment.cost);
+  const cost = showCosts ? formatCost(segment.cost) : null;
   const isRestaurant = RESTAURANT_TYPES.has(segment.type);
   const isHotel = HOTEL_TYPES.has(segment.type);
   const isFlight = FLIGHT_TYPES.has(segment.type);
@@ -469,10 +476,17 @@ export function ItineraryDay({
   day,
   tripId,
   readOnly,
+  showCosts = true,
 }: {
   day: TripDay;
   tripId?: string;
   readOnly?: boolean;
+  /**
+   * When false, hide inline per-segment cost. Used by the contributor
+   * view of a shared trip with `showCosts: false`. Defaults true so
+   * owned-trip rendering is unchanged.
+   */
+  showCosts?: boolean;
 }): React.JSX.Element | null {
   const segments = [...day.segments].sort((a, b) => {
     if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
@@ -522,6 +536,7 @@ export function ItineraryDay({
               date={day.date}
               tripId={tripId}
               readOnly={readOnly}
+              showCosts={showCosts}
             />
           ))}
         </div>

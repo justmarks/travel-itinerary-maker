@@ -47,10 +47,18 @@ export function MobileDaysList({
   days,
   stickyHeaderTopClass = "top-0",
   onSelectSegment,
+  showCosts = true,
 }: {
   days: readonly TripDay[];
   stickyHeaderTopClass?: string;
   onSelectSegment?: (segment: Segment) => void;
+  /**
+   * Threaded down to `MobileSegmentCard`. When false, suppresses the
+   * inline cost line — used by the contributor view of a shared trip
+   * with `showCosts: false`. Defaults true so the public viewer (which
+   * also uses this list) and owned-trip rendering stay unchanged.
+   */
+  showCosts?: boolean;
 }): React.JSX.Element {
   return (
     <div className="pb-10">
@@ -118,6 +126,7 @@ export function MobileDaysList({
                     key={seg.id}
                     segment={seg}
                     onSelect={onSelectSegment}
+                    showCosts={showCosts}
                   />
                 ))
               )}

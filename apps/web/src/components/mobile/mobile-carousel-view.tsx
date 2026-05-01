@@ -44,7 +44,20 @@ function dayShort(date: string) {
  * Tapping a segment opens a bottom-sheet detail view (state lives here so
  * only one sheet is ever open across pages).
  */
-export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element {
+export function MobileCarouselView({
+  trip,
+  showCosts = true,
+}: {
+  trip: Trip;
+  /**
+   * When false, the inline cost line on each segment card is hidden.
+   * Threaded down to `MobileSegmentCard` and the detail sheet so a
+   * shared trip with `showCosts: false` doesn't leak per-activity
+   * costs through the carousel rendering. Default true preserves
+   * owned-trip behaviour.
+   */
+  showCosts?: boolean;
+}): React.JSX.Element {
   const days = trip.days;
   // Index 0 = "All" overview; indices 1..days.length = individual days.
   const totalPages = days.length + 1;
@@ -202,7 +215,11 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
       >
         {/* All-overview page */}
         <div className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto">
-          <MobileDaysList days={days} onSelectSegment={setSelectedSegment} />
+          <MobileDaysList
+            days={days}
+            onSelectSegment={setSelectedSegment}
+            showCosts={showCosts}
+          />
         </div>
 
         {/* Per-day pages */}
@@ -234,6 +251,7 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
                       key={seg.id}
                       segment={seg}
                       onSelect={setSelectedSegment}
+                      showCosts={showCosts}
                     />
                   ))
                 )}
@@ -250,6 +268,7 @@ export function MobileCarouselView({ trip }: { trip: Trip }): React.JSX.Element 
       <MobileSegmentDetailSheet
         segment={selectedSegment}
         date={segmentDate}
+        showCosts={showCosts}
         onClose={() => setSelectedSegment(null)}
       />
     </div>

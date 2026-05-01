@@ -228,6 +228,13 @@ export function MobileShareSheet({
   const trimmedEmail = email.trim();
   const emailValid =
     !trimmedEmail || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+  // Edit shares require a Gmail (the server gates contributor edit on
+  // an auth-email match) so disable the CTA until it's there. View
+  // shares accept the link-only flow.
+  const canCreate =
+    !createShare.isPending &&
+    emailValid &&
+    (permission === "view" || trimmedEmail.length > 0);
 
   const handleCreate = async () => {
     setError(null);
@@ -416,7 +423,7 @@ export function MobileShareSheet({
         <button
           type="button"
           onClick={handleCreate}
-          disabled={createShare.isPending}
+          disabled={!canCreate}
           className="flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-foreground text-sm font-semibold text-background disabled:opacity-50"
         >
           <Send className="h-4 w-4" />

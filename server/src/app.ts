@@ -14,6 +14,7 @@ import { ShareSnapshotStore } from "./services/share-snapshot-store";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { reportError } from "./services/monitoring";
 import { buildCorsOriginCheck } from "./middleware/cors-origin";
+import type { ResolveOwnerStorage } from "./services/trip-access";
 import { config } from "./config/env";
 
 export interface AppOptions {
@@ -39,6 +40,13 @@ export interface AppOptions {
    * client constructed by `createRedisStore()`.
    */
   redisStore?: RedisStore | null;
+  /**
+   * Test override: provide a custom owner-storage resolver for the
+   * contributor flow. In production this is built from `tokenStore` +
+   * `DriveStorage`; tests inject a userId → InMemoryStorage map to
+   * exercise cross-user share access without touching real Drive.
+   */
+  resolveOwnerStorage?: ResolveOwnerStorage;
 }
 
 /**
@@ -50,7 +58,13 @@ export interface AppOptions {
  */
 export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
-  const { mode, storage, disableRedis, redisStore: redisStoreOverride } = options;
+  const {
+    mode,
+    storage,
+    disableRedis,
+    redisStore: redisStoreOverride,
+    resolveOwnerStorage: resolveOwnerStorageOverride,
+  } = options;
 
   // CORS allowlist combines a comma-separated literal list (CORS_ORIGIN)
   // with an optional regex pattern (CORS_ORIGIN_PATTERN) so Vercel
@@ -120,6 +134,27 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     resolveStorage = storage;
   }
 
+  // Owner-storage resolver for the contributor flow. Used by trip routes
+  // to load a shared trip from the *owner's* Drive on behalf of a
+  // contributor. In drive mode we wire it through tokenStore + Drive;
+  // in memory mode tests can supply their own resolver to simulate
+  // cross-user access. Returns null when the owner's auth has expired.
+  const resolveOwnerStorage: ResolveOwnerStorage =
+    resolveOwnerStorageOverride ??
+    (mode === "drive"
+      ? async (ownerUserId: string) => {
+          const accessToken = await tokenStore.getAccessToken(ownerUserId);
+          if (!accessToken) return null;
+          return new DriveStorage({ accessToken });
+        }
+      : async () => {
+          // Memory mode without an explicit override: contributor flow is
+          // a no-op. The shared path in resolveTripAccess simply returns
+          // 404, matching the existing behaviour where memory-mode dev
+          // trips all live in one storage anyway.
+          return null;
+        });
+
   // Health check
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", version: "0.1.0" });
@@ -136,12 +171,14 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       resolveStorage,
       shareRegistry,
       shareSnapshotStore,
+      resolveOwnerStorage,
     }));
   } else {
     app.use("/api/v1/trips", createTripRoutes({
       resolveStorage,
       shareRegistry,
       shareSnapshotStore,
+      resolveOwnerStorage,
     }));
   }
 
