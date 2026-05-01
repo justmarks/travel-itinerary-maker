@@ -117,6 +117,15 @@
   }
 }
 
+/* country-flag-emoji-polyfill (booted in providers.tsx) loads the
+ * "Twemoji Country Flags" webfont when the platform lacks native
+ * flag emoji (Windows + Chromium). Apply this class wherever a flag
+ * is rendered so the polyfill font wins; on platforms with native
+ * flags the font isn't loaded and the rule falls through. */
+.flag-font {
+  font-family: "Twemoji Country Flags", sans-serif;
+}
+
 /* Hide the scrollbar on horizontally-scrollable rows (e.g. the tab strip)
  * while still allowing the user to scroll. iOS Safari already hides
  * scrollbars except during active scroll; this brings desktop in line. */
