@@ -51,7 +51,7 @@ export default function MobileLoginPage(): React.JSX.Element {
       <div className="flex flex-1 flex-col px-6 pb-10 pt-16">
         <div className="flex flex-col items-center text-center">
           <AppLogo className="h-16 w-16" />
-          <h1 className="mt-6 text-2xl font-bold">Travel Itinerary Maker</h1>
+          <h1 className="mt-6 text-2xl font-bold">itinly</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your trips, in your pocket.
           </p>

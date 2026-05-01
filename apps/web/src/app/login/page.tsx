@@ -52,7 +52,7 @@ export default function LoginPage(): React.JSX.Element {
       <div className="w-full max-w-sm space-y-8 text-center">
         <div>
           <AppLogo className="mx-auto mb-5 h-16 w-16" />
-          <h1 className="text-2xl font-bold">Travel Itinerary Maker</h1>
+          <h1 className="text-2xl font-bold">itinly</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Sign in to manage your travel itineraries
           </p>

@@ -16,7 +16,7 @@ const SITE_URL =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "Travel Itinerary Maker",
+  title: "itinly",
   description: "Auto-generate travel itineraries from email confirmations",
   // Setting `metadata.icons` as an object suppresses Next's auto-discovery
   // of `app/icon.svg`, so the regular `<link rel="icon">` tag must be
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     apple: "/icon.svg",
   },
   openGraph: {
-    title: "Travel Itinerary Maker",
+    title: "itinly",
     description: "Auto-generate travel itineraries from email confirmations.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Travel Itinerary Maker",
+    title: "itinly",
     description: "Auto-generate travel itineraries from email confirmations.",
   },
 };

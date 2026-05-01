@@ -1,4 +1,4 @@
-# ✈️ Travel Itinerary Maker
+# itinly
 
 Auto-generate structured travel itineraries from email confirmations. Sign in with Google, and your trip data lives in your own Google Drive — no third-party database, no monthly hosting costs.
 
