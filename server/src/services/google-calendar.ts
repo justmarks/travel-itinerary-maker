@@ -287,7 +287,7 @@ export function segmentToEvent(
     end,
     extendedProperties: {
       private: {
-        source: "travel-itinerary-maker",
+        source: "itinly",
         tripTitle,
         tripId: "",      // filled in by caller
         segmentId: segment.id,

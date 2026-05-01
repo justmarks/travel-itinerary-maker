@@ -21,7 +21,7 @@ async function fetchTimezoneForCity(city: string): Promise<string | undefined> {
       `?city=${encodeURIComponent(city)}&format=json&limit=1&addressdetails=0`;
 
     const geoRes = await fetch(geoUrl, {
-      headers: { "User-Agent": "travel-itinerary-maker/1.0 (timezone-lookup)" },
+      headers: { "User-Agent": "itinly/1.0 (timezone-lookup)" },
       signal: AbortSignal.timeout(5000),
     });
     if (!geoRes.ok) return undefined;

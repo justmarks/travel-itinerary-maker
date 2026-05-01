@@ -90,7 +90,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // Root — friendly landing for browser visits
   app.get("/", (_req, res) => {
     res.json({
-      name: "Travel Itinerary Maker API",
+      name: "itinly API",
       version: "0.1.0",
       health: "/health",
       docs: "/api/v1",

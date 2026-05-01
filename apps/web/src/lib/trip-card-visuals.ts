@@ -45,7 +45,7 @@ async function fetchSummary(query: string): Promise<WikipediaSummary | undefined
       // identifier.
       headers: {
         Accept: "application/json",
-        "Api-User-Agent": "travel-itinerary-maker (justmarks.github.io)",
+        "Api-User-Agent": "itinly (itinly.app)",
       },
     });
   } catch (err) {
@@ -97,7 +97,7 @@ async function searchForArticleTitle(
     const res = await fetch(url, {
       headers: {
         Accept: "application/json",
-        "Api-User-Agent": "travel-itinerary-maker (justmarks.github.io)",
+        "Api-User-Agent": "itinly (itinly.app)",
       },
     });
     if (!res.ok) return undefined;

@@ -268,7 +268,7 @@ export function generateTripPdf(
       size: "A4",
       info: {
         Title: trip.title,
-        Author: "Travel Itinerary Maker",
+        Author: "itinly",
       },
     });
 

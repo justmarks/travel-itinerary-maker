@@ -416,7 +416,7 @@ function segmentToVEvent(
 
   const lines = [
     "BEGIN:VEVENT",
-    prop("UID", `${segment.id}@travel-itinerary-maker`),
+    prop("UID", `${segment.id}@itinly`),
     dtstamp(),
     dtStart,
     dtEnd,
@@ -439,7 +439,7 @@ export function tripToIcal(trip: Trip): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Travel Itinerary Maker//EN",
+    "PRODID:-//itinly//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
     textProp("X-WR-CALNAME", trip.title),
