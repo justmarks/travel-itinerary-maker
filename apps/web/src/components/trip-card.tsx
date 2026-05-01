@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import type { TripSummary } from "@travel-app/api-client";
 import type { TripStatus } from "@travel-app/shared";
 import { useDemoHref } from "@/lib/demo";
@@ -168,7 +169,13 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
-      deleteTrip.mutate(trip.id);
+      deleteTrip.mutate(trip.id, {
+        onError: (err) => {
+          toast.error(
+            `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
+          );
+        },
+      });
     }
   };
 
@@ -177,7 +184,16 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     if (!trimmed) return;
     setRenaming(false);
     if (trimmed !== trip.title) {
-      updateTrip.mutate({ title: trimmed });
+      updateTrip.mutate(
+        { title: trimmed },
+        {
+          onError: (err) => {
+            toast.error(
+              `Couldn't rename trip${err instanceof Error ? `: ${err.message}` : ""}`,
+            );
+          },
+        },
+      );
     }
   };
 
@@ -187,7 +203,16 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     e.preventDefault();
     e.stopPropagation();
     if (!canEdit) return;
-    updateTrip.mutate({ status: nextStatus(trip.status) });
+    updateTrip.mutate(
+      { status: nextStatus(trip.status) },
+      {
+        onError: (err) => {
+          toast.error(
+            `Couldn't update status${err instanceof Error ? `: ${err.message}` : ""}`,
+          );
+        },
+      },
+    );
   };
 
   return (
