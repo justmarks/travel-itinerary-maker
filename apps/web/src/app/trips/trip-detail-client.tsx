@@ -795,7 +795,14 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // showCosts / showTodos flags mirror the share's per-recipient
   // visibility toggles set at share creation.
   const permission = useTripPermission(tripId);
-  const { isReadOnly, isOwner, sharedFromEmail, showCosts, showTodos } = permission;
+  const { isReadOnly, isOwner, sharedFromEmail } = permission;
+  // While the permission lookup is still in flight, suppress cost /
+  // todo rendering (we'd otherwise flash inline costs / the to-do
+  // sidebar in for a beat before the contributor's restrictive
+  // permission resolved and yanked them away). Owners get a brief
+  // empty beat in exchange — much less jarring than show-then-hide.
+  const showCosts = !permission.isLoading && permission.showCosts;
+  const showTodos = !permission.isLoading && permission.showTodos;
   // Build the tab list dynamically so tabs the share hides don't even
   // appear. Itinerary / Timeline / Map are always shown; Costs and
   // To-do drop out for shares with the matching toggle off.
