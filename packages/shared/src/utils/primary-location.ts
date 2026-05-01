@@ -242,30 +242,46 @@ function findCruiseLocation(trip: Pick<Trip, "days">): PrimaryLocation | undefin
 }
 
 /**
- * Identify a "home" bookend city. If the first and last usable days of a
- * trip share the same city string, that city is most likely the user's
- * origin/return point (e.g. SEA → Europe → SEA), not a destination — so it
- * should be excluded from the primary tally. Returns the normalised key,
- * or undefined when no bookend pattern is detected (different first/last
- * cities, or only one usable day).
+ * Identify a "home" bookend city. The user's home is the place they depart
+ * from on day 1 and return to on the last day — encoded in transfer-day
+ * notation as the FIRST city of the first day's slash list, and the LAST
+ * city of the last day's slash list. When those match, that city is the
+ * user's home origin/return point and gets excluded from the destination
+ * tally. Returns the set of keys to exclude (size 0 or 1 in practice).
+ *
+ * Examples:
+ *   - "Seattle" → "Seattle"                       → bookend = {seattle}
+ *   - "Seattle / New York" → "New York / Seattle" → bookend = {seattle}
+ *   - "Seattle" → "Munich / Seattle"              → bookend = {seattle}
+ *   - "Seattle / Paris" → "Rome / Seattle"        → bookend = {seattle}
+ *   - "Seattle" → "Paris"                         → bookend = {} (no match)
+ *   - 1-day trips                                 → bookend = {} (no pattern)
  */
-function findBookendKey(trip: Pick<Trip, "days">): string | undefined {
-  let firstKey: string | undefined;
-  let lastKey: string | undefined;
+function findBookendKeys(trip: Pick<Trip, "days">): Set<string> {
+  let firstDay: TripDay | undefined;
+  let lastDay: TripDay | undefined;
   let firstIdx = -1;
   let lastIdx = -1;
   for (let i = 0; i < trip.days.length; i++) {
-    const k = normalizeCity(trip.days[i].city);
-    if (!k) continue;
-    if (firstKey === undefined) {
-      firstKey = k;
+    if (normalizeCities(trip.days[i].city).length === 0) continue;
+    if (!firstDay) {
+      firstDay = trip.days[i];
       firstIdx = i;
     }
-    lastKey = k;
+    lastDay = trip.days[i];
     lastIdx = i;
   }
-  if (!firstKey || !lastKey || firstIdx === lastIdx) return undefined;
-  return firstKey === lastKey ? firstKey : undefined;
+  if (!firstDay || !lastDay || firstIdx === lastIdx) return new Set();
+
+  const firstCities = normalizeCities(firstDay.city);
+  const lastCities = normalizeCities(lastDay.city);
+  // First slash part of the first day = where the trip departs from.
+  // Last slash part of the last day = where the trip returns to.
+  const departureHome = firstCities[0]?.key;
+  const returnHome = lastCities[lastCities.length - 1]?.key;
+  if (!departureHome || !returnHome) return new Set();
+  if (departureHome !== returnHome) return new Set();
+  return new Set([departureHome]);
 }
 
 /**
@@ -293,17 +309,7 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
   const cruise = findCruiseLocation(trip);
   if (cruise) return cruise;
 
-  const bookendKey = findBookendKey(trip);
-  // Split bookend on "/" so a transfer-day bookend like "Seattle / Paris"
-  // (only matches when both ends are the same string) excludes both halves.
-  const bookendParts = new Set(
-    bookendKey
-      ? bookendKey
-          .split("/")
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [],
-  );
+  const bookendKeys = findBookendKeys(trip);
 
   const tally = (excludeBookend: boolean) => {
     const groups = new Map<
@@ -312,7 +318,7 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
     >();
     trip.days.forEach((day: TripDay, idx: number) => {
       for (const { key, display } of normalizeCities(day.city)) {
-        if (excludeBookend && bookendParts.has(key)) continue;
+        if (excludeBookend && bookendKeys.has(key)) continue;
         const existing = groups.get(key);
         if (existing) {
           existing.count += 1;
@@ -325,7 +331,7 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
   };
 
   let groups = tally(true);
-  if (groups.size === 0 && bookendKey) {
+  if (groups.size === 0 && bookendKeys.size > 0) {
     // The trip has nothing but the bookend city — local/staycation pattern.
     // Fall back to including the bookend so the card shows that city.
     groups = tally(false);
@@ -351,8 +357,7 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
   // tests; that's by design — keeps the gating logic dependency-free.)
   // eslint-disable-next-line no-console
   console.log("[primary-location]", {
-    bookend: bookendKey,
-    bookendParts: [...bookendParts],
+    bookendKeys: [...bookendKeys],
     groups: Array.from(groups.entries()).map(([k, v]) => ({ key: k, ...v })),
     winner,
   });

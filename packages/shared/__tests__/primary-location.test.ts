@@ -205,16 +205,75 @@ describe("primaryLocationFor", () => {
       expect(result?.dayCount).toBe(3);
     });
 
-    it("preserves the trimmed display for each slash part", () => {
+    it("preserves diacritics on a slash-part display when that city wins", () => {
       const result = primaryLocationFor({
         days: [
-          day("2024-04-01", "Reykjavík / Selfoss"),
-          day("2024-04-02", "Reykjavík"),
+          // First/last cities differ → no bookend exclusion. Reykjavík wins
+          // on count and the display preserves its diacritic.
+          day("2024-04-01", "Akureyri"),
+          day("2024-04-02", "Reykjavík / Selfoss"),
+          day("2024-04-03", "Reykjavík"),
+          day("2024-04-04", "Reykjavík"),
         ],
       });
-      // Reykjavík appears twice (transfer + day 2), Selfoss once.
       expect(result?.city).toBe("Reykjavík");
       expect(result?.countryCode).toBe("IS");
+    });
+  });
+
+  describe("bookend with asymmetric transfer days", () => {
+    it("flags bookend when the first day is a transfer (Home/X → ... → Home)", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-04-01", "Seattle / Istanbul"),
+          day("2024-04-02", "Istanbul"),
+          day("2024-04-03", "Istanbul"),
+          day("2024-04-04", "Seattle"),
+        ],
+      });
+      // First slash-part of first day = "seattle", last city of last day =
+      // "seattle" → Seattle bookend → excluded. Istanbul wins.
+      expect(result?.city).toBe("Istanbul");
+    });
+
+    it("flags bookend when the last day is a transfer (Home → ... → X/Home)", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-05-01", "Seattle"),
+          day("2024-05-02", "Istanbul"),
+          day("2024-05-03", "Istanbul"),
+          day("2024-05-04", "Munich / Seattle"),
+        ],
+      });
+      // First city of first day = "seattle", last slash-part of last day =
+      // "seattle" → Seattle bookend → excluded. Istanbul wins.
+      expect(result?.city).toBe("Istanbul");
+    });
+
+    it("flags bookend when both ends are transfers through home (Home/X → ... → Y/Home)", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-05-01", "Seattle / New York"),
+          day("2024-05-02", "Istanbul"),
+          day("2024-05-03", "Istanbul"),
+          day("2024-05-04", "Munich / Seattle"),
+        ],
+      });
+      // first[0] = "seattle", last[-1] = "seattle" → bookend.
+      expect(result?.city).toBe("Istanbul");
+    });
+
+    it("does not flag bookend when first/last cities differ even if a city is shared elsewhere", () => {
+      const result = primaryLocationFor({
+        days: [
+          day("2024-05-01", "Seattle / Istanbul"),
+          day("2024-05-02", "Istanbul"),
+          day("2024-05-03", "Istanbul / Tokyo"),
+        ],
+      });
+      // first[0] = "seattle", last[-1] = "tokyo" → no match, no bookend.
+      // Istanbul still wins on count.
+      expect(result?.city).toBe("Istanbul");
     });
   });
 
