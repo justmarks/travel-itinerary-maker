@@ -43,6 +43,7 @@ export function TripTodos({
   todos,
   days,
   showSuggestButton = false,
+  readOnly = false,
 }: {
   tripId: string;
   todos: Todo[];
@@ -53,6 +54,12 @@ export function TripTodos({
    * tab; the sidebar render on the Itinerary tab keeps the chrome minimal.
    */
   showSuggestButton?: boolean;
+  /**
+   * View-only mode for shared trips with `permission === "view"`. Hides
+   * add / edit affordances and disables the checkbox toggle so a viewer
+   * can read the list but not mutate it.
+   */
+  readOnly?: boolean;
 }): React.JSX.Element {
   const updateTodo = useUpdateTodo(tripId);
   const createTodo = useCreateTodo(tripId);
@@ -101,7 +108,7 @@ export function TripTodos({
               {completedCount}/{sorted.length}
             </span>
           )}
-          {showSuggestButton && days && (
+          {showSuggestButton && days && !readOnly && (
             <Button
               variant="outline"
               size="sm"
@@ -113,15 +120,17 @@ export function TripTodos({
               Suggest meals
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => setShowAdd(!showAdd)}
-            title="Add todo"
-          >
-            {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => setShowAdd(!showAdd)}
+              title="Add todo"
+            >
+              {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -164,7 +173,8 @@ export function TripTodos({
             <li key={todo.id}>
               <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (readOnly) return;
                     updateTodo.mutate(
                       {
                         todoId: todo.id,
@@ -177,10 +187,20 @@ export function TripTodos({
                           });
                         },
                       },
-                    )
+                    );
+                  }}
+                  disabled={readOnly}
+                  className={cn(
+                    "mt-0.5 shrink-0",
+                    readOnly && "cursor-default",
+                  )}
+                  title={
+                    readOnly
+                      ? undefined
+                      : todo.isCompleted
+                        ? "Mark incomplete"
+                        : "Mark complete"
                   }
-                  className="mt-0.5 shrink-0"
-                  title={todo.isCompleted ? "Mark incomplete" : "Mark complete"}
                 >
                   {todo.isCompleted ? (
                     <CheckSquare2 className="h-4 w-4 text-green-500" />
@@ -191,9 +211,16 @@ export function TripTodos({
                 <div className="min-w-0 flex-1">
                   <button
                     type="button"
-                    onClick={() => setEditingTodoId(todo.id)}
-                    className="w-full text-left"
-                    title="Edit"
+                    onClick={() => {
+                      if (readOnly) return;
+                      setEditingTodoId(todo.id);
+                    }}
+                    disabled={readOnly}
+                    className={cn(
+                      "w-full text-left",
+                      readOnly && "cursor-default",
+                    )}
+                    title={readOnly ? undefined : "Edit"}
                   >
                     <div
                       className={cn(
@@ -210,19 +237,29 @@ export function TripTodos({
                     </MarkdownText>
                   )}
                 </div>
-                {todo.category && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingTodoId(todo.id)}
-                    className={cn(
-                      "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80",
-                      CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
-                    )}
-                    title="Edit"
-                  >
-                    {todo.category}
-                  </button>
-                )}
+                {todo.category &&
+                  (readOnly ? (
+                    <span
+                      className={cn(
+                        "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize",
+                        CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                      )}
+                    >
+                      {todo.category}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingTodoId(todo.id)}
+                      className={cn(
+                        "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80",
+                        CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                      )}
+                      title="Edit"
+                    >
+                      {todo.category}
+                    </button>
+                  ))}
               </div>
             </li>
           ))}
