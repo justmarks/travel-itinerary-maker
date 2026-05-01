@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -51,6 +52,10 @@ export default function RootLayout({
             controls (avatar, share button, action pills) on the mobile
             trip page where vertical space is tight. */}
         <Toaster richColors position="top-center" />
+        {/* Vercel Web Analytics. Auto-detects mode — fires only in
+            production deployments, no-op in local dev / preview unless
+            VERCEL_ANALYTICS_ID is set. Cookieless and PII-free by default. */}
+        <Analytics />
       </body>
     </html>
   );
