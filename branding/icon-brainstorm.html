@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>itinly · icon brainstorm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --zinc-50: #fafafa;
+    --zinc-100: #f4f4f5;
+    --zinc-200: #e4e4e7;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --zinc-700: #3f3f46;
+    --zinc-900: #18181b;
+    --terracotta: #c2502e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    background: var(--zinc-50);
+    color: var(--zinc-900);
+    padding: 64px 48px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header { margin-bottom: 56px; }
+  header h1 {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  header p {
+    margin: 0;
+    color: var(--zinc-500);
+    font-size: 15px;
+    max-width: 640px;
+    line-height: 1.55;
+  }
+  section { margin-bottom: 72px; }
+  section h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  section .desc {
+    color: var(--zinc-500);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 28px;
+    max-width: 640px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .card {
+    background: white;
+    border: 1px solid var(--zinc-200);
+    border-radius: 14px;
+    padding: 28px 24px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .card .label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    color: var(--zinc-400);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    align-self: flex-start;
+  }
+  .card .name {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    align-self: flex-start;
+    color: var(--zinc-700);
+  }
+  .display {
+    height: 120px;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+  .sizes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--zinc-100);
+    width: 100%;
+  }
+  .size-block { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .size-block .px {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: var(--zinc-400);
+  }
+  .size-block .swatch {
+    background: white;
+    border: 1px solid var(--zinc-100);
+    border-radius: 4px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Wordmark-specific layout (variants 2A-2C) */
+  .wordmark {
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--zinc-900);
+    line-height: 1;
+    position: relative;
+  }
+
+  .footnote {
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--zinc-500);
+    line-height: 1.55;
+    max-width: 640px;
+  }
+  .footnote code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    background: var(--zinc-100);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>itinly · icon brainstorm</h1>
+  <p>Three directions, three variants each. All in zinc-900 with one accent (terracotta <code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 12px;">#C2502E</code>) where it earns its place. Shown at display size (96 px) and favicon size (24 px / 16 px).</p>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DIRECTION 1 · DOTTED PATH
+     ═══════════════════════════════════════════════════════════════ -->
+<section>
+  <h2>1 · Dotted path</h2>
+  <p class="desc">Waypoints across days. Reads as a journey AND a structured list. Strongest fit for the day-by-day product shape; works as a separable logomark for app icons, favicons, and avatars.</p>
+  <div class="grid">
+
+    <!-- 1A: Vertical -->
+    <div class="card">
+      <div class="label">1 · A</div>
+      <div class="name">Vertical waypoints</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <line x1="32" y1="14" x2="32" y2="50" stroke="#18181b" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="32" cy="14" r="5" fill="#18181b"/>
+          <circle cx="32" cy="32" r="5" fill="#18181b"/>
+          <circle cx="32" cy="50" r="5" fill="#18181b"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><line x1="32" y1="14" x2="32" y2="50" stroke="#18181b" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="14" r="6" fill="#18181b"/><circle cx="32" cy="32" r="6" fill="#18181b"/><circle cx="32" cy="50" r="6" fill="#18181b"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><line x1="32" y1="14" x2="32" y2="50" stroke="#18181b" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="14" r="7" fill="#18181b"/><circle cx="32" cy="32" r="7" fill="#18181b"/><circle cx="32" cy="50" r="7" fill="#18181b"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1B: Diagonal -->
+    <div class="card">
+      <div class="label">1 · B</div>
+      <div class="name">Diagonal ascent</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <line x1="14" y1="50" x2="50" y2="14" stroke="#18181b" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="14" cy="50" r="5" fill="#18181b"/>
+          <circle cx="32" cy="32" r="5" fill="#18181b"/>
+          <circle cx="50" cy="14" r="5" fill="#18181b"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><line x1="14" y1="50" x2="50" y2="14" stroke="#18181b" stroke-width="3" stroke-linecap="round"/><circle cx="14" cy="50" r="6" fill="#18181b"/><circle cx="32" cy="32" r="6" fill="#18181b"/><circle cx="50" cy="14" r="6" fill="#18181b"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><line x1="14" y1="50" x2="50" y2="14" stroke="#18181b" stroke-width="4" stroke-linecap="round"/><circle cx="14" cy="50" r="7" fill="#18181b"/><circle cx="32" cy="32" r="7" fill="#18181b"/><circle cx="50" cy="14" r="7" fill="#18181b"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1C: S-curve -->
+    <div class="card">
+      <div class="label">1 · C</div>
+      <div class="name">Curved journey</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <path d="M 14 50 Q 14 32 32 32 Q 50 32 50 14" stroke="#18181b" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <circle cx="14" cy="50" r="5" fill="#18181b"/>
+          <circle cx="32" cy="32" r="5" fill="#18181b"/>
+          <circle cx="50" cy="14" r="5" fill="#18181b"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><path d="M 14 50 Q 14 32 32 32 Q 50 32 50 14" stroke="#18181b" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="14" cy="50" r="6" fill="#18181b"/><circle cx="32" cy="32" r="6" fill="#18181b"/><circle cx="50" cy="14" r="6" fill="#18181b"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><path d="M 14 50 Q 14 32 32 32 Q 50 32 50 14" stroke="#18181b" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="14" cy="50" r="7" fill="#18181b"/><circle cx="32" cy="32" r="7" fill="#18181b"/><circle cx="50" cy="14" r="7" fill="#18181b"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DIRECTION 2 · LETTERFORM AS TIMELINE
+     ═══════════════════════════════════════════════════════════════ -->
+<section>
+  <h2>2 · Letterform-as-timeline</h2>
+  <p class="desc">The wordmark IS the icon. The two dots on the i&rsquo;s become waypoints. Note: wordmarks don&rsquo;t reduce to favicon size — direction 2 needs a separate logomark for app icons (a square mark shown in 2C).</p>
+  <div class="grid">
+
+    <!-- 2A: Subtle arc -->
+    <div class="card">
+      <div class="label">2 · A</div>
+      <div class="name">Subtle arc</div>
+      <div class="display" style="justify-content: flex-start; padding-left: 24px;">
+        <svg viewBox="0 0 200 80" width="200" height="80" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#18181b" letter-spacing="-1">itinly</text>
+          <path d="M 8 22 Q 21 8 34 22" stroke="#c2502e" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.85"/>
+        </svg>
+      </div>
+      <div class="footnote" style="font-size: 11.5px; align-self: flex-start; margin-top: 0;">A whisper. Acknowledges the i-dots as a journey without shouting.</div>
+    </div>
+
+    <!-- 2B: Bold replaced dots -->
+    <div class="card">
+      <div class="label">2 · B</div>
+      <div class="name">Bold waypoints</div>
+      <div class="display" style="justify-content: flex-start; padding-left: 24px;">
+        <svg viewBox="0 0 200 80" width="200" height="80" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#18181b" letter-spacing="-1">itinly</text>
+          <line x1="8" y1="22" x2="34" y2="22" stroke="#c2502e" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="8" cy="22" r="4.5" fill="#c2502e"/>
+          <circle cx="34" cy="22" r="4.5" fill="#c2502e"/>
+        </svg>
+      </div>
+      <div class="footnote" style="font-size: 11.5px; align-self: flex-start; margin-top: 0;">Confident. The brand statement is unmissable.</div>
+    </div>
+
+    <!-- 2C: Logomark for app icon -->
+    <div class="card">
+      <div class="label">2 · C</div>
+      <div class="name">Logomark (square)</div>
+      <div class="display">
+        <svg viewBox="0 0 96 96" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="96" height="96" rx="20" fill="#18181b"/>
+          <circle cx="48" cy="28" r="7" fill="#c2502e"/>
+          <rect x="44" y="42" width="8" height="34" rx="3" fill="#fafafa"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 96 96" width="24" height="24"><rect x="0" y="0" width="96" height="96" rx="20" fill="#18181b"/><circle cx="48" cy="28" r="9" fill="#c2502e"/><rect x="42" y="44" width="12" height="32" rx="3" fill="#fafafa"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 96 96" width="16" height="16"><rect x="0" y="0" width="96" height="96" rx="20" fill="#18181b"/><circle cx="48" cy="28" r="11" fill="#c2502e"/><rect x="40" y="44" width="16" height="32" rx="3" fill="#fafafa"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DIRECTION 3 · UNFOLDING CHEVRON
+     ═══════════════════════════════════════════════════════════════ -->
+<section>
+  <h2>3 · Unfolding chevron</h2>
+  <p class="desc">CLI prompt energy — the most overtly &ldquo;.dev&rdquo;-coded direction. Right-pointing motion suggests progression and unfolding (an inbox email becoming a structured trip).</p>
+  <div class="grid">
+
+    <!-- 3A: Simple chevron -->
+    <div class="card">
+      <div class="label">3 · A</div>
+      <div class="name">Clean chevron</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="22,14 42,32 22,50" stroke="#18181b" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><polyline points="22,14 42,32 22,50" stroke="#18181b" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><polyline points="22,14 42,32 22,50" stroke="#18181b" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3B: Dot-chevron -->
+    <div class="card">
+      <div class="label">3 · B</div>
+      <div class="name">Chevron of waypoints</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="20" cy="14" r="5" fill="#18181b"/>
+          <circle cx="44" cy="32" r="5" fill="#18181b"/>
+          <circle cx="20" cy="50" r="5" fill="#18181b"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><circle cx="20" cy="14" r="6" fill="#18181b"/><circle cx="44" cy="32" r="6" fill="#18181b"/><circle cx="20" cy="50" r="6" fill="#18181b"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><circle cx="20" cy="14" r="8" fill="#18181b"/><circle cx="44" cy="32" r="8" fill="#18181b"/><circle cx="20" cy="50" r="8" fill="#18181b"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3C: Chevron with trailing waypoints -->
+    <div class="card">
+      <div class="label">3 · C</div>
+      <div class="name">Prompt &amp; path</div>
+      <div class="display">
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <polyline points="14,18 26,32 14,46" stroke="#18181b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="36" cy="32" r="3" fill="#c2502e"/>
+          <circle cx="46" cy="32" r="3" fill="#c2502e"/>
+          <circle cx="56" cy="32" r="3" fill="#c2502e"/>
+        </svg>
+      </div>
+      <div class="sizes">
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="24" height="24"><polyline points="14,18 26,32 14,46" stroke="#18181b" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="32" r="4" fill="#c2502e"/><circle cx="46" cy="32" r="4" fill="#c2502e"/><circle cx="56" cy="32" r="4" fill="#c2502e"/></svg>
+          </div>
+          <span class="px">24 px</span>
+        </div>
+        <div class="size-block">
+          <div class="swatch">
+            <svg viewBox="0 0 64 64" width="16" height="16"><polyline points="14,18 26,32 14,46" stroke="#18181b" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="32" r="5" fill="#c2502e"/><circle cx="48" cy="32" r="5" fill="#c2502e"/><circle cx="60" cy="32" r="5" fill="#c2502e"/></svg>
+          </div>
+          <span class="px">16 px</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</div>
+</body>
+</html>
