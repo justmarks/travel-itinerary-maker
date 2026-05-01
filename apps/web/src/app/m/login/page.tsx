@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useGoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth";
+import { startGoogleSignIn } from "@/lib/oauth";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { AppLogo } from "@/components/app-logo";
@@ -14,7 +14,7 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 export default function MobileLoginPage(): React.JSX.Element {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -29,30 +29,6 @@ export default function MobileLoginPage(): React.JSX.Element {
       .catch(() => setApiAvailable(false));
     return () => controller.abort();
   }, []);
-
-  const googleLogin = useGoogleLogin({
-    flow: "auth-code",
-    onSuccess: async (response) => {
-      setLoginError(null);
-      try {
-        await login(response.code);
-        router.replace("/m");
-      } catch (err) {
-        if (err instanceof TypeError && err.message === "Failed to fetch") {
-          setLoginError(
-            "Couldn't reach the API. Try demo mode or run the server locally.",
-          );
-        } else {
-          setLoginError(err instanceof Error ? err.message : "Login failed.");
-        }
-      }
-    },
-    onError: () => {
-      setLoginError("Sign-in was cancelled. Try again.");
-    },
-    scope:
-      "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar",
-  });
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -103,7 +79,13 @@ export default function MobileLoginPage(): React.JSX.Element {
             disabled={apiAvailable === false}
             onClick={() => {
               setLoginError(null);
-              googleLogin();
+              try {
+                startGoogleSignIn("/m");
+              } catch (err) {
+                setLoginError(
+                  err instanceof Error ? err.message : "Sign-in is not configured.",
+                );
+              }
             }}
             className={cn(
               "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-base font-semibold text-background transition-opacity",
