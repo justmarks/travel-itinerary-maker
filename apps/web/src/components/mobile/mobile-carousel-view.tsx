@@ -215,7 +215,11 @@ export function MobileCarouselView({
       >
         {/* All-overview page */}
         <div className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto">
-          <MobileDaysList days={days} onSelectSegment={setSelectedSegment} />
+          <MobileDaysList
+            days={days}
+            onSelectSegment={setSelectedSegment}
+            showCosts={showCosts}
+          />
         </div>
 
         {/* Per-day pages */}
