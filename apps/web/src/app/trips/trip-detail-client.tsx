@@ -850,8 +850,11 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           <div className="flex items-center gap-2">
             {/* Owner-only: scanning emails / sharing / the actions
                 menu (which carries Calendar sync + Delete) all act on
-                the owner's account, so contributors don't see them. */}
-            {isOwner && (
+                the owner's account, so contributors don't see them.
+                Suppressed entirely while permission is loading so a
+                shared-trip recipient doesn't see the chrome flash in
+                and then disappear once the real permission resolves. */}
+            {!permission.isLoading && isOwner && (
               <>
                 <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
                 <Button

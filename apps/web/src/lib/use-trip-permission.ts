@@ -40,15 +40,33 @@ export interface TripPermission {
   showCosts: boolean;
   /** Same idea for the to-do list. Always true for owners. */
   showTodos: boolean;
+  /**
+   * True while the trip-list query that backs the permission lookup
+   * is still in flight. Consumers should hide owner-only chrome
+   * (Share, status pill, etc.) while loading so a contributor doesn't
+   * see the chrome flash in and then disappear once the real
+   * permission resolves.
+   */
+  isLoading: boolean;
 }
 
 export function useTripPermission(tripId: string): TripPermission {
-  const { isAuthenticated } = useAuth();
-  const { data: trips } = useTrips({ enabled: isAuthenticated });
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  // Only fetch trips when authenticated. Unauthenticated viewers are
+  // never contributors, so they don't need the list — the hook just
+  // returns the cached owner-default for the demo / public-viewer
+  // paths.
+  const { data: trips, isPending: tripsLoading } = useTrips({
+    enabled: isAuthenticated,
+  });
+  const isLoading =
+    authLoading || (isAuthenticated && tripsLoading && trips === undefined);
 
   const summary = trips?.find((t) => t.id === tripId);
-  // Fallback: assume owner when we can't determine. Avoids flashing a
-  // read-only UI for a frame while the trip list is still loading.
+  // Owner / unknown-after-load: full chrome. The `isLoading` flag lets
+  // callers hide the chrome until we know — the previous version
+  // flashed it in and then disappeared once the real permission
+  // resolved, which read as "buttons vanishing on hover".
   if (!summary || !summary.sharedFromEmail) {
     return {
       accessLevel: "owner",
@@ -57,6 +75,7 @@ export function useTripPermission(tripId: string): TripPermission {
       isReadOnly: false,
       showCosts: true,
       showTodos: true,
+      isLoading,
     };
   }
   // Per-share visibility flags default to true for backwards compat
@@ -72,6 +91,7 @@ export function useTripPermission(tripId: string): TripPermission {
       sharedFromEmail: summary.sharedFromEmail,
       showCosts,
       showTodos,
+      isLoading,
     };
   }
   return {
@@ -82,5 +102,6 @@ export function useTripPermission(tripId: string): TripPermission {
     sharedFromEmail: summary.sharedFromEmail,
     showCosts,
     showTodos,
+    isLoading,
   };
 }

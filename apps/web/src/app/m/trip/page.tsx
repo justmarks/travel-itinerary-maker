@@ -255,17 +255,19 @@ function TripFrame({
         subtitle={`${dateRange} · ${trip.days.length} days`}
         backHref={homeHref}
         right={
-          <HeaderActions
-            usdTotal={usdTotal}
-            todoRemaining={todoSummary.remaining}
-            todoTotal={todoSummary.total}
-            onOpenCosts={onOpenCosts}
-            onOpenTodos={onOpenTodos}
-            onOpenShare={onOpenShare}
-            showCosts={permission.showCosts}
-            showTodos={permission.showTodos}
-            showShare={permission.isOwner}
-          />
+          permission.isLoading ? null : (
+            <HeaderActions
+              usdTotal={usdTotal}
+              todoRemaining={todoSummary.remaining}
+              todoTotal={todoSummary.total}
+              onOpenCosts={onOpenCosts}
+              onOpenTodos={onOpenTodos}
+              onOpenShare={onOpenShare}
+              showCosts={permission.showCosts}
+              showTodos={permission.showTodos}
+              showShare={permission.isOwner}
+            />
+          )
         }
       />
       <MobileCarouselView trip={trip} showCosts={permission.showCosts} />
