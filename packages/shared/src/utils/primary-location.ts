@@ -351,17 +351,6 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
   }
   if (!winner) return undefined;
 
-  // TEMPORARY DEBUG (option C from the rebrand session) — logs the per-trip
-  // city tally so we can see why a particular city won. Remove once we're
-  // done diagnosing mis-classified trips. (Always logs, including from
-  // tests; that's by design — keeps the gating logic dependency-free.)
-  // eslint-disable-next-line no-console
-  console.log("[primary-location]", {
-    bookendKeys: [...bookendKeys],
-    groups: Array.from(groups.entries()).map(([k, v]) => ({ key: k, ...v })),
-    winner,
-  });
-
   const country = lookupCountry(winner.display);
   return {
     city: winner.display,
