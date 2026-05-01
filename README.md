@@ -138,6 +138,8 @@ Current coverage: **479 tests** across 25 test suites.
 6. Add authorized redirect URIs (Google bounces the user back here after consent):
    - `http://localhost:3000/auth/callback`
    - `https://project-yhbyn.vercel.app/auth/callback` (or your production origin)
+
+   You don't need to register Vercel preview URLs — they relay through production. See [docs/vercel-setup.md](docs/vercel-setup.md#oauth-on-preview-deployments).
 7. Copy credentials into `server/.env`:
    ```
    GOOGLE_CLIENT_ID=your-client-id
@@ -167,6 +169,8 @@ Current coverage: **479 tests** across 25 test suites.
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
+| `NEXT_PUBLIC_PROD_ORIGIN` | apps/web | Production origin (e.g. `https://project-yhbyn.vercel.app`). Set in Vercel for both **Production and Preview**. Drives the OAuth preview-relay: previews send Google's `redirect_uri` here (the only value Google has registered) and are bounced back via `state.origin`. Leave unset locally. See [docs/vercel-setup.md](docs/vercel-setup.md#oauth-on-preview-deployments). |
+| `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` | apps/web | Anchored regex matching allowed preview origins for the OAuth relay. Set on **Production only** — that's where the relay validates the `state.origin` before bouncing the OAuth code. Mirrors the server's `CORS_ORIGIN_PATTERN`. Example: `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`. |
 
 ## API Overview
 
