@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin", "latin-ext"] });
 
 // Used by Next to resolve relative URLs in metadata (og:image, twitter:image,
 // apple-touch-icon) into absolute URLs at build time. Set

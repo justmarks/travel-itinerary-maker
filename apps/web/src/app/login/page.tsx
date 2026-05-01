@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { startGoogleSignIn } from "@/lib/oauth";
 import { Button } from "@/components/ui/button";
-import { AppLogo } from "@/components/app-logo";
+import { AppWordmark } from "@/components/app-wordmark";
 import { AlertCircle, Info } from "lucide-react";
 
 const API_BASE_URL =
@@ -51,8 +51,7 @@ export default function LoginPage(): React.JSX.Element {
     <main className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-8 text-center">
         <div>
-          <AppLogo className="mx-auto mb-5 h-16 w-16" />
-          <h1 className="text-2xl font-bold">itinly</h1>
+          <AppWordmark className="mx-auto mb-3 h-16" />
           <p className="mt-2 text-sm text-muted-foreground">
             Sign in to manage your travel itineraries
           </p>

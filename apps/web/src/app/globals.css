@@ -24,11 +24,12 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Primary action — dark zinc (#18181b). Buttons, links, and
-   * selection states pick up this token. itinly's identity uses zinc
-   * for primary actions and reserves terracotta for the brand mark
-   * and small emphasis moments (see --brand below). */
-  --primary: oklch(0.21 0.006 285.885);
+  /* Primary action — terracotta (#c2502e), the itinly brand color.
+   * Every default Button picks this up: hero CTAs ("+ New Trip",
+   * "Sign in with Google"), links, focus rings, selection states.
+   * Same value as --brand below — kept as separate tokens so we can
+   * decouple them later if we ever want a non-brand-colored primary. */
+  --primary: oklch(0.575 0.155 35);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.965 0 0);
   --secondary-foreground: oklch(0.205 0.064 270.94);
@@ -40,9 +41,9 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  /* Focus ring matches primary so keyboard focus stays consistent
-   * with the dark button look. */
-  --ring: oklch(0.21 0.006 285.885);
+  /* Focus ring matches primary (terracotta) so keyboard focus
+   * carries the brand color. */
+  --ring: oklch(0.575 0.155 35);
   /* Brand accent — terracotta (#c2502e). Reserved for the brand
    * mark, status pills, and small emphasis moments — not the
    * primary action color. */
@@ -58,10 +59,10 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  /* Inverted on dark — primary becomes the light surface so
-   * buttons stay legible. Standard ShadCN/zinc dark-mode pattern. */
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.21 0.006 285.885);
+  /* Lighter terracotta on dark backgrounds keeps contrast against
+   * zinc-950 surfaces; dark text on a light terracotta button. */
+  --primary: oklch(0.7 0.155 35);
+  --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -72,7 +73,7 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.269 0 0);
   --input: oklch(0.269 0 0);
-  --ring: oklch(0.985 0 0);
+  --ring: oklch(0.7 0.155 35);
   /* Lighter terracotta on dark backgrounds keeps the brand readable
    * against the zinc-950 surface. */
   --brand: oklch(0.7 0.155 35);

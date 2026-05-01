@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { startGoogleSignIn } from "@/lib/oauth";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
-import { AppLogo } from "@/components/app-logo";
+import { AppWordmark } from "@/components/app-wordmark";
 import { AlertCircle, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,9 +50,8 @@ export default function MobileLoginPage(): React.JSX.Element {
     <MobileFrame>
       <div className="flex flex-1 flex-col px-6 pb-10 pt-16">
         <div className="flex flex-col items-center text-center">
-          <AppLogo className="h-16 w-16" />
-          <h1 className="mt-6 text-2xl font-bold">itinly</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <AppWordmark className="h-16" />
+          <p className="mt-3 text-sm text-muted-foreground">
             Your trips, in your pocket.
           </p>
         </div>
