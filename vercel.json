@@ -1,4 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "git log -1 --pretty=%B | grep -qE '^chore: bump version|\\[skip ci\\]'"
+  "ignoreCommand": "git log -1 --pretty=%B | grep -qE '^chore: bump version|\\[skip ci\\]'",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.itinly.app" }],
+      "destination": "https://itinly.app/:path*",
+      "permanent": true
+    }
+  ]
 }
