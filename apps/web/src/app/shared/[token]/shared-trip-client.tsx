@@ -2,6 +2,7 @@
 
 import { useSharedTrip } from "@travel-app/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
+import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
 import { Calendar, MapPin, Pencil, Plane } from "lucide-react";
 
 function formatDateRange(start: string, end: string) {
@@ -13,7 +14,15 @@ function formatDateRange(start: string, end: string) {
 export default function SharedTripClient({ token }: { token: string }): React.JSX.Element {
   const { data: trip, isLoading } = useSharedTrip(token);
 
-  if (isLoading) {
+  // If the viewer owns the trip or has edit access via a share, bounce
+  // them to their normal trip page instead of the public read-only
+  // viewer. View-share recipients fall through.
+  const { shouldRedirect } = useShareLinkOwnerRedirect({
+    tripId: trip?.id,
+    targetPath: trip ? `/trips?id=${trip.id}` : "/",
+  });
+
+  if (isLoading || shouldRedirect) {
     return (
       <main className="min-h-screen p-8">
         <div className="mx-auto max-w-5xl space-y-6">

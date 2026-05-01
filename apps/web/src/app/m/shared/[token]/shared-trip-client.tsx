@@ -8,6 +8,7 @@ import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileDaysList } from "@/components/mobile/mobile-feed-view";
 import { MobileSegmentDetailSheet } from "@/components/mobile/mobile-segment-detail-sheet";
 import { MobileShareButton } from "@/components/mobile/mobile-share-button";
+import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
 
 function fmtRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -68,6 +69,13 @@ export default function SharedTripClient({
   const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
+  // Owner / edit-contributor redirect — same behaviour as the desktop
+  // page, but lands the user on the mobile trip detail.
+  const { shouldRedirect } = useShareLinkOwnerRedirect({
+    tripId: trip?.id,
+    targetPath: trip ? `/m/trip?id=${trip.id}` : "/m",
+  });
+
   const segmentDate = useMemo(() => {
     if (!trip || !selectedSegment) return undefined;
     return trip.days.find((d) =>
@@ -82,7 +90,7 @@ export default function SharedTripClient({
     return { cities: Array.from(cities) };
   }, [trip]);
 
-  if (isLoading) {
+  if (isLoading || shouldRedirect) {
     return (
       <MobileFrame>
         <MobileHeader title="Loading shared trip…" backHref="/" />
