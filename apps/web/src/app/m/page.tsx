@@ -114,7 +114,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
         {flag && (
-          <span className="text-2xl leading-none drop-shadow-sm" aria-hidden>
+          <span className="flag-font text-2xl leading-none drop-shadow-sm" aria-hidden>
             {flag}
           </span>
         )}

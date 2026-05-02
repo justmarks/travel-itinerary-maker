@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin", "latin-ext"] });
 
 // Used by Next to resolve relative URLs in metadata (og:image, twitter:image,
 // apple-touch-icon) into absolute URLs at build time. Set
@@ -51,6 +53,14 @@ export default function RootLayout({
             controls (avatar, share button, action pills) on the mobile
             trip page where vertical space is tight. */}
         <Toaster richColors position="top-center" />
+        {/* Vercel Web Analytics. Auto-detects mode — fires only in
+            production deployments, no-op in local dev / preview unless
+            VERCEL_ANALYTICS_ID is set. Cookieless and PII-free by default. */}
+        <Analytics />
+        {/* Vercel Speed Insights. Reports Core Web Vitals (LCP, FID, CLS)
+            from real users on production deployments. Same auto-detection
+            as Analytics — no-op outside Vercel production. */}
+        <SpeedInsights />
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 {
   "$schema": "https://v2-9-7.turborepo.dev/schema.json",
   "globalEnv": [
+    "NODE_ENV",
     "UPSTASH_REDIS_REST_URL",
     "UPSTASH_REDIS_REST_TOKEN",
     "NEXT_PUBLIC_API_URL",
