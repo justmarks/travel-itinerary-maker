@@ -4,9 +4,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 [![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
 
-<!-- Live demo URL is set after the Vercel cutover; update once the
-deployment URL or custom domain is provisioned. -->
-**Live Demo:** _(deploy in progress — link coming)_
+**Live app:** [itinly.app](https://itinly.app) · **Try the demo (no sign-in):** [itinly.app/?demo=true](https://itinly.app/?demo=true)
 
 ---
 
@@ -242,7 +240,7 @@ The app scans your Gmail for travel confirmation emails and uses Claude AI to ex
 
 The app supports a runtime demo mode for trying it without Google credentials. Append `?demo=true` to any URL:
 
-- **Live demo**: _(URL coming once the Vercel deploy is provisioned; will be `<vercel-url>/?demo=true`)_
+- **Live demo**: [itinly.app/?demo=true](https://itinly.app/?demo=true)
 - **Local**: http://localhost:3000/?demo=true
 
 Demo mode uses a mock API client with sample trip data. No backend required. The demo and real login flow are served from the same build — toggle via the URL parameter.
