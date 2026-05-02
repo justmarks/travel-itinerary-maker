@@ -295,7 +295,7 @@ function MobileTripList() {
 
 export default function MobileHomePage(): React.JSX.Element {
   return (
-    <RequireAuth redirectTo="/welcome">
+    <RequireAuth>
       <MobileFrame>
         <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
           <AppLogo className="h-7 w-7" />

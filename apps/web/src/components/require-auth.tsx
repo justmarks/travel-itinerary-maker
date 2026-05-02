@@ -7,10 +7,8 @@ import { useDemoMode } from "@/lib/demo";
 
 /**
  * Wraps children and redirects unauthenticated users away. Defaults to
- * `/login` (or `/m/login` for mobile routes), but pass `redirectTo` to
- * send users to a different destination — the home page uses this to
- * bounce signed-out visitors to the marketing landing at `/welcome`
- * instead of dumping them straight into a sign-in form.
+ * `/login` (or `/m/login` for mobile routes); pass `redirectTo` to send
+ * users somewhere else (e.g. a marketing page).
  *
  * In demo mode (?demo=true), auth is bypassed entirely.
  */
