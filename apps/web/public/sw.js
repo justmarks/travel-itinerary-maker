@@ -6,9 +6,15 @@
  *
  * Strategies:
  *  - App shell precache: a tiny set of routes is fetched on install so the
- *    app boots offline. The HTML response itself is what we need cached;
- *    Next emits hashed JS chunks that get picked up via runtime cache below.
- *  - Same-origin GET navigations: network-first → cache → offline fallback.
+ *    app boots offline. We use `fetch` + `cache.put` instead of `cache.add`
+ *    so we can drop responses that arrived via a redirect — Chromium
+ *    refuses to serve `response.redirected === true` entries to a
+ *    navigation request, which would otherwise show the browser's default
+ *    "You're offline" page.
+ *  - Same-origin GET navigations: network-first → exact-URL cache → loose
+ *    (ignore querystring) cache → `/m` shell → synthetic offline page. We
+ *    always return a real Response so Chrome's default offline screen
+ *    never fires.
  *  - Same-origin static assets (`/_next/static/*`, fonts, icons): cache-first.
  *  - Backend trip JSON (`/api/v1/trips...`, GET): network-first → cache.
  *    React Query handles freshness above this; we just keep the last good
@@ -19,35 +25,83 @@
  * caches get evicted on activate.
  */
 
-const SW_VERSION = "v1";
+const SW_VERSION = "v2";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
 const IMAGE_CACHE = `itinly-images-${SW_VERSION}`;
 
 const SHELL_URLS = ["/m", "/m/login", "/manifest.webmanifest", "/icon.svg"];
+const NAV_FALLBACK_URL = "/m";
 
 const IMAGE_CACHE_MAX_ENTRIES = 60;
 
+/**
+ * Minimal HTML shown only when both network and every cache layer have
+ * missed — e.g. the user installed the PWA and immediately tried to
+ * cold-launch a deep-link they've never visited online. Better than
+ * Chrome's default offline screen because it stays branded and points
+ * the user back to a known route.
+ */
+const OFFLINE_HTML = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>itinly — offline</title>
+<style>
+  body { margin: 0; font-family: -apple-system, system-ui, sans-serif; background: #fafafa; color: #18181b; display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 1.5rem; }
+  .card { max-width: 24rem; text-align: center; }
+  h1 { margin: 0 0 .5rem; font-size: 1.125rem; }
+  p { margin: 0 0 1.25rem; color: #52525b; font-size: .875rem; line-height: 1.4; }
+  a { display: inline-block; padding: .5rem 1.25rem; background: #18181b; color: #fafafa; border-radius: 9999px; text-decoration: none; font-weight: 500; font-size: .875rem; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #09090b; color: #fafafa; }
+    p { color: #a1a1aa; }
+    a { background: #fafafa; color: #18181b; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>You're offline</h1>
+    <p>This page hasn't been loaded on this device yet. Reconnect to load it, or open one of your previously-loaded trips.</p>
+    <a href="/m">My trips</a>
+  </div>
+</body>
+</html>`;
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) =>
-        // `addAll` aborts on any 4xx/5xx; use individual adds so a missing
-        // route doesn't block the install.
-        Promise.all(
-          SHELL_URLS.map((url) =>
-            cache.add(url).catch(() => {
-              // Best-effort precache; log to console for debugging.
-              console.warn("[sw] precache miss", url);
-            }),
-          ),
-        ),
-      )
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
+
+async function precache() {
+  const cache = await caches.open(SHELL_CACHE);
+  await Promise.all(
+    SHELL_URLS.map(async (url) => {
+      try {
+        // `redirect: "follow"` (the default) is fine here — the issue is
+        // only that a Response with `redirected === true` can't be served
+        // back to a navigation request. We re-wrap as a clean Response so
+        // the redirect flag drops.
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (!res.ok) {
+          console.warn("[sw] precache miss", url, res.status);
+          return;
+        }
+        const body = await res.clone().blob();
+        const clean = new Response(body, {
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+        });
+        await cache.put(url, clean);
+      } catch (err) {
+        console.warn("[sw] precache error", url, err);
+      }
+    }),
+  );
+}
 
 self.addEventListener("activate", (event) => {
   const allowed = new Set([SHELL_CACHE, RUNTIME_CACHE, TRIP_API_CACHE, IMAGE_CACHE]);
@@ -103,7 +157,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations: try network, fall back to cache, finally to /m shell.
+  // Navigations: try network, fall back to cache, finally to /m shell, then
+  // a synthetic offline page so Chrome never shows its default screen.
   if (req.mode === "navigate") {
     event.respondWith(navigationHandler(req));
     return;
@@ -165,23 +220,47 @@ async function staleWhileRevalidate(req, cacheName, maxEntries) {
 }
 
 async function navigationHandler(req) {
+  // Try the network first so deploys propagate when online, but cache the
+  // result for next time so even an unprecached deep-link survives a
+  // single online visit before going dark.
   try {
     const fresh = await fetch(req);
     if (fresh && fresh.ok) {
       const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(req, fresh.clone());
+      cache.put(req, fresh.clone()).catch(() => {});
     }
     return fresh;
-  } catch (err) {
-    const cache = await caches.open(RUNTIME_CACHE);
-    const cached = await cache.match(req);
-    if (cached) return cached;
-    // Mobile shell as last-resort fallback for offline navigations.
-    const shellCache = await caches.open(SHELL_CACHE);
-    const shell = await shellCache.match("/m");
-    if (shell) return shell;
-    throw err;
+  } catch {
+    return offlineNavigationFallback(req);
   }
+}
+
+async function offlineNavigationFallback(req) {
+  // 1) Exact runtime cache hit (the user visited this URL while online).
+  const runtime = await caches.open(RUNTIME_CACHE);
+  const exact = await runtime.match(req);
+  if (exact) return exact;
+
+  // 2) Loose runtime hit — same path, different query string. Lets a
+  //    re-launch into `/m/trip?id=X&v=carousel` reuse a previously-cached
+  //    `/m/trip?id=X` response if Chrome dropped the v= param.
+  const loose = await runtime.match(req, { ignoreSearch: true });
+  if (loose) return loose;
+
+  // 3) Precached shell — for any unknown route, serve the mobile shell so
+  //    React can hydrate and route client-side based on the URL bar (which
+  //    still reflects the requested URL).
+  const shell = await caches.open(SHELL_CACHE);
+  const shellMatch = await shell.match(NAV_FALLBACK_URL);
+  if (shellMatch) return shellMatch;
+
+  // 4) Last resort — branded offline page. Reached only on a true
+  //    cold-launch where neither precache nor runtime cache has anything,
+  //    e.g. immediately after install on a flaky connection.
+  return new Response(OFFLINE_HTML, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=UTF-8" },
+  });
 }
 
 async function trimCache(cacheName, maxEntries) {

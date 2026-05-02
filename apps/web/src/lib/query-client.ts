@@ -2,10 +2,7 @@
 
 import { QueryClient } from "@tanstack/react-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import {
-  persistQueryClient,
-  type Persister,
-} from "@tanstack/react-query-persist-client";
+import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-client";
 
 const STORAGE_KEY = "itinly-rq-cache-v1";
 // One week. Trip dates rarely shift week-to-week and stale data is still
@@ -13,23 +10,31 @@ const STORAGE_KEY = "itinly-rq-cache-v1";
 // online.
 const MAX_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 
+export interface WebQueryClient {
+  queryClient: QueryClient;
+  /**
+   * Options to pass to `<PersistQueryClientProvider>`. Null when persistence
+   * is disabled (demo mode, SSR, Safari private mode) so the caller can fall
+   * back to a plain `<QueryClientProvider>`.
+   */
+  persistOptions: Omit<PersistQueryClientOptions, "queryClient"> | null;
+}
+
 /**
- * Builds the QueryClient used by the web app, wired up with localStorage
+ * Builds the QueryClient used by the web app, plus the
+ * `PersistQueryClientProvider` options that wire up `localStorage`
  * persistence so a previously-loaded trip is available offline (e.g. on a
- * plane). Returns the client and a teardown function for tests.
+ * plane).
  *
  * Persistence is opt-in: when `enabled` is false (demo mode, SSR) the
- * client is returned without a persister so the in-memory mock data
- * doesn't leak between sessions.
+ * caller renders a plain `<QueryClientProvider>` instead — sample data
+ * shouldn't leak between visits or collide with real-account data.
  *
  * Only trip-shaped query keys are persisted. Email scan results and
  * calendar listings are explicitly excluded — they're large, online-only,
  * and offer no offline value.
  */
-export function createWebQueryClient(opts: { enabled: boolean }): {
-  queryClient: QueryClient;
-  teardown: () => void;
-} {
+export function createWebQueryClient(opts: { enabled: boolean }): WebQueryClient {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -46,10 +51,10 @@ export function createWebQueryClient(opts: { enabled: boolean }): {
   });
 
   if (!opts.enabled || typeof window === "undefined") {
-    return { queryClient, teardown: () => {} };
+    return { queryClient, persistOptions: null };
   }
 
-  let persister: Persister | undefined;
+  let persister;
   try {
     persister = createSyncStoragePersister({
       storage: window.localStorage,
@@ -58,23 +63,23 @@ export function createWebQueryClient(opts: { enabled: boolean }): {
     });
   } catch {
     // Safari private mode etc. — fall back to in-memory only.
-    return { queryClient, teardown: () => {} };
+    return { queryClient, persistOptions: null };
   }
 
-  const [unsubscribe] = persistQueryClient({
+  return {
     queryClient,
-    persister,
-    maxAge: MAX_AGE_MS,
-    dehydrateOptions: {
-      shouldDehydrateQuery: (query) => {
-        if (query.state.status !== "success") return false;
-        const [root] = query.queryKey as [string, ...unknown[]];
-        // Allow trips, shared trips, and todos/costs/segments under a trip.
-        // Skip gmail/email/calendar queries — online-only data.
-        return root === "trips" || root === "shared";
+    persistOptions: {
+      persister,
+      maxAge: MAX_AGE_MS,
+      dehydrateOptions: {
+        shouldDehydrateQuery: (query) => {
+          if (query.state.status !== "success") return false;
+          const [root] = query.queryKey as [string, ...unknown[]];
+          // Allow trips, shared trips, and todos/costs/segments under a trip.
+          // Skip gmail/email/calendar queries — online-only data.
+          return root === "trips" || root === "shared";
+        },
       },
     },
-  });
-
-  return { queryClient, teardown: unsubscribe };
+  };
 }
