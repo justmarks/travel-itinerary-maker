@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { LogIn, LogOut, Monitor, User } from "lucide-react";
 
 export function MobileUserMenu(): React.JSX.Element {
@@ -81,6 +82,7 @@ export function MobileUserMenu(): React.JSX.Element {
           <Monitor className="mr-2 h-4 w-4" />
           Use desktop site
         </DropdownMenuItem>
+        <ThemeToggleMenu />
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

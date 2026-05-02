@@ -78,10 +78,10 @@ import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
-  planning:  "bg-blue-100  text-blue-700",
-  active:    "bg-green-100 text-green-700",
-  completed: "bg-gray-100  text-gray-600",
-  cancelled: "bg-red-100   text-red-700",
+  planning:  "bg-blue-100  text-blue-700  dark:bg-blue-900/40  dark:text-blue-200",
+  active:    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200",
+  completed: "bg-gray-100  text-gray-600  dark:bg-gray-800/60  dark:text-gray-300",
+  cancelled: "bg-red-100   text-red-700   dark:bg-red-900/40   dark:text-red-200",
 };
 
 /** Order the status chip cycles through on click. */
@@ -498,7 +498,7 @@ function NeedsReviewBanner({
       <Button
         size="sm"
         variant="outline"
-        className="border-amber-400 bg-white text-amber-900 hover:bg-amber-100"
+        className="border-amber-400 bg-card text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-950/60"
         onClick={() => confirmAll.mutate()}
         disabled={confirmAll.isPending}
       >
@@ -907,7 +907,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
-                  STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
+                  STATUS_STYLES[trip.status] ?? "bg-muted text-muted-foreground",
                 )}
               >
                 {trip.status}
@@ -922,7 +922,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 title={`Status: ${trip.status}. Click to advance.`}
                 className={cn(
                   "cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait",
-                  STATUS_STYLES[trip.status] ?? "bg-gray-100 text-gray-600",
+                  STATUS_STYLES[trip.status] ?? "bg-muted text-muted-foreground",
                 )}
               >
                 {trip.status}
@@ -963,7 +963,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         {isOwner && <NeedsReviewBanner trip={trip} />}
 
         {/* Tab navigation — hidden when printing */}
-        <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-gray-200 print-hidden">
+        <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden">
           {visibleTabs.map((tab) => (
             <button
               key={tab}
@@ -971,8 +971,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
                 activeTab === tab
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-900",
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               {TAB_LABELS[tab]}

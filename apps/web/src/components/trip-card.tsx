@@ -39,10 +39,10 @@ import {
 } from "lucide-react";
 
 const statusColors: Record<string, string> = {
-  planning: "bg-blue-100 text-blue-800",
-  active: "bg-green-100 text-green-800",
-  completed: "bg-gray-100 text-gray-800",
-  cancelled: "bg-red-100 text-red-700",
+  planning:  "bg-blue-100  text-blue-800  dark:bg-blue-900/40  dark:text-blue-200",
+  active:    "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200",
+  completed: "bg-gray-100  text-gray-800  dark:bg-gray-800/60  dark:text-gray-200",
+  cancelled: "bg-red-100   text-red-700   dark:bg-red-900/40   dark:text-red-200",
 };
 
 /** Order the status chip cycles through on click. */

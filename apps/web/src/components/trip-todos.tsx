@@ -25,10 +25,10 @@ import { MarkdownText } from "@/components/markdown-text";
 import { cn } from "@/lib/utils";
 
 const CATEGORY_STYLES: Record<string, string> = {
-  meals:      "bg-amber-100  text-amber-700",
-  activities: "bg-green-100  text-green-700",
-  research:   "bg-blue-100   text-blue-700",
-  logistics:  "bg-purple-100 text-purple-700",
+  meals:      "bg-amber-100  text-amber-700  dark:bg-amber-900/40  dark:text-amber-200",
+  activities: "bg-green-100  text-green-700  dark:bg-green-900/40  dark:text-green-200",
+  research:   "bg-blue-100   text-blue-700   dark:bg-blue-900/40   dark:text-blue-200",
+  logistics:  "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200",
 };
 
 const TODO_CATEGORIES: { value: TodoCategory; label: string }[] = [
@@ -242,7 +242,7 @@ export function TripTodos({
                     <span
                       className={cn(
                         "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                        CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                        CATEGORY_STYLES[todo.category] ?? "bg-muted text-muted-foreground",
                       )}
                     >
                       {todo.category}
@@ -253,7 +253,7 @@ export function TripTodos({
                       onClick={() => setEditingTodoId(todo.id)}
                       className={cn(
                         "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80",
-                        CATEGORY_STYLES[todo.category] ?? "bg-gray-100 text-gray-700",
+                        CATEGORY_STYLES[todo.category] ?? "bg-muted text-muted-foreground",
                       )}
                       title="Edit"
                     >

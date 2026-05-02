@@ -46,7 +46,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
-    <html lang="en">
+    // suppressHydrationWarning is required by next-themes — the provider sets
+    // a `class` and `style` on <html> before React hydrates so the page
+    // doesn't flash the wrong theme, which would otherwise trip React's
+    // hydration mismatch warning.
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>{children}</Providers>
         {/* top-center keeps toasts from overlapping the top-right header
