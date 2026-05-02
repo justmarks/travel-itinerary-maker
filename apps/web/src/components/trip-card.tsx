@@ -121,7 +121,7 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
       {showCountdown && countdownLabel && (
         <Badge
           variant="secondary"
-          className="absolute left-2 top-2 z-10 bg-white/90 text-foreground shadow-sm backdrop-blur-sm"
+          className="absolute left-2 top-2 z-10 bg-white/90 text-zinc-900 shadow-sm backdrop-blur-sm"
         >
           {countdownLabel}
         </Badge>
@@ -131,7 +131,7 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
         // are present so the corner doesn't get crowded.
         <Badge
           variant="secondary"
-          className="absolute left-2 z-10 bg-white/90 text-foreground shadow-sm backdrop-blur-sm"
+          className="absolute left-2 z-10 bg-white/90 text-zinc-900 shadow-sm backdrop-blur-sm"
           style={{ top: showCountdown && countdownLabel ? "2.25rem" : "0.5rem" }}
         >
           <Users className="mr-1 h-3 w-3" />
@@ -232,7 +232,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-foreground shadow-sm backdrop-blur-sm hover:bg-white"
+                className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
