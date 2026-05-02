@@ -296,6 +296,8 @@ function TripFrame({
         <MobileShareSheet
           tripId={trip.id}
           tripTitle={trip.title}
+          tripStartDate={trip.startDate}
+          tripEndDate={trip.endDate}
           open={shareOpen}
           onClose={onCloseShare}
         />

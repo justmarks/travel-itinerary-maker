@@ -17,6 +17,13 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+function formatShareTitle(title: string, start: string, end: string): string {
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const fmt = (d: string) =>
+    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
+  return `${title} (${fmt(start)} - ${fmt(end)})`;
+}
+
 function ReadOnlyTodos({ todos }: { todos: readonly Todo[] }): React.JSX.Element | null {
   const sorted = useMemo(
     () =>
@@ -124,6 +131,7 @@ export default function SharedTripClient({
   }
 
   const dateRange = fmtRange(trip.startDate, trip.endDate);
+  const shareTitle = formatShareTitle(trip.title, trip.startDate, trip.endDate);
   const isEditShare = trip.permission === "edit";
 
   return (
@@ -134,7 +142,7 @@ export default function SharedTripClient({
         backHref="/"
         right={
           <MobileShareButton
-            title={trip.title}
+            title={shareTitle}
             text={`${trip.title} · ${dateRange}`}
           />
         }
