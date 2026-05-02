@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { CreateTripDialog } from "@/components/create-trip-dialog";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
@@ -28,6 +29,30 @@ function MobileRedirect(): null {
   return null;
 }
 
+/**
+ * Reads `?new=1` and forwards it to CreateTripDialog as `defaultOpen` so
+ * the mobile "Create your first trip" CTA lands users straight in the
+ * create form. Strips the param after first render so a refresh doesn't
+ * keep reopening the dialog.
+ */
+function CreateTripDialogFromQuery(): React.JSX.Element {
+  const searchParams = useSearchParams();
+  const autoOpen = searchParams.get("new") === "1";
+
+  useEffect(() => {
+    if (!autoOpen || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("new");
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(null, "", url);
+  }, [autoOpen]);
+
+  return <CreateTripDialog defaultOpen={autoOpen} />;
+}
+
 export default function Home(): React.JSX.Element {
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
   const [xlsxImportOpen, setXlsxImportOpen] = useState(false);
@@ -46,7 +71,9 @@ export default function Home(): React.JSX.Element {
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
               <EmailScanDialog triggerSize="default" />
-              <CreateTripDialog />
+              <Suspense fallback={<CreateTripDialog />}>
+                <CreateTripDialogFromQuery />
+              </Suspense>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

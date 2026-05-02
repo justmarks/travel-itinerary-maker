@@ -24,9 +24,11 @@ interface OverlapInfo {
   endDate: string;
 }
 
-export function CreateTripDialog(): React.JSX.Element {
+export function CreateTripDialog({
+  defaultOpen = false,
+}: { defaultOpen?: boolean } = {}): React.JSX.Element {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   CloudOff,
+  Plus,
   Users,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
@@ -327,12 +328,20 @@ function MobileTripList() {
 
   if (!trips || trips.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
         <AppLogo className="h-10 w-10 opacity-60" />
         <p className="text-sm font-medium">No trips yet</p>
-        <p className="text-xs text-muted-foreground">
-          Create one on the desktop site to see it here.
+        <p className="max-w-[260px] text-xs text-muted-foreground">
+          Trip creation lives on the desktop site for now. Tap below to
+          jump over and set one up.
         </p>
+        <Link
+          href="/?desktop=1&new=1"
+          className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background active:scale-[0.98]"
+        >
+          <Plus className="h-4 w-4" />
+          Create your first trip
+        </Link>
       </div>
     );
   }
