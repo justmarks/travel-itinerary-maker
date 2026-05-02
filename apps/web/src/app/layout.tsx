@@ -19,24 +19,31 @@ const SITE_URL =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: "itinly",
-  description: "Auto-generate travel itineraries from email confirmations",
-  // Setting `metadata.icons` as an object suppresses Next's auto-discovery
-  // of `app/icon.svg`, so the regular `<link rel="icon">` tag must be
-  // declared here too — otherwise browsers fall back to /favicon.ico
-  // (a default gray-globe glyph).
+  description:
+    "Your flight, hotel, and reservation emails, automatically organized into a day-by-day trip plan.",
+  // Declare icons explicitly so the rendered <link> tags advertise the
+  // right sizes. Without this, Next's auto-discovery of `app/favicon.ico`
+  // emits sizes="16x16" only — Google's favicon picker requires ≥ 48×48
+  // and silently skips anything smaller. The SVG carries sizes="any" so
+  // crawlers treat it as the canonical, scalable icon.
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+      { url: "/favicon.ico", sizes: "48x48 32x32 16x16" },
+    ],
     apple: "/icon.svg",
   },
   openGraph: {
     title: "itinly",
-    description: "Auto-generate travel itineraries from email confirmations.",
+    description:
+      "Your flight, hotel, and reservation emails, automatically organized into a day-by-day trip plan.",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "itinly",
-    description: "Auto-generate travel itineraries from email confirmations.",
+    description:
+      "Your flight, hotel, and reservation emails, automatically organized into a day-by-day trip plan.",
   },
   // Tells iOS Safari this site can run as a standalone PWA — strips the
   // browser chrome when launched from the home screen and uses the right
