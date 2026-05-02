@@ -22,6 +22,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Sharing** — generate share links with configurable visibility (costs, TODOs)
 - **Export** — download itineraries as Markdown, OneNote-compatible HTML, PDF, or **iCal (.ics)**; the iCal file is named after the trip, includes VTIMEZONE blocks for correct DST display in Outlook, and handles overnight flights (arrival date advances to the next calendar day when the flight crosses midnight UTC)
 - **Google Calendar sync** — push all trip segments to any of your writable Google Calendars with one click; hotels and car rentals become all-day events; flights and trains carry the correct IANA time zone per city so events land at the right wall-clock time regardless of your device zone; re-sync updates existing events; unsync removes them; a calendar picker lets you choose which calendar before each sync
+- **Dark mode** — Light / Dark / System theme toggle in the user menu (desktop + mobile); follows your OS preference by default and persists your choice across sessions
 - **Demo mode** — try the app with sample data via `?demo=true` (no sign-in required)
 - **Email parsing** — auto-extract flights, hotels, restaurants from Gmail confirmations using Claude AI
 - **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same Claude parser (unblocks non-Gmail users)
