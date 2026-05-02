@@ -102,12 +102,12 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       {countdownLabel && (
-        <span className="absolute right-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+        <span className="absolute right-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm">
           {countdownLabel}
         </span>
       )}
       {trip.sharedFromEmail && (
-        <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm backdrop-blur-sm">
+        <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm">
           <Users className="h-3 w-3" />
           {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
         </span>
