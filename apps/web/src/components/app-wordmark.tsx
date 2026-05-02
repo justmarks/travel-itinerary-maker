@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 export function AppWordmark({ className }: { className?: string }): React.JSX.Element {
   return (
     <svg
-      viewBox="0 0 100 80"
+      viewBox="0 0 115 80"
       role="img"
       aria-label="itinly"
       className={cn("h-10 text-zinc-950 dark:text-zinc-50", className)}
