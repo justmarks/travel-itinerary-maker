@@ -4,7 +4,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 [![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
 
-**Live app:** [itinly.app](https://itinly.app) · **Try the demo (no sign-in):** [itinly.app/?demo=true](https://itinly.app/?demo=true)
+**Live app:** [itinly.app](https://itinly.app) · **Demo (no sign-in):** [itinly.app/?demo=true](https://itinly.app/?demo=true) · **Marketing:** [/welcome](https://itinly.app/welcome) · **Legal:** [/privacy](https://itinly.app/privacy) · [/terms](https://itinly.app/terms)
 
 ---
 
@@ -117,12 +117,12 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **479 tests** across 25 test suites.
+Current coverage: **561 tests** across 30 test suites.
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 195 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, IATA airport lookup (code/city/name/keyword search, timezone resolution, normalisation), overlap detection, segment matching |
-| `server` | 284 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF + iCal), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar sync + unsync (all-day events for hotels/car rentals, timed events with TZID for flights), auth routes, shared route, `requireAuth` middleware, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, ShareRegistry |
+| `packages/shared` | 220 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, IATA airport lookup (code/city/name/keyword search, timezone resolution, normalisation), overlap detection, segment matching, meal suggestions, primary-location detection (bookend exclusion, asymmetric transfer days), trip schema migrations |
+| `server` | 341 | Trip + segment + todo CRUD, sharing, costs, export (markdown + OneNote + PDF + iCal), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar sync + unsync (all-day events for hotels/car rentals, timed events with TZID for flights), auth routes, shared route, contributor edit flow (resolveTripAccess + sharedWithEmail index), `requireAuth` middleware, CORS origin allow-list + preview-pattern matching, rate limiting on `/emails/scan`, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, refresh-token AES-256-GCM encryption, ShareRegistry, ShareSnapshotStore (Edge-runtime unfurl previews) |
 
 ## Google OAuth Setup
 
