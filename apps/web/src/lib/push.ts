@@ -44,6 +44,34 @@ export function getPushSupport(): PushSupportStatus {
   return "supported";
 }
 
+/**
+ * One-shot diagnostic log so a developer can confirm the VAPID key
+ * actually got embedded in the production bundle without having to
+ * tap "Turn on notifications" first. The log runs once per page load
+ * — fine for diagnostics, low enough volume that it doesn't clutter
+ * devtools. We deliberately log a key prefix (not the whole value)
+ * so it's easy to spot mismatches with the server's boot log without
+ * pasting full keys into screenshots / chats.
+ */
+let pushDiagnosticsLogged = false;
+export function logPushDiagnostics(): void {
+  if (pushDiagnosticsLogged) return;
+  if (typeof window === "undefined") return;
+  pushDiagnosticsLogged = true;
+  const support = getPushSupport();
+  if (support === "supported") {
+    console.info(
+      `[push] enabled — VAPID key embedded (${VAPID_PUBLIC_KEY.slice(0, 12)}…)`,
+    );
+  } else if (support === "unsupported-no-vapid") {
+    console.info(
+      "[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY not embedded — notifications disabled in this build",
+    );
+  } else {
+    console.info("[push] this browser doesn't support Web Push");
+  }
+}
+
 export function getNotificationPermission(): NotificationPermission | "unsupported" {
   if (typeof window === "undefined" || !("Notification" in window)) {
     return "unsupported";
