@@ -49,4 +49,19 @@ export const config = {
    * Unset means "no pattern matching"; literal `corsOrigin` still applies.
    */
   corsOriginPattern: process.env.CORS_ORIGIN_PATTERN || "",
+  /**
+   * VAPID keys for Web Push (RFC 8292). Generate once with
+   * `npx web-push generate-vapid-keys` and persist both halves; the
+   * public half is also exposed to the browser as
+   * `NEXT_PUBLIC_VAPID_PUBLIC_KEY` for the subscription handshake. The
+   * subject is a `mailto:` URL push providers use to contact the
+   * application owner if a push goes wrong. Either key unset disables
+   * push delivery — callers degrade to a no-op so dev / tests run
+   * without keys configured.
+   */
+  vapid: {
+    publicKey: process.env.VAPID_PUBLIC_KEY || "",
+    privateKey: process.env.VAPID_PRIVATE_KEY || "",
+    subject: process.env.VAPID_SUBJECT || "mailto:hello@itinly.app",
+  },
 };

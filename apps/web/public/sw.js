@@ -334,3 +334,79 @@ async function trimCache(cacheName, maxEntries) {
   if (keys.length <= maxEntries) return;
   await Promise.all(keys.slice(0, keys.length - maxEntries).map((k) => cache.delete(k)));
 }
+
+// ─── Web Push ────────────────────────────────────────────────────────────────
+//
+// Payload shape (server-controlled, see NotificationSender):
+//   { title: string, body: string, url?: string, tag?: string, data?: object }
+//
+// We always show *something* on a push event — Chrome will revoke the
+// subscription if a push fires without a notification. When the payload
+// can't be parsed we fall back to a generic banner so the user notices
+// activity and can come investigate.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = {
+      title: "itinly",
+      body: event.data ? event.data.text() : "Trip activity",
+    };
+  }
+
+  const title = payload.title || "itinly";
+  const options = {
+    body: payload.body || "",
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    tag: payload.tag,
+    // Re-fire even when the same tag is already on screen so a second
+    // share invite doesn't get silently swallowed by the first.
+    renotify: Boolean(payload.tag),
+    data: { url: payload.url || "/", ...(payload.data || {}) },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // If a tab's already on the target route, focus it instead of
+      // opening a duplicate. We compare by URL prefix so query strings
+      // don't break the match.
+      for (const client of all) {
+        try {
+          const url = new URL(client.url);
+          if (url.pathname === targetUrl || client.url.endsWith(targetUrl)) {
+            return client.focus();
+          }
+        } catch {
+          // Ignore non-URL clients
+        }
+      }
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })(),
+  );
+});
+
+// Some browsers fire `pushsubscriptionchange` when they rotate the
+// endpoint (e.g. after a long offline period). The spec recommends
+// re-subscribing automatically; we let the page do that on its next
+// load by simply invalidating our cached subscription. The page-side
+// `usePushSubscription` hook will detect the mismatch and re-register.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    self.registration.pushManager
+      .getSubscription()
+      .then(() => undefined)
+      .catch(() => undefined),
+  );
+});

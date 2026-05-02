@@ -15,6 +15,7 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  PushSubscriptionInput,
   EmailScanResult,
   GmailLabel,
   ApplyParsedSegmentsInput,
@@ -43,6 +44,9 @@ export const queryKeys = {
   shared: (token: string) => ["shared", token] as const,
   gmailLabels: ["gmail", "labels"] as const,
   processedEmails: ["emails", "processed"] as const,
+  pushConfig: ["push", "config"] as const,
+  pushStatus: (endpoint?: string) =>
+    endpoint ? (["push", "status", endpoint] as const) : (["push", "status"] as const),
 };
 
 // ─── Trip Queries ─────────────────────────────────────────
@@ -644,6 +648,40 @@ export function useSharedTrip(token: string) {
   return useQuery({
     queryKey: queryKeys.shared(token),
     queryFn: () => client.getSharedTrip(token),
+  });
+}
+
+// ─── Push Notifications ──────────────────────────────────
+
+export function usePushStatus(endpoint?: string, enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.pushStatus(endpoint),
+    queryFn: () => client.getPushStatus(endpoint),
+    enabled,
+  });
+}
+
+export function useSubscribePush() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { subscription: PushSubscriptionInput; userAgent?: string }) =>
+      client.subscribePush(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["push"] });
+    },
+  });
+}
+
+export function useUnsubscribePush() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (endpoint: string) => client.unsubscribePush(endpoint),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["push"] });
+    },
   });
 }
 

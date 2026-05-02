@@ -11,6 +11,7 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  PushSubscriptionInput,
   EmailScanResult,
   GmailLabel,
   ApplyParsedSegmentsInput,
@@ -18,6 +19,16 @@ import type {
   HtmlImportRequest,
   XlsxImportRequest,
 } from "@travel-app/shared";
+
+export interface PushStatusResponse {
+  subscribed: boolean;
+  deviceCount: number;
+}
+
+export interface PushConfigResponse {
+  publicKey: string | null;
+  enabled: boolean;
+}
 
 export interface XlsxImportResponse {
   trip: Trip;
@@ -307,6 +318,34 @@ export class ApiClient {
 
   getSharedTrip(token: string): Promise<SharedTripResponse> {
     return this.request(`/shared/${token}`);
+  }
+
+  // ─── Push Notifications ────────────────────────────────
+
+  getPushConfig(): Promise<PushConfigResponse> {
+    return this.request("/push/config");
+  }
+
+  getPushStatus(endpoint?: string): Promise<PushStatusResponse> {
+    const qs = endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : "";
+    return this.request(`/push/status${qs}`);
+  }
+
+  subscribePush(input: {
+    subscription: PushSubscriptionInput;
+    userAgent?: string;
+  }): Promise<{ ok: true }> {
+    return this.request("/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  unsubscribePush(endpoint: string): Promise<void> {
+    return this.request("/push/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify({ endpoint }),
+    });
   }
 
   // ─── Calendar Sync ──────────────────────────────────────

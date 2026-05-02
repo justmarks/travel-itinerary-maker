@@ -24,6 +24,7 @@ import type { SharePermission } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";
+import type { NotificationSender } from "../services/notification-sender";
 import {
   resolveTripAccess,
   listSharedTrips,
@@ -49,6 +50,13 @@ export interface TripRoutesOptions {
    * via the requester's own storage only).
    */
   resolveOwnerStorage?: ResolveOwnerStorage;
+  /**
+   * Optional Web Push sender — when present, share creation fires a
+   * push to every device the recipient has registered. No-op when
+   * VAPID isn't configured or the recipient has no subscriptions
+   * (cold invite to a not-yet-onboarded user).
+   */
+  notificationSender?: NotificationSender;
 }
 
 export function createTripRoutes(options: TripRoutesOptions): Router {
@@ -57,6 +65,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     shareRegistry,
     shareSnapshotStore,
     resolveOwnerStorage,
+    notificationSender,
   } = options;
 
   // Support both a resolver function and a direct storage instance
@@ -996,6 +1005,30 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           endDate: trip.endDate,
           dayCount: trip.days.length,
         });
+      }
+
+      // Notify the recipient on every device they've registered. Fires
+      // only when the share targets a specific email — anonymous "anyone
+      // with the link" shares have no recipient to push to. Failure
+      // (transient network, dead subscription) must not break share
+      // creation, so we fire-and-forget and log inside the sender.
+      if (notificationSender && share.sharedWithEmail) {
+        const senderName = req.userEmail ?? "Someone";
+        const url = `/shared/${share.shareToken}`;
+        notificationSender
+          .sendToEmail(share.sharedWithEmail, {
+            title: `${senderName} shared a trip with you`,
+            body: trip.title,
+            url,
+            tag: `share:${share.shareToken}`,
+            data: { kind: "share-invite", shareToken: share.shareToken, tripId: trip.id },
+          })
+          .catch((err) =>
+            console.warn(
+              "[trips] share-invite push failed:",
+              err instanceof Error ? err.message : err,
+            ),
+          );
       }
 
       res.status(201).json(share);

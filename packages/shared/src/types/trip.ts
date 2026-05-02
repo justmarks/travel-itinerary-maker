@@ -172,6 +172,20 @@ export interface UserSettings {
   notificationsEnabled: boolean;
 }
 
+/**
+ * Browser-issued Web Push subscription (RFC 8292). The endpoint URL +
+ * p256dh / auth key triple is everything the server needs to deliver a
+ * push to that specific device. We persist these per-user so trip-share
+ * notifications can find every device the recipient has opted in on.
+ */
+export interface PushSubscription {
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
 /** Aggregated cost summary for a trip */
 export interface CostSummaryItem {
   category: string;
