@@ -15,6 +15,10 @@
  *    (ignore querystring) cache → `/m` shell → synthetic offline page. We
  *    always return a real Response so Chrome's default offline screen
  *    never fires.
+ *  - Next RSC payload fetches (the SPA-nav data layer, identified by the
+ *    `text/x-component` Accept header or `?_rsc=` query param):
+ *    network-first → cache. Cache key strips the `_rsc=` deploy-hash so a
+ *    redeploy doesn't invalidate previously-visited routes.
  *  - Same-origin static assets (`/_next/static/*`, fonts, icons): cache-first.
  *  - Backend trip JSON (`/api/v1/trips...`, GET): network-first → cache.
  *    React Query handles freshness above this; we just keep the last good
@@ -25,10 +29,11 @@
  * caches get evicted on activate.
  */
 
-const SW_VERSION = "v2";
+const SW_VERSION = "v3";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
+const RSC_CACHE = `itinly-rsc-${SW_VERSION}`;
 const IMAGE_CACHE = `itinly-images-${SW_VERSION}`;
 
 const SHELL_URLS = ["/m", "/m/login", "/manifest.webmanifest", "/icon.svg"];
@@ -104,7 +109,7 @@ async function precache() {
 }
 
 self.addEventListener("activate", (event) => {
-  const allowed = new Set([SHELL_CACHE, RUNTIME_CACHE, TRIP_API_CACHE, IMAGE_CACHE]);
+  const allowed = new Set([SHELL_CACHE, RUNTIME_CACHE, TRIP_API_CACHE, RSC_CACHE, IMAGE_CACHE]);
   event.waitUntil(
     caches
       .keys()
@@ -157,6 +162,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Next App Router RSC payload fetches. Triggered by client-side
+  // navigation through `<Link>` (the dominant nav path on mobile). These
+  // never hit the navigation handler below because they're regular fetch
+  // requests, so without this branch a previously-visited trip wouldn't
+  // be available offline — the navigation would silently fail and Next
+  // would fall back to a hard nav, losing the cached state.
+  if (isRscRequest(req, url)) {
+    event.respondWith(rscHandler(req, url));
+    return;
+  }
+
   // Navigations: try network, fall back to cache, finally to /m shell, then
   // a synthetic offline page so Chrome never shows its default screen.
   if (req.mode === "navigate") {
@@ -181,6 +197,54 @@ function isWikimediaImage(url) {
     url.hostname === "upload.wikimedia.org" ||
     url.hostname.endsWith(".wikipedia.org")
   );
+}
+
+/**
+ * Next App Router uses two signals for an RSC fetch:
+ *   - `Accept: text/x-component` header
+ *   - `?_rsc=<deploy-hash>` query param the runtime appends to bust caches
+ *     between deploys
+ * Either one is sufficient.
+ */
+function isRscRequest(req, url) {
+  const accept = req.headers.get("Accept") || "";
+  if (accept.includes("text/x-component")) return true;
+  return url.searchParams.has("_rsc");
+}
+
+/**
+ * Build a Request that's identical to the input but with the `_rsc=`
+ * cache-buster query param stripped. We use this as the cache key so an
+ * RSC payload cached on one deploy is still hit after a redeploy bumps
+ * the hash. The actual server response (used for revalidation) still
+ * uses the original URL with the hash.
+ */
+function rscCacheKey(req, url) {
+  if (!url.searchParams.has("_rsc")) return req;
+  const cleanUrl = new URL(url.toString());
+  cleanUrl.searchParams.delete("_rsc");
+  return new Request(cleanUrl.toString(), {
+    method: req.method,
+    headers: req.headers,
+    mode: req.mode,
+    credentials: req.credentials,
+  });
+}
+
+async function rscHandler(req, url) {
+  const cache = await caches.open(RSC_CACHE);
+  const key = rscCacheKey(req, url);
+  try {
+    const fresh = await fetch(req);
+    if (fresh && fresh.ok) {
+      cache.put(key, fresh.clone()).catch(() => {});
+    }
+    return fresh;
+  } catch (err) {
+    const cached = await cache.match(key);
+    if (cached) return cached;
+    throw err;
+  }
 }
 
 async function networkFirst(req, cacheName) {
