@@ -285,7 +285,7 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 
 - [x] **Phase 1 — Foundation** — `MobileFrame` (430px max-width on desktop preview), `/m/login` and `/m` trip list with hero images + country flags + grouped current/upcoming/past sections, `/m/trip` detail with day carousel + segment detail bottom sheet, mobile-aware redirect, share button entry point, mobile user menu with "Use desktop site" override
 - [x] **Phase 2 — Costs and Todos** — bottom-sheet for costs (USD-normalised, totals by category) and todos (full CRUD with drag-aware dismissal); pills on the trip header replace a discoverability-poor footer
-- [ ] **Phase 3 — Offline / PWA** — install prompt, service worker that caches the active trip JSON for read-only access without signal; critical for day-of airport use
+- [x] **Phase 3 — Offline / PWA** — installable web app (manifest with `start_url: /m`, theme color, iOS standalone meta), hand-rolled service worker that precaches the `/m` shell + Next static chunks (cache-first), runtime-caches trip JSON (network-first → cache fallback) and Wikipedia city images (stale-while-revalidate), React Query cache persisted to `localStorage` so a previously-loaded trip is available offline, "Add to Home Screen" entry in the mobile user menu (with iOS-Safari Share-sheet hint as fallback), offline banner in `MobileFrame` driven by `navigator.onLine`
 
 **Sharing:**
 

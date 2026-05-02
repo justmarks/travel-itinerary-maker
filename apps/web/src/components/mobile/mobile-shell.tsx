@@ -2,8 +2,9 @@
 
 import { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, WifiOff } from "lucide-react";
 import { useDemoHref } from "@/lib/demo";
+import { useOnlineStatus } from "@/lib/use-online-status";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,6 +19,7 @@ export function MobileFrame({
   children: ReactNode;
   className?: string;
 }): React.JSX.Element {
+  const online = useOnlineStatus();
   return (
     <div className="min-h-screen bg-zinc-100">
       <div
@@ -26,6 +28,16 @@ export function MobileFrame({
           className,
         )}
       >
+        {!online && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex shrink-0 items-center justify-center gap-1.5 bg-amber-100 px-3 py-1 text-[11px] font-medium text-amber-900"
+          >
+            <WifiOff className="h-3 w-3" />
+            <span>Offline — showing last loaded data</span>
+          </div>
+        )}
         {children}
       </div>
     </div>

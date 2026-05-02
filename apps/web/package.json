@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@sentry/browser": "^10.49.0",
-    "@tanstack/react-query": "^5.96.2",
+    "@tanstack/query-sync-storage-persister": "^5.100.7",
+    "@tanstack/react-query": "^5.100.7",
+    "@tanstack/react-query-persist-client": "^5.100.7",
     "@travel-app/api-client": "workspace:*",
     "@travel-app/shared": "workspace:*",
     "@upstash/redis": "^1.37.0",

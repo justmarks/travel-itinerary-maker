@@ -18,11 +18,18 @@ export function ApiClientProvider({
   baseUrl,
   client: clientProp,
   getAccessToken,
+  queryClient: queryClientProp,
   children,
 }: {
   baseUrl?: string;
   client?: ApiClient;
   getAccessToken?: () => string | null;
+  /**
+   * Optional QueryClient to use instead of creating one. Pass when the
+   * consumer needs to wire up extras like persistence (e.g. localStorage
+   * cache for offline use) outside of this package.
+   */
+  queryClient?: QueryClient;
   children: React.ReactNode;
 }) {
   const client = useMemo(
@@ -33,7 +40,7 @@ export function ApiClientProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [clientProp, baseUrl],
   );
-  const queryClient = useMemo(
+  const fallbackClient = useMemo(
     () =>
       new QueryClient({
         defaultOptions: {
@@ -45,6 +52,7 @@ export function ApiClientProvider({
       }),
     [],
   );
+  const queryClient = queryClientProp ?? fallbackClient;
 
   return (
     <QueryClientProvider client={queryClient}>

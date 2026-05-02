@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import { setDesktopOverride } from "@/lib/mobile-redirect";
+import { isIosSafari, usePwaInstall } from "@/lib/pwa-install";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,12 +14,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogIn, LogOut, Monitor, User } from "lucide-react";
+import { Download, LogIn, LogOut, Monitor, Share, User } from "lucide-react";
 
 export function MobileUserMenu(): React.JSX.Element {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
+  const { canInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [showIosHint, setShowIosHint] = useState(false);
+  const iosInstallable = !isInstalled && isIosSafari();
 
   const handleSwitchToDesktop = () => {
     setDesktopOverride();
@@ -71,12 +76,40 @@ export function MobileUserMenu(): React.JSX.Element {
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <div className="px-2 py-1.5 text-sm">
           <p className="truncate font-medium">{user.name}</p>
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
+        {canInstall && (
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              void promptInstall();
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Add to Home Screen
+          </DropdownMenuItem>
+        )}
+        {!canInstall && iosInstallable && (
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault();
+              setShowIosHint((v) => !v);
+            }}
+          >
+            <Share className="mr-2 h-4 w-4" />
+            Add to Home Screen
+          </DropdownMenuItem>
+        )}
+        {showIosHint && iosInstallable && (
+          <p className="mx-2 mb-1 rounded-md bg-muted px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+            Tap the Share button in Safari, then choose &ldquo;Add to Home
+            Screen&rdquo;.
+          </p>
+        )}
         <DropdownMenuItem onClick={handleSwitchToDesktop}>
           <Monitor className="mr-2 h-4 w-4" />
           Use desktop site

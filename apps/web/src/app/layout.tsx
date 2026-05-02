@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -38,6 +38,22 @@ export const metadata: Metadata = {
     title: "itinly",
     description: "Auto-generate travel itineraries from email confirmations.",
   },
+  // Tells iOS Safari this site can run as a standalone PWA — strips the
+  // browser chrome when launched from the home screen and uses the right
+  // status-bar style. Android / Chromium picks this up from the
+  // webmanifest already.
+  appleWebApp: {
+    capable: true,
+    title: "itinly",
+    statusBarStyle: "default",
+  },
+};
+
+// Theme color drives the Android task-switcher card, the desktop PWA
+// titlebar, and the iOS Safari URL bar tint. Keep in sync with
+// manifest.ts.
+export const viewport: Viewport = {
+  themeColor: "#18181b",
 };
 
 export default function RootLayout({

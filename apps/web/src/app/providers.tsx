@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 import { initMonitoring } from "@/lib/monitoring";
+import { createWebQueryClient } from "@/lib/query-client";
+import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -28,9 +30,23 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   tokenRef.current = accessToken;
   const getAccessToken = useCallback(() => tokenRef.current, []);
 
+  // One persistent QueryClient per session. Demo mode opts out of
+  // localStorage persistence so sample data doesn't leak between visits or
+  // collide with real-account data. Cleanup unsubscribes the persister on
+  // unmount to keep tests deterministic.
+  const { queryClient, teardown } = useMemo(
+    () => createWebQueryClient({ enabled: !isDemo }),
+    [isDemo],
+  );
+  useEffect(() => () => teardown(), [teardown]);
+
   if (isDemo) {
     return (
-      <ApiClientProvider baseUrl={API_BASE_URL} client={mockClient}>
+      <ApiClientProvider
+        baseUrl={API_BASE_URL}
+        client={mockClient}
+        queryClient={queryClient}
+      >
         {children}
       </ApiClientProvider>
     );
@@ -40,6 +56,7 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
     <ApiClientProvider
       baseUrl={API_BASE_URL}
       getAccessToken={getAccessToken}
+      queryClient={queryClient}
     >
       {children}
     </ApiClientProvider>
@@ -63,6 +80,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
     <AuthProvider>
       <DemoProvider>
         <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+        <ServiceWorkerRegister />
       </DemoProvider>
     </AuthProvider>
   );
