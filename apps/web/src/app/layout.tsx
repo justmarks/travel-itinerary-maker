@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -56,6 +57,10 @@ export default function RootLayout({
             production deployments, no-op in local dev / preview unless
             VERCEL_ANALYTICS_ID is set. Cookieless and PII-free by default. */}
         <Analytics />
+        {/* Vercel Speed Insights. Reports Core Web Vitals (LCP, FID, CLS)
+            from real users on production deployments. Same auto-detection
+            as Analytics — no-op outside Vercel production. */}
+        <SpeedInsights />
       </body>
     </html>
   );
