@@ -302,6 +302,7 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 
 **Potential ideas for the future:**
 
+- [ ] **Create trips and add activities from mobile** — today the mobile site is read-only for authoring; new users hitting `/m` with an empty list get a CTA that bounces them to the desktop create-trip flow. Build a native mobile create-trip flow + segment authoring (date pickers, location autocomplete, time inputs sized for thumbs) so trips can be planned end-to-end on a phone
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 - [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
 
