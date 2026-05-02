@@ -30,6 +30,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { shareActivityLabel } from "@/lib/share-activity";
 
 function buildShareUrl(token: string): string {
   // Path form (`/shared/<token>`) so the Cloudflare Pages Edge runtime
@@ -125,6 +126,7 @@ function ExistingShareRow({
   onRevoke: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const activityLabel = shareActivityLabel(share);
   return (
     <li className="flex items-start gap-2 rounded-lg border bg-card px-3 py-2.5">
       <div className="min-w-0 flex-1">
@@ -136,6 +138,9 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {activityLabel && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
+        )}
       </div>
       <div className="flex shrink-0 gap-1">
         <Button
