@@ -33,8 +33,17 @@ describe("buildCorsOriginCheck", () => {
   it("allows an origin matching the pattern", () => {
     const { allowed } = check(
       [],
-      /^https:\/\/travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$/,
-      "https://travel-itinerary-maker-yeesu7v6l-justmarks-projects.vercel.app",
+      /^https:\/\/itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$/,
+      "https://itinly-7a3lt52rq-justmarks-projects.vercel.app",
+    );
+    expect(allowed).toBe(true);
+  });
+
+  it("allows a branch-alias preview URL (hyphens in the dynamic segment)", () => {
+    const { allowed } = check(
+      [],
+      /^https:\/\/itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$/,
+      "https://itinly-git-feat-dark-mode-justmarks-projects.vercel.app",
     );
     expect(allowed).toBe(true);
   });
