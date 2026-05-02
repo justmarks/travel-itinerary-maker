@@ -42,6 +42,20 @@ async function bootstrap(): Promise<void> {
     } else {
       console.log("Persistence: in-memory only (no Redis configured)");
     }
+    // Surface VAPID config at boot so misconfiguration is obvious
+    // without anyone hitting /push/config. Partial config (only one
+    // key) is louder than full-missing because it's almost always a
+    // copy-paste error.
+    const { publicKey, privateKey } = config.vapid;
+    if (publicKey && privateKey) {
+      console.log(`Push: VAPID configured (subject=${config.vapid.subject})`);
+    } else if (publicKey || privateKey) {
+      console.warn(
+        `Push: VAPID partially configured — ${publicKey ? "VAPID_PRIVATE_KEY" : "VAPID_PUBLIC_KEY"} is missing. Sends will be no-ops.`,
+      );
+    } else {
+      console.log("Push: VAPID not configured (push notifications disabled)");
+    }
   });
 }
 
