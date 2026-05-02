@@ -53,8 +53,11 @@ this whole class of issue evaporates when Vercel is the host.
      relay (see below).
    - `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` — anchored regex matching
      allowed preview origins, e.g.
-     `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`.
-     Set on **Production only** — that's where the relay runs.
+     `^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$`.
+     The character class includes `-` so branch-alias URLs
+     (`itinly-git-feat-foo-...`) match alongside per-deploy hash URLs
+     (`itinly-7a3lt52rq-...`). Set on **Production only** — that's
+     where the relay runs.
    - `UPSTASH_REDIS_REST_URL` — Upstash REST URL. **Server-only — do
      not prefix with `NEXT_PUBLIC_`.** Read by the Edge runtime in
      `app/shared/[token]/page.tsx` to fetch the share snapshot.
@@ -146,10 +149,12 @@ preview URLs work without re-listing every per-deploy hash:
 - **`CORS_ORIGIN_PATTERN`** — optional regex (string form) for dynamic
   origins. For this project's previews:
   ```
-  ^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$
+  ^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$
   ```
-  An incoming `Origin` header is allowed if it matches any literal in
-  `CORS_ORIGIN` OR this pattern.
+  The character class includes `-` so branch-alias URLs
+  (`itinly-git-feat-foo-...`) match alongside per-deploy hash URLs
+  (`itinly-7a3lt52rq-...`). An incoming `Origin` header is allowed if
+  it matches any literal in `CORS_ORIGIN` OR this pattern.
 - Confirm `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are
   already set there (they're how the server writes the `share-snapshots`
   hash that the edge reads).

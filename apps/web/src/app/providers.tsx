@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ThemeProvider } from "next-themes";
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 import { initMonitoring } from "@/lib/monitoring";
+import { createWebQueryClient } from "@/lib/query-client";
+import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -17,6 +20,15 @@ const mockClient = new MockApiClient();
 /**
  * Chooses between MockApiClient (demo) and real ApiClient (authenticated).
  * Reads demo mode from the URL querystring via useDemoMode().
+ *
+ * When persistence is enabled (real auth, not demo) the children are wrapped
+ * in `PersistQueryClientProvider` — that gates queries from running until the
+ * `localStorage` cache has been restored. Without this gate, a cold offline
+ * launch would race: `useTrips` fires, queryFn rejects (no network), the
+ * query lands in `isError`, and even when hydration completes a tick later
+ * the user has already seen the offline error. With the gate, the cache is
+ * in place before the first queryFn call, so cached trips render
+ * immediately.
  */
 function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   const isDemo = useDemoMode();
@@ -29,21 +41,38 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   tokenRef.current = accessToken;
   const getAccessToken = useCallback(() => tokenRef.current, []);
 
-  if (isDemo) {
-    return (
-      <ApiClientProvider baseUrl={API_BASE_URL} client={mockClient}>
-        {children}
-      </ApiClientProvider>
-    );
-  }
+  // One QueryClient per session. Demo mode opts out of localStorage
+  // persistence so sample data doesn't leak between visits or collide with
+  // real-account data.
+  const { queryClient, persistOptions } = useMemo(
+    () => createWebQueryClient({ enabled: !isDemo }),
+    [isDemo],
+  );
 
-  return (
+  const apiTree = isDemo ? (
     <ApiClientProvider
       baseUrl={API_BASE_URL}
-      getAccessToken={getAccessToken}
+      client={mockClient}
+      queryClient={queryClient}
     >
       {children}
     </ApiClientProvider>
+  ) : (
+    <ApiClientProvider
+      baseUrl={API_BASE_URL}
+      getAccessToken={getAccessToken}
+      queryClient={queryClient}
+    >
+      {children}
+    </ApiClientProvider>
+  );
+
+  if (!persistOptions) return apiTree;
+
+  return (
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
+      {apiTree}
+    </PersistQueryClientProvider>
   );
 }
 
@@ -75,6 +104,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
       <AuthProvider>
         <DemoProvider>
           <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+          <ServiceWorkerRegister />
         </DemoProvider>
       </AuthProvider>
     </ThemeProvider>

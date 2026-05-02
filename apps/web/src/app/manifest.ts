@@ -13,8 +13,13 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "itinly",
     description:
       "Auto-generate travel itineraries from email confirmations.",
-    start_url: "/",
+    // Land installed users in the mobile shell — that's the experience
+    // tuned for phone use. The auto-redirect from `/` would also work but
+    // adds a flicker on every cold launch.
+    start_url: "/m",
+    scope: "/",
     display: "standalone",
+    orientation: "portrait",
     background_color: "#ffffff",
     theme_color: "#18181b",
     icons: [

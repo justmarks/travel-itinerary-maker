@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTrip } from "@travel-app/api-client";
 import type { Trip } from "@travel-app/shared";
-import { AlertCircle, CheckSquare, DollarSign, Share2 } from "lucide-react";
+import { AlertCircle, CheckSquare, CloudOff, DollarSign, Share2 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
+import { useOnlineStatus } from "@/lib/use-online-status";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
@@ -123,6 +124,7 @@ function useTripSummary(trip: Trip) {
 
 function MobileTripInner({ tripId }: { tripId: string }) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
+  const online = useOnlineStatus();
   const homeHref = useDemoHref("/m");
   const [costsOpen, setCostsOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
@@ -146,25 +148,44 @@ function MobileTripInner({ tripId }: { tripId: string }) {
   }
 
   if (isError) {
+    // Distinguish "device offline + this trip was never cached" from a
+    // generic fetch failure so the message matches the actual problem.
+    // Retry stays available either way — coming back online turns the
+    // offline branch into a real load.
+    const offline = !online;
     return (
       <MobileFrame>
         <MobileHeader
-          title="Couldn't load trip"
+          title={offline ? "Not available offline" : "Couldn't load trip"}
           backHref={homeHref}
           right={<MobileUserMenu />}
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <AlertCircle className="h-8 w-8 text-destructive" />
+          {offline ? (
+            <CloudOff className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          ) : (
+            <AlertCircle className="h-8 w-8 text-destructive" />
+          )}
           <p className="text-sm text-muted-foreground">
-            Something went wrong. Check your connection and try again.
+            {offline
+              ? "This trip hasn't been loaded on this device yet. Open it once while online and it'll be available offline next time."
+              : "Something went wrong. Check your connection and try again."}
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
-          >
-            Retry
-          </button>
+          <div className="flex gap-2">
+            <Link
+              href={homeHref}
+              className="rounded-full border bg-background px-4 py-2 text-sm font-medium"
+            >
+              Back to trips
+            </Link>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </MobileFrame>
     );
