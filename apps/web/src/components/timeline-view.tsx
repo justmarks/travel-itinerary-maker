@@ -42,18 +42,22 @@ const SEGMENT_ICON: Record<SegmentType, string> = {
   restaurant_dinner:    "🍽️",
 };
 
+// Pill and cell tints carry the category color in light mode; in dark mode
+// we drop the saturated -50 backgrounds (which would blow out against a
+// near-black surface) for a translucent -900 wash that keeps the hue cue
+// while preserving foreground contrast.
 const PILL_STYLES: Record<Category, string> = {
-  transport: "bg-blue-50 text-blue-700 border border-blue-200",
-  hotel:     "bg-amber-50 text-amber-800 border border-amber-200",
-  activity:  "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  dining:    "bg-rose-50 text-rose-700 border border-rose-200",
+  transport: "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-900",
+  hotel:     "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900",
+  activity:  "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-900",
+  dining:    "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-900",
 };
 
 const CELL_BG: Record<Category, string> = {
-  transport: "bg-blue-50/30",
-  hotel:     "bg-amber-50/20",
-  activity:  "bg-emerald-50/30",
-  dining:    "bg-rose-50/30",
+  transport: "bg-blue-50/30 dark:bg-blue-950/20",
+  hotel:     "bg-amber-50/20 dark:bg-amber-950/15",
+  activity:  "bg-emerald-50/30 dark:bg-emerald-950/20",
+  dining:    "bg-rose-50/30 dark:bg-rose-950/20",
 };
 
 // ── Data helpers ──────────────────────────────────────────────
@@ -129,10 +133,10 @@ function RowLabel({ icon, name }: { icon: string; name: string }) {
   return (
     <div
       title={name}
-      className="sticky left-0 z-10 bg-white border-r border-gray-200 border-b border-gray-100 px-2 sm:px-3 py-2.5 flex items-center sm:items-start justify-center sm:justify-start gap-1.5"
+      className="sticky left-0 z-10 bg-card border-r border-border border-b border-border/60 px-2 sm:px-3 py-2.5 flex items-center sm:items-start justify-center sm:justify-start gap-1.5"
     >
       <span className="text-sm leading-none sm:mt-0.5">{icon}</span>
-      <span className="hidden sm:inline text-[11px] font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">
+      <span className="hidden sm:inline text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
         {name}
       </span>
     </div>
@@ -159,12 +163,12 @@ function TypeRow({
           <div
             key={day.date}
             className={cn(
-              "border-b border-gray-100 border-r border-gray-100 p-1.5 min-h-12",
+              "border-b border-border/60 border-r border-border/60 p-1.5 min-h-12",
               CELL_BG[category],
             )}
           >
             {segs.length === 0 ? (
-              <div className="text-[10px] text-gray-300 text-center pt-2.5">—</div>
+              <div className="text-[10px] text-muted-foreground/40 text-center pt-2.5">—</div>
             ) : (
               segs.map((s) => <Pill key={s.id} segment={s} showIcon={false} />)
             )}
@@ -193,7 +197,7 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       cells.push(
         <div
           key={`he-${idx}`}
-          className="bg-amber-50/20 border-b border-gray-100 border-r border-gray-100 min-h-14"
+          className="bg-amber-50/20 dark:bg-amber-950/15 border-b border-border/60 border-r border-border/60 min-h-14"
         />,
       );
       idx++;
@@ -204,10 +208,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
     cells.push(
       <div
         key={h.id}
-        className="bg-amber-50/20 border-b border-gray-100 border-r border-gray-100 p-2 min-h-14 flex items-center"
+        className="bg-amber-50/20 dark:bg-amber-950/15 border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
         style={{ gridColumn: `span ${span}` }}
       >
-        <div className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 w-full min-w-0">
+        <div className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900 w-full min-w-0">
           <span className="hidden sm:inline shrink-0">🏨</span>
           <span className="truncate">{name}</span>
           <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
@@ -240,15 +244,15 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
 
 function Legend() {
   const items = [
-    { label: "Transport", bg: "bg-blue-100",    border: "border-blue-200"    },
-    { label: "Lodging",   bg: "bg-amber-100",   border: "border-amber-200"   },
-    { label: "Activity",  bg: "bg-emerald-100", border: "border-emerald-200" },
-    { label: "Dining",    bg: "bg-rose-100",    border: "border-rose-200"    },
+    { label: "Transport", bg: "bg-blue-100 dark:bg-blue-900/60",       border: "border-blue-200 dark:border-blue-800"    },
+    { label: "Lodging",   bg: "bg-amber-100 dark:bg-amber-900/60",     border: "border-amber-200 dark:border-amber-800"   },
+    { label: "Activity",  bg: "bg-emerald-100 dark:bg-emerald-900/60", border: "border-emerald-200 dark:border-emerald-800" },
+    { label: "Dining",    bg: "bg-rose-100 dark:bg-rose-900/60",       border: "border-rose-200 dark:border-rose-800"    },
   ];
   return (
-    <div className="flex flex-wrap gap-4 px-4 py-3 border-t border-gray-100 bg-gray-50">
+    <div className="flex flex-wrap gap-4 px-4 py-3 border-t border-border/60 bg-muted/40">
       {items.map(({ label, bg, border }) => (
-        <div key={label} className="flex items-center gap-1.5 text-xs text-gray-500">
+        <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div className={cn("w-2.5 h-2.5 rounded-sm border", bg, border)} />
           {label}
         </div>
@@ -273,7 +277,7 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
 
   if (days.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white px-8 py-16 text-center text-sm text-gray-400">
+      <div className="rounded-xl border border-border bg-card px-8 py-16 text-center text-sm text-muted-foreground">
         No days planned yet.
       </div>
     );
@@ -283,7 +287,7 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
     <div>
       {/* Toggle — hidden when printing */}
       <div className="flex justify-end mb-3 print-hidden">
-        <div className="flex bg-gray-100 rounded-lg p-0.5 gap-0.5">
+        <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
           {(["grouped", "chrono"] as const).map((m) => (
             <button
               key={m}
@@ -291,8 +295,8 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
               className={cn(
                 "px-3.5 py-1.5 text-sm font-medium rounded-md transition-all",
                 mode === m
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700",
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {m === "grouped" ? "Group by type" : "Chronological"}
@@ -302,27 +306,27 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
       </div>
 
       {/* Timeline card */}
-      <div className="timeline-card bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="timeline-card bg-card border border-border rounded-xl overflow-hidden">
         <div className="overflow-x-auto timeline-scroll">
           <div
             className="grid timeline-grid"
             style={{ gridTemplateColumns: gridCols, width: "100%" }}
           >
             {/* Day header row */}
-            <div className="sticky left-0 z-20 bg-gray-50 border-b border-gray-200 border-r border-gray-200" />
+            <div className="sticky left-0 z-20 bg-muted/40 border-b border-border border-r border-border" />
             {days.map((day) => (
               <div
                 key={day.date}
-                className="bg-gray-50 border-b border-gray-200 border-r border-gray-100 px-1.5 sm:px-3 py-2.5 text-center"
+                className="bg-muted/40 border-b border-border border-r border-border/60 px-1.5 sm:px-3 py-2.5 text-center"
               >
-                <div className="text-[13px] font-bold text-gray-900">{day.dayOfWeek}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5">
+                <div className="text-[13px] font-bold text-foreground">{day.dayOfWeek}</div>
+                <div className="text-[11px] text-muted-foreground/70 mt-0.5">
                   {new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                   })}
                 </div>
-                <div className="text-[11px] text-gray-500 mt-0.5 font-medium truncate max-w-[4.5rem] sm:max-w-[7rem] mx-auto">
+                <div className="text-[11px] text-muted-foreground mt-0.5 font-medium truncate max-w-[4.5rem] sm:max-w-[7rem] mx-auto">
                   {day.city}
                 </div>
               </div>
@@ -344,10 +348,10 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
                   return (
                     <div
                       key={day.date}
-                      className="border-b border-gray-100 border-r border-gray-100 p-1.5 min-h-12 bg-white"
+                      className="border-b border-border/60 border-r border-border/60 p-1.5 min-h-12 bg-card"
                     >
                       {segs.length === 0 ? (
-                        <div className="text-[10px] text-gray-300 text-center pt-2.5">—</div>
+                        <div className="text-[10px] text-muted-foreground/40 text-center pt-2.5">—</div>
                       ) : (
                         segs.map((s) => <Pill key={s.id} segment={s} showIcon />)
                       )}

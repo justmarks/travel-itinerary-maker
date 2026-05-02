@@ -177,7 +177,7 @@ export function MobileCarouselView({
       </div>
 
       {/* Map header (shared, swaps as user swipes) */}
-      <div className="shrink-0 border-b bg-zinc-100">
+      <div className="shrink-0 border-b bg-zinc-100 dark:bg-zinc-900">
         <MobileDayMap trip={trip} activeDate={activeDay?.date} height={210} />
         <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">

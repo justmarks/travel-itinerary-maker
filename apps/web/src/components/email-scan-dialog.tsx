@@ -60,10 +60,10 @@ const CONFIDENCE_STYLES: Record<string, string> = {
 };
 
 const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
-  new: "border-blue-300 bg-blue-50 text-blue-700",
-  enrichment: "border-violet-300 bg-violet-50 text-violet-700",
-  conflict: "border-orange-300 bg-orange-50 text-orange-700",
-  duplicate: "border-zinc-300 bg-zinc-100 text-zinc-600",
+  new:        "border-blue-300   bg-blue-50   text-blue-700   dark:border-blue-800   dark:bg-blue-950/60   dark:text-blue-200",
+  enrichment: "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
+  conflict:   "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-200",
+  duplicate:  "border-zinc-300   bg-zinc-100  text-zinc-600   dark:border-zinc-700   dark:bg-zinc-800/60   dark:text-zinc-300",
 };
 
 const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
@@ -657,7 +657,7 @@ export function EmailScanDialog({
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 shrink-0 border-amber-300 bg-white text-xs hover:bg-amber-50"
+                          className="h-7 shrink-0 border-amber-300 bg-card text-xs hover:bg-amber-50 dark:hover:bg-amber-950/40"
                           onClick={() => setShowNewTripForm(true)}
                         >
                           <Plus className="mr-1 h-3 w-3" />
@@ -687,7 +687,7 @@ export function EmailScanDialog({
                         value={newTripTitle}
                         onChange={(e) => setNewTripTitle(e.target.value)}
                         placeholder="Trip name (e.g. Hawaii 2026)"
-                        className="h-8 text-sm bg-white"
+                        className="h-8 text-sm bg-background"
                         autoFocus
                       />
                       <div className="flex gap-2">
@@ -697,7 +697,7 @@ export function EmailScanDialog({
                             type="date"
                             value={newTripStart}
                             onChange={(e) => setNewTripStart(e.target.value)}
-                            className="h-8 text-sm bg-white"
+                            className="h-8 text-sm bg-background"
                           />
                         </div>
                         <div className="flex-1">
@@ -706,7 +706,7 @@ export function EmailScanDialog({
                             type="date"
                             value={newTripEnd}
                             onChange={(e) => setNewTripEnd(e.target.value)}
-                            className="h-8 text-sm bg-white"
+                            className="h-8 text-sm bg-background"
                           />
                         </div>
                       </div>

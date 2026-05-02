@@ -225,7 +225,7 @@ function MapInner({
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap gap-3">
           {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => (
-            <div key={cat} className="flex items-center gap-1.5 text-xs text-gray-500">
+            <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{ background: PIN_COLOR[cat] }}
@@ -247,7 +247,7 @@ function MapInner({
       </div>
 
       {/* Map */}
-      <div className="rounded-xl border border-gray-200 overflow-hidden" style={{ height: 560 }}>
+      <div className="rounded-xl border border-border overflow-hidden" style={{ height: 560 }}>
         <Map
           mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID"}
           defaultCenter={{ lat: 35.6762, lng: 139.6503 }}
@@ -310,10 +310,10 @@ function MapInner({
       </div>
 
       {resolvedPins.length === 0 && geocoding && (
-        <p className="text-xs text-gray-400 text-center">Locating places…</p>
+        <p className="text-xs text-muted-foreground/70 text-center">Locating places…</p>
       )}
       {resolvedPins.length > 0 && (
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-muted-foreground/70 text-center">
           {resolvedPins.length} location{resolvedPins.length !== 1 ? "s" : ""} plotted ·
           Click a pin for details · Use <strong>Export to My Maps</strong> to save as a Google Maps list
         </p>
@@ -330,14 +330,14 @@ export function MapView({ trip }: { trip: Trip }): React.JSX.Element | null {
 
   if (!apiKey) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white px-8 py-16 text-center">
-        <p className="text-sm font-medium text-gray-700 mb-1">Google Maps API key not configured</p>
-        <p className="text-sm text-gray-500">
+      <div className="rounded-xl border border-border bg-card px-8 py-16 text-center">
+        <p className="text-sm font-medium text-foreground mb-1">Google Maps API key not configured</p>
+        <p className="text-sm text-muted-foreground">
           Set{" "}
-          <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">
+          <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
             NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
           </code>{" "}
-          in <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">apps/web/.env.local</code> to
+          in <code className="bg-muted px-1.5 py-0.5 rounded text-xs">apps/web/.env.local</code> to
           enable the map view.
         </p>
       </div>
@@ -346,7 +346,7 @@ export function MapView({ trip }: { trip: Trip }): React.JSX.Element | null {
 
   if (rawPins.length === 0) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-white px-8 py-16 text-center text-sm text-gray-400">
+      <div className="rounded-xl border border-border bg-card px-8 py-16 text-center text-sm text-muted-foreground">
         No mappable locations yet. Add hotels, restaurants, or activities to see them here.
       </div>
     );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { ThemeProvider } from "next-themes";
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -60,10 +61,22 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   }, []);
 
   return (
-    <AuthProvider>
-      <DemoProvider>
-        <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
-      </DemoProvider>
-    </AuthProvider>
+    // next-themes toggles `.dark` on <html> based on the active theme. Pairs
+    // with the `@custom-variant dark` override in globals.css so Tailwind's
+    // `dark:` utilities respond to the user's explicit choice rather than
+    // only `prefers-color-scheme`. `defaultTheme="system"` honours the OS
+    // preference until the user picks Light or Dark from the user menu.
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <AuthProvider>
+        <DemoProvider>
+          <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+        </DemoProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -43,21 +43,24 @@ type SegmentConfig = {
   bg: string;
 };
 
+// `iconColor` and `bg` carry the type's brand color in light mode; the
+// `dark:` overrides shift to a brighter foreground over a translucent dark
+// disc so the icon stays readable on a near-black card surface.
 const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:               { icon: Plane,           label: "Flight",     iconColor: "text-blue-600",   accent: "border-l-blue-500",   bg: "bg-blue-50"   },
-  train:                { icon: Train,           label: "Train",      iconColor: "text-purple-600", accent: "border-l-purple-500", bg: "bg-purple-50" },
-  car_rental:           { icon: Car,             label: "Car Rental", iconColor: "text-orange-600", accent: "border-l-orange-500", bg: "bg-orange-50" },
-  car_service:          { icon: Car,             label: "Car Service",iconColor: "text-orange-600", accent: "border-l-orange-500", bg: "bg-orange-50" },
-  other_transport:      { icon: Navigation,      label: "Transport",  iconColor: "text-gray-600",   accent: "border-l-gray-400",   bg: "bg-gray-100"  },
-  hotel:                { icon: BedDouble,       label: "Hotel",      iconColor: "text-indigo-600", accent: "border-l-indigo-500", bg: "bg-indigo-50" },
-  activity:             { icon: MapPin,          label: "Activity",   iconColor: "text-green-600",  accent: "border-l-green-500",  bg: "bg-green-50"  },
-  show:                 { icon: Ticket,          label: "Show",       iconColor: "text-pink-600",   accent: "border-l-pink-500",   bg: "bg-pink-50"   },
-  restaurant_breakfast: { icon: UtensilsCrossed, label: "Breakfast",  iconColor: "text-sky-600",    accent: "border-l-sky-500",    bg: "bg-sky-50"    },
-  restaurant_brunch:    { icon: UtensilsCrossed, label: "Brunch",     iconColor: "text-lime-600",   accent: "border-l-lime-500",   bg: "bg-lime-50"   },
-  restaurant_lunch:     { icon: UtensilsCrossed, label: "Lunch",      iconColor: "text-amber-600",  accent: "border-l-amber-500",  bg: "bg-amber-50"  },
-  restaurant_dinner:    { icon: UtensilsCrossed, label: "Dinner",     iconColor: "text-red-600",    accent: "border-l-red-500",    bg: "bg-red-50"    },
-  tour:                 { icon: Camera,          label: "Tour",       iconColor: "text-teal-600",   accent: "border-l-teal-500",   bg: "bg-teal-50"   },
-  cruise:               { icon: Ship,            label: "Cruise",     iconColor: "text-cyan-600",   accent: "border-l-cyan-500",   bg: "bg-cyan-50"   },
+  flight:               { icon: Plane,           label: "Flight",     iconColor: "text-blue-600 dark:text-blue-300",     accent: "border-l-blue-500",   bg: "bg-blue-50 dark:bg-blue-950/60"     },
+  train:                { icon: Train,           label: "Train",      iconColor: "text-purple-600 dark:text-purple-300", accent: "border-l-purple-500", bg: "bg-purple-50 dark:bg-purple-950/60" },
+  car_rental:           { icon: Car,             label: "Car Rental", iconColor: "text-orange-600 dark:text-orange-300", accent: "border-l-orange-500", bg: "bg-orange-50 dark:bg-orange-950/60" },
+  car_service:          { icon: Car,             label: "Car Service",iconColor: "text-orange-600 dark:text-orange-300", accent: "border-l-orange-500", bg: "bg-orange-50 dark:bg-orange-950/60" },
+  other_transport:      { icon: Navigation,      label: "Transport",  iconColor: "text-gray-600 dark:text-gray-300",     accent: "border-l-gray-400",   bg: "bg-gray-100 dark:bg-gray-800/60"    },
+  hotel:                { icon: BedDouble,       label: "Hotel",      iconColor: "text-indigo-600 dark:text-indigo-300", accent: "border-l-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/60" },
+  activity:             { icon: MapPin,          label: "Activity",   iconColor: "text-green-600 dark:text-green-300",   accent: "border-l-green-500",  bg: "bg-green-50 dark:bg-green-950/60"   },
+  show:                 { icon: Ticket,          label: "Show",       iconColor: "text-pink-600 dark:text-pink-300",     accent: "border-l-pink-500",   bg: "bg-pink-50 dark:bg-pink-950/60"     },
+  restaurant_breakfast: { icon: UtensilsCrossed, label: "Breakfast",  iconColor: "text-sky-600 dark:text-sky-300",       accent: "border-l-sky-500",    bg: "bg-sky-50 dark:bg-sky-950/60"       },
+  restaurant_brunch:    { icon: UtensilsCrossed, label: "Brunch",     iconColor: "text-lime-600 dark:text-lime-300",     accent: "border-l-lime-500",   bg: "bg-lime-50 dark:bg-lime-950/60"     },
+  restaurant_lunch:     { icon: UtensilsCrossed, label: "Lunch",      iconColor: "text-amber-600 dark:text-amber-300",   accent: "border-l-amber-500",  bg: "bg-amber-50 dark:bg-amber-950/60"   },
+  restaurant_dinner:    { icon: UtensilsCrossed, label: "Dinner",     iconColor: "text-red-600 dark:text-red-300",       accent: "border-l-red-500",    bg: "bg-red-50 dark:bg-red-950/60"       },
+  tour:                 { icon: Camera,          label: "Tour",       iconColor: "text-teal-600 dark:text-teal-300",     accent: "border-l-teal-500",   bg: "bg-teal-50 dark:bg-teal-950/60"     },
+  cruise:               { icon: Ship,            label: "Cruise",     iconColor: "text-cyan-600 dark:text-cyan-300",     accent: "border-l-cyan-500",   bg: "bg-cyan-50 dark:bg-cyan-950/60"     },
 };
 
 function fmt12h(t?: string): string | null {
