@@ -1,6 +1,6 @@
 {
   "name": "@travel-app/web",
-  "version": "0.51.0",
+  "version": "0.51.2",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
