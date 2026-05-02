@@ -12,7 +12,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "itinly",
     short_name: "itinly",
     description:
-      "Auto-generate travel itineraries from email confirmations.",
+      "Your flight, hotel, and reservation emails, automatically organized into a day-by-day trip plan.",
     // Land installed users in the mobile shell — that's the experience
     // tuned for phone use. The auto-redirect from `/` would also work but
     // adds a flicker on every cold launch.
