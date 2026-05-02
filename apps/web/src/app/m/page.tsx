@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { useTrips } from "@travel-app/api-client";
 import type { TripSummary } from "@travel-app/api-client";
 import {
@@ -10,10 +11,13 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  CloudOff,
   Users,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoMode } from "@/lib/demo";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import { useCachedTripIds } from "@/lib/use-cached-trips";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { AppLogo } from "@/components/app-logo";
@@ -129,15 +133,22 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
 function TripRow({
   trip,
   hrefSuffix,
+  unavailable,
 }: {
   trip: TripSummary;
   hrefSuffix: string;
+  /**
+   * True when the device is offline AND this trip's data isn't in the
+   * React Query cache. Renders the row dimmed with an "Offline" badge
+   * and intercepts clicks to toast instead of navigating to a page that
+   * would just spin (and, if the SW falls back to the /m shell, would
+   * effectively reload the list and collapse the Past section).
+   */
+  unavailable: boolean;
 }) {
-  return (
-    <Link
-      href={`/m/trip?id=${trip.id}&v=carousel${hrefSuffix}`}
-      className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-transform active:scale-[0.99] active:bg-muted/40"
-    >
+  const href = `/m/trip?id=${trip.id}&v=carousel${hrefSuffix}`;
+  const meta = (
+    <>
       <MobileTripHero trip={trip} />
       <div className="flex flex-col gap-1 p-3">
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -150,8 +161,44 @@ function TripRow({
           <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
+          {unavailable && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
+                <CloudOff className="h-3 w-3" />
+                Offline — not loaded
+              </span>
+            </>
+          )}
         </div>
       </div>
+    </>
+  );
+
+  if (unavailable) {
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          toast.error("Not available offline", {
+            description:
+              "Open this trip while online once and it'll be available next time you're offline.",
+          })
+        }
+        className="group flex flex-col overflow-hidden rounded-2xl border bg-card text-left opacity-60 transition-transform active:scale-[0.99]"
+        aria-disabled="true"
+      >
+        {meta}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-transform active:scale-[0.99] active:bg-muted/40"
+    >
+      {meta}
     </Link>
   );
 }
@@ -161,11 +208,15 @@ function Section({
   trips,
   hrefSuffix,
   collapsible = false,
+  cachedIds,
+  online,
 }: {
   bucket: TripBucket;
   trips: TripSummary[];
   hrefSuffix: string;
   collapsible?: boolean;
+  cachedIds: Set<string>;
+  online: boolean;
 }) {
   const [expanded, setExpanded] = useState(!collapsible);
 
@@ -205,7 +256,12 @@ function Section({
       {expanded && (
         <div className="flex flex-col gap-2.5">
           {trips.map((trip) => (
-            <TripRow key={trip.id} trip={trip} hrefSuffix={hrefSuffix} />
+            <TripRow
+              key={trip.id}
+              trip={trip}
+              hrefSuffix={hrefSuffix}
+              unavailable={!online && !cachedIds.has(trip.id)}
+            />
           ))}
         </div>
       )}
@@ -216,6 +272,8 @@ function Section({
 function MobileTripList() {
   const { data: trips, isLoading, isError, refetch } = useTrips();
   const isDemo = useDemoMode();
+  const online = useOnlineStatus();
+  const cachedIds = useCachedTripIds();
   const today = useMemo(() => todayLocalISO(), []);
   const hrefSuffix = isDemo ? "&demo=true" : "";
 
@@ -281,13 +339,27 @@ function MobileTripList() {
 
   return (
     <div className="flex flex-col gap-4 py-3">
-      <Section bucket="current" trips={buckets.current} hrefSuffix={hrefSuffix} />
-      <Section bucket="upcoming" trips={buckets.upcoming} hrefSuffix={hrefSuffix} />
+      <Section
+        bucket="current"
+        trips={buckets.current}
+        hrefSuffix={hrefSuffix}
+        cachedIds={cachedIds}
+        online={online}
+      />
+      <Section
+        bucket="upcoming"
+        trips={buckets.upcoming}
+        hrefSuffix={hrefSuffix}
+        cachedIds={cachedIds}
+        online={online}
+      />
       <Section
         bucket="past"
         trips={buckets.past}
         hrefSuffix={hrefSuffix}
         collapsible
+        cachedIds={cachedIds}
+        online={online}
       />
     </div>
   );
