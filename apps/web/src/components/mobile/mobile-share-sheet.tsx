@@ -38,6 +38,17 @@ function permissionLabel(p: TripShare["permission"]): string {
   return p === "edit" ? "Can edit" : "View only";
 }
 
+function formatShareTitle(
+  tripTitle: string,
+  startDate: string,
+  endDate: string,
+): string {
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const fmt = (d: string) =>
+    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
+  return `${tripTitle} (${fmt(startDate)} - ${fmt(endDate)})`;
+}
+
 function PermissionPill({
   value,
   current,
@@ -118,12 +129,12 @@ function ExistingShareRow({
   share,
   onRevoke,
   shareUrl,
-  tripTitle,
+  shareTitle,
 }: {
   share: TripShare;
   onRevoke: () => void;
   shareUrl: string;
-  tripTitle: string;
+  shareTitle: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -131,8 +142,8 @@ function ExistingShareRow({
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
         await navigator.share({
-          title: tripTitle,
-          text: `${tripTitle} · ${permissionLabel(share.permission)}`,
+          title: shareTitle,
+          text: `${shareTitle} · ${permissionLabel(share.permission)}`,
           url: shareUrl,
         });
         return;
@@ -197,17 +208,22 @@ function ExistingShareRow({
 export function MobileShareSheet({
   tripId,
   tripTitle,
+  tripStartDate,
+  tripEndDate,
   open,
   onClose,
 }: {
   tripId: string;
   tripTitle: string;
+  tripStartDate: string;
+  tripEndDate: string;
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
   const { data: shares = [] } = useShares(tripId);
   const createShare = useCreateShare(tripId);
   const deleteShare = useDeleteShare(tripId);
+  const shareTitle = formatShareTitle(tripTitle, tripStartDate, tripEndDate);
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
   const [email, setEmail] = useState("");
@@ -272,8 +288,8 @@ export function MobileShareSheet({
     ) {
       try {
         await navigator.share({
-          title: tripTitle,
-          text: `${tripTitle} · ${permissionLabel(permission)}`,
+          title: shareTitle,
+          text: `${shareTitle} · ${permissionLabel(permission)}`,
           url,
         });
       } catch (err) {
@@ -387,7 +403,7 @@ export function MobileShareSheet({
                   key={share.id}
                   share={share}
                   shareUrl={buildShareUrl(share.shareToken)}
-                  tripTitle={tripTitle}
+                  shareTitle={shareTitle}
                   onRevoke={() => {
                     if (
                       typeof window === "undefined" ||
