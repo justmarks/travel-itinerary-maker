@@ -22,7 +22,7 @@ export function AppWordmark({ className }: { className?: string }): React.JSX.El
       viewBox="0 0 100 80"
       role="img"
       aria-label="itinly"
-      className={cn("h-10", className)}
+      className={cn("h-10 text-zinc-950 dark:text-zinc-50", className)}
       xmlns="http://www.w3.org/2000/svg"
     >
       <text
@@ -30,7 +30,7 @@ export function AppWordmark({ className }: { className?: string }): React.JSX.El
         y="58"
         fontSize="48"
         fontWeight="500"
-        fill="#18181b"
+        fill="currentColor"
         letterSpacing="-1"
         style={{ fontFamily: "inherit" }}
       >
