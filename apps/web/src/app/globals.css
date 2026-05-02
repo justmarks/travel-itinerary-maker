@@ -17,6 +17,16 @@
  */
 @custom-variant can-hover (@media (hover: hover));
 
+/*
+ * Switch Tailwind v4's `dark:` variant from the default `prefers-color-scheme`
+ * media query to a class-based strategy. Pairs with next-themes (configured
+ * with attribute="class" in providers.tsx), which toggles a `.dark` class on
+ * <html> based on the user's chosen theme. Without this override, `dark:`
+ * utilities on ShadCN primitives would only respond to system preference and
+ * ignore the user's explicit theme choice.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

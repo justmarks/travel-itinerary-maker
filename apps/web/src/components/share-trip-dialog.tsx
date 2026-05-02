@@ -297,8 +297,8 @@ export function ShareTripDialog({
         {inSuccessState ? (
           /* ── Success state: link + copy + close + create another ── */
           <>
-            <div className="rounded-lg border border-green-300 bg-green-50 p-3">
-              <p className="inline-flex items-center gap-1.5 text-sm font-medium text-green-900">
+            <div className="rounded-lg border border-green-300 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/40">
+              <p className="inline-flex items-center gap-1.5 text-sm font-medium text-green-900 dark:text-green-200">
                 <CheckCircle2 className="h-4 w-4" />
                 Share link ready
               </p>
@@ -306,7 +306,7 @@ export function ShareTripDialog({
                   long URL forces the dialog wider than the viewport because
                   flex children default to min-content sizing. */}
               <div className="mt-2 flex min-w-0 items-center gap-2">
-                <code className="min-w-0 flex-1 overflow-hidden truncate rounded bg-white px-2 py-1.5 text-xs text-green-900">
+                <code className="min-w-0 flex-1 overflow-hidden truncate rounded bg-background px-2 py-1.5 text-xs text-green-900 dark:text-green-200">
                   {buildShareUrl(createdToken)}
                 </code>
                 <Button

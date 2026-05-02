@@ -47,10 +47,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
-  new: "border-blue-300 bg-blue-50 text-blue-700",
-  enrichment: "border-violet-300 bg-violet-50 text-violet-700",
-  conflict: "border-orange-300 bg-orange-50 text-orange-700",
-  duplicate: "border-zinc-300 bg-zinc-100 text-zinc-600",
+  new:        "border-blue-300   bg-blue-50   text-blue-700   dark:border-blue-800   dark:bg-blue-950/60   dark:text-blue-200",
+  enrichment: "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
+  conflict:   "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-200",
+  duplicate:  "border-zinc-300   bg-zinc-100  text-muted-foreground   dark:border-zinc-700   dark:bg-zinc-800/60   dark:text-zinc-300",
 };
 
 const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
@@ -485,7 +485,7 @@ export function HtmlImportDialog({
                 <Upload className="mr-2 h-4 w-4" />
                 Upload .html / .eml file
               </Button>
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-muted-foreground">
                 or paste the email source below
               </span>
               {content.trim() && (
@@ -500,7 +500,7 @@ export function HtmlImportDialog({
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Subject (optional)
                 </label>
                 <Input
@@ -510,7 +510,7 @@ export function HtmlImportDialog({
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Received date (optional)
                 </label>
                 <Input
@@ -520,7 +520,7 @@ export function HtmlImportDialog({
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="mb-1 block text-xs font-medium text-zinc-600">
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   From (optional)
                 </label>
                 <Input
@@ -532,7 +532,7 @@ export function HtmlImportDialog({
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <label className="mb-1 block text-xs font-medium text-zinc-600">
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
                 Email source ({format.toUpperCase()})
               </label>
               <Textarea
@@ -545,7 +545,7 @@ export function HtmlImportDialog({
                 }
                 className="min-h-0 flex-1 resize-none font-mono text-xs"
               />
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {content.length.toLocaleString()} characters
               </p>
             </div>
@@ -567,8 +567,8 @@ export function HtmlImportDialog({
 
         {step === "parsing" && (
           <div className="flex flex-col items-center gap-3 py-10">
-            <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
-            <p className="text-sm text-zinc-600">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
               Parsing {format.toUpperCase()} with Claude — this takes a few
               seconds…
             </p>
@@ -590,7 +590,7 @@ export function HtmlImportDialog({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 shrink-0 border-amber-300 bg-white text-xs hover:bg-amber-50"
+                      className="h-7 shrink-0 border-amber-300 bg-card text-xs hover:bg-amber-50 dark:hover:bg-amber-950/40"
                       onClick={() => setShowNewTripForm(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
@@ -620,7 +620,7 @@ export function HtmlImportDialog({
                   value={newTripTitle}
                   onChange={(e) => setNewTripTitle(e.target.value)}
                   placeholder="Trip name (e.g. Hawaii 2026)"
-                  className="h-8 bg-white text-sm"
+                  className="h-8 bg-background text-sm"
                   autoFocus
                 />
                 <div className="flex gap-2">
@@ -630,7 +630,7 @@ export function HtmlImportDialog({
                       type="date"
                       value={newTripStart}
                       onChange={(e) => setNewTripStart(e.target.value)}
-                      className="h-8 bg-white text-sm"
+                      className="h-8 bg-background text-sm"
                     />
                   </div>
                   <div className="flex-1">
@@ -639,7 +639,7 @@ export function HtmlImportDialog({
                       type="date"
                       value={newTripEnd}
                       onChange={(e) => setNewTripEnd(e.target.value)}
-                      className="h-8 bg-white text-sm"
+                      className="h-8 bg-background text-sm"
                     />
                   </div>
                 </div>
@@ -676,7 +676,7 @@ export function HtmlImportDialog({
               </div>
             ) : (
               <>
-                <p className="text-sm text-zinc-600">
+                <p className="text-sm text-muted-foreground">
                   Extracted <strong>{result.parsedSegments.length}</strong>{" "}
                   segment{result.parsedSegments.length === 1 ? "" : "s"}.
                   Select which ones to apply and pick the trip they belong to.
@@ -688,8 +688,8 @@ export function HtmlImportDialog({
                       className={cn(
                         "rounded-md border p-3",
                         sel.selected
-                          ? "border-zinc-300 bg-white"
-                          : "border-zinc-200 bg-zinc-50 opacity-70",
+                          ? "border-border bg-card"
+                          : "border-border/60 bg-muted/40 opacity-70",
                       )}
                     >
                       <div className="flex items-start gap-2">
@@ -721,7 +721,7 @@ export function HtmlImportDialog({
                             )}
                           </div>
                           {(sel.city || sel.cost) && (
-                            <div className="mt-1 text-xs text-zinc-500">
+                            <div className="mt-1 text-xs text-muted-foreground">
                               {sel.city && <span>{sel.city}</span>}
                               {sel.city && sel.cost && <span> · </span>}
                               {sel.cost && (
@@ -732,7 +732,7 @@ export function HtmlImportDialog({
                             </div>
                           )}
                           <div className="mt-2">
-                            <label className="mr-2 text-xs text-zinc-500">
+                            <label className="mr-2 text-xs text-muted-foreground">
                               Apply to trip:
                             </label>
                             <Select
@@ -787,15 +787,15 @@ export function HtmlImportDialog({
 
         {step === "applying" && (
           <div className="flex flex-col items-center gap-3 py-10">
-            <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
-            <p className="text-sm text-zinc-600">Applying segments…</p>
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Applying segments…</p>
           </div>
         )}
 
         {step === "done" && (
           <div className="flex flex-col items-center gap-3 py-8">
             <CheckCircle2 className="h-10 w-10 text-green-600" />
-            <p className="text-sm text-zinc-700">
+            <p className="text-sm text-foreground">
               Applied {appliedCount} segment{appliedCount === 1 ? "" : "s"}.
             </p>
             <Button variant="outline" onClick={() => handleOpenChange(false)}>

@@ -21,7 +21,7 @@ export function MobileFrame({
 }): React.JSX.Element {
   const online = useOnlineStatus();
   return (
-    <div className="min-h-screen bg-zinc-100">
+    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950">
       <div
         className={cn(
           "relative mx-auto flex min-h-screen max-w-[430px] flex-col overflow-hidden bg-background shadow-xl md:my-4 md:min-h-[calc(100vh-2rem)] md:rounded-3xl md:border",
