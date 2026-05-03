@@ -140,7 +140,7 @@ export function NotificationToggleMenu(): React.JSX.Element | null {
   const label = busy
     ? "…"
     : subscribed
-      ? "Notifications on"
+      ? "Disable notifications"
       : permission === "denied"
         ? "Notifications blocked"
         : "Turn on notifications";
