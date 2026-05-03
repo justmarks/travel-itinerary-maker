@@ -2,10 +2,19 @@
 
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useTrip } from "@travel-app/api-client";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useDeleteTrip, useTrip } from "@travel-app/api-client";
 import type { Trip } from "@travel-app/shared";
-import { AlertCircle, CheckSquare, CloudOff, DollarSign, Share2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertCircle,
+  CheckSquare,
+  CloudOff,
+  DollarSign,
+  MoreVertical,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -16,6 +25,12 @@ import { MobileCostsSheet } from "@/components/mobile/mobile-costs-sheet";
 import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function fmtRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -29,7 +44,71 @@ function fmtUsdCompact(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+/**
+ * Owner-only "..." overflow that exposes destructive trip actions
+ * (currently just Delete trip — the rename / dates affordances live
+ * inline elsewhere). Hidden for contributors. Tap → confirm() →
+ * delete → bounce to /m so the user isn't stuck on a 404 detail.
+ */
+function MobileTripOverflowMenu({
+  tripId,
+  tripTitle,
+}: {
+  tripId: string;
+  tripTitle: string;
+}): React.JSX.Element {
+  const router = useRouter();
+  const homeHref = useDemoHref("/m");
+  const deleteTrip = useDeleteTrip();
+
+  const handleDelete = () => {
+    if (
+      typeof window === "undefined" ||
+      !window.confirm(`Delete "${tripTitle}"? This cannot be undone.`)
+    ) {
+      return;
+    }
+    deleteTrip.mutate(tripId, {
+      onSuccess: () => {
+        router.push(homeHref);
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="More trip actions"
+          disabled={deleteTrip.isPending}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80 disabled:opacity-50"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={handleDelete}
+          disabled={deleteTrip.isPending}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete trip
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function HeaderActions({
+  tripId,
+  tripTitle,
   usdTotal,
   todoRemaining,
   todoTotal,
@@ -39,7 +118,10 @@ function HeaderActions({
   showCosts,
   showTodos,
   showShare,
+  showOverflow,
 }: {
+  tripId: string;
+  tripTitle: string;
   usdTotal: number | null;
   todoRemaining: number;
   todoTotal: number;
@@ -52,6 +134,8 @@ function HeaderActions({
   showTodos: boolean;
   /** Owner-only — contributors can't reshare. */
   showShare: boolean;
+  /** Owner-only — exposes the destructive "Delete trip" action. */
+  showOverflow: boolean;
 }): React.JSX.Element {
   // The avatar lives on /m only — the trip-detail header was getting
   // squeezed by Costs + Todos + Share + Avatar all crowding the title.
@@ -93,6 +177,9 @@ function HeaderActions({
         >
           <Share2 className="h-4 w-4" />
         </button>
+      )}
+      {showOverflow && (
+        <MobileTripOverflowMenu tripId={tripId} tripTitle={tripTitle} />
       )}
     </div>
   );
@@ -278,6 +365,8 @@ function TripFrame({
         right={
           permission.isLoading ? null : (
             <HeaderActions
+              tripId={trip.id}
+              tripTitle={trip.title}
               usdTotal={usdTotal}
               todoRemaining={todoSummary.remaining}
               todoTotal={todoSummary.total}
@@ -287,6 +376,7 @@ function TripFrame({
               showCosts={permission.showCosts}
               showTodos={permission.showTodos}
               showShare={permission.isOwner}
+              showOverflow={permission.isOwner}
             />
           )
         }

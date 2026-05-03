@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useTrip,
   useUpdateTrip,
+  useDeleteTrip,
   useApiClient,
   useConfirmAllSegments,
   ApiError,
@@ -60,6 +62,7 @@ import {
   FileCode2,
   Smartphone,
   Share2,
+  Trash2,
   Users,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
@@ -346,6 +349,7 @@ function TripActionsMenu({
   tripTitle,
   trip,
   onImportEmail,
+  canDelete,
 }: {
   tripId: string;
   tripTitle: string;
@@ -355,10 +359,31 @@ function TripActionsMenu({
     days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
   };
   onImportEmail: () => void;
+  /** Whether to surface the destructive "Delete trip" entry. Owner-only. */
+  canDelete: boolean;
 }) {
   const client = useApiClient();
+  const router = useRouter();
+  const deleteTrip = useDeleteTrip();
   const [exporting, setExporting] = useState(false);
   const mobilePreviewHref = useDemoHref(`/m/trip?id=${tripId}&v=carousel`);
+
+  const handleDelete = () => {
+    if (!confirm(`Delete "${tripTitle}"? This cannot be undone.`)) return;
+    deleteTrip.mutate(tripId, {
+      onSuccess: () => {
+        // Bounce to the dashboard so the user isn't stuck on a now-404
+        // detail page. The trips list will refresh from the
+        // invalidation in the mutation hook.
+        router.push("/");
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
+  };
 
   const runExport = async (fn: () => Promise<void>) => {
     setExporting(true);
@@ -469,6 +494,19 @@ function TripActionsMenu({
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {canDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={handleDelete}
+              disabled={deleteTrip.isPending}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete trip
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -878,6 +916,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   tripTitle={trip.title}
                   trip={trip}
                   onImportEmail={() => setHtmlImportOpen(true)}
+                  canDelete={permission.isOwner}
                 />
                 <HtmlImportDialog
                   tripId={trip.id}
