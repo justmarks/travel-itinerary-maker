@@ -75,31 +75,47 @@ export async function recordShareActivity(args: RecordShareActivityArgs): Promis
   // shouldn't block on push delivery. Body matches the share-invite /
   // revoke push format so the recipient sees the same "<title> (date
   // range)" line across every push from this app.
-  if (notificationSender && ownerEmail) {
-    const verb = kind === "view" ? "viewed" : "edited";
-    const url = `/trips/${trip.id}`;
-    notificationSender
-      .sendToEmail(ownerEmail, {
-        title: `${recipientEmail} ${verb} your trip`,
-        body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
-        url,
-        // One tag per share+kind so a second push within the next
-        // notification's lifetime collapses on the first — relevant
-        // for browsers that keep banners visible for a few seconds.
-        tag: `share-activity:${share.id}:${kind}`,
-        data: {
-          kind: "share-activity",
-          activity: kind,
-          shareId: share.id,
-          tripId: trip.id,
-          recipientEmail,
-        },
-      })
-      .catch((err) =>
-        console.warn(
-          "[share-activity] push failed:",
-          err instanceof Error ? err.message : err,
-        ),
-      );
+  if (!notificationSender) {
+    console.log(
+      `[share-activity] ${kind} recorded for trip ${trip.id} but no notificationSender wired — push skipped`,
+    );
+    return;
   }
+  if (!ownerEmail) {
+    // Legacy share-registry entries can lack ownerEmail (registered
+    // before the field was captured). The next time the owner logs in,
+    // `rebuildRegistryForUser` rewrites the entry with their email — so
+    // this self-heals on the owner's next session. In the meantime the
+    // timestamp still records, just no push goes out.
+    console.log(
+      `[share-activity] ${kind} recorded for trip ${trip.id} but share registry has no ownerEmail — push skipped (registry will self-heal on owner's next login)`,
+    );
+    return;
+  }
+
+  const verb = kind === "view" ? "viewed" : "edited";
+  const url = `/trips/${trip.id}`;
+  notificationSender
+    .sendToEmail(ownerEmail, {
+      title: `${recipientEmail} ${verb} your trip`,
+      body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
+      url,
+      // One tag per share+kind so a second push within the next
+      // notification's lifetime collapses on the first — relevant
+      // for browsers that keep banners visible for a few seconds.
+      tag: `share-activity:${share.id}:${kind}`,
+      data: {
+        kind: "share-activity",
+        activity: kind,
+        shareId: share.id,
+        tripId: trip.id,
+        recipientEmail,
+      },
+    })
+    .catch((err) =>
+      console.warn(
+        "[share-activity] push failed:",
+        err instanceof Error ? err.message : err,
+      ),
+    );
 }

@@ -57,13 +57,24 @@ export class NotificationSender {
    * number of devices reached (0 on no-op).
    */
   async sendToEmail(email: string | undefined, payload: NotificationPayload): Promise<number> {
-    if (!email) return 0;
+    if (!email) {
+      console.log(`[push] skip — no recipient email (title: ${payload.title})`);
+      return 0;
+    }
     if (!this.configured) {
       console.log(`[push] skip — VAPID not configured (would notify ${email}: ${payload.title})`);
       return 0;
     }
     const entries = this.store.listForEmail(email);
-    if (entries.length === 0) return 0;
+    if (entries.length === 0) {
+      // Most common silent failure: the owner / recipient never tapped
+      // "Turn on notifications" on any device, or every subscription
+      // they registered has since been pruned (410 Gone). Surface it so
+      // operators don't have to wonder why the timestamp updated but
+      // the push never arrived.
+      console.log(`[push] skip — no subscriptions for ${email} (title: ${payload.title})`);
+      return 0;
+    }
     return this.sendMany(entries.map((e) => e.subscription), payload);
   }
 
@@ -74,7 +85,10 @@ export class NotificationSender {
       return 0;
     }
     const entries = this.store.listForUser(userId);
-    if (entries.length === 0) return 0;
+    if (entries.length === 0) {
+      console.log(`[push] skip — no subscriptions for user ${userId} (title: ${payload.title})`);
+      return 0;
+    }
     return this.sendMany(entries.map((e) => e.subscription), payload);
   }
 
