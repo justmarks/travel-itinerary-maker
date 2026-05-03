@@ -110,7 +110,7 @@ function TodoRow({
           className={cn(
             "flex h-5 w-5 items-center justify-center rounded-md border-2 transition-colors",
             todo.isCompleted
-              ? "border-foreground bg-foreground text-background"
+              ? "border-primary bg-primary text-primary-foreground"
               : "border-muted-foreground/40 bg-background",
           )}
           aria-hidden
@@ -207,7 +207,7 @@ export function MobileTodosSheet({
               type="button"
               onClick={() => setEditTarget("new")}
               aria-label="Add to-do"
-              className="flex h-9 items-center gap-1 rounded-full bg-foreground px-3 text-xs font-semibold text-background active:opacity-90"
+              className="flex h-9 items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground active:opacity-90"
             >
               <Plus className="h-3.5 w-3.5" />
               Add
@@ -233,7 +233,7 @@ export function MobileTodosSheet({
               <button
                 type="button"
                 onClick={() => setEditTarget("new")}
-                className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-full bg-foreground px-4 text-sm font-semibold text-background active:opacity-90"
+                className="mt-2 inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground active:opacity-90"
               >
                 <Plus className="h-4 w-4" />
                 Add the first one

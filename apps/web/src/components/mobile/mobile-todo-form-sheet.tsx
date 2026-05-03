@@ -190,7 +190,7 @@ export function MobileTodoFormSheet({
                 className={cn(
                   "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors",
                   active
-                    ? "border-foreground bg-foreground text-background"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-background text-foreground",
                 )}
               >
@@ -244,7 +244,7 @@ export function MobileTodoFormSheet({
           type="button"
           onClick={handleSave}
           disabled={!canSave || isPending}
-          className="h-11 flex-1 rounded-full bg-foreground text-sm font-semibold text-background disabled:opacity-50"
+          className="h-11 flex-1 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
           {isAdd ? "Add" : "Save"}
         </button>
