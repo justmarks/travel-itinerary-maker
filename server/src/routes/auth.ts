@@ -60,15 +60,25 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
       const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
 
-      // Google returns `scope` as a space-separated string of every scope
-      // the user has granted to this client (cumulative across prior
-      // consents thanks to `include_granted_scopes=true`). Splitting it
-      // here gives the client + server a stable view of what features are
-      // unlocked for this user.
-      const grantedScopes =
+      // The `scope` field returned with the code exchange only reflects
+      // the scopes requested in *this* authorization grant — not the
+      // full set the access token can access. With
+      // `include_granted_scopes=true`, the access token covers earlier
+      // consents too, but the response's `scope` field doesn't list
+      // them. Union with whatever we already had stored for this user
+      // so an incremental grant adds to the recorded set instead of
+      // shrinking it.
+      const newScopes =
         typeof tokens.scope === "string"
           ? tokens.scope.split(/\s+/).filter(Boolean)
           : [];
+      const previousScopes =
+        (tokenStore && userInfo.data.id
+          ? tokenStore.get(userInfo.data.id)?.scopes
+          : undefined) ?? [];
+      const grantedScopes = Array.from(
+        new Set([...previousScopes, ...newScopes]),
+      );
 
       // Store refresh token server-side for shared route access
       if (tokenStore && tokens.refresh_token && userInfo.data.id) {

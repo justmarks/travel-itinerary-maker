@@ -146,12 +146,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
 
     const data = await res.json();
-    setState({
-      user: data.user,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: data.expiresAt,
-      scopes: Array.isArray(data.scopes) ? data.scopes : [],
+    setState((prev) => {
+      const newScopes = Array.isArray(data.scopes) ? data.scopes : [];
+      // Google's `scope` field on the code-exchange response only
+      // reflects the scopes requested in *this* authorization grant —
+      // not the cumulative set the access token can access (which
+      // `include_granted_scopes=true` extends to cover earlier consents
+      // too). Union with the previously stored set when it's the same
+      // user so an incremental grant doesn't blow away the original
+      // sign-in scopes. Different user → start fresh.
+      const sameUser = !!prev.user && prev.user.id === data.user?.id;
+      return {
+        user: data.user,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+        scopes: sameUser
+          ? Array.from(new Set([...prev.scopes, ...newScopes]))
+          : newScopes,
+      };
     });
   }, []);
 

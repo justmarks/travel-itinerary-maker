@@ -118,6 +118,46 @@ describe("POST /auth/google", () => {
     ]);
   });
 
+  it("unions newly-granted scopes with previously stored ones (incremental flow)", async () => {
+    // Pre-seed a user who already granted the initial sign-in scopes.
+    const tokenStore = new TokenStore();
+    tokenStore.set("u-incr", "old-refresh", "u-incr@test.com", [
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/drive.file",
+    ]);
+
+    // Now they incrementally grant gmail.readonly. Google's code-exchange
+    // response reports only the *new* scope — exactly what we need to
+    // union against the stored set instead of overwriting.
+    mockGetToken.mockResolvedValueOnce({
+      tokens: {
+        access_token: "acc-new",
+        refresh_token: "ref-new",
+        expiry_date: 0,
+        scope: "https://www.googleapis.com/auth/gmail.readonly",
+      },
+    });
+    mockUserinfoGet.mockResolvedValueOnce({
+      data: { id: "u-incr", email: "u-incr@test.com", name: "U", picture: null },
+    });
+
+    const res = await request(makeApp(tokenStore)).post("/auth/google").send({
+      code: "incremental-code",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.scopes).toEqual([
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
+    expect(tokenStore.get("u-incr")?.scopes).toEqual(res.body.scopes);
+  });
+
   it("does not crash when no tokenStore is provided", async () => {
     mockGetToken.mockResolvedValueOnce({
       tokens: { access_token: "acc", refresh_token: "ref", expiry_date: 0 },
