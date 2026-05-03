@@ -5,6 +5,7 @@ import {
   isDateInRange,
   dateRangesOverlap,
   findOverlappingTrips,
+  formatTripDateRange,
 } from "../src/utils/dates";
 
 describe("getDayOfWeek", () => {
@@ -191,5 +192,31 @@ describe("findOverlappingTrips", () => {
       "t1",
     );
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("formatTripDateRange", () => {
+  it("formats a same-year range with year on the end only", () => {
+    expect(formatTripDateRange("2026-04-10", "2026-04-16")).toBe(
+      "Apr 10 – Apr 16, 2026",
+    );
+  });
+
+  it("formats a cross-year range with year on both ends", () => {
+    expect(formatTripDateRange("2025-12-28", "2026-01-03")).toBe(
+      "Dec 28, 2025 – Jan 3, 2026",
+    );
+  });
+
+  it("handles single-day trips (start == end)", () => {
+    expect(formatTripDateRange("2026-07-04", "2026-07-04")).toBe(
+      "Jul 4 – Jul 4, 2026",
+    );
+  });
+
+  it("falls back to raw ISO when input is malformed", () => {
+    expect(formatTripDateRange("not-a-date", "2026-04-16")).toBe(
+      "not-a-date – 2026-04-16",
+    );
   });
 });

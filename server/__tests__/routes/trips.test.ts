@@ -945,7 +945,11 @@ describe("Share routes — push notifications", () => {
     expect(email).toBe("alice@example.com");
     expect(payload).toMatchObject({
       title: expect.stringContaining("shared a trip"),
-      body: "Push Test Trip",
+      // Body format is `<title> (<date range>)` — assert the title is
+      // present and the date-range parens follow it; the exact range
+      // string is locale-formatted by `formatTripDateRange` and isn't
+      // worth pinning a specific format on in this test.
+      body: expect.stringMatching(/^Push Test Trip \(.+\)$/),
       url: `/shared/${res.body.shareToken}`,
       data: expect.objectContaining({
         kind: "share-invite",
@@ -978,6 +982,55 @@ describe("Share routes — push notifications", () => {
       });
 
     expect(res.status).toBe(201);
+  });
+
+  it("sends a revoke push to the recipient when a share is deleted", async () => {
+    const createRes = await request(pushApp)
+      .post(`/api/v1/trips/${pushTripId}/share`)
+      .send({
+        permission: "view",
+        sharedWithEmail: "alice@example.com",
+        showCosts: false,
+        showTodos: false,
+      });
+    expect(createRes.status).toBe(201);
+    await new Promise((r) => setImmediate(r));
+    sendToEmail.mockClear();
+
+    const delRes = await request(pushApp).delete(
+      `/api/v1/trips/${pushTripId}/shares/${createRes.body.id}`,
+    );
+    expect(delRes.status).toBe(204);
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendToEmail).toHaveBeenCalledTimes(1);
+    const [email, payload] = sendToEmail.mock.calls[0]!;
+    expect(email).toBe("alice@example.com");
+    expect(payload).toMatchObject({
+      title: expect.stringContaining("revoked your access"),
+      body: expect.stringMatching(/^Push Test Trip \(.+\)$/),
+      url: "/",
+      data: expect.objectContaining({
+        kind: "share-revoke",
+      }),
+    });
+  });
+
+  it("does not send a revoke push for anonymous (no-email) shares", async () => {
+    const createRes = await request(pushApp)
+      .post(`/api/v1/trips/${pushTripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+    expect(createRes.status).toBe(201);
+    await new Promise((r) => setImmediate(r));
+    sendToEmail.mockClear();
+
+    const delRes = await request(pushApp).delete(
+      `/api/v1/trips/${pushTripId}/shares/${createRes.body.id}`,
+    );
+    expect(delRes.status).toBe(204);
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendToEmail).not.toHaveBeenCalled();
   });
 });
 

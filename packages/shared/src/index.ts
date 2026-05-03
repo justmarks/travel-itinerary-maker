@@ -83,6 +83,7 @@ export {
   isDateInRange,
   dateRangesOverlap,
   findOverlappingTrips,
+  formatTripDateRange,
 } from "./utils/dates";
 export type { DateRange } from "./utils/dates";
 export {

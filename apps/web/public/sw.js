@@ -29,7 +29,7 @@
  * caches get evicted on activate.
  */
 
-const SW_VERSION = "v3";
+const SW_VERSION = "v4";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
@@ -358,8 +358,16 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "itinly";
   const options = {
     body: payload.body || "",
+    // Large icon shown inside the notification body — keeps the colour
+    // brand mark since this surface preserves colour on every platform.
     icon: "/icon.svg",
-    badge: "/icon.svg",
+    // Small icon shown in the Android status bar (next to the clock).
+    // Android strips the badge to its alpha channel and tints the
+    // shape with the system accent — `icon.svg` fills the whole canvas
+    // with an opaque background, which Android rendered as a featureless
+    // white square. `notification-badge.svg` keeps only the brand
+    // silhouette opaque so Android can extract a recognisable shape.
+    badge: "/notification-badge.svg",
     tag: payload.tag,
     // Re-fire even when the same tag is already on screen so a second
     // share invite doesn't get silently swallowed by the first.
