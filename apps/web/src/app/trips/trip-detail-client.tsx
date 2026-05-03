@@ -902,8 +902,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
 
   return (
     <RequireAuth>
-    <main className="min-h-screen p-8">
-      <div className="mx-auto max-w-7xl">
+    <main className="flex h-screen flex-col p-8 print:h-auto print:block">
+      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col min-h-0 print:block">
+
+        {/* Fixed header — back nav, title row, needs-review banner,
+            and tab navigation. Lives outside the scroll container so
+            it stays in place while the itinerary scrolls below. */}
+        <div className="shrink-0 print:contents">
 
         {/* Header */}
         <div className="mb-4 flex items-center justify-between">
@@ -1040,6 +1045,14 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           ))}
         </div>
 
+        </div>
+
+        {/* Scrolling tab content — only this region scrolls so the
+            header stays put. Print mode unwraps both shell and this
+            container (see print: overrides above) so a multi-page
+            itinerary still flows naturally onto paper. */}
+        <div className="-mx-1 flex-1 min-h-0 overflow-y-auto px-1 print:overflow-visible">
+
         {/* Tab content */}
         {activeTab === "itinerary" && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
@@ -1094,6 +1107,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
             />
           </div>
         )}
+        </div>
       </div>
     </main>
     </RequireAuth>
