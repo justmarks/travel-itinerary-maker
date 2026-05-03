@@ -87,7 +87,11 @@ export default function MobileLoginPage(): React.JSX.Element {
               }
             }}
             className={cn(
-              "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground text-base font-semibold text-background transition-opacity",
+              // bg-primary / text-primary-foreground match the desktop
+              // login's <Button> default variant (the new cyan/azure
+              // brand action colour). The previous bg-foreground was
+              // navy body-text, not the primary CTA colour.
+              "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-base font-semibold text-primary-foreground transition-opacity",
               "active:opacity-90 disabled:opacity-40",
             )}
           >
