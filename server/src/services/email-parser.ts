@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { simpleParser } from "mailparser";
 import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
 import type { ParsedSegment } from "@travel-app/shared";
+import { debugEmailScan } from "../utils/debug-log";
 
 // TODO: Support points/miles in SegmentCost (e.g. 40,000 hotel points, points + cash combos)
 // TODO: For hotels, extract key fees on top of hotel cost (self-parking vs. valet, resort fee)
@@ -446,17 +447,17 @@ export class EmailParser {
 
         // Log raw cost data for debugging
         if (item.cost) {
-          console.log(
+          debugEmailScan(
             `[EmailParser] Raw cost for "${item.title}":`,
             JSON.stringify(item.cost),
           );
           item.cost = this.normalizeCost(item.cost);
-          console.log(
+          debugEmailScan(
             `[EmailParser] Normalized cost for "${item.title}":`,
             JSON.stringify(item.cost),
           );
         } else {
-          console.log(
+          debugEmailScan(
             `[EmailParser] No cost returned for "${item.title}" (type: ${item.type})`,
           );
         }
@@ -465,7 +466,7 @@ export class EmailParser {
         // (including sea days) before Zod validation runs.
         if (item.type === "cruise") {
           if (Array.isArray(item.portsOfCall) && item.portsOfCall.length > 0) {
-            console.log(
+            debugEmailScan(
               `[EmailParser] Found ${item.portsOfCall.length} ports of call for "${item.title}":`,
             );
             for (const p of item.portsOfCall as Array<Record<string, unknown>>) {
@@ -477,10 +478,10 @@ export class EmailParser {
                   : "(missing port)";
               const arr = typeof p.arrivalTime === "string" ? ` arr ${p.arrivalTime}` : "";
               const dep = typeof p.departureTime === "string" ? ` dep ${p.departureTime}` : "";
-              console.log(`[EmailParser]   ${date} — ${label}${arr}${dep}`);
+              debugEmailScan(`[EmailParser]   ${date} — ${label}${arr}${dep}`);
             }
           } else {
-            console.log(
+            debugEmailScan(
               `[EmailParser] No portsOfCall returned for cruise "${item.title}"`,
             );
           }

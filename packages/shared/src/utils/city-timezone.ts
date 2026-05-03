@@ -383,6 +383,16 @@ const TABLE: Record<string, string> = {
   sacramento:    "America/Los_Angeles",
   ontario:       "America/Los_Angeles",  // Ontario, CA (ONT airport)
   ont:           "America/Los_Angeles",
+  "palm springs":"America/Los_Angeles",
+  psp:           "America/Los_Angeles",
+  "palm desert": "America/Los_Angeles",
+  "rancho mirage":"America/Los_Angeles",
+  "indian wells":"America/Los_Angeles",
+  "la quinta":   "America/Los_Angeles",
+  indio:         "America/Los_Angeles",
+  coachella:     "America/Los_Angeles",
+  "cathedral city":"America/Los_Angeles",
+  "desert hot springs":"America/Los_Angeles",
 
   // ── North America — US Hawaii / Alaska ─────────────────────────────────────
   honolulu:      "Pacific/Honolulu",
@@ -691,7 +701,10 @@ export function getCityTimezone(city: string | undefined): string | undefined {
     return ianaMatch;
   }
 
-  // 5. Unknown — warn so the gap can be found and the table updated
-  console.warn(`[city-timezone] No timezone found for: "${city}" — events will use a floating datetime`);
+  // 5. Unknown — warn server-side only so the gap surfaces in Railway logs
+  // without polluting end-users' browser consoles.
+  if (typeof window === "undefined") {
+    console.warn(`[city-timezone] No timezone found for: "${city}" — events will use a floating datetime`);
+  }
   return undefined;
 }

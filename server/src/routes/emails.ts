@@ -20,6 +20,7 @@ import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { recordParseFailure } from "../services/email-telemetry";
 import { reportError } from "../services/monitoring";
+import { debugEmailScan } from "../utils/debug-log";
 import { config } from "../config/env";
 
 export interface EmailRoutesOptions {
@@ -430,7 +431,7 @@ function deduplicateResults(results: EmailScanResult[]): void {
 
   const totalSegs = allSegments.length;
   const dupGroups = [...groups.values()].filter((g) => g.length > 1).length;
-  console.log(`[dedup] ${totalSegs} segment(s) across ${results.length} result(s) — ${dupGroups} duplicate group(s)`);
+  debugEmailScan(`[dedup] ${totalSegs} segment(s) across ${results.length} result(s) — ${dupGroups} duplicate group(s)`);
 
   for (const [dedupKey, group] of groups) {
     if (group.length <= 1) continue;
@@ -445,10 +446,10 @@ function deduplicateResults(results: EmailScanResult[]): void {
     const winnerKey = `${group[0].resultIdx}:${group[0].segIdx}`;
     replacements.set(winnerKey, merged);
 
-    console.log(`  Dedup [${dedupKey}]: ${group.length} copies of "${merged.title}"`);
-    console.log(`    keeping: from ${group[0].seg.emailId}`);
+    debugEmailScan(`  Dedup [${dedupKey}]: ${group.length} copies of "${merged.title}"`);
+    debugEmailScan(`    keeping: from ${group[0].seg.emailId}`);
     for (let i = 1; i < group.length; i++) {
-      console.log(`    skipping: from ${group[i].seg.emailId} (duplicate)`);
+      debugEmailScan(`    skipping: from ${group[i].seg.emailId} (duplicate)`);
     }
   }
 
@@ -548,7 +549,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return { ...stored, parsedSegments: rematchedSegments };
       });
 
-      console.log(`Returning ${results.length} pending email results`);
+      debugEmailScan(`Returning ${results.length} pending email results`);
       res.json({ results });
     } catch (err) {
       console.error("GET /emails/pending error:", err);
@@ -614,7 +615,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays: newerThanDays ?? 365,
       });
 
-      console.log(
+      debugEmailScan(
         `Gmail returned ${rawEmails.length} emails (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
       );
       if (rawEmails.length >= effectiveMaxResults) {
@@ -638,17 +639,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
         if (forceRescan) {
           if (prior.parseStatus === "mapped") {
-            console.log(`SKIP: "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
+            debugEmailScan(`SKIP: "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
             return false;
           }
-          console.log(`RETRY: "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
+          debugEmailScan(`RETRY: "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
           return true;
         }
 
         // Auto-retry prior failed status — previous attempt errored and the
         // code that caused it may have been fixed since.
         if (prior.parseStatus === "failed") {
-          console.log(`RETRY: "${e.subject}" (previously failed — retrying)`);
+          debugEmailScan(`RETRY: "${e.subject}" (previously failed — retrying)`);
           return true;
         }
 
@@ -660,14 +661,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               : prior.parseStatus === "parsed"
                 ? "already parsed, pending review"
                 : `already processed (${prior.parseStatus})`;
-        console.log(`SKIP: "${e.subject}" (${reason})`);
+        debugEmailScan(`SKIP: "${e.subject}" (${reason})`);
         return false;
       });
 
       // If no new emails to parse, just return pending results
       if (newEmails.length === 0) {
         if (pendingResults.length > 0) {
-          console.log(`No new emails. Returning ${pendingResults.length} pending results.`);
+          debugEmailScan(`No new emails. Returning ${pendingResults.length} pending results.`);
           res.json({ results: pendingResults, pendingCount: pendingResults.length, newCount: 0 });
         } else {
           res.json({ results: [], message: "No new emails to process" });
@@ -686,11 +687,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const noTravelResults: EmailScanResult[] = []; // for UI display only
       const newProcessedEmails: ProcessedEmail[] = [];
 
-      console.log(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
+      debugEmailScan(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
 
       for (const email of newEmails) {
         try {
-          console.log(`Parsing email: "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
+          debugEmailScan(`Parsing email: "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
           const { segments, invalidCount, rawItemCount } = await parser.parseEmail({
             subject: email.subject,
             from: email.from,
@@ -707,7 +708,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             !hasTravel && rawItemCount > 0 && invalidCount > 0;
 
           if (hasTravel) {
-            console.log(`  → ${segments.length} segments extracted`);
+            debugEmailScan(`  → ${segments.length} segments extracted`);
             if (invalidCount > 0) {
               // Some items dropped — track aggregate signal so we can spot
               // partial-failure patterns even when the email did parse.
@@ -737,7 +738,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               invalidCount,
             });
           } else {
-            console.log(`SKIP: "${email.subject}" (no travel content detected)`);
+            debugEmailScan(`SKIP: "${email.subject}" (no travel content detected)`);
             recordParseFailure({
               outcome: "no_travel_content",
               source: "gmail_scan",
@@ -1124,7 +1125,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
-      console.log(
+      debugEmailScan(
         `${isEmlImport ? "EML" : "HTML"} import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
       );
 
@@ -1189,7 +1190,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const createdSegments: Array<{ tripId: string; segmentId: string; title: string }> = [];
       const updatedSegments: Array<{ tripId: string; segmentId: string; title: string; action: "merge" | "replace" }> = [];
 
-      console.log(`Applying ${parsed.data.segments.length} segments from email scan`);
+      debugEmailScan(`Applying ${parsed.data.segments.length} segments from email scan`);
 
       // Group segments by trip
       const byTrip = new Map<string, typeof parsed.data.segments>();
@@ -1205,7 +1206,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           console.warn(`  Trip ${tid} not found, skipping ${segs.length} segments`);
           continue;
         }
-        console.log(`  Trip "${trip.title}" (${tid}): applying ${segs.length} segments`);
+        debugEmailScan(`  Trip "${trip.title}" (${tid}): applying ${segs.length} segments`);
 
         for (const seg of segs) {
           const action = seg.action ?? "create";
@@ -1229,7 +1230,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
                 title: target.segment.title,
                 action,
               });
-              console.log(`    ${action === "merge" ? "~" : "↻"} [${seg.type}] "${target.segment.title}" ← ${seg.emailId}`);
+              debugEmailScan(`    ${action === "merge" ? "~" : "↻"} [${seg.type}] "${target.segment.title}" ← ${seg.emailId}`);
               continue;
             }
           }
@@ -1278,7 +1279,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           });
 
           createdSegments.push({ tripId: tid, segmentId, title: seg.title });
-          console.log(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
+          debugEmailScan(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
         }
 
         // Auto-fill city on days based on segment destinations
@@ -1288,7 +1289,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
             if (segCity) {
               day.city = segCity;
-              console.log(`    City: set ${day.date} → "${segCity}" (from "${seg.title}")`);
+              debugEmailScan(`    City: set ${day.date} → "${segCity}" (from "${seg.title}")`);
               break;
             }
           }
@@ -1300,7 +1301,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             lastCity = day.city;
           } else if (lastCity) {
             day.city = lastCity;
-            console.log(`    City: propagated ${day.date} → "${lastCity}"`);
+            debugEmailScan(`    City: propagated ${day.date} → "${lastCity}"`);
           }
         }
 
@@ -1310,7 +1311,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         // chosen at trip creation time). Sea days become "At Sea".
         const cruiseCityChanges = applyCruisePortsToDayCities(trip);
         for (const change of cruiseCityChanges) {
-          console.log(
+          debugEmailScan(
             `    City: cruise port ${change.date} → "${change.to}" (was "${change.from || "∅"}")`,
           );
         }
@@ -1339,7 +1340,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
-      console.log(
+      debugEmailScan(
         `Apply complete: ${createdSegments.length} created, ${updatedSegments.length} updated`,
       );
       res.status(201).json({ created: createdSegments, updated: updatedSegments });

@@ -240,6 +240,7 @@ Source-of-truth files: `apps/web/src/app/globals.css` (CSS tokens), `apps/web/sr
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `ANTHROPIC_API_KEY` | server | For planned AI email-parsing feature |
 | `SENTRY_DSN` | server | Sentry error-reporting DSN. Unset in dev/CI disables Sentry entirely. |
+| `DEBUG_EMAIL_SCAN` | server | Set to `1` to enable verbose per-step logs from the email-scan pipeline (Gmail fetch, parse, dedup, apply). Off by default to keep Railway logs quiet. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend base URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_SENTRY_DSN` | apps/web | Sentry browser DSN. Must be `NEXT_PUBLIC_` to be embedded in the static bundle. Unset disables Sentry. |
 

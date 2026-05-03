@@ -6,6 +6,7 @@ import type { SegmentType } from "@travel-app/shared";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -114,6 +115,9 @@ export function AddSegmentDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add segment</DialogTitle>
+          <DialogDescription>
+            Add a flight, hotel, activity, or other segment to this day.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <SegmentFormFields

@@ -104,4 +104,32 @@ describe("requireAuth middleware", () => {
     expect((res.json as jest.Mock).mock.calls[0][0]).toHaveProperty("error");
     expect(next).not.toHaveBeenCalled();
   });
+
+  it("does not log when Google rejects token with 401 (expected failure)", async () => {
+    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const googleErr = Object.assign(new Error("Invalid Credentials"), {
+      response: { status: 401 },
+    });
+    mockUserinfoGet.mockRejectedValueOnce(googleErr);
+    const req = makeReq({ authorization: "Bearer expired-token" });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(401);
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("logs when Google fails with non-401 (unexpected failure)", async () => {
+    const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const networkErr = Object.assign(new Error("ETIMEDOUT"), {
+      response: { status: 503 },
+    });
+    mockUserinfoGet.mockRejectedValueOnce(networkErr);
+    const req = makeReq({ authorization: "Bearer some-token" });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(401);
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
 });

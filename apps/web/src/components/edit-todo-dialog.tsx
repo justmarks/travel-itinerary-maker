@@ -8,6 +8,7 @@ import { describeError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -105,6 +106,9 @@ export function EditTodoDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Edit to-do</DialogTitle>
+          <DialogDescription>
+            Update or delete this to-do item.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">

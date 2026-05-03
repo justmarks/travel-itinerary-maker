@@ -45,30 +45,25 @@ export function getPushSupport(): PushSupportStatus {
 }
 
 /**
- * One-shot diagnostic log so a developer can confirm the VAPID key
- * actually got embedded in the production bundle without having to
- * tap "Turn on notifications" first. The log runs once per page load
- * — fine for diagnostics, low enough volume that it doesn't clutter
- * devtools. We deliberately log a key prefix (not the whole value)
- * so it's easy to spot mismatches with the server's boot log without
- * pasting full keys into screenshots / chats.
+ * One-shot misconfiguration check. The "supported" and "unsupported browser"
+ * cases are routine and need no log. The "no VAPID key" case is a deployment
+ * misconfiguration — the bundle was built without `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+ * even though push is meant to be enabled — so we surface it to Sentry rather
+ * than clutter user consoles.
  */
 let pushDiagnosticsLogged = false;
 export function logPushDiagnostics(): void {
   if (pushDiagnosticsLogged) return;
   if (typeof window === "undefined") return;
   pushDiagnosticsLogged = true;
-  const support = getPushSupport();
-  if (support === "supported") {
-    console.info(
-      `[push] enabled — VAPID key embedded (${VAPID_PUBLIC_KEY.slice(0, 12)}…)`,
+  if (getPushSupport() === "unsupported-no-vapid") {
+    void import("./monitoring").then(({ reportError }) =>
+      reportError(
+        new Error(
+          "[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY not embedded — notifications disabled in this build",
+        ),
+      ),
     );
-  } else if (support === "unsupported-no-vapid") {
-    console.info(
-      "[push] NEXT_PUBLIC_VAPID_PUBLIC_KEY not embedded — notifications disabled in this build",
-    );
-  } else {
-    console.info("[push] this browser doesn't support Web Push");
   }
 }
 
