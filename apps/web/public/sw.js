@@ -29,7 +29,7 @@
  * caches get evicted on activate.
  */
 
-const SW_VERSION = "v4";
+const SW_VERSION = "v5";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
