@@ -102,6 +102,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
   }, [state, isLoading]);
 
+  // Bootstrap scope list from the server when we don't have one yet.
+  // Covers two cases:
+  //   1. Users who signed in before scope tracking shipped — their
+  //      localStorage has no `scopes` field, but their Google token
+  //      may already cover Gmail / Calendar from the old all-at-once
+  //      consent screen.
+  //   2. Edge cases where Google's code-exchange response omitted the
+  //      `scope` field on a fresh login.
+  // Fetches /auth/scopes (server uses tokeninfo to introspect the
+  // access token authoritatively), then merges into state. Skipped
+  // when scopes is already populated to avoid an extra request on
+  // every mount.
+  useEffect(() => {
+    if (isLoading) return;
+    if (!state.accessToken) return;
+    if (state.scopes.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/scopes`, {
+          headers: { Authorization: `Bearer ${state.accessToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.scopes)) return;
+        if (data.scopes.length === 0) return;
+        setState((prev) => ({
+          ...prev,
+          scopes: Array.from(new Set([...prev.scopes, ...data.scopes])),
+        }));
+      } catch {
+        // Best-effort; the user can still re-grant scopes manually.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, state.accessToken, state.scopes.length]);
+
   // Auto-refresh token before expiry
   useEffect(() => {
     if (!state.refreshToken || !state.expiresAt) return;
