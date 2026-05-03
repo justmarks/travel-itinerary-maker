@@ -33,6 +33,31 @@ function getClient(): Redis | null {
   return cachedClient;
 }
 
+// Truncate so log entries are grep-able without persisting full
+// capability tokens in Vercel's log retention.
+function tokenTag(token: string): string {
+  return token.slice(0, 8);
+}
+
+export type ShareLookupOutcome = "hit" | "miss" | "error" | "no-config";
+
+function logLookup(
+  token: string,
+  outcome: ShareLookupOutcome,
+  durationMs: number,
+  errorMessage?: string,
+): void {
+  console.log(
+    JSON.stringify({
+      event: "share.snapshot.lookup",
+      tokenTag: tokenTag(token),
+      outcome,
+      durationMs,
+      ...(errorMessage ? { error: errorMessage } : {}),
+    }),
+  );
+}
+
 /**
  * Returns the snapshot for a share token, or null if the token is
  * unknown or Redis isn't configured. Never throws — failure paths
@@ -41,16 +66,19 @@ function getClient(): Redis | null {
 export async function getShareSnapshot(
   token: string,
 ): Promise<ShareSnapshot | null> {
+  const startedAt = Date.now();
   const client = getClient();
-  if (!client) return null;
+  if (!client) {
+    logLookup(token, "no-config", 0);
+    return null;
+  }
   try {
     const value = await client.hget<ShareSnapshot>(REDIS_HASH, token);
+    logLookup(token, value ? "hit" : "miss", Date.now() - startedAt);
     return value ?? null;
   } catch (err) {
-    console.warn(
-      "[share-snapshot] hget failed:",
-      err instanceof Error ? err.message : err,
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    logLookup(token, "error", Date.now() - startedAt, message);
     return null;
   }
 }
