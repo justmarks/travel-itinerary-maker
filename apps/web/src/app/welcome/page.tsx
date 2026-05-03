@@ -52,7 +52,7 @@ function Header(): React.JSX.Element {
             mark scales crisply at any header height. Same component the
             login page uses.
           */}
-          <AppWordmark className="h-12" />
+          <AppWordmark className="h-16" />
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
           <a href="#how" className="hover:text-foreground">
