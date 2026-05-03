@@ -1,5 +1,5 @@
-// Regenerate every PNG asset in branding/ and apps/web/public/ from
-// the canonical SVG sources for the locked palette-A brand system.
+// Regenerate every PNG asset in branding/ from the canonical SVG
+// sources for the locked palette-A brand system.
 //
 // Run from the repo root:  node branding/generate-brand-assets.mjs
 //
@@ -8,8 +8,11 @@
 //   branding/itinly-header-logo.png            (1× — 320×80)
 //   branding/itinly-header-logo@1x.png         (alias for 1×)
 //   branding/itinly-header-logo@2x.png         (640×160)
-//   apps/web/public/itinly-wordmark.png        (256×80, 1×)
-//   apps/web/public/itinly-wordmark@2x.png     (512×160, 2×)
+//
+// The in-app wordmark and brand mark are rendered as inline SVG by
+// `apps/web/src/components/{app-wordmark,app-logo}.tsx`, so no PNG
+// fallbacks are needed for the live site. The PNGs in this folder are
+// for external use (press kits, og:image, app store listings).
 //
 // All SVGs match the components in apps/web/src/ and apps/web/src/app/,
 // so editing the brand glyph means: update the SVG strings here AND
@@ -23,7 +26,6 @@ import { Resvg } from "@resvg/resvg-js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..");
 const BRANDING_DIR = resolve(REPO_ROOT, "branding");
-const PUBLIC_DIR = resolve(REPO_ROOT, "apps/web/public");
 
 // ─── Source SVGs ────────────────────────────────────────────────────
 
@@ -43,20 +45,6 @@ const ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
     <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
   </g>
 </svg>`;
-
-// Wordmark only — "ıtınly" with the 9C flight motif (origin dot →
-// cyan dashed contrail → orange plane silhouette as the second i's
-// tittle). 200×80 viewBox so the trail has air above the letterforms.
-function wordmarkSVG({ textColor = "#1A2B3C" } = {}) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
-  <text x="0" y="58" font-family="Inter, system-ui, sans-serif" font-size="48" font-weight="500" fill="${textColor}" letter-spacing="-1">&#x131;t&#x131;nly</text>
-  <circle cx="8" cy="22" r="3" fill="#D9501C"/>
-  <path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
-  <g transform="translate(34 16) rotate(130) scale(0.55)">
-    <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
-  </g>
-</svg>`;
-}
 
 // Header lockup — square icon on the left, wordmark on the right,
 // horizontally aligned. Used as the website / login-page brand
@@ -134,16 +122,5 @@ const header2x = renderToPNG(headerSvg, { width: 640 });
 writePNG(resolve(BRANDING_DIR, "itinly-header-logo.png"), header1x);
 writePNG(resolve(BRANDING_DIR, "itinly-header-logo@1x.png"), header1x);
 writePNG(resolve(BRANDING_DIR, "itinly-header-logo@2x.png"), header2x);
-
-console.log("\nIn-app wordmark (apps/web/public/itinly-wordmark*.png):");
-const wordmarkSvg = wordmarkSVG();
-writePNG(
-  resolve(PUBLIC_DIR, "itinly-wordmark.png"),
-  renderToPNG(wordmarkSvg, { width: 256 }),
-);
-writePNG(
-  resolve(PUBLIC_DIR, "itinly-wordmark@2x.png"),
-  renderToPNG(wordmarkSvg, { width: 512 }),
-);
 
 console.log("\nDone.");
