@@ -85,11 +85,12 @@ function Header(): React.JSX.Element {
 function Hero(): React.JSX.Element {
   return (
     <section className="relative overflow-hidden border-b border-border/60">
-      {/* Soft brand-orange wash behind the headline. Kept extremely subtle so
-          it doesn't compete with content. */}
+      {/* Soft brand-orange wash behind the headline (palette A, hue ~40
+          to match --brand). Kept extremely subtle so it doesn't compete
+          with content. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.04_40)] via-background to-background"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.06_40)] via-background to-background"
       />
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-8 sm:py-28 lg:grid-cols-12 lg:items-center lg:gap-16">
         <div className="lg:col-span-7">
@@ -139,9 +140,12 @@ function Hero(): React.JSX.Element {
 function HeroPreview(): React.JSX.Element {
   return (
     <div className="relative">
+      {/* Brand wash behind the preview card — orange (--brand, hue ~40)
+          fading into cyan (--action, hue 230). Captures both palette-A
+          accents in one decorative blur. */}
       <div
         aria-hidden
-        className="absolute -inset-x-6 -inset-y-6 -z-10 rounded-3xl bg-gradient-to-br from-[oklch(0.96_0.05_35)] to-[oklch(0.97_0.02_240)] blur-2xl"
+        className="absolute -inset-x-6 -inset-y-6 -z-10 rounded-3xl bg-gradient-to-br from-[oklch(0.96_0.07_40)] to-[oklch(0.96_0.05_230)] blur-2xl"
       />
       <div className="rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="mb-3 flex items-center justify-between">
@@ -276,7 +280,7 @@ function HowItWorks(): React.JSX.Element {
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-wider text-[var(--brand)]">
+          <p className="text-sm font-medium uppercase tracking-wider text-[var(--action)]">
             How it works
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -307,42 +311,55 @@ function HowItWorks(): React.JSX.Element {
 }
 
 function Features(): React.JSX.Element {
-  const features = [
+  // Features alternate brand-orange (--brand) and action-cyan (--action)
+  // accents so palette A's full two-color system shows up on the page.
+  const features: Array<{
+    icon: typeof ScanLine;
+    title: string;
+    body: string;
+    accent: "brand" | "action";
+  }> = [
     {
       icon: ScanLine,
       title: "AI email parsing",
       body:
         "Claude reads PDFs, HTML, and plain-text confirmations from any airline, hotel chain, or booking site — not a brittle list of templates.",
+      accent: "brand",
     },
     {
       icon: FolderLock,
       title: "Your Drive, your data",
       body:
         "Every trip is a JSON file in a single folder in your Google Drive. Cancel itinly anytime; your itineraries stay where you can read them.",
+      accent: "action",
     },
     {
       icon: CalendarDays,
       title: "Calendar sync",
       body:
         "Push every segment to Google Calendar with the right time zone — your phone shows the right times wherever you land.",
+      accent: "brand",
     },
     {
       icon: Share2,
       title: "Share without sign-up",
       body:
         "Send a private link to anyone — co-travelers, parents, the dog-sitter. Recipients see the trip without creating an account.",
+      accent: "action",
     },
     {
       icon: Inbox,
       title: "Manual import too",
       body:
         "Don't use Gmail? Paste an email's HTML or upload an XLSX export. itinly parses it the same way.",
+      accent: "brand",
     },
     {
       icon: Plane,
       title: "Built for real trips",
       body:
         "Multi-leg flights, layovers, train transfers, and reservations across countries — designed for the messy international itineraries that other planners can't handle.",
+      accent: "action",
     },
   ];
   return (
@@ -362,7 +379,13 @@ function Features(): React.JSX.Element {
               key={f.title}
               className="rounded-2xl border border-border bg-card p-6 transition hover:border-foreground/20"
             >
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand)]/10 text-[var(--brand)]">
+              <div
+                className={
+                  f.accent === "action"
+                    ? "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--action)]/10 text-[var(--action)]"
+                    : "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand)]/10 text-[var(--brand)]"
+                }
+              >
                 <f.icon className="h-5 w-5" />
               </div>
               <h3 className="mt-4 text-base font-semibold tracking-tight">
