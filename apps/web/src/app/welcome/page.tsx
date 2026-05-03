@@ -85,11 +85,11 @@ function Header(): React.JSX.Element {
 function Hero(): React.JSX.Element {
   return (
     <section className="relative overflow-hidden border-b border-border/60">
-      {/* Soft terracotta wash behind the headline. Kept extremely subtle so
+      {/* Soft brand-orange wash behind the headline. Kept extremely subtle so
           it doesn't compete with content. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.04_35)] via-background to-background"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.04_40)] via-background to-background"
       />
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-8 sm:py-28 lg:grid-cols-12 lg:items-center lg:gap-16">
         <div className="lg:col-span-7">

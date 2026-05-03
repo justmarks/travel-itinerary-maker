@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 /**
  * Web app manifest. Lets the site be added to a phone's home screen
- * with the brand icon (i-as-pin on zinc square) instead of a generic
- * screenshot.
+ * with the brand icon (treasure-map with destination pin) instead of a
+ * generic screenshot.
  */
 export const dynamic = "force-static";
 
@@ -20,8 +20,11 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#ffffff",
-    theme_color: "#18181b",
+    background_color: "#F8F9FA",
+    // Primary navy from palette A — drives the Android task-switcher card,
+    // desktop PWA titlebar, and iOS Safari URL-bar tint. Keep in sync with
+    // the Viewport export in app/layout.tsx.
+    theme_color: "#1A2B3C",
     icons: [
       {
         src: "/icon.svg",

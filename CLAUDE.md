@@ -131,6 +131,30 @@ User-triggered actions — rename, delete, status cycle, todo check, segment add
 - **Show a toast on failure.** Wire `toast.error("Couldn't <verb>", { description: describeError(err) })` (Sonner) on every mutation call site. `describeError` lives in `apps/web/src/lib/api-error.ts` and pulls a useful message out of `ApiError` / `Error`. For success, only toast when the action wasn't visually obvious — e.g. a successful Calendar sync is worth a toast, but a successful checkbox tick isn't.
 - **Be tappable in rapid succession.** Don't disable buttons just because `isPending` is true; the optimistic update has already shown the result. The only time to disable is when the action is genuinely incompatible with the current state (e.g. Save while still validating). Check that toggling the same checkbox five times in a row works without the UI freezing.
 
+### Brand palette
+
+Locked palette A (2026-05). Every color pairing has been verified to meet WCAG 2.1 AA — ≥4.5:1 for body text, ≥3:1 for non-text icon elements. When adding any new brand-colored UI, pick from this palette; do not introduce ad-hoc hex values.
+
+| Token | Hex | OKLCH (light) | Role |
+|---|---|---|---|
+| Primary | `#1A2B3C` | `oklch(0.255 0.034 255)` | Navy. Body text, dark surfaces, the icon's outer rounded square. |
+| Action | `#008CCF` | `oklch(0.611 0.137 230)` | Cyan. Info / link / secondary-action moments; the icon's flight contrail. Exposed as `--action` and `bg-action` / `text-action`. |
+| Secondary | `#D9501C` | `oklch(0.606 0.179 39.65)` | Orange. Primary CTAs, focus rings, status pills, the destination pin + plane silhouette. Exposed as `--primary` and `--brand`. |
+| Surface · light | `#F8F9FA` | `oklch(0.984 0.002 247)` | Light-mode page background; parchment fill in the icon. |
+| Surface · dark | `#0E1822` | `oklch(0.155 0.022 250)` | Dark-mode page background. One step darker than the icon's primary so the icon doesn't merge with the surface. |
+
+**Light mode** uses `Surface · light` as `--background`, `Primary` as `--foreground`, and `Secondary` as `--primary` / `--brand` / `--ring`. **Dark mode** uses `Surface · dark` as `--background`, `Surface · light` as `--foreground`, and lifted variants of orange (`oklch(0.72 0.165 40)`) and cyan (`oklch(0.7 0.135 230)`) so the accents stay legible against navy.
+
+**Verified contrast** (against the matching surface):
+
+- Primary on Surface light: **13.7:1** (AAA)
+- Action on Surface light: **3.5:1** (AA non-text)
+- Secondary on Surface light: **3.9:1** (AA non-text)
+- Action on Primary: **3.9:1** (AA non-text)
+- Secondary on Primary: **3.5:1** (AA non-text)
+
+Source-of-truth files: `apps/web/src/app/globals.css` (CSS tokens), `apps/web/src/app/icon.svg` (canonical icon SVG), `apps/web/src/components/{app-logo,app-wordmark}.tsx` (inline brand components), `branding/generate-brand-assets.mjs` (regenerates every PNG in `branding/` and the in-app wordmark PNGs from the same color values), `apps/web/scripts/generate-favicon.mjs` (regenerates `favicon.ico`). Re-run both scripts after any palette tweak.
+
 ### Component Library
 
 - **ShadCN UI** (New York style, Zinc colors) with Lucide React icons.

@@ -27,67 +27,91 @@
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Brand palette A (locked 2026-05).
+ *
+ * Hex values, computed contrast (vs the matching surface):
+ *   Primary    #1A2B3C  navy            13.7:1 on Surface light · AAA
+ *   Action     #008CCF  cyan             3.5:1 on Surface light · AA non-text
+ *   Secondary  #D9501C  orange           3.9:1 on Surface light · AA non-text
+ *   Surface L  #F8F9FA  off-white
+ *   Surface D  #0E1822  near-navy
+ *
+ * In oklch (so Tailwind can interpolate / generate variants): see
+ * --primary etc below.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* Primary action — terracotta (#c2502e), the itinly brand color.
-   * Every default Button picks this up: hero CTAs ("+ New Trip",
-   * "Sign in with Google"), links, focus rings, selection states.
-   * Same value as --brand below — kept as separate tokens so we can
-   * decouple them later if we ever want a non-brand-colored primary. */
-  --primary: oklch(0.575 0.155 35);
-  --primary-foreground: oklch(0.985 0 0);
+  /* Surface — F8F9FA (off-white) */
+  --background: oklch(0.984 0.002 247);
+  /* Foreground / primary navy — 1A2B3C */
+  --foreground: oklch(0.255 0.034 255);
+  --card: oklch(0.984 0.002 247);
+  --card-foreground: oklch(0.255 0.034 255);
+  --popover: oklch(0.984 0.002 247);
+  --popover-foreground: oklch(0.255 0.034 255);
+  /* Primary action — secondary orange D9501C, the itinly brand
+   * action color. Every default Button picks this up: hero CTAs
+   * ("+ New Trip", "Sign in with Google"), links, focus rings,
+   * selection states. Same value as --brand below — kept as
+   * separate tokens so we can decouple them later if we ever want
+   * a non-brand-colored primary. */
+  --primary: oklch(0.606 0.179 39.65);
+  --primary-foreground: oklch(0.984 0.002 247);
   --secondary: oklch(0.965 0 0);
-  --secondary-foreground: oklch(0.205 0.064 270.94);
+  --secondary-foreground: oklch(0.255 0.034 255);
   --muted: oklch(0.965 0 0);
   --muted-foreground: oklch(0.556 0.022 270.94);
   --accent: oklch(0.965 0 0);
-  --accent-foreground: oklch(0.205 0.064 270.94);
+  --accent-foreground: oklch(0.255 0.034 255);
   --destructive: oklch(0.577 0.245 27.33);
-  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-foreground: oklch(0.984 0.002 247);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  /* Focus ring matches primary (terracotta) so keyboard focus
-   * carries the brand color. */
-  --ring: oklch(0.575 0.155 35);
-  /* Brand accent — terracotta (#c2502e). Reserved for the brand
-   * mark, status pills, and small emphasis moments — not the
-   * primary action color. */
-  --brand: oklch(0.575 0.155 35);
-  --brand-foreground: oklch(0.985 0 0);
+  /* Focus ring matches primary (orange) so keyboard focus carries
+   * the brand color. */
+  --ring: oklch(0.606 0.179 39.65);
+  /* Brand accent — secondary orange D9501C. Reserved for the brand
+   * mark, status pills, and small emphasis moments — not the primary
+   * action color. */
+  --brand: oklch(0.606 0.179 39.65);
+  --brand-foreground: oklch(0.984 0.002 247);
+  /* Action — cyan 008CCF. For info/link/secondary-action moments
+   * where the orange would compete with the primary action. */
+  --action: oklch(0.611 0.137 230);
+  --action-foreground: oklch(0.984 0.002 247);
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* Lighter terracotta on dark backgrounds keeps contrast against
-   * zinc-950 surfaces; dark text on a light terracotta button. */
-  --primary: oklch(0.7 0.155 35);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  /* Surface dark — 0E1822 */
+  --background: oklch(0.155 0.022 250);
+  /* Foreground — F8F9FA off-white */
+  --foreground: oklch(0.984 0.002 247);
+  --card: oklch(0.155 0.022 250);
+  --card-foreground: oklch(0.984 0.002 247);
+  --popover: oklch(0.155 0.022 250);
+  --popover-foreground: oklch(0.984 0.002 247);
+  /* Lighter orange on dark backgrounds keeps contrast; dark text on
+   * a light orange button. */
+  --primary: oklch(0.72 0.165 40);
+  --primary-foreground: oklch(0.155 0.022 250);
+  --secondary: oklch(0.25 0.018 250);
+  --secondary-foreground: oklch(0.984 0.002 247);
+  --muted: oklch(0.25 0.018 250);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.25 0.018 250);
+  --accent-foreground: oklch(0.984 0.002 247);
   --destructive: oklch(0.577 0.245 27.33);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.7 0.155 35);
-  /* Lighter terracotta on dark backgrounds keeps the brand readable
-   * against the zinc-950 surface. */
-  --brand: oklch(0.7 0.155 35);
-  --brand-foreground: oklch(0.145 0 0);
+  --destructive-foreground: oklch(0.984 0.002 247);
+  --border: oklch(0.25 0.018 250);
+  --input: oklch(0.25 0.018 250);
+  --ring: oklch(0.72 0.165 40);
+  /* Lighter orange on dark backgrounds keeps the brand readable
+   * against the navy surface. */
+  --brand: oklch(0.72 0.165 40);
+  --brand-foreground: oklch(0.155 0.022 250);
+  /* Action — cyan, lifted slightly on dark for legibility. */
+  --action: oklch(0.7 0.135 230);
+  --action-foreground: oklch(0.155 0.022 250);
 }
 
 @theme inline {
@@ -112,6 +136,8 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-action: var(--action);
+  --color-action-foreground: var(--action-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
