@@ -536,7 +536,13 @@ export function EmailScanDialog({
                 </div>
                 {labels && labels.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {labels.map((label) => (
+                    {[...labels]
+                      .sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, {
+                          sensitivity: "base",
+                        }),
+                      )
+                      .map((label) => (
                       <button
                         key={label.id}
                         type="button"
