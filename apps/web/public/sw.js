@@ -360,14 +360,21 @@ self.addEventListener("push", (event) => {
     body: payload.body || "",
     // Large icon shown inside the notification body — keeps the colour
     // brand mark since this surface preserves colour on every platform.
-    icon: "/icon.svg",
+    // Appending `?v=${SW_VERSION}` makes Android treat each SW upgrade's
+    // icon as a brand-new resource: defeats both our SW cache (URL is
+    // the cache key) AND any OS-level bitmap cache Android keeps for
+    // previously-rendered notification icons. Without this, a phone
+    // that received notifications under the old artwork would keep
+    // rendering the old bitmap even after the SW cache evicts.
+    icon: `/icon.svg?v=${SW_VERSION}`,
     // Small icon shown in the Android status bar (next to the clock).
     // Android strips the badge to its alpha channel and tints the
     // shape with the system accent — `icon.svg` fills the whole canvas
     // with an opaque background, which Android rendered as a featureless
     // white square. `notification-badge.svg` keeps only the brand
     // silhouette opaque so Android can extract a recognisable shape.
-    badge: "/notification-badge.svg",
+    // Same versioning rationale as `icon` above.
+    badge: `/notification-badge.svg?v=${SW_VERSION}`,
     tag: payload.tag,
     // Re-fire even when the same tag is already on screen so a second
     // share invite doesn't get silently swallowed by the first.
