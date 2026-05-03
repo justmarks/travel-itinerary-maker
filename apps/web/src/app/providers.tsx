@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 import { initMonitoring } from "@/lib/monitoring";
+import { logPushDiagnostics } from "@/lib/push";
 import { createWebQueryClient } from "@/lib/query-client";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 
@@ -87,6 +88,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
   useEffect(() => {
     initMonitoring();
     polyfillCountryFlagEmojis();
+    logPushDiagnostics();
   }, []);
 
   return (

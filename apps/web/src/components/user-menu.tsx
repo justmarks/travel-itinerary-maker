@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggleMenu } from "@/components/theme-toggle";
+import { NotificationToggleMenu } from "@/components/notification-toggle";
 import { LogIn, LogOut, Smartphone, User } from "lucide-react";
 
 export function UserMenu(): React.JSX.Element | null {
@@ -74,6 +75,7 @@ export function UserMenu(): React.JSX.Element | null {
           <Smartphone className="mr-2 h-4 w-4" />
           Use mobile site
         </DropdownMenuItem>
+        <NotificationToggleMenu />
         <ThemeToggleMenu />
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />

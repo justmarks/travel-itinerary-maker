@@ -11,6 +11,9 @@ import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
 import { ShareSnapshotStore } from "./services/share-snapshot-store";
+import { PushSubscriptionStore } from "./services/push-subscription-store";
+import { NotificationSender } from "./services/notification-sender";
+import { createPushRoutes } from "./routes/push";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
@@ -48,6 +51,12 @@ export interface AppOptions {
    * exercise cross-user share access without touching real Drive.
    */
   resolveOwnerStorage?: ResolveOwnerStorage;
+  /**
+   * Test override: replace the auto-built NotificationSender so tests
+   * can assert that share creation fires the expected push without
+   * needing real VAPID keys or a real push provider.
+   */
+  notificationSender?: NotificationSender;
 }
 
 /**
@@ -65,6 +74,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     disableRedis,
     redisStore: redisStoreOverride,
     resolveOwnerStorage: resolveOwnerStorageOverride,
+    notificationSender: notificationSenderOverride,
   } = options;
 
   // CORS allowlist combines a comma-separated literal list (CORS_ORIGIN)
@@ -115,9 +125,16 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   const tokenStore = new TokenStore(redisStore, encryptionKey);
   const shareRegistry = new ShareRegistry(redisStore);
   const shareSnapshotStore = new ShareSnapshotStore(redisStore);
+  const pushStore = new PushSubscriptionStore(redisStore);
+  const notificationSender =
+    notificationSenderOverride ?? new NotificationSender(pushStore);
 
   // Hydrate caches from Redis. No-op without persistence configured.
-  await Promise.all([tokenStore.hydrate(), shareRegistry.hydrate()]);
+  await Promise.all([
+    tokenStore.hydrate(),
+    shareRegistry.hydrate(),
+    pushStore.hydrate(),
+  ]);
 
   // Build the storage resolver based on mode
   let resolveStorage: StorageResolver | StorageProvider;
@@ -176,6 +193,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       shareRegistry,
       shareSnapshotStore,
       resolveOwnerStorage,
+      notificationSender,
     }));
   } else {
     app.use("/api/v1/trips", createTripRoutes({
@@ -183,6 +201,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       shareRegistry,
       shareSnapshotStore,
       resolveOwnerStorage,
+      notificationSender,
     }));
   }
 
@@ -210,6 +229,15 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     shareRegistry,
     tokenStore,
   }));
+
+  // Push subscription routes — auth-required in drive mode for the
+  // subscribe/unsubscribe endpoints; the public /push/config endpoint
+  // is served from the same router and handles its own no-auth case.
+  if (mode === "drive") {
+    app.use("/api/v1/push", requireAuth, createPushRoutes({ store: pushStore }));
+  } else {
+    app.use("/api/v1/push", createPushRoutes({ store: pushStore }));
+  }
 
   // 404 handler — catch any unmatched routes
   app.use((_req, res) => {

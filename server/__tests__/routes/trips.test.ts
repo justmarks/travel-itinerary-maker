@@ -893,6 +893,94 @@ describe("Share routes", () => {
   });
 });
 
+describe("Share routes — push notifications", () => {
+  let pushApp: express.Express;
+  let pushStorage: InMemoryStorage;
+  let pushTripId: string;
+  let sendToEmail: jest.Mock<Promise<number>, [string | undefined, unknown]>;
+
+  beforeEach(async () => {
+    pushStorage = new InMemoryStorage();
+    sendToEmail = jest.fn<Promise<number>, [string | undefined, unknown]>().mockResolvedValue(1);
+    // Stand in for NotificationSender — we only need the methods the
+    // share route calls. `as never` deliberately bypasses the interface
+    // check because we don't depend on the unused methods.
+    const fakeSender = {
+      isEnabled: () => true,
+      sendToEmail,
+      sendToUser: jest.fn(),
+    };
+    pushApp = await createApp({
+      mode: "memory",
+      storage: pushStorage,
+      disableRedis: true,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notificationSender: fakeSender as any,
+    });
+
+    const res = await request(pushApp).post("/api/v1/trips").send({
+      title: "Push Test Trip",
+      startDate: "2026-04-10",
+      endDate: "2026-04-11",
+    });
+    pushTripId = res.body.id;
+  });
+
+  it("sends a push to the recipient when sharedWithEmail is set", async () => {
+    const res = await request(pushApp)
+      .post(`/api/v1/trips/${pushTripId}/share`)
+      .send({
+        permission: "view",
+        sharedWithEmail: "alice@example.com",
+        showCosts: false,
+        showTodos: false,
+      });
+
+    expect(res.status).toBe(201);
+    // Trigger is fire-and-forget — wait for the microtask queue to drain
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendToEmail).toHaveBeenCalledTimes(1);
+    const [email, payload] = sendToEmail.mock.calls[0]!;
+    expect(email).toBe("alice@example.com");
+    expect(payload).toMatchObject({
+      title: expect.stringContaining("shared a trip"),
+      body: "Push Test Trip",
+      url: `/shared/${res.body.shareToken}`,
+      data: expect.objectContaining({
+        kind: "share-invite",
+        shareToken: res.body.shareToken,
+      }),
+    });
+  });
+
+  it("does not send a push for anonymous (no-email) shares", async () => {
+    const res = await request(pushApp)
+      .post(`/api/v1/trips/${pushTripId}/share`)
+      .send({ permission: "view", showCosts: false, showTodos: false });
+
+    expect(res.status).toBe(201);
+    await new Promise((r) => setImmediate(r));
+
+    expect(sendToEmail).not.toHaveBeenCalled();
+  });
+
+  it("still 201s when the push send rejects (fire-and-forget)", async () => {
+    sendToEmail.mockRejectedValueOnce(new Error("network down"));
+
+    const res = await request(pushApp)
+      .post(`/api/v1/trips/${pushTripId}/share`)
+      .send({
+        permission: "view",
+        sharedWithEmail: "alice@example.com",
+        showCosts: false,
+        showTodos: false,
+      });
+
+    expect(res.status).toBe(201);
+  });
+});
+
 describe("Share routes — snapshot persistence", () => {
   let snapshotApp: express.Express;
   let snapshotStorage: InMemoryStorage;

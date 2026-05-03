@@ -1712,6 +1712,30 @@ export class MockApiClient extends ApiClient {
     return Promise.reject(new Error("Shared trip not found"));
   }
 
+  // ─── Push Notifications ─────────────────────────────────
+  //
+  // Demo mode never actually subscribes — the user-menu toggle short-
+  // circuits with an "unavailable in demo mode" toast. These overrides
+  // exist only so the API client surface stays type-compatible if any
+  // hook reaches them anyway (e.g. an invalidation after sign-in
+  // toggling demo off).
+
+  override getPushConfig() {
+    return Promise.resolve({ publicKey: null, enabled: false });
+  }
+
+  override getPushStatus() {
+    return Promise.resolve({ subscribed: false, deviceCount: 0 });
+  }
+
+  override subscribePush() {
+    return Promise.resolve({ ok: true as const });
+  }
+
+  override unsubscribePush() {
+    return Promise.resolve();
+  }
+
   // ─── Email Scanning ──────────────────────────────────────
 
   override getPendingEmails(): Promise<{ results: EmailScanResult[] }> {

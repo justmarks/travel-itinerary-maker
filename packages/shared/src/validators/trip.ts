@@ -256,6 +256,21 @@ export const userSettingsSchema = z.object({
   notificationsEnabled: z.boolean(),
 });
 
+/**
+ * Schema for a Web Push subscription payload coming from the browser.
+ * Mirrors the shape of `PushSubscription.toJSON()` — what
+ * `subscription.toJSON()` returns is exactly `{ endpoint, keys }`.
+ */
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+});
+
+export type PushSubscriptionInput = z.infer<typeof pushSubscriptionSchema>;
+
 export const SEGMENT_MATCH_STATUSES = [
   "new",
   "duplicate",
