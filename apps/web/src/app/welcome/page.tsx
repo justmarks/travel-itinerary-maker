@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
+import { AppWordmark } from "@/components/app-wordmark";
 
 export const metadata: Metadata = {
   title: "itinly — your travel emails, finally an itinerary",
@@ -46,23 +47,12 @@ function Header(): React.JSX.Element {
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-8">
         <Link href="/welcome" className="flex items-center" aria-label="itinly home">
           {/*
-            Static brand wordmark — Next/Image with unoptimized: true would
-            emit a plain <img> anyway (no transforms), so we use <img> with
-            srcSet for retina and skip the runtime overhead. Source PNG is
-            256×80 (palette-A 9C wordmark — origin dot, dashed contrail,
-            plane silhouette as the second i's tittle). Width attribute
-            matches the source aspect so the browser doesn't squish it
-            into the smaller box that the previous stacked lockup needed.
+            Inline SVG wordmark via the AppWordmark component so the text
+            uses currentColor (navy in light, off-white in dark) and the
+            mark scales crisply at any header height. Same component the
+            login page uses.
           */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/itinly-wordmark.png"
-            srcSet="/itinly-wordmark.png 1x, /itinly-wordmark@2x.png 2x"
-            alt="itinly"
-            width={160}
-            height={50}
-            className="h-12 w-auto"
-          />
+          <AppWordmark className="h-12" />
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
           <a href="#how" className="hover:text-foreground">
