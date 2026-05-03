@@ -4,7 +4,16 @@ import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 export const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
-const MOBILE_BREAKPOINT_PX = 768;
+
+/**
+ * Anything strictly below Tailwind's `md` breakpoint (768px) gets the mobile
+ * shell. Tablets — iPad mini portrait (768), iPad regular (820+), iPad Pro
+ * (1024+) — and desktops all land on the desktop shell, which is tuned via
+ * `md:` / `lg:` Tailwind classes for tablet sizes. Phones in landscape
+ * (≥640px on most modern phones) also land on desktop; that's a deliberate
+ * trade for not maintaining a third tablet shell.
+ */
+const MOBILE_BREAKPOINT_PX = 767;
 
 /** Persist "prefer the desktop site" so future visits to / skip the redirect. */
 export function setDesktopOverride(): void {
