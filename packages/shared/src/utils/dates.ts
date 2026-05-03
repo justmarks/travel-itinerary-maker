@@ -66,3 +66,38 @@ export function findOverlappingTrips<T extends DateRange & { id: string; title: 
       trip.id !== excludeTripId && dateRangesOverlap(trip, range),
   );
 }
+
+/**
+ * Render a trip's date range as a compact, human-readable string —
+ * "Apr 10 – Apr 16" for same-year trips or "Dec 28, 2025 – Jan 3, 2026"
+ * for trips that cross a year boundary. Used by push notification
+ * bodies and other places where the trip needs a one-line label.
+ *
+ * en-US locale is hardcoded because the server (which has no user
+ * locale) is one of the consumers — keeping format stable means the
+ * recipient sees the same string regardless of which side rendered it.
+ * Dates are interpreted as UTC midnights so the YYYY-MM-DD storage
+ * format never drifts a day either side of UTC.
+ */
+export function formatTripDateRange(startDate: string, endDate: string): string {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startDate} – ${endDate}`;
+  }
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  const baseOpts: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  };
+  const startStr = start.toLocaleDateString("en-US", {
+    ...baseOpts,
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+  const endStr = end.toLocaleDateString("en-US", {
+    ...baseOpts,
+    year: "numeric",
+  });
+  return `${startStr} – ${endStr}`;
+}

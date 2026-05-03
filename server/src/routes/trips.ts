@@ -15,6 +15,7 @@ import {
   convertToUsd,
   applyCruisePortsToDayCities,
   primaryLocationFor,
+  formatTripDateRange,
   CURRENT_TRIP_SCHEMA_VERSION,
   type Trip,
   type TripDay,
@@ -1018,7 +1019,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         notificationSender
           .sendToEmail(share.sharedWithEmail, {
             title: `${senderName} shared a trip with you`,
-            body: trip.title,
+            body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
             url,
             tag: `share:${share.shareToken}`,
             data: { kind: "share-invite", shareToken: share.shareToken, tripId: trip.id },
@@ -1074,6 +1075,36 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.status(204).send();
+
+      // Tell the recipient their access is gone — same fire-and-forget
+      // pattern as share creation. Anonymous link shares (no recipient
+      // email) don't push since we have no one to address. The push
+      // arrives just as the recipient's UI starts 404'ing on the trip
+      // they had open, so they understand why rather than seeing a
+      // blank "trip not found" page.
+      if (notificationSender && removedShare?.sharedWithEmail) {
+        const senderName = req.userEmail ?? "The owner";
+        notificationSender
+          .sendToEmail(removedShare.sharedWithEmail, {
+            title: `${senderName} revoked your access`,
+            body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
+            // Land them on the dashboard rather than the now-revoked
+            // trip — clicking the notification shouldn't surface a 404.
+            url: "/",
+            tag: `share-revoke:${removedShare.shareToken}`,
+            data: {
+              kind: "share-revoke",
+              shareToken: removedShare.shareToken,
+              tripId: trip.id,
+            },
+          })
+          .catch((err) =>
+            console.warn(
+              "[trips] share-revoke push failed:",
+              err instanceof Error ? err.message : err,
+            ),
+          );
+      }
     },
   );
 
