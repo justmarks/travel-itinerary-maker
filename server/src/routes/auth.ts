@@ -60,12 +60,23 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
       const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
       const userInfo = await oauth2.userinfo.get();
 
+      // Google returns `scope` as a space-separated string of every scope
+      // the user has granted to this client (cumulative across prior
+      // consents thanks to `include_granted_scopes=true`). Splitting it
+      // here gives the client + server a stable view of what features are
+      // unlocked for this user.
+      const grantedScopes =
+        typeof tokens.scope === "string"
+          ? tokens.scope.split(/\s+/).filter(Boolean)
+          : [];
+
       // Store refresh token server-side for shared route access
       if (tokenStore && tokens.refresh_token && userInfo.data.id) {
         tokenStore.set(
           userInfo.data.id,
           tokens.refresh_token,
           userInfo.data.email || "",
+          grantedScopes,
         );
 
         // Pre-warm the share registry: walk this user's trips and
@@ -99,6 +110,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresAt: tokens.expiry_date,
+        scopes: grantedScopes,
         user: {
           id: userInfo.data.id,
           email: userInfo.data.email,

@@ -37,6 +37,12 @@ export interface TokenEntry {
   refreshToken: string;
   email: string;
   updatedAt: string;
+  /**
+   * OAuth scopes Google reported as granted at the most recent login.
+   * Empty array on legacy entries written before scope tracking landed
+   * — those users will repopulate their scope list on next sign-in.
+   */
+  scopes: string[];
 }
 
 const REDIS_HASH = "tokens";
@@ -78,6 +84,11 @@ export class TokenStore {
         if (!decrypted) {
           skipped += 1;
           continue;
+        }
+        // Pre-scope-tracking entries don't have a `scopes` field. Coerce
+        // to [] so callers can rely on the field always being an array.
+        if (!Array.isArray(decrypted.scopes)) {
+          decrypted.scopes = [];
         }
         this.tokens.set(userId, decrypted);
       }
@@ -127,12 +138,18 @@ export class TokenStore {
   }
 
   /** Store a user's refresh token after login. */
-  set(userId: string, refreshToken: string, email: string): void {
+  set(
+    userId: string,
+    refreshToken: string,
+    email: string,
+    scopes: string[] = [],
+  ): void {
     const entry: TokenEntry = {
       userId,
       refreshToken,
       email,
       updatedAt: new Date().toISOString(),
+      scopes,
     };
     this.tokens.set(userId, entry);
     // Fire-and-forget write-through. We log but don't block the caller

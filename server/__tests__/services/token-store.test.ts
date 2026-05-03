@@ -33,6 +33,18 @@ describe("TokenStore", () => {
     expect(entry).toBeDefined();
     expect(entry!.refreshToken).toBe("refresh-token-abc");
     expect(entry!.email).toBe("user@example.com");
+    expect(entry!.scopes).toEqual([]);
+  });
+
+  it("persists granted scopes when provided", () => {
+    store.set("user-1", "refresh-token-abc", "user@example.com", [
+      "openid",
+      "https://www.googleapis.com/auth/drive.file",
+    ]);
+    expect(store.get("user-1")!.scopes).toEqual([
+      "openid",
+      "https://www.googleapis.com/auth/drive.file",
+    ]);
   });
 
   it("returns undefined for unknown users", () => {
@@ -115,6 +127,7 @@ describe("TokenStore — encryption at rest", () => {
         refreshToken: encryptToken("hidden-token", key),
         email: "u1@example.com",
         updatedAt: "2026-04-30T00:00:00.000Z",
+        scopes: [],
       },
     });
     const store = new TokenStore(redis, key);
@@ -131,16 +144,18 @@ describe("TokenStore — encryption at rest", () => {
         refreshToken: "plaintext-from-before-encryption",
         email: "legacy@example.com",
         updatedAt: "2026-01-01T00:00:00.000Z",
-      },
+      } as TokenEntry,
     });
     const store = new TokenStore(redis, key);
     await store.hydrate();
 
     // Pre-encryption entries stay readable; they get rewritten as
     // encrypted on the user's next login.
-    expect(store.get("legacy-user")!.refreshToken).toBe(
-      "plaintext-from-before-encryption",
-    );
+    const loaded = store.get("legacy-user")!;
+    expect(loaded.refreshToken).toBe("plaintext-from-before-encryption");
+    // Pre-scope-tracking entries get coerced to an empty scope list so
+    // downstream feature gates can rely on `scopes` always being an array.
+    expect(loaded.scopes).toEqual([]);
   });
 
   it("skips entries it can't decrypt (rotated / mismatched key)", async () => {
@@ -152,12 +167,14 @@ describe("TokenStore — encryption at rest", () => {
         refreshToken: encryptToken("token", oldKey),
         email: "old@example.com",
         updatedAt: "2026-04-30T00:00:00.000Z",
+        scopes: [],
       },
       "user-good": {
         userId: "user-good",
         refreshToken: encryptToken("token-good", newKey),
         email: "good@example.com",
         updatedAt: "2026-04-30T00:00:00.000Z",
+        scopes: [],
       },
     });
     const store = new TokenStore(redis, newKey);
@@ -178,6 +195,7 @@ describe("TokenStore — encryption at rest", () => {
         refreshToken: encryptToken("token", key),
         email: "u1@example.com",
         updatedAt: "2026-04-30T00:00:00.000Z",
+        scopes: [],
       },
     });
     // Note: no key passed to TokenStore.

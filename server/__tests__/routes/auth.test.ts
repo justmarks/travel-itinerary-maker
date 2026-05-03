@@ -49,6 +49,8 @@ describe("POST /auth/google", () => {
         access_token: "access-abc",
         refresh_token: "refresh-xyz",
         expiry_date: 9_999_999_999_999,
+        scope:
+          "openid email profile https://www.googleapis.com/auth/drive.file",
       },
     });
     mockUserinfoGet.mockResolvedValueOnce({
@@ -66,12 +68,41 @@ describe("POST /auth/google", () => {
     expect(res.body.refreshToken).toBe("refresh-xyz");
     expect(res.body.user.email).toBe("user@test.com");
     expect(res.body.user.name).toBe("Test User");
+    expect(res.body.scopes).toEqual([
+      "openid",
+      "email",
+      "profile",
+      "https://www.googleapis.com/auth/drive.file",
+    ]);
   });
 
-  it("stores refresh token in TokenStore when provided", async () => {
+  it("returns an empty scope list when Google omits the field", async () => {
+    mockGetToken.mockResolvedValueOnce({
+      tokens: {
+        access_token: "acc",
+        refresh_token: "ref",
+        expiry_date: 0,
+      },
+    });
+    mockUserinfoGet.mockResolvedValueOnce({
+      data: { id: "u-noscope", email: "n@test.com", name: "N", picture: null },
+    });
+
+    const res = await request(makeApp()).post("/auth/google").send({ code: "x" });
+    expect(res.status).toBe(200);
+    expect(res.body.scopes).toEqual([]);
+  });
+
+  it("stores refresh token and granted scopes in TokenStore when provided", async () => {
     const tokenStore = new TokenStore();
     mockGetToken.mockResolvedValueOnce({
-      tokens: { access_token: "acc", refresh_token: "ref-token", expiry_date: 0 },
+      tokens: {
+        access_token: "acc",
+        refresh_token: "ref-token",
+        expiry_date: 0,
+        scope:
+          "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
+      },
     });
     mockUserinfoGet.mockResolvedValueOnce({
       data: { id: "u2", email: "u2@test.com", name: "User 2", picture: null },
@@ -81,6 +112,10 @@ describe("POST /auth/google", () => {
 
     const stored = tokenStore.get("u2");
     expect(stored?.refreshToken).toBe("ref-token");
+    expect(stored?.scopes).toEqual([
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
   });
 
   it("does not crash when no tokenStore is provided", async () => {

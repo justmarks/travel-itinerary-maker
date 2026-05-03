@@ -60,18 +60,22 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult | null> {
 
   const request = new AuthSession.AuthRequest({
     clientId: GOOGLE_CLIENT_ID,
+    // Mirror the web app: only request the minimum scopes Google needs
+    // to identify the user and store trips in their Drive. Gmail and
+    // Calendar are added on demand via incremental authorization once
+    // the user opts into a feature that needs them.
     scopes: [
       "openid",
       "profile",
       "email",
       "https://www.googleapis.com/auth/drive.file",
-      "https://www.googleapis.com/auth/gmail.readonly",
     ],
     redirectUri,
     usePKCE: true,
     extraParams: {
       access_type: "offline",
       prompt: "consent",
+      include_granted_scopes: "true",
     },
   });
 
