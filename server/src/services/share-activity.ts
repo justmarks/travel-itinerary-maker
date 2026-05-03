@@ -15,7 +15,7 @@
  * useful to "someone with the link".
  */
 
-import type { Trip, TripShare } from "@travel-app/shared";
+import { formatTripDateRange, type Trip, type TripShare } from "@travel-app/shared";
 import type { StorageProvider } from "./storage";
 import type { ShareActivityTracker, ShareActivityKind } from "./share-activity-tracker";
 import type { NotificationSender } from "./notification-sender";
@@ -72,14 +72,16 @@ export async function recordShareActivity(args: RecordShareActivityArgs): Promis
   }
 
   // Push the owner. Fire-and-forget — the request that triggered this
-  // shouldn't block on push delivery.
+  // shouldn't block on push delivery. Body matches the share-invite /
+  // revoke push format so the recipient sees the same "<title> (date
+  // range)" line across every push from this app.
   if (notificationSender && ownerEmail) {
     const verb = kind === "view" ? "viewed" : "edited";
     const url = `/trips/${trip.id}`;
     notificationSender
       .sendToEmail(ownerEmail, {
         title: `${recipientEmail} ${verb} your trip`,
-        body: trip.title,
+        body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
         url,
         // One tag per share+kind so a second push within the next
         // notification's lifetime collapses on the first — relevant
