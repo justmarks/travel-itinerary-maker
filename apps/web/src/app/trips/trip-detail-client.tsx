@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -77,6 +77,7 @@ import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useDemoHref } from "@/lib/demo";
+import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
 
@@ -827,6 +828,26 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   const [shareOpen, setShareOpen] = useState(false);
   const updateTripStatus = useUpdateTrip(tripId);
 
+  // Scroll the day matching today into view the first time the itinerary
+  // renders for this trip. Anchored to a flag so flipping tabs or
+  // re-rendering after a mutation doesn't yank the user back.
+  const itineraryDaysRef = useRef<HTMLDivElement | null>(null);
+  const didScrollToToday = useRef(false);
+  useEffect(() => {
+    if (didScrollToToday.current) return;
+    if (!trip || activeTab !== "itinerary") return;
+    const today = getTodayIso();
+    if (!trip.days.some((d) => d.date === today)) return;
+    const container = itineraryDaysRef.current;
+    if (!container) return;
+    const el = container.querySelector<HTMLElement>(
+      `[data-day-date="${today}"]`,
+    );
+    if (!el) return;
+    el.scrollIntoView({ behavior: "auto", block: "start" });
+    didScrollToToday.current = true;
+  }, [trip, activeTab]);
+
   // Permission for the active user — view-only contributors get a
   // read-only render; edit contributors keep most affordances; only the
   // owner sees Share / Calendar sync / Email scan / Delete. The
@@ -1022,7 +1043,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         {/* Tab content */}
         {activeTab === "itinerary" && (
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
-            <div className="flex flex-col gap-8">
+            <div ref={itineraryDaysRef} className="flex flex-col gap-8">
               {trip.days.map((day) => (
                 <ItineraryDay
                   key={day.date}
