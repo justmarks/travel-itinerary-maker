@@ -18,6 +18,7 @@ import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
+import { getTodayIso } from "@/lib/today";
 import { cn } from "@/lib/utils";
 
 function sortSegments(segments: readonly Segment[]): Segment[] {
@@ -62,11 +63,18 @@ export function MobileCarouselView({
   // Index 0 = "All" overview; indices 1..days.length = individual days.
   const totalPages = days.length + 1;
 
-  const [activeIdx, setActiveIdx] = useState(0);
+  // If today falls inside the trip, land on that day's page instead of
+  // the "All" overview. Lazy initializer so it only runs on first mount.
+  const [activeIdx, setActiveIdx] = useState(() => {
+    const today = getTodayIso();
+    const idx = days.findIndex((d) => d.date === today);
+    return idx >= 0 ? idx + 1 : 0;
+  });
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
+  const didInitialScroll = useRef(false);
 
   const isAllView = activeIdx === 0;
   const activeDay = isAllView ? null : days[activeIdx - 1] ?? null;
@@ -96,6 +104,25 @@ export function MobileCarouselView({
       chip.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
   }, [activeIdx]);
+
+  // When today is inside the trip, the lazy initializer above seeds
+  // activeIdx to that day's page — but the snap container starts at
+  // scrollLeft=0 regardless, so jump it to the right page once after
+  // mount. Guarded so a later state change can't retrigger this.
+  useEffect(() => {
+    if (didInitialScroll.current) return;
+    didInitialScroll.current = true;
+    if (activeIdx === 0) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+    isProgrammaticScroll.current = true;
+    el.scrollTo({ left: activeIdx * el.clientWidth });
+    window.setTimeout(() => {
+      isProgrammaticScroll.current = false;
+    }, 50);
+    // activeIdx intentionally read once on mount — see guard above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const goToPage = useCallback((idx: number) => {
     const el = scrollerRef.current;

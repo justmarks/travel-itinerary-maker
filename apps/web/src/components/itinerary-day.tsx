@@ -501,7 +501,7 @@ export function ItineraryDay({
   });
 
   return (
-    <div className="group/day">
+    <div className="group/day" data-day-date={day.date}>
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-baseline gap-3">
           <h3 className="text-base font-semibold">
