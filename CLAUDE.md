@@ -133,25 +133,30 @@ User-triggered actions — rename, delete, status cycle, todo check, segment add
 
 ### Brand palette
 
-Locked palette A (2026-05). Every color pairing has been verified to meet WCAG 2.1 AA — ≥4.5:1 for body text, ≥3:1 for non-text icon elements. When adding any new brand-colored UI, pick from this palette; do not introduce ad-hoc hex values.
+Locked palette A (2026-05). Every color pairing has been verified to meet WCAG 2.1 AA — ≥4.5:1 for body text, ≥3:1 for non-text icon elements. When adding brand-colored UI, pick from this palette; do not introduce ad-hoc hex values.
 
-| Token | Hex | OKLCH (light) | Role |
-|---|---|---|---|
-| Primary | `#1A2B3C` | `oklch(0.255 0.034 255)` | Navy. Body text, dark surfaces, the icon's outer rounded square. |
-| Action | `#008CCF` | `oklch(0.611 0.137 230)` | Cyan. Info / link / secondary-action moments; the icon's flight contrail. Exposed as `--action` and `bg-action` / `text-action`. |
-| Secondary | `#D9501C` | `oklch(0.606 0.179 39.65)` | Orange. Primary CTAs, focus rings, status pills, the destination pin + plane silhouette. Exposed as `--primary` and `--brand`. |
-| Surface · light | `#F8F9FA` | `oklch(0.984 0.002 247)` | Light-mode page background; parchment fill in the icon. |
-| Surface · dark | `#0E1822` | `oklch(0.155 0.022 250)` | Dark-mode page background. One step darker than the icon's primary so the icon doesn't merge with the surface. |
+**Token-to-role mapping** (light mode):
 
-**Light mode** uses `Surface · light` as `--background`, `Primary` as `--foreground`, and `Secondary` as `--primary` / `--brand` / `--ring`. **Dark mode** uses `Surface · dark` as `--background`, `Surface · light` as `--foreground`, and lifted variants of orange (`oklch(0.72 0.165 40)`) and cyan (`oklch(0.7 0.135 230)`) so the accents stay legible against navy.
+| Token | Hex | Role |
+|---|---|---|
+| `--background` | `#F8F9FA` | Page surface (Surface light) |
+| `--foreground` | `#1A2B3C` | Body text & headlines (Primary navy) |
+| `--primary` | `#008CCF` | CTA buttons, links, focus rings (Action azure). Default `<Button>`s pick this up. |
+| `--brand` | `#D9501C` | Accent kickers, headline highlights, feature icons, highlighted segments (Secondary vermilion). Reserved for moments that earn attention. |
+| `--card` | `#FFFFFF` | Card surfaces — one notch lighter than `--background` so cards lift off the page. |
+| `--muted` | `#EEF2F6` | Muted pill / chip backgrounds. Cool blue-grey in the cyan hue family. |
 
-**Verified contrast** (against the matching surface):
+**Why `--primary` is cyan, not orange:** cyan reads "action / link / proceed" — what every CTA needs. Orange (`--brand`) is the louder, scarcer accent reserved for moments that deserve attention but aren't the primary path forward. Both palette colors appear on every page; orange is rarer.
 
-- Primary on Surface light: **13.7:1** (AAA)
-- Action on Surface light: **3.5:1** (AA non-text)
-- Secondary on Surface light: **3.9:1** (AA non-text)
-- Action on Primary: **3.9:1** (AA non-text)
-- Secondary on Primary: **3.5:1** (AA non-text)
+**Dark mode** uses `Surface · dark` `#0E1822` as `--background`, `Surface · light` `#F8F9FA` as `--foreground`, `--card` one notch lighter than the dark surface (so cards still elevate), and lifted variants of cyan (`oklch(0.7 0.135 230)`) and orange (`oklch(0.72 0.165 40)`) for accent legibility against navy.
+
+**Verified contrast** (light mode, vs `--background`):
+
+- `--foreground` on `--background`: **13.7:1** (AAA — body text)
+- `--primary` on `--background`: **3.5:1** (AA non-text — buttons / icons)
+- `--brand` on `--background`: **3.9:1** (AA non-text — accent text / icons)
+- `--primary` on `--foreground`: **3.9:1** (icon over a navy panel)
+- `--brand` on `--foreground`: **3.5:1** (icon over a navy panel)
 
 Source-of-truth files: `apps/web/src/app/globals.css` (CSS tokens), `apps/web/src/app/icon.svg` (canonical icon SVG), `apps/web/src/components/{app-logo,app-wordmark}.tsx` (inline brand components), `branding/generate-brand-assets.mjs` (regenerates every PNG in `branding/` and the in-app wordmark PNGs from the same color values), `apps/web/scripts/generate-favicon.mjs` (regenerates `favicon.ico`). Re-run both scripts after any palette tweak.
 

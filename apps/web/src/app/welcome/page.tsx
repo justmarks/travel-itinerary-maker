@@ -48,18 +48,20 @@ function Header(): React.JSX.Element {
           {/*
             Static brand wordmark — Next/Image with unoptimized: true would
             emit a plain <img> anyway (no transforms), so we use <img> with
-            srcSet for retina and skip the runtime overhead. The asset is a
-            stacked lockup (pin above wordmark) — sized larger than a pure
-            wordmark would need so the text stays legible.
+            srcSet for retina and skip the runtime overhead. Source PNG is
+            256×80 (palette-A 9C wordmark — origin dot, dashed contrail,
+            plane silhouette as the second i's tittle). Width attribute
+            matches the source aspect so the browser doesn't squish it
+            into the smaller box that the previous stacked lockup needed.
           */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/itinly-wordmark.png"
             srcSet="/itinly-wordmark.png 1x, /itinly-wordmark@2x.png 2x"
             alt="itinly"
-            width={70}
-            height={56}
-            className="h-14 w-auto"
+            width={160}
+            height={50}
+            className="h-12 w-auto"
           />
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
@@ -280,7 +282,7 @@ function HowItWorks(): React.JSX.Element {
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-wider text-[var(--action)]">
+          <p className="text-sm font-medium uppercase tracking-wider text-[var(--brand)]">
             How it works
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -311,55 +313,42 @@ function HowItWorks(): React.JSX.Element {
 }
 
 function Features(): React.JSX.Element {
-  // Features alternate brand-orange (--brand) and action-cyan (--action)
-  // accents so palette A's full two-color system shows up on the page.
-  const features: Array<{
-    icon: typeof ScanLine;
-    title: string;
-    body: string;
-    accent: "brand" | "action";
-  }> = [
+  const features = [
     {
       icon: ScanLine,
       title: "AI email parsing",
       body:
         "Claude reads PDFs, HTML, and plain-text confirmations from any airline, hotel chain, or booking site — not a brittle list of templates.",
-      accent: "brand",
     },
     {
       icon: FolderLock,
       title: "Your Drive, your data",
       body:
         "Every trip is a JSON file in a single folder in your Google Drive. Cancel itinly anytime; your itineraries stay where you can read them.",
-      accent: "action",
     },
     {
       icon: CalendarDays,
       title: "Calendar sync",
       body:
         "Push every segment to Google Calendar with the right time zone — your phone shows the right times wherever you land.",
-      accent: "brand",
     },
     {
       icon: Share2,
       title: "Share without sign-up",
       body:
         "Send a private link to anyone — co-travelers, parents, the dog-sitter. Recipients see the trip without creating an account.",
-      accent: "action",
     },
     {
       icon: Inbox,
       title: "Manual import too",
       body:
         "Don't use Gmail? Paste an email's HTML or upload an XLSX export. itinly parses it the same way.",
-      accent: "brand",
     },
     {
       icon: Plane,
       title: "Built for real trips",
       body:
         "Multi-leg flights, layovers, train transfers, and reservations across countries — designed for the messy international itineraries that other planners can't handle.",
-      accent: "action",
     },
   ];
   return (
@@ -379,13 +368,7 @@ function Features(): React.JSX.Element {
               key={f.title}
               className="rounded-2xl border border-border bg-card p-6 transition hover:border-foreground/20"
             >
-              <div
-                className={
-                  f.accent === "action"
-                    ? "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--action)]/10 text-[var(--action)]"
-                    : "inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand)]/10 text-[var(--brand)]"
-                }
-              >
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--brand)]/10 text-[var(--brand)]">
                 <f.icon className="h-5 w-5" />
               </div>
               <h3 className="mt-4 text-base font-semibold tracking-tight">
