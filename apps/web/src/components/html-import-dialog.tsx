@@ -43,8 +43,11 @@ import {
   AlertCircle,
   Plus,
   X,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ParseReportReason } from "@travel-app/shared";
+import { EmailReportDialog } from "@/components/email-report-dialog";
 
 const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
   new:        "border-blue-300   bg-blue-50   text-blue-700   dark:border-blue-800   dark:bg-blue-950/60   dark:text-blue-200",
@@ -152,6 +155,10 @@ export function HtmlImportDialog({
   const [newTripStart, setNewTripStart] = useState("");
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
+
+  // Report dialog (for telling us when the parser got it wrong)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ParseReportReason>("failed");
 
   const importMutation = useImportHtmlEmail();
   const applyMutation = useApplyParsedSegments();
@@ -667,20 +674,57 @@ export function HtmlImportDialog({
             )}
 
             {result.parsedSegments.length === 0 ? (
-              <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>
-                  No travel content detected in this {format.toUpperCase()}.
-                  Try a different email or double-check the source.
-                </span>
+              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    No travel content detected in this {format.toUpperCase()}.
+                    Try a different email or double-check the source.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-amber-900/80">
+                    Think we got it wrong?
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 border-amber-300 bg-card text-xs"
+                    onClick={() => {
+                      setReportReason(
+                        result.parseStatus === "failed"
+                          ? "failed"
+                          : "no_travel_content",
+                      );
+                      setReportOpen(true);
+                    }}
+                  >
+                    <Flag className="mr-1 h-3 w-3" />
+                    Report this email
+                  </Button>
+                </div>
               </div>
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  Extracted <strong>{result.parsedSegments.length}</strong>{" "}
-                  segment{result.parsedSegments.length === 1 ? "" : "s"}.
-                  Select which ones to apply and pick the trip they belong to.
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Extracted <strong>{result.parsedSegments.length}</strong>{" "}
+                    segment{result.parsedSegments.length === 1 ? "" : "s"}.
+                    Select which ones to apply and pick the trip they belong to.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setReportReason("parsed_wrong");
+                      setReportOpen(true);
+                    }}
+                  >
+                    <Flag className="mr-1 h-3 w-3" />
+                    Report
+                  </Button>
+                </div>
                 <ul className="space-y-2">
                   {selections.map((sel, i) => (
                     <li
@@ -814,6 +858,22 @@ export function HtmlImportDialog({
           </div>
         )}
       </DialogContent>
+
+      {result && (
+        <EmailReportDialog
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          emailId={result.emailId}
+          emailSubject={result.subject}
+          defaultReason={reportReason}
+          inlineEmail={{
+            subject: result.subject,
+            from: result.from,
+            receivedAt: result.receivedAt,
+            body: content,
+          }}
+        />
+      )}
     </Dialog>
   );
 }

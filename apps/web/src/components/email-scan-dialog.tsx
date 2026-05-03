@@ -49,9 +49,12 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  Flag,
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ParseReportReason } from "@travel-app/shared";
+import { EmailReportDialog } from "@/components/email-report-dialog";
 
 const CONFIDENCE_STYLES: Record<string, string> = {
   high: "border-green-300 bg-green-50 text-green-700",
@@ -118,6 +121,11 @@ export function EmailScanDialog({
   const [appliedCount, setAppliedCount] = useState(0);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [forceRescan, setForceRescan] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{
+    emailId: string;
+    subject?: string;
+    reason: ParseReportReason;
+  } | null>(null);
 
   // Inline new-trip creation
   const [showNewTripForm, setShowNewTripForm] = useState(false);
@@ -528,7 +536,13 @@ export function EmailScanDialog({
                 </div>
                 {labels && labels.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
-                    {labels.map((label) => (
+                    {[...labels]
+                      .sort((a, b) =>
+                        a.name.localeCompare(b.name, undefined, {
+                          sensitivity: "base",
+                        }),
+                      )
+                      .map((label) => (
                       <button
                         key={label.id}
                         type="button"
@@ -794,7 +808,19 @@ export function EmailScanDialog({
 
                   {/* Skipped emails (no travel content) — collapsible review */}
                   {noTravelResults.length > 0 && (
-                    <SkippedEmailsSection emails={noTravelResults} />
+                    <SkippedEmailsSection
+                      emails={noTravelResults}
+                      onReport={(email) =>
+                        setReportTarget({
+                          emailId: email.emailId,
+                          subject: email.subject,
+                          reason:
+                            email.parseStatus === "failed"
+                              ? "failed"
+                              : "no_travel_content",
+                        })
+                      }
+                    />
                   )}
                 </div>
               </>
@@ -890,6 +916,18 @@ export function EmailScanDialog({
           </>
         )}
       </DialogContent>
+
+      {reportTarget && (
+        <EmailReportDialog
+          open={true}
+          onOpenChange={(o) => {
+            if (!o) setReportTarget(null);
+          }}
+          emailId={reportTarget.emailId}
+          emailSubject={reportTarget.subject}
+          defaultReason={reportTarget.reason}
+        />
+      )}
     </Dialog>
   );
 }
@@ -1081,7 +1119,13 @@ function SegmentCard({
 }
 
 /** Collapsible section showing emails that had no travel content */
-function SkippedEmailsSection({ emails }: { emails: EmailScanResult[] }) {
+function SkippedEmailsSection({
+  emails,
+  onReport,
+}: {
+  emails: EmailScanResult[];
+  onReport: (email: EmailScanResult) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -1103,16 +1147,35 @@ function SkippedEmailsSection({ emails }: { emails: EmailScanResult[] }) {
           {emails.map((email) => (
             <div
               key={email.emailId}
-              className="rounded border border-muted bg-muted/20 px-2.5 py-1.5"
+              className="flex items-start justify-between gap-2 rounded border border-muted bg-muted/20 px-2.5 py-1.5"
             >
-              <p className="truncate text-xs font-medium">{email.subject}</p>
-              <p className="truncate text-[10px] text-muted-foreground">
-                {email.from} &middot; {new Date(email.receivedAt).toLocaleDateString()}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">{email.subject}</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {email.from} &middot;{" "}
+                  {new Date(email.receivedAt).toLocaleDateString()}
+                  {email.parseStatus === "failed" && (
+                    <>
+                      {" "}
+                      &middot;{" "}
+                      <span className="text-amber-700">parser failed</span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 shrink-0 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                onClick={() => onReport(email)}
+              >
+                <Flag className="mr-1 h-3 w-3" />
+                Report
+              </Button>
             </div>
           ))}
           <p className="text-[10px] text-muted-foreground italic">
-            These emails are likely duplicates of bookings already extracted, or not related to travel segments. They won&apos;t be scanned again.
+            These emails are likely duplicates of bookings already extracted, or not related to travel segments. They won&apos;t be scanned again. If one should have been parsed, hit Report and we&apos;ll take a look.
           </p>
         </div>
       )}

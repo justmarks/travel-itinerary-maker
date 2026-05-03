@@ -18,6 +18,8 @@ import type { ProcessedEmail } from "../services/google-drive/drive-storage";
 import { GmailScanner } from "../services/gmail-scanner";
 import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
+import { recordParseFailure } from "../services/email-telemetry";
+import { reportError } from "../services/monitoring";
 import { config } from "../config/env";
 
 export interface EmailRoutesOptions {
@@ -706,12 +708,46 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           if (hasTravel) {
             console.log(`  → ${segments.length} segments extracted`);
+            if (invalidCount > 0) {
+              // Some items dropped — track aggregate signal so we can spot
+              // partial-failure patterns even when the email did parse.
+              recordParseFailure({
+                outcome: "parsed_with_invalid",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                rawItemCount,
+                invalidCount,
+              });
+            }
           } else if (validationFailedEverything) {
             console.warn(
               `  PARSE FAILURE: "${email.subject}" — Claude returned ${rawItemCount} items but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
             );
+            recordParseFailure({
+              outcome: "failed",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
           } else {
             console.log(`SKIP: "${email.subject}" (no travel content detected)`);
+            recordParseFailure({
+              outcome: "no_travel_content",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
           }
 
           // Auto-match segments to trips by date, then classify against itinerary
@@ -806,6 +842,23 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             );
           } else {
             console.error(`Failed to parse email ${email.id}:`, err);
+            // Only report non-transient exceptions — overloaded / billing /
+            // auth are environmental and would otherwise drown the signal.
+            if (!isBillingError && !isAuthError) {
+              recordParseFailure({
+                outcome: "exception",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                errorMessage: errMsg,
+              });
+              reportError(err, {
+                emailId: email.id,
+                source: "gmail_scan",
+              });
+            }
           }
 
           if (isBillingError || isAuthError || isOverloadedError) {
@@ -998,6 +1051,15 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
 
         console.error("POST /emails/import-html parser error:", err);
+        recordParseFailure({
+          outcome: "exception",
+          source: isEmlImport ? "eml_import" : "html_import",
+          subject,
+          from,
+          receivedAt,
+          errorMessage: errMsg,
+        });
+        reportError(err, { source: isEmlImport ? "eml_import" : "html_import" });
         res.status(500).json({ error: errMsg || "HTML parse failed" });
         return;
       }
@@ -1065,6 +1127,42 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       console.log(
         `${isEmlImport ? "EML" : "HTML"} import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
       );
+
+      // Telemetry: emit on every non-success outcome (and on partial failures
+      // where some items were dropped). Source distinguishes EML vs HTML so
+      // we can tell which format struggles more.
+      const telemetrySource = isEmlImport ? "eml_import" : "html_import";
+      if (validationFailedEverything) {
+        recordParseFailure({
+          outcome: "failed",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      } else if (!hasTravel) {
+        recordParseFailure({
+          outcome: "no_travel_content",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      } else if (invalidCount > 0) {
+        recordParseFailure({
+          outcome: "parsed_with_invalid",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      }
 
       res.status(201).json({ result });
     } catch (err) {

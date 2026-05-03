@@ -365,6 +365,18 @@ export const htmlImportRequestSchema = z
     path: ["html"],
   });
 
+/**
+ * Reasons a user can give when reporting that an email wasn't parsed
+ * correctly. Surfaced in the client-side Report dialog, which composes
+ * a `mailto:emailerror@itinly.app` draft for the user to send.
+ */
+export const PARSE_REPORT_REASONS = [
+  "failed",            // Parser threw / returned only invalid items
+  "no_travel_content", // Parser said "nothing to extract" but user disagrees
+  "parsed_wrong",      // Segments were extracted but they're incorrect
+] as const;
+export type ParseReportReason = (typeof PARSE_REPORT_REASONS)[number];
+
 /** Schema for triggering an email scan */
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
