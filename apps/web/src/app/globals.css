@@ -27,67 +27,94 @@
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Brand palette A (locked 2026-05). Roles:
+ *
+ *   Token         Hex      Light-mode role
+ *   --background  #F8F9FA  page surface (Surface light)
+ *   --foreground  #1A2B3C  body text & headlines (Primary navy)
+ *   --primary     #008CCF  CTA buttons, links, focus rings (Action azure)
+ *   --brand       #D9501C  accent kickers, highlights, icons (Secondary vermilion)
+ *   --card        #FFFFFF  card surfaces (one notch lighter than --background)
+ *   --muted       #EEF2F6  muted pill / chip backgrounds
+ *
+ * Computed contrast vs the matching surface:
+ *   Foreground on Background:   13.7:1  AAA
+ *   Primary    on Background:    3.5:1  AA non-text
+ *   Brand      on Background:    3.9:1  AA non-text
+ *   Primary    on Foreground:    3.9:1  (icon over a navy panel)
+ *   Brand      on Foreground:    3.5:1  (orange over a navy panel)
+ *
+ * Why --primary is cyan, not orange: cyan reads "action / link /
+ * proceed" — that's what every Button on the site needs. Orange
+ * (--brand) is the louder, scarcer accent reserved for moments that
+ * deserve attention but aren't the primary path forward.
+ */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Surface — F8F9FA */
+  --background: oklch(0.984 0.002 247);
+  /* Body text — primary navy 1A2B3C */
+  --foreground: oklch(0.255 0.034 255);
+  /* Card surfaces — pure white, one notch above --background so cards
+   * lift off the page even when content is minimal. */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.255 0.034 255);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* Primary action — terracotta (#c2502e), the itinly brand color.
-   * Every default Button picks this up: hero CTAs ("+ New Trip",
-   * "Sign in with Google"), links, focus rings, selection states.
-   * Same value as --brand below — kept as separate tokens so we can
-   * decouple them later if we ever want a non-brand-colored primary. */
-  --primary: oklch(0.575 0.155 35);
-  --primary-foreground: oklch(0.985 0 0);
+  --popover-foreground: oklch(0.255 0.034 255);
+  /* CTA / button color — cyan 008CCF. Every default Button picks
+   * this up: hero CTAs ("Try it free", "+ New trip"), links,
+   * focus rings, selection states. */
+  --primary: oklch(0.611 0.137 230);
+  --primary-foreground: oklch(0.984 0.002 247);
   --secondary: oklch(0.965 0 0);
-  --secondary-foreground: oklch(0.205 0.064 270.94);
-  --muted: oklch(0.965 0 0);
-  --muted-foreground: oklch(0.556 0.022 270.94);
+  --secondary-foreground: oklch(0.255 0.034 255);
+  /* Muted pill / chip background — EEF2F6 (cool light-blue grey,
+   * matches the cyan primary's hue family). */
+  --muted: oklch(0.951 0.008 230);
+  --muted-foreground: oklch(0.45 0.034 255);
   --accent: oklch(0.965 0 0);
-  --accent-foreground: oklch(0.205 0.064 270.94);
+  --accent-foreground: oklch(0.255 0.034 255);
   --destructive: oklch(0.577 0.245 27.33);
-  --destructive-foreground: oklch(0.985 0 0);
+  --destructive-foreground: oklch(0.984 0.002 247);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  /* Focus ring matches primary (terracotta) so keyboard focus
-   * carries the brand color. */
-  --ring: oklch(0.575 0.155 35);
-  /* Brand accent — terracotta (#c2502e). Reserved for the brand
-   * mark, status pills, and small emphasis moments — not the
-   * primary action color. */
-  --brand: oklch(0.575 0.155 35);
-  --brand-foreground: oklch(0.985 0 0);
+  /* Focus ring matches --primary (cyan). */
+  --ring: oklch(0.611 0.137 230);
+  /* Brand accent — secondary orange D9501C. Reserved for the brand
+   * mark, kickers ("How it works"), highlighted segments, feature
+   * icons, and the headline accent ("finally an itinerary."). */
+  --brand: oklch(0.606 0.179 39.65);
+  --brand-foreground: oklch(0.984 0.002 247);
   --radius: 0.625rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  /* Lighter terracotta on dark backgrounds keeps contrast against
-   * zinc-950 surfaces; dark text on a light terracotta button. */
-  --primary: oklch(0.7 0.155 35);
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  /* Surface dark — 0E1822 */
+  --background: oklch(0.155 0.022 250);
+  /* Foreground — F8F9FA off-white */
+  --foreground: oklch(0.984 0.002 247);
+  /* Card surfaces — one notch lighter than --background so cards
+   * still read as elevated against the dark page. */
+  --card: oklch(0.205 0.022 250);
+  --card-foreground: oklch(0.984 0.002 247);
+  --popover: oklch(0.205 0.022 250);
+  --popover-foreground: oklch(0.984 0.002 247);
+  /* Lifted cyan on dark backgrounds for legibility. */
+  --primary: oklch(0.7 0.135 230);
+  --primary-foreground: oklch(0.155 0.022 250);
+  --secondary: oklch(0.25 0.018 250);
+  --secondary-foreground: oklch(0.984 0.002 247);
+  --muted: oklch(0.25 0.018 250);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.25 0.018 250);
+  --accent-foreground: oklch(0.984 0.002 247);
   --destructive: oklch(0.577 0.245 27.33);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.7 0.155 35);
-  /* Lighter terracotta on dark backgrounds keeps the brand readable
-   * against the zinc-950 surface. */
-  --brand: oklch(0.7 0.155 35);
-  --brand-foreground: oklch(0.145 0 0);
+  --destructive-foreground: oklch(0.984 0.002 247);
+  --border: oklch(0.25 0.018 250);
+  --input: oklch(0.25 0.018 250);
+  --ring: oklch(0.7 0.135 230);
+  /* Lifted orange on dark backgrounds. */
+  --brand: oklch(0.72 0.165 40);
+  --brand-foreground: oklch(0.155 0.022 250);
 }
 
 @theme inline {

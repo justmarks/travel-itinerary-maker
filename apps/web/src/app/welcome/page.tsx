@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
+import { AppWordmark } from "@/components/app-wordmark";
 
 export const metadata: Metadata = {
   title: "itinly — your travel emails, finally an itinerary",
@@ -46,21 +47,12 @@ function Header(): React.JSX.Element {
       <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-8">
         <Link href="/welcome" className="flex items-center" aria-label="itinly home">
           {/*
-            Static brand wordmark — Next/Image with unoptimized: true would
-            emit a plain <img> anyway (no transforms), so we use <img> with
-            srcSet for retina and skip the runtime overhead. The asset is a
-            stacked lockup (pin above wordmark) — sized larger than a pure
-            wordmark would need so the text stays legible.
+            Inline SVG wordmark via the AppWordmark component so the text
+            uses currentColor (navy in light, off-white in dark) and the
+            mark scales crisply at any header height. Same component the
+            login page uses.
           */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/itinly-wordmark.png"
-            srcSet="/itinly-wordmark.png 1x, /itinly-wordmark@2x.png 2x"
-            alt="itinly"
-            width={70}
-            height={56}
-            className="h-14 w-auto"
-          />
+          <AppWordmark className="h-16" />
         </Link>
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
           <a href="#how" className="hover:text-foreground">
@@ -85,11 +77,12 @@ function Header(): React.JSX.Element {
 function Hero(): React.JSX.Element {
   return (
     <section className="relative overflow-hidden border-b border-border/60">
-      {/* Soft terracotta wash behind the headline. Kept extremely subtle so
-          it doesn't compete with content. */}
+      {/* Soft brand-orange wash behind the headline (palette A, hue ~40
+          to match --brand). Kept extremely subtle so it doesn't compete
+          with content. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.04_35)] via-background to-background"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-gradient-to-b from-[oklch(0.96_0.06_40)] via-background to-background"
       />
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-8 sm:py-28 lg:grid-cols-12 lg:items-center lg:gap-16">
         <div className="lg:col-span-7">
@@ -139,9 +132,12 @@ function Hero(): React.JSX.Element {
 function HeroPreview(): React.JSX.Element {
   return (
     <div className="relative">
+      {/* Brand wash behind the preview card — orange (--brand, hue ~40)
+          fading into cyan (--action, hue 230). Captures both palette-A
+          accents in one decorative blur. */}
       <div
         aria-hidden
-        className="absolute -inset-x-6 -inset-y-6 -z-10 rounded-3xl bg-gradient-to-br from-[oklch(0.96_0.05_35)] to-[oklch(0.97_0.02_240)] blur-2xl"
+        className="absolute -inset-x-6 -inset-y-6 -z-10 rounded-3xl bg-gradient-to-br from-[oklch(0.96_0.07_40)] to-[oklch(0.96_0.05_230)] blur-2xl"
       />
       <div className="rounded-2xl border border-border bg-card p-5 shadow-2xl shadow-black/5">
         <div className="mb-3 flex items-center justify-between">

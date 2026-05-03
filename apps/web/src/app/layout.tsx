@@ -66,10 +66,10 @@ export const metadata: Metadata = {
 };
 
 // Theme color drives the Android task-switcher card, the desktop PWA
-// titlebar, and the iOS Safari URL bar tint. Keep in sync with
-// manifest.ts.
+// titlebar, and the iOS Safari URL bar tint. Primary navy from palette
+// A — keep in sync with manifest.ts.
 export const viewport: Viewport = {
-  themeColor: "#18181b",
+  themeColor: "#1A2B3C",
 };
 
 export default function RootLayout({

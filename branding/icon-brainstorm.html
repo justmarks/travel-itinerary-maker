@@ -409,6 +409,174 @@
     justify-content: center;
     min-height: 96px;
   }
+
+  /* ─── New-palette airplane concepts (sections 8–10) ─── */
+  :root {
+    --primary: #1A2B3C;
+    --action: #00AEEF;
+    --secondary: #FF8C42;
+    --bg-new: #F8F9FA;
+  }
+  .new-palette-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--primary);
+    color: white;
+    border-radius: 10px;
+    margin-top: 88px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+  .new-palette-banner strong { font-weight: 600; letter-spacing: -0.005em; }
+  .swatch-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+  }
+  .swatch-chip .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .card-system {
+    padding: 0;
+    overflow: hidden;
+    align-items: stretch;
+  }
+  .card-system .label { padding: 22px 24px 0; }
+  .card-system .name { padding: 0 24px; margin-bottom: 22px; }
+  .system-section {
+    width: 100%;
+    padding: 20px 24px;
+    border-top: 1px solid var(--zinc-100);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    background: white;
+  }
+  .system-section.bg-light { background: var(--bg-new); }
+  .system-section.bg-dark { background: var(--primary); }
+  .system-section .section-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: var(--zinc-400);
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+  .system-section.bg-dark .section-label {
+    color: rgba(255,255,255,0.55);
+  }
+  .system-section .sub {
+    font-size: 11px;
+    color: var(--zinc-500);
+    text-align: center;
+    line-height: 1.5;
+  }
+  .system-section.bg-dark .sub { color: rgba(255,255,255,0.6); }
+  .android-bar {
+    background: #0A0A0A;
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255,255,255,0.65);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+  }
+  .android-bar .clock { font-size: 11px; letter-spacing: -0.02em; }
+
+  /* ─── Palette iteration cards (section 14) ─── */
+  .palette-option {
+    background: white;
+    border: 1px solid var(--zinc-200);
+    border-radius: 14px;
+    padding: 28px 32px;
+    margin-bottom: 28px;
+  }
+  .palette-option h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .palette-option .palette-desc {
+    font-size: 13.5px;
+    color: var(--zinc-500);
+    margin: 0 0 22px;
+    max-width: 700px;
+    line-height: 1.55;
+  }
+  .palette-swatches {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .palette-swatches .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 6px 6px;
+    border: 1px solid var(--zinc-100);
+    border-radius: 8px;
+    background: white;
+  }
+  .palette-swatches .chip {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08);
+  }
+  .palette-swatches .meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+  .palette-swatches .meta .name {
+    font-size: 11px;
+    color: var(--zinc-700);
+    font-weight: 500;
+  }
+  .palette-swatches .meta .hex {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    color: var(--zinc-500);
+  }
+  .palette-modes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .mode-card {
+    border-radius: 12px;
+    padding: 24px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 180px;
+  }
+  .mode-label {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    align-self: flex-start;
+  }
+  .mode-card .mode-row {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    flex: 1;
+  }
 </style>
 </head>
 <body>
@@ -1087,6 +1255,2065 @@
           <circle cx="32" cy="16" r="2.6" fill="#18181b"/>
           <rect x="29" y="36" width="6" height="22" rx="2" fill="#fafafa"/>
         </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     NEW PALETTE · AIRPLANE CONCEPTS (Directions 8 / 9 / 10)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="new-palette-banner">
+  <strong>New palette · airplane concepts</strong>
+  <span class="swatch-chip"><span class="dot" style="background:#1A2B3C"></span>#1A2B3C&nbsp;Primary</span>
+  <span class="swatch-chip"><span class="dot" style="background:#00AEEF"></span>#00AEEF&nbsp;Action</span>
+  <span class="swatch-chip"><span class="dot" style="background:#FF8C42"></span>#FF8C42&nbsp;Secondary</span>
+  <span class="swatch-chip"><span class="dot" style="background:#F8F9FA;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.25)"></span>#F8F9FA&nbsp;Background</span>
+</div>
+
+<!-- ─── Direction 8 · Airplane over globe ─── -->
+<section>
+  <h2>8 &middot; Airplane over globe</h2>
+  <p class="desc">A globe with an airplane on a curved orbital trail &mdash; directly inspired by the reference image. Each iteration shows the full system: header wordmark, square app icon (96 / 32 / 16 px), and the white silhouette used for Android notification badges.</p>
+  <div class="grid">
+
+    <!-- 8A · Lat/long grid globe + orbital arc -->
+    <div class="card card-system">
+      <div class="label">8 &middot; A</div>
+      <div class="name">Lat/long globe &middot; orbital arc</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(34 14)">
+            <circle r="9" fill="none" stroke="#1A2B3C" stroke-width="1.4"/>
+            <ellipse rx="9" ry="3" fill="none" stroke="#1A2B3C" stroke-width="0.9" opacity="0.6"/>
+            <line x1="0" y1="-9" x2="0" y2="9" stroke="#1A2B3C" stroke-width="0.9" opacity="0.6"/>
+          </g>
+          <path d="M 11 20 Q 18 -2 28 8" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round" opacity="0.9"/>
+          <g transform="translate(19 0) rotate(70) scale(0.4)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <g transform="translate(28 38)">
+            <circle r="16" fill="none" stroke="#F8F9FA" stroke-width="1.5"/>
+            <ellipse rx="16" ry="5.5" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.7"/>
+            <ellipse rx="6" ry="16" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.55"/>
+            <line x1="0" y1="-16" x2="0" y2="16" stroke="#F8F9FA" stroke-width="1" opacity="0.55"/>
+          </g>
+          <path d="M 12 30 Q 22 6 50 14" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(50 14) rotate(70) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(28 38)"><circle r="17" fill="none" stroke="#F8F9FA" stroke-width="2"/><ellipse rx="17" ry="6" fill="none" stroke="#F8F9FA" stroke-width="1.4" opacity="0.75"/><line x1="0" y1="-17" x2="0" y2="17" stroke="#F8F9FA" stroke-width="1.4" opacity="0.65"/></g><path d="M 10 28 Q 24 4 52 12" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(52 12) rotate(70) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="26" cy="40" r="18" fill="none" stroke="#F8F9FA" stroke-width="3.5"/><ellipse cx="26" cy="40" rx="18" ry="6" fill="none" stroke="#F8F9FA" stroke-width="2.5"/><g transform="translate(50 14) rotate(60) scale(1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(28 38)">
+              <circle r="16" fill="none" stroke="#fff" stroke-width="2.5"/>
+              <ellipse rx="16" ry="5.5" fill="none" stroke="#fff" stroke-width="2"/>
+              <line x1="0" y1="-16" x2="0" y2="16" stroke="#fff" stroke-width="2"/>
+            </g>
+            <g transform="translate(50 14) rotate(70) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Alpha mask &mdash; OS tints to white in status bar</div>
+      </div>
+    </div>
+
+    <!-- 8B · Solid globe with stylized continents -->
+    <div class="card card-system">
+      <div class="label">8 &middot; B</div>
+      <div class="name">Solid globe &middot; plane crossing</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(34 14)">
+            <circle r="9" fill="#1A2B3C"/>
+            <path d="M -5 -3 Q -3 -5 -1 -4 Q 1 -3 -1 -1 Q -4 -1 -5 -2 Z" fill="#00AEEF" opacity="0.85"/>
+            <path d="M 1 1 Q 5 0 6 2 Q 5 4 2 4 Q 0 3 1 1 Z" fill="#00AEEF" opacity="0.85"/>
+          </g>
+          <path d="M 11 20 Q 22 0 30 8" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <g transform="translate(20 2) rotate(80) scale(0.4)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <g transform="translate(28 38)">
+            <circle r="17" fill="#F8F9FA"/>
+            <path d="M -10 -8 Q -7 -11 -3 -10 Q 0 -7 -2 -4 Q -8 -3 -10 -5 Z" fill="#1A2B3C"/>
+            <path d="M 3 -2 Q 8 -3 11 0 Q 10 4 6 5 Q 1 4 2 1 Z" fill="#1A2B3C"/>
+            <path d="M -6 4 Q -2 4 -1 8 Q -3 12 -7 11 Q -9 8 -8 6 Z" fill="#1A2B3C"/>
+          </g>
+          <path d="M 8 24 Q 32 6 56 22" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(56 22) rotate(100) scale(0.6)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="28" cy="38" r="18" fill="#F8F9FA"/><path d="M 18 30 Q 22 26 26 28 Q 28 32 25 34 Q 19 35 17 33 Z" fill="#1A2B3C"/><path d="M 31 36 Q 36 35 39 38 Q 38 42 34 43 Q 30 41 31 38 Z" fill="#1A2B3C"/><g transform="translate(54 18) rotate(100) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="26" cy="40" r="20" fill="#F8F9FA"/><g transform="translate(52 16) rotate(95) scale(1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="28" cy="38" r="17" fill="#fff"/>
+            <g transform="translate(56 22) rotate(100) scale(0.6)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Solid disc reads cleanly even when tinted to a single color</div>
+      </div>
+    </div>
+
+    <!-- 8C · Skeletal globe (meridians only) -->
+    <div class="card card-system">
+      <div class="label">8 &middot; C</div>
+      <div class="name">Skeletal globe &middot; great-circle path</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(34 14)">
+            <ellipse rx="9" ry="3" fill="none" stroke="#1A2B3C" stroke-width="1.1"/>
+            <ellipse rx="3" ry="9" fill="none" stroke="#1A2B3C" stroke-width="1.1"/>
+            <ellipse rx="9" ry="6" fill="none" stroke="#1A2B3C" stroke-width="0.7" opacity="0.6"/>
+          </g>
+          <path d="M 11 20 Q 22 -2 28 8" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <g transform="translate(20 1) rotate(75) scale(0.4)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <g transform="translate(32 36)">
+            <circle r="18" fill="none" stroke="#F8F9FA" stroke-width="1.2" opacity="0.85"/>
+            <ellipse rx="18" ry="6" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.6"/>
+            <ellipse rx="18" ry="11" fill="none" stroke="#F8F9FA" stroke-width="0.9" opacity="0.4"/>
+            <ellipse rx="11" ry="18" fill="none" stroke="#F8F9FA" stroke-width="0.9" opacity="0.4"/>
+            <ellipse rx="6" ry="18" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.6"/>
+          </g>
+          <path d="M 16 50 Q 32 6 56 22" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(56 22) rotate(120) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(32 36)"><circle r="19" fill="none" stroke="#F8F9FA" stroke-width="1.8"/><ellipse rx="19" ry="7" fill="none" stroke="#F8F9FA" stroke-width="1.4" opacity="0.7"/><ellipse rx="7" ry="19" fill="none" stroke="#F8F9FA" stroke-width="1.4" opacity="0.7"/></g><g transform="translate(54 16) rotate(120) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(28 40)"><circle r="20" fill="none" stroke="#F8F9FA" stroke-width="3"/><ellipse rx="20" ry="7" fill="none" stroke="#F8F9FA" stroke-width="2.5"/></g><g transform="translate(54 14) rotate(115) scale(1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(32 36)">
+              <circle r="18" fill="none" stroke="#fff" stroke-width="2"/>
+              <ellipse rx="18" ry="6" fill="none" stroke="#fff" stroke-width="1.6"/>
+              <ellipse rx="6" ry="18" fill="none" stroke="#fff" stroke-width="1.6"/>
+            </g>
+            <g transform="translate(56 22) rotate(120) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Most diagrammatic / technical of the three</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Direction 9 · Airplane between i-dots ─── -->
+<section>
+  <h2>9 &middot; Airplane between the i-dots</h2>
+  <p class="desc">A flying airplane connects the dots above the two i&rsquo;s &mdash; origin &rarr; flight &rarr; destination, baked into the wordmark and echoed in the favicon.</p>
+  <div class="grid">
+
+    <!-- 9A · Plane mid-flight + contrail -->
+    <div class="card card-system">
+      <div class="label">9 &middot; A</div>
+      <div class="name">Plane mid-flight &middot; contrail</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <circle cx="34" cy="22" r="3" fill="#FF8C42"/>
+          <path d="M 11 19 Q 21 4 31 19" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round" opacity="0.85"/>
+          <g transform="translate(21 6) rotate(90) scale(0.45)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <rect x="14" y="30" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <rect x="44" y="30" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <circle cx="17" cy="20" r="3" fill="#FF8C42"/>
+          <circle cx="47" cy="20" r="3" fill="#FF8C42"/>
+          <path d="M 20 16 Q 32 4 44 16" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <g transform="translate(32 8) rotate(90) scale(0.6)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><rect x="13" y="32" width="7" height="20" rx="2" fill="#F8F9FA"/><rect x="44" y="32" width="7" height="20" rx="2" fill="#F8F9FA"/><circle cx="16.5" cy="22" r="3.5" fill="#FF8C42"/><circle cx="47.5" cy="22" r="3.5" fill="#FF8C42"/><g transform="translate(32 10) rotate(90) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(32 32) rotate(90) scale(1.5)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <rect x="14" y="30" width="6" height="22" rx="2" fill="#fff"/>
+            <rect x="44" y="30" width="6" height="22" rx="2" fill="#fff"/>
+            <circle cx="17" cy="20" r="3" fill="#fff"/>
+            <circle cx="47" cy="20" r="3" fill="#fff"/>
+            <g transform="translate(32 8) rotate(90) scale(0.6)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Two i-stems + plane silhouette &mdash; the wordmark&rsquo;s DNA in 64&times;64</div>
+      </div>
+    </div>
+
+    <!-- 9B · Both pins, plane connects -->
+    <div class="card card-system">
+      <div class="label">9 &middot; B</div>
+      <div class="name">Two pins &middot; arched flight</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <path d="M 8 9 C 5 9 3 11 3 14 C 3 17.5 8 23 8 23 C 8 23 13 17.5 13 14 C 13 11 11 9 8 9 Z" fill="#FF8C42"/>
+          <circle cx="8" cy="14" r="1.6" fill="#F8F9FA"/>
+          <path d="M 34 9 C 31 9 29 11 29 14 C 29 17.5 34 23 34 23 C 34 23 39 17.5 39 14 C 39 11 37 9 34 9 Z" fill="#FF8C42"/>
+          <circle cx="34" cy="14" r="1.6" fill="#F8F9FA"/>
+          <path d="M 12 9 Q 21 -2 30 9" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <g transform="translate(21 0) rotate(90) scale(0.4)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <rect x="14" y="32" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <rect x="44" y="32" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <path d="M 17 12 C 13.5 12 11.5 14 11.5 17 C 11.5 20.5 17 26 17 26 C 17 26 22.5 20.5 22.5 17 C 22.5 14 20.5 12 17 12 Z" fill="#FF8C42"/>
+          <circle cx="17" cy="17" r="2" fill="#1A2B3C"/>
+          <path d="M 47 12 C 43.5 12 41.5 14 41.5 17 C 41.5 20.5 47 26 47 26 C 47 26 52.5 20.5 52.5 17 C 52.5 14 50.5 12 47 12 Z" fill="#FF8C42"/>
+          <circle cx="47" cy="17" r="2" fill="#1A2B3C"/>
+          <path d="M 21 13 Q 32 4 43 13" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <g transform="translate(32 5) rotate(90) scale(0.5)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 17 14 C 13 14 11 17 11 20 C 11 24 17 30 17 30 C 17 30 23 24 23 20 C 23 17 21 14 17 14 Z" fill="#FF8C42"/><circle cx="17" cy="20" r="2.5" fill="#1A2B3C"/><path d="M 47 14 C 43 14 41 17 41 20 C 41 24 47 30 47 30 C 47 30 53 24 53 20 C 53 17 51 14 47 14 Z" fill="#FF8C42"/><circle cx="47" cy="20" r="2.5" fill="#1A2B3C"/><rect x="14" y="34" width="6" height="18" rx="2" fill="#F8F9FA"/><rect x="44" y="34" width="6" height="18" rx="2" fill="#F8F9FA"/><g transform="translate(32 8) rotate(90) scale(0.6)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 18 12 C 12 12 8 16 8 22 C 8 30 18 42 18 42 C 18 42 28 30 28 22 C 28 16 24 12 18 12 Z" fill="#FF8C42"/><path d="M 46 12 C 40 12 36 16 36 22 C 36 30 46 42 46 42 C 46 42 56 30 56 22 C 56 16 52 12 46 12 Z" fill="#FF8C42"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 17 12 C 13.5 12 11.5 14 11.5 17 C 11.5 20.5 17 26 17 26 C 17 26 22.5 20.5 22.5 17 C 22.5 14 20.5 12 17 12 Z" fill="#fff"/>
+            <path d="M 47 12 C 43.5 12 41.5 14 41.5 17 C 41.5 20.5 47 26 47 26 C 47 26 52.5 20.5 52.5 17 C 52.5 14 50.5 12 47 12 Z" fill="#fff"/>
+            <rect x="14" y="32" width="6" height="22" rx="2" fill="#fff"/>
+            <rect x="44" y="32" width="6" height="22" rx="2" fill="#fff"/>
+            <g transform="translate(32 5) rotate(90) scale(0.5)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Two destinations meeting via flight &mdash; reads as travel even tinted</div>
+      </div>
+    </div>
+
+    <!-- 9C · Plane is the second dot -->
+    <div class="card card-system">
+      <div class="label">9 &middot; C</div>
+      <div class="name">Origin &rarr; plane (as second dot)</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+          <g transform="translate(34 16) rotate(130) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <rect x="14" y="30" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <rect x="44" y="30" width="6" height="22" rx="2" fill="#F8F9FA"/>
+          <circle cx="17" cy="20" r="3.5" fill="#FF8C42"/>
+          <path d="M 20 18 Q 30 4 44 16" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/>
+          <g transform="translate(47 18) rotate(130) scale(0.7)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><rect x="13" y="32" width="7" height="20" rx="2" fill="#F8F9FA"/><rect x="44" y="32" width="7" height="20" rx="2" fill="#F8F9FA"/><circle cx="16.5" cy="22" r="4" fill="#FF8C42"/><path d="M 20 20 Q 30 6 44 18" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/><g transform="translate(47 18) rotate(130) scale(0.85)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="14" cy="42" r="7" fill="#FF8C42"/><g transform="translate(48 18) rotate(130) scale(1.4)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <rect x="14" y="30" width="6" height="22" rx="2" fill="#fff"/>
+            <rect x="44" y="30" width="6" height="22" rx="2" fill="#fff"/>
+            <circle cx="17" cy="20" r="3.5" fill="#fff"/>
+            <g transform="translate(47 18) rotate(130) scale(0.7)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Direction of travel is unmistakable &mdash; left dot, plane arriving</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Direction 10 · Airplane instead of a letter ─── -->
+<section>
+  <h2>10 &middot; Airplane instead of a letter</h2>
+  <p class="desc">An airplane silhouette stands in for one of the letters &mdash; the wordmark itself contains the travel motif, no decoration above the i&rsquo;s required.</p>
+  <div class="grid">
+
+    <!-- 10A · Vertical paper plane = i -->
+    <div class="card card-system">
+      <div class="label">10 &middot; A</div>
+      <div class="name">Vertical paper plane (replaces the second i)</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(34 36)">
+            <path d="M 0 -28 L 7 14 L 0 8 L -7 14 Z" fill="#FF8C42"/>
+            <path d="M 0 -28 L 0 8" stroke="#00AEEF" stroke-width="1" opacity="0.7"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <g transform="translate(32 36)">
+            <path d="M 0 -22 L 13 18 L 0 11 L -13 18 Z" fill="#FF8C42"/>
+            <path d="M 0 -22 L 0 11" stroke="#00AEEF" stroke-width="1.4" opacity="0.85"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(32 36)"><path d="M 0 -22 L 13 18 L 0 11 L -13 18 Z" fill="#FF8C42"/><path d="M 0 -22 L 0 11" stroke="#00AEEF" stroke-width="1.8"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(32 36)"><path d="M 0 -24 L 16 20 L 0 12 L -16 20 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(32 36)">
+              <path d="M 0 -22 L 13 18 L 0 11 L -13 18 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Most distinctive favicon &mdash; pure paper-plane silhouette</div>
+      </div>
+    </div>
+
+    <!-- 10B · Plane as t-crossbar -->
+    <div class="card card-system">
+      <div class="label">10 &middot; B</div>
+      <div class="name">Plane as the t-crossbar</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;&#x35e;t&#x131;nly</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <circle cx="34" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(20 28) rotate(8)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="rotate(90) scale(0.5)"/>
+          </g>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <rect x="29" y="14" width="6" height="38" rx="2" fill="#F8F9FA"/>
+          <g transform="translate(32 24) rotate(8)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="rotate(90)"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><rect x="28" y="14" width="8" height="38" rx="2" fill="#F8F9FA"/><g transform="translate(32 24) rotate(10)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="rotate(90) scale(1.05)"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><rect x="27" y="12" width="10" height="42" rx="2" fill="#F8F9FA"/><g transform="translate(32 22) rotate(10)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="rotate(90) scale(1.5)"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <rect x="29" y="14" width="6" height="38" rx="2" fill="#fff"/>
+            <g transform="translate(32 24) rotate(8)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff" transform="rotate(90)"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Wing &times; vertical stem &mdash; reads as a t even silhouetted</div>
+      </div>
+    </div>
+
+    <!-- 10C · Plane in place of the y -->
+    <div class="card card-system">
+      <div class="label">10 &middot; C</div>
+      <div class="name">Plane in place of the y &middot; rising contrail</div>
+
+      <div class="system-section bg-light">
+        <div class="section-label">Header wordmark</div>
+        <svg viewBox="0 0 200 80" width="200" height="64" xmlns="http://www.w3.org/2000/svg">
+          <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nl</text>
+          <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+          <circle cx="34" cy="22" r="3" fill="#FF8C42"/>
+          <g transform="translate(90 50) rotate(35)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="scale(1.1)"/>
+          </g>
+          <path d="M 96 36 Q 110 22 124 18" stroke="#00AEEF" stroke-width="1.1" fill="none" stroke-dasharray="2 2" stroke-linecap="round" opacity="0.7"/>
+        </svg>
+      </div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 8 12 Q 26 18 40 38" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(40 38) rotate(35)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="scale(1.1)"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 6 10 Q 26 16 40 38" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/><g transform="translate(40 38) rotate(35)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="scale(1.25)"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(36 36) rotate(35)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42" transform="scale(1.7)"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(40 38) rotate(35)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff" transform="scale(1.1)"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane silhouette only &mdash; cleanest at status-bar size</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Direction 11 · Square logo iterations · plane over a MAP ─── -->
+<section>
+  <h2>11 &middot; Square logo &middot; plane over a map</h2>
+  <p class="desc">Header wordmark is locked in as <strong>9C</strong> (origin dot &rarr; contrail &rarr; plane silhouette as the second i&rsquo;s dot). These are square-logo candidates that pair with it &mdash; plane flying over a map, no letterform. Three map styles to compare.</p>
+
+  <!-- Locked partner: 9C wordmark for context -->
+  <div style="background: var(--bg-new); border: 1px solid var(--zinc-200); border-radius: 12px; padding: 18px 22px; margin-bottom: 28px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap;">
+    <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--zinc-500); letter-spacing: 0.08em; text-transform: uppercase;">Locked partner &middot; 9C wordmark</span>
+    <svg viewBox="0 0 200 80" width="170" height="56" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+      <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+      <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+      <g transform="translate(34 16) rotate(130) scale(0.55)">
+        <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="grid">
+
+    <!-- 11A · Continents (flat earth) -->
+    <div class="card card-system">
+      <div class="label">11 &middot; A</div>
+      <div class="name">World map &middot; continents</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Stylized continent blobs -->
+          <path d="M 6 36 Q 4 28 12 26 Q 22 26 24 32 Q 24 42 16 44 Q 6 44 6 36 Z" fill="#F8F9FA" opacity="0.92"/>
+          <path d="M 16 46 Q 14 44 18 44 Q 22 45 22 49 Q 21 53 18 52 Q 16 50 16 46 Z" fill="#F8F9FA" opacity="0.92"/>
+          <path d="M 28 32 Q 28 26 36 26 Q 44 26 46 30 Q 46 38 38 38 Q 30 38 28 32 Z" fill="#F8F9FA" opacity="0.92"/>
+          <path d="M 32 40 Q 30 38 34 38 Q 40 38 42 42 Q 40 48 36 48 Q 32 46 32 40 Z" fill="#F8F9FA" opacity="0.92"/>
+          <path d="M 50 34 Q 50 30 56 30 Q 60 31 60 36 Q 58 40 53 40 Q 50 38 50 34 Z" fill="#F8F9FA" opacity="0.92"/>
+          <path d="M 52 46 Q 50 44 53 44 Q 56 45 56 47 Q 55 49 52 48 Z" fill="#F8F9FA" opacity="0.92"/>
+          <!-- Destination dot on Asia continent -->
+          <circle cx="42" cy="32" r="2" fill="#FF8C42"/>
+          <!-- Contrail from plane to dot -->
+          <path d="M 12 14 Q 26 10 40 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <!-- Plane upper-left, banked -->
+          <g transform="translate(12 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 6 36 Q 4 28 14 26 Q 22 26 24 32 Q 24 42 16 44 Q 6 44 6 36 Z" fill="#F8F9FA"/><path d="M 28 32 Q 28 26 38 26 Q 46 28 46 32 Q 44 38 36 38 Q 28 36 28 32 Z" fill="#F8F9FA"/><path d="M 50 36 Q 50 32 56 32 Q 60 34 58 38 Q 54 40 50 38 Z" fill="#F8F9FA"/><circle cx="42" cy="32" r="2.5" fill="#FF8C42"/><path d="M 10 14 Q 26 8 40 30" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 42 Q 2 32 16 28 Q 26 28 28 36 Q 28 48 18 50 Q 4 50 4 42 Z" fill="#F8F9FA"/><path d="M 34 38 Q 34 30 46 30 Q 58 32 58 38 Q 56 46 46 46 Q 34 44 34 38 Z" fill="#F8F9FA"/><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 36 Q 4 28 12 26 Q 22 26 24 32 Q 24 42 16 44 Q 6 44 6 36 Z" fill="#fff"/>
+            <path d="M 28 32 Q 28 26 36 26 Q 44 26 46 30 Q 46 38 38 38 Q 30 38 28 32 Z" fill="#fff"/>
+            <path d="M 50 34 Q 50 30 56 30 Q 60 31 60 36 Q 58 40 53 40 Q 50 38 50 34 Z" fill="#fff"/>
+            <g transform="translate(12 14) rotate(125) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Most overtly &ldquo;world&rdquo; &mdash; reads at a glance as travel/global</div>
+      </div>
+    </div>
+
+    <!-- 11B · Folded paper roadmap -->
+    <div class="card card-system">
+      <div class="label">11 &middot; B</div>
+      <div class="name">Folded paper map</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Folded map paper -->
+          <path d="M 6 30 L 22 27 L 40 30 L 58 26 L 58 52 L 40 56 L 22 53 L 6 56 Z" fill="#F8F9FA"/>
+          <!-- Vertical fold creases -->
+          <line x1="22" y1="27" x2="22" y2="53" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <line x1="40" y1="30" x2="40" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <!-- Subtle road lines -->
+          <path d="M 10 48 Q 22 38 32 42 Q 44 46 52 36" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.35"/>
+          <path d="M 16 36 Q 22 42 28 38" stroke="#1A2B3C" stroke-width="0.6" fill="none" opacity="0.3"/>
+          <!-- Destination pin (lollipop style) -->
+          <path d="M 46 40 C 44 40 42.5 41.5 42.5 43.5 C 42.5 46 46 49 46 49 C 46 49 49.5 46 49.5 43.5 C 49.5 41.5 48 40 46 40 Z" fill="#FF8C42"/>
+          <circle cx="46" cy="43.5" r="1.3" fill="#F8F9FA"/>
+          <!-- Plane and contrail -->
+          <path d="M 10 14 Q 26 8 42 32" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(10 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 6 30 L 22 27 L 40 30 L 58 26 L 58 52 L 40 56 L 22 53 L 6 56 Z" fill="#F8F9FA"/><line x1="22" y1="27" x2="22" y2="53" stroke="#1A2B3C" stroke-width="1" opacity="0.35"/><line x1="40" y1="30" x2="40" y2="56" stroke="#1A2B3C" stroke-width="1" opacity="0.35"/><path d="M 46 38 C 43 38 41 40 41 43 C 41 46 46 50 46 50 C 46 50 51 46 51 43 C 51 40 49 38 46 38 Z" fill="#FF8C42"/><path d="M 8 14 Q 26 6 40 30" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(8 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 32 L 22 28 L 42 32 L 60 26 L 60 56 L 42 60 L 22 56 L 4 60 Z" fill="#F8F9FA"/><line x1="22" y1="28" x2="22" y2="56" stroke="#1A2B3C" stroke-width="1.5" opacity="0.4"/><line x1="42" y1="32" x2="42" y2="60" stroke="#1A2B3C" stroke-width="1.5" opacity="0.4"/><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 30 L 22 27 L 40 30 L 58 26 L 58 52 L 40 56 L 22 53 L 6 56 Z" fill="#fff"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Most tactile / human &mdash; reads as a physical roadmap</div>
+      </div>
+    </div>
+
+    <!-- 11C · Topographic contour rings -->
+    <div class="card card-system">
+      <div class="label">11 &middot; C</div>
+      <div class="name">Topo contours &middot; destination</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Topographic contour rings centered on destination -->
+          <g transform="translate(40 42)">
+            <path d="M -16 -2 Q -14 -10 -4 -11 Q 6 -12 12 -8 Q 16 -2 14 6 Q 8 14 -2 12 Q -14 10 -16 -2 Z" fill="none" stroke="#F8F9FA" stroke-width="0.9" opacity="0.4"/>
+            <path d="M -10 0 Q -10 -6 -2 -7 Q 6 -8 9 -3 Q 11 4 5 8 Q -2 9 -8 6 Q -11 3 -10 0 Z" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.6"/>
+            <path d="M -5 -1 Q -5 -5 0 -5 Q 5 -5 6 -1 Q 6 4 1 5 Q -4 4 -5 -1 Z" fill="none" stroke="#F8F9FA" stroke-width="1.2" opacity="0.85"/>
+            <circle r="1.8" fill="#FF8C42"/>
+          </g>
+          <!-- Plane and contrail diving toward destination -->
+          <path d="M 8 14 Q 22 8 38 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(8 14) rotate(135) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(40 42)"><ellipse rx="16" ry="10" fill="none" stroke="#F8F9FA" stroke-width="1.5" opacity="0.55"/><ellipse rx="10" ry="6.5" fill="none" stroke="#F8F9FA" stroke-width="1.5" opacity="0.8"/><circle r="2.5" fill="#FF8C42"/></g><path d="M 8 14 Q 22 8 38 32" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(8 14) rotate(135) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(40 44)"><ellipse rx="20" ry="12" fill="none" stroke="#F8F9FA" stroke-width="2.5"/><circle r="4" fill="#FF8C42"/></g><g transform="translate(12 14) rotate(130) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <g transform="translate(40 42)">
+              <ellipse rx="16" ry="10" fill="none" stroke="#fff" stroke-width="1.6"/>
+              <ellipse rx="10" ry="6" fill="none" stroke="#fff" stroke-width="1.6"/>
+              <circle r="2" fill="#fff"/>
+            </g>
+            <g transform="translate(8 14) rotate(135) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Most artistic / abstract &mdash; terrain + flight, no globe, no letters</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pairing preview: 9C wordmark + each candidate side-by-side -->
+  <h3 style="font-weight: 600; font-size: 16px; margin-top: 56px; margin-bottom: 6px; letter-spacing: -0.01em;">Pairings &middot; 9C wordmark + each square candidate</h3>
+  <p style="font-size: 13px; color: var(--zinc-500); margin: 0 0 20px;">How each square logo reads next to the locked wordmark.</p>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 6 36 Q 4 28 12 26 Q 22 26 24 32 Q 24 42 16 44 Q 6 44 6 36 Z" fill="#F8F9FA"/><path d="M 28 32 Q 28 26 36 26 Q 44 26 46 30 Q 46 38 38 38 Q 30 38 28 32 Z" fill="#F8F9FA"/><path d="M 50 34 Q 50 30 56 30 Q 60 31 60 36 Q 58 40 53 40 Q 50 38 50 34 Z" fill="#F8F9FA"/><circle cx="42" cy="32" r="2" fill="#FF8C42"/><path d="M 12 14 Q 26 10 40 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(12 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 6 30 L 22 27 L 40 30 L 58 26 L 58 52 L 40 56 L 22 53 L 6 56 Z" fill="#F8F9FA"/><line x1="22" y1="27" x2="22" y2="53" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="30" x2="40" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><path d="M 46 40 C 44 40 42.5 41.5 42.5 43.5 C 42.5 46 46 49 46 49 C 46 49 49.5 46 49.5 43.5 C 49.5 41.5 48 40 46 40 Z" fill="#FF8C42"/><path d="M 10 14 Q 26 8 42 32" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><g transform="translate(40 42)"><ellipse rx="16" ry="10" fill="none" stroke="#F8F9FA" stroke-width="0.9" opacity="0.4"/><ellipse rx="10" ry="6.5" fill="none" stroke="#F8F9FA" stroke-width="1" opacity="0.6"/><ellipse rx="5" ry="3.5" fill="none" stroke="#F8F9FA" stroke-width="1.2" opacity="0.85"/><circle r="1.8" fill="#FF8C42"/></g><path d="M 8 14 Q 22 8 38 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(8 14) rotate(135) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Direction 12 · Folded map · iterations on 11B ─── -->
+<section>
+  <h2>12 &middot; Folded map &middot; iterations</h2>
+  <p class="desc">Building on 11B. Three takes that make the map more interesting, tie back to the 9C wordmark&rsquo;s flight motif, and use a cleaner Android badge (plane silhouette + short contrail &mdash; no muddy map shape at status-bar size).</p>
+  <div class="grid">
+
+    <!-- 12A · Map + 9C-echo flight motif -->
+    <div class="card card-system">
+      <div class="label">12 &middot; A</div>
+      <div class="name">Map + 9C echo &middot; flight on map</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Folded map filling most of canvas -->
+          <path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/>
+          <line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <!-- subtle road / coastline -->
+          <path d="M 8 38 Q 18 32 24 36 Q 32 40 38 32 Q 46 26 56 30" stroke="#1A2B3C" stroke-width="0.6" fill="none" opacity="0.28"/>
+          <!-- 9C-style flight motif: origin dot → contrail → banked plane (same DNA as wordmark) -->
+          <circle cx="14" cy="44" r="2.6" fill="#FF8C42"/>
+          <path d="M 17 42 Q 32 22 44 38" stroke="#00AEEF" stroke-width="1.6" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(46 40) rotate(130) scale(0.7)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="1" opacity="0.32"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="1" opacity="0.32"/><circle cx="14" cy="44" r="3.2" fill="#FF8C42"/><path d="M 17 42 Q 32 20 44 36" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(46 38) rotate(130) scale(0.85)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 14 L 22 12 L 42 14 L 60 12 L 60 56 L 42 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><circle cx="14" cy="46" r="4.5" fill="#FF8C42"/><g transform="translate(48 36) rotate(130) scale(1.2)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="44" r="3.5" fill="#fff"/>
+            <path d="M 17 42 Q 32 22 44 38" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(46 40) rotate(130) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Origin &middot; contrail &middot; plane &mdash; same DNA as the 9C wordmark</div>
+      </div>
+    </div>
+
+    <!-- 12B · Map + multi-stop itinerary route -->
+    <div class="card card-system">
+      <div class="label">12 &middot; B</div>
+      <div class="name">Multi-stop itinerary route</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/>
+          <line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <!-- Faint road network -->
+          <path d="M 8 30 Q 14 28 18 32" stroke="#1A2B3C" stroke-width="0.5" fill="none" opacity="0.22"/>
+          <path d="M 36 50 Q 44 46 52 50" stroke="#1A2B3C" stroke-width="0.5" fill="none" opacity="0.22"/>
+          <!-- Multi-stop route: dashed cyan line through 3 destinations -->
+          <path d="M 12 46 Q 22 32 30 30 Q 38 28 48 38" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/>
+          <!-- Pins at each stop -->
+          <circle cx="12" cy="46" r="2.6" fill="#FF8C42"/>
+          <circle cx="30" cy="30" r="2.6" fill="#FF8C42"/>
+          <circle cx="48" cy="38" r="2.6" fill="#FF8C42"/>
+          <!-- Plane mid-flight on second segment -->
+          <g transform="translate(40 32) rotate(115) scale(0.5)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="1" opacity="0.3"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="1" opacity="0.3"/><path d="M 12 46 Q 22 32 30 30 Q 38 28 48 38" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/><circle cx="12" cy="46" r="3.2" fill="#FF8C42"/><circle cx="30" cy="30" r="3.2" fill="#FF8C42"/><circle cx="48" cy="38" r="3.2" fill="#FF8C42"/></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><circle cx="12" cy="48" r="5" fill="#FF8C42"/><circle cx="32" cy="28" r="5" fill="#FF8C42"/><circle cx="52" cy="42" r="5" fill="#FF8C42"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 12 46 Q 22 32 30 30 Q 38 28 48 38" stroke="#fff" stroke-width="2.8" fill="none" stroke-dasharray="3.5 2" stroke-linecap="round"/>
+            <circle cx="12" cy="46" r="4" fill="#fff"/>
+            <circle cx="30" cy="30" r="4" fill="#fff"/>
+            <circle cx="48" cy="38" r="4" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Three stops + connecting route &mdash; literally an itinerary</div>
+      </div>
+    </div>
+
+    <!-- 12C · Map + arrival / boarding-pass aesthetic -->
+    <div class="card card-system">
+      <div class="label">12 &middot; C</div>
+      <div class="name">Arriving plane &middot; descent + pin</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/>
+          <line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/>
+          <!-- Stylized terrain on the map -->
+          <path d="M 10 38 Q 18 30 28 36 Q 36 42 46 34 Q 54 28 58 32" stroke="#1A2B3C" stroke-width="0.6" fill="none" opacity="0.32"/>
+          <path d="M 6 50 Q 16 46 24 50" stroke="#1A2B3C" stroke-width="0.5" fill="none" opacity="0.25"/>
+          <!-- Destination pin (lollipop) -->
+          <path d="M 46 36 C 43 36 41 38 41 41 C 41 45 46 50 46 50 C 46 50 51 45 51 41 C 51 38 49 36 46 36 Z" fill="#FF8C42"/>
+          <circle cx="46" cy="40" r="1.6" fill="#F8F9FA"/>
+          <!-- Long descent contrail -->
+          <path d="M 6 14 Q 22 10 38 32" stroke="#00AEEF" stroke-width="1.6" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/>
+          <!-- Plane arriving (descending toward pin) -->
+          <g transform="translate(38 32) rotate(135) scale(0.7)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="1" opacity="0.3"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="1" opacity="0.3"/><path d="M 46 34 C 42 34 39 37 39 41 C 39 45 46 52 46 52 C 46 52 53 45 53 41 C 53 37 50 34 46 34 Z" fill="#FF8C42"/><circle cx="46" cy="40" r="2" fill="#F8F9FA"/><path d="M 6 14 Q 22 10 38 32" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/><g transform="translate(38 32) rotate(135) scale(0.85)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 14 L 22 12 L 42 14 L 60 12 L 60 56 L 42 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><path d="M 46 30 C 40 30 36 34 36 40 C 36 48 46 56 46 56 C 46 56 56 48 56 40 C 56 34 52 30 46 30 Z" fill="#FF8C42"/><g transform="translate(34 26) rotate(135) scale(1.2)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 36 30" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(38 32) rotate(135) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane + contrail &mdash; clean silhouette at status-bar size</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pairings: 9C wordmark with each new candidate -->
+  <h3 style="font-weight: 600; font-size: 16px; margin-top: 56px; margin-bottom: 6px; letter-spacing: -0.01em;">Pairings &middot; 9C wordmark + each 12 candidate</h3>
+  <p style="font-size: 13px; color: var(--zinc-500); margin: 0 0 20px;">Same wordmark, three square candidates side by side.</p>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><circle cx="14" cy="44" r="2.6" fill="#FF8C42"/><path d="M 17 42 Q 32 22 44 38" stroke="#00AEEF" stroke-width="1.6" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(46 40) rotate(130) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><path d="M 12 46 Q 22 32 30 30 Q 38 28 48 38" stroke="#00AEEF" stroke-width="1.5" fill="none" stroke-dasharray="2 2" stroke-linecap="round"/><circle cx="12" cy="46" r="2.6" fill="#FF8C42"/><circle cx="30" cy="30" r="2.6" fill="#FF8C42"/><circle cx="48" cy="38" r="2.6" fill="#FF8C42"/><g transform="translate(40 32) rotate(115) scale(0.5)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 12 L 22 10 L 40 12 L 60 10 L 60 56 L 40 58 L 22 56 L 4 58 Z" fill="#F8F9FA"/><line x1="22" y1="10" x2="22" y2="56" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="12" x2="40" y2="58" stroke="#1A2B3C" stroke-width="0.6" opacity="0.3"/><path d="M 46 36 C 43 36 41 38 41 41 C 41 45 46 50 46 50 C 46 50 51 45 51 41 C 51 38 49 36 46 36 Z" fill="#FF8C42"/><circle cx="46" cy="40" r="1.6" fill="#F8F9FA"/><path d="M 6 14 Q 22 10 38 32" stroke="#00AEEF" stroke-width="1.6" fill="none" stroke-dasharray="3 2" stroke-linecap="round"/><g transform="translate(38 32) rotate(135) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Direction 13 · Pirate-style treasure map iterations ─── -->
+<section>
+  <h2>13 &middot; Treasure-map style &middot; iterations on 11B</h2>
+  <p class="desc">Same 11B structure (folded paper map + plane flying overhead + contrail to destination), restyled as an old pirate / treasure map: torn parchment edges, hand-drawn coastline, &ldquo;X marks the spot&rdquo;, optional compass rose and island silhouette. Color palette unchanged.</p>
+  <div class="grid">
+
+    <!-- 13A · Pirate map basics: torn paper, coastline, X, plane -->
+    <div class="card card-system">
+      <div class="label">13 &middot; A</div>
+      <div class="name">Treasure map &middot; X marks the spot</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Torn parchment (jagged edges, slightly tilted folds) -->
+          <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+          <!-- Subtle aging stains -->
+          <ellipse cx="18" cy="38" rx="3" ry="1.5" fill="#1A2B3C" opacity="0.07"/>
+          <ellipse cx="50" cy="50" rx="2.5" ry="1.3" fill="#1A2B3C" opacity="0.06"/>
+          <!-- Hand-drawn coastline (waterline/landline) -->
+          <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+          <!-- Curving dotted trail toward X (the treasure path) -->
+          <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+          <!-- X marks the spot -->
+          <g transform="translate(46 38)">
+            <line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <!-- Plane flying overhead with contrail toward X -->
+          <path d="M 10 14 Q 26 8 42 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(10 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 17 30 L 30 30 L 43 31 L 57 30 L 60 42 L 57 55 L 43 55 L 30 55 L 17 55 L 5 53 Z" fill="#F8F9FA"/><path d="M 8 42 Q 20 38 32 42 Q 44 44 56 40" stroke="#1A2B3C" stroke-width="1" fill="none" opacity="0.5"/><g transform="translate(46 38)"><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/></g><path d="M 10 14 Q 26 8 42 30" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 30 L 60 28 L 60 56 L 4 58 Z" fill="#F8F9FA"/><g transform="translate(46 40)"><line x1="-7" y1="-7" x2="7" y2="7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/><line x1="-7" y1="7" x2="7" y2="-7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/></g><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 38 32" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(8 14) rotate(125) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+            <g transform="translate(44 38)">
+              <line x1="-4" y1="-4" x2="4" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-4" y1="4" x2="4" y2="-4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane &middot; trail &middot; X &mdash; tells the whole story silhouetted</div>
+      </div>
+    </div>
+
+    <!-- 13B · Pirate map + compass rose -->
+    <div class="card card-system">
+      <div class="label">13 &middot; B</div>
+      <div class="name">Treasure map + compass rose</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Torn parchment -->
+          <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+          <!-- Aging stains -->
+          <ellipse cx="20" cy="50" rx="3" ry="1.5" fill="#1A2B3C" opacity="0.07"/>
+          <!-- Coastline -->
+          <path d="M 6 44 Q 12 40 18 43 Q 24 46 30 42 Q 36 38 42 42 Q 48 45 56 42" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.4"/>
+          <!-- Compass rose (lower-left of map) -->
+          <g transform="translate(14 50)">
+            <circle r="5" fill="none" stroke="#1A2B3C" stroke-width="0.7" opacity="0.5"/>
+            <polygon points="0,-5 1,0 0,5 -1,0" fill="#1A2B3C" opacity="0.7"/>
+            <polygon points="-5,0 0,1 5,0 0,-1" fill="#1A2B3C" opacity="0.4"/>
+            <text x="0" y="-6.5" font-family="Inter, sans-serif" font-size="3.8" font-weight="600" fill="#1A2B3C" text-anchor="middle" opacity="0.8">N</text>
+            <circle r="0.7" fill="#1A2B3C"/>
+          </g>
+          <!-- Dotted trail to X -->
+          <path d="M 22 50 Q 30 46 36 44 Q 42 41 46 39" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+          <!-- X marks the spot -->
+          <g transform="translate(48 38)">
+            <line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <!-- Plane + contrail -->
+          <path d="M 10 14 Q 26 8 44 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(10 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 17 30 L 30 30 L 43 31 L 57 30 L 60 42 L 57 55 L 43 55 L 30 55 L 17 55 L 5 53 Z" fill="#F8F9FA"/><g transform="translate(14 50)"><circle r="6" fill="none" stroke="#1A2B3C" stroke-width="1" opacity="0.6"/><polygon points="0,-6 1.5,0 0,6 -1.5,0" fill="#1A2B3C" opacity="0.8"/><polygon points="-6,0 0,1.5 6,0 0,-1.5" fill="#1A2B3C" opacity="0.5"/></g><g transform="translate(48 38)"><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/></g><path d="M 10 14 Q 26 8 44 30" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 30 L 60 28 L 60 56 L 4 58 Z" fill="#F8F9FA"/><g transform="translate(48 40)"><line x1="-7" y1="-7" x2="7" y2="7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/><line x1="-7" y1="7" x2="7" y2="-7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/></g><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 40 32" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(8 14) rotate(125) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+            <g transform="translate(46 38)">
+              <line x1="-4" y1="-4" x2="4" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-4" y1="4" x2="4" y2="-4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Same clean badge &mdash; compass disappears at small size, focus stays on plane &amp; X</div>
+      </div>
+    </div>
+
+    <!-- 13C · Pirate map + island silhouette -->
+    <div class="card card-system">
+      <div class="label">13 &middot; C</div>
+      <div class="name">Treasure map + island</div>
+
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <!-- Torn parchment -->
+          <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+          <!-- Wavy water lines (sea) -->
+          <path d="M 8 50 Q 12 49 16 50 Q 20 51 24 50" stroke="#1A2B3C" stroke-width="0.5" fill="none" opacity="0.32"/>
+          <path d="M 50 52 Q 53 51 56 52" stroke="#1A2B3C" stroke-width="0.5" fill="none" opacity="0.32"/>
+          <!-- Island silhouette (subtle fill + coastline accent) -->
+          <path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="#1A2B3C" opacity="0.16"/>
+          <path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="none" stroke="#1A2B3C" stroke-width="0.7" opacity="0.55"/>
+          <!-- Dotted trail across the map ending at X on island -->
+          <path d="M 12 52 Q 18 50 22 48 Q 28 44 34 41" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/>
+          <!-- X marks the spot (on the island) -->
+          <g transform="translate(38 38)">
+            <line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/>
+          </g>
+          <!-- Plane + contrail -->
+          <path d="M 8 14 Q 22 8 34 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(8 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 17 30 L 30 30 L 43 31 L 57 30 L 60 42 L 57 55 L 43 55 L 30 55 L 17 55 L 5 53 Z" fill="#F8F9FA"/><path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="#1A2B3C" opacity="0.18"/><path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="none" stroke="#1A2B3C" stroke-width="1.1" opacity="0.6"/><g transform="translate(38 38)"><line x1="-4.5" y1="-4.5" x2="4.5" y2="4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/><line x1="-4.5" y1="4.5" x2="4.5" y2="-4.5" stroke="#FF8C42" stroke-width="3" stroke-linecap="round"/></g><path d="M 8 14 Q 22 8 34 30" stroke="#00AEEF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(8 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 30 L 60 28 L 60 56 L 4 58 Z" fill="#F8F9FA"/><path d="M 26 38 Q 22 32 32 30 Q 44 28 48 36 Q 50 44 38 46 Q 26 46 26 38 Z" fill="#1A2B3C" opacity="0.22"/><g transform="translate(38 40)"><line x1="-7" y1="-7" x2="7" y2="7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/><line x1="-7" y1="7" x2="7" y2="-7" stroke="#FF8C42" stroke-width="4.5" stroke-linecap="round"/></g><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 36 32" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(8 14) rotate(125) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+            <g transform="translate(38 38)">
+              <line x1="-4" y1="-4" x2="4" y2="4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+              <line x1="-4" y1="4" x2="4" y2="-4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane + trail + X &mdash; same compact badge across all three iterations</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pairings: 9C wordmark + each new candidate -->
+  <h3 style="font-weight: 600; font-size: 16px; margin-top: 56px; margin-bottom: 6px; letter-spacing: -0.01em;">Pairings &middot; 9C wordmark + each 13 candidate</h3>
+  <p style="font-size: 13px; color: var(--zinc-500); margin: 0 0 20px;">Modern wordmark, vintage-inspired square &mdash; the contrast tells a story.</p>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/><path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/><path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/><g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/></g><path d="M 10 14 Q 26 8 42 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/><path d="M 6 44 Q 12 40 18 43 Q 24 46 30 42 Q 36 38 42 42 Q 48 45 56 42" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.4"/><g transform="translate(14 50)"><circle r="5" fill="none" stroke="#1A2B3C" stroke-width="0.7" opacity="0.5"/><polygon points="0,-5 1,0 0,5 -1,0" fill="#1A2B3C" opacity="0.7"/><polygon points="-5,0 0,1 5,0 0,-1" fill="#1A2B3C" opacity="0.4"/></g><path d="M 22 50 Q 30 46 36 44 Q 42 41 46 39" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/><g transform="translate(48 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/></g><path d="M 10 14 Q 26 8 44 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+    <div style="background: white; border: 1px solid var(--zinc-200); border-radius: 14px; padding: 28px 24px; display: flex; align-items: center; gap: 18px; justify-content: center;">
+      <svg viewBox="0 0 64 64" width="56" height="56" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/><path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="#1A2B3C" opacity="0.16"/><path d="M 28 38 Q 24 35 26 33 Q 30 30 36 31 Q 44 32 47 35 Q 50 38 48 42 Q 44 46 38 47 Q 30 47 27 44 Q 24 41 28 38 Z" fill="none" stroke="#1A2B3C" stroke-width="0.7" opacity="0.55"/><path d="M 12 52 Q 18 50 22 48 Q 28 44 34 41" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/><g transform="translate(38 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#FF8C42" stroke-width="2.5" stroke-linecap="round"/></g><path d="M 8 14 Q 22 8 34 30" stroke="#00AEEF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/><g transform="translate(8 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g></svg>
+      <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+        <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+        <circle cx="8" cy="22" r="3" fill="#FF8C42"/>
+        <path d="M 11 20 Q 22 2 32 14" stroke="#00AEEF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+        <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#FF8C42"/></g>
+      </svg>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Direction 14 · Color palette iterations (WCAG AA verified) ─── -->
+<section>
+  <h2>14 &middot; Color palette &middot; iterations</h2>
+  <p class="desc">Three palette directions starting from the current one. Every color pairing has been computed against WCAG 2.1: brand text against its background hits AA (&ge; 4.5:1), and icon accents against their background hit non-text minimum (&ge; 3:1). Light + dark mode shown for each.</p>
+
+  <!-- Baseline reference: current palette + its contrast issue -->
+  <div style="background: #fff7e0; border: 1px solid #f6d678; border-radius: 10px; padding: 14px 18px; margin-bottom: 28px; font-size: 13px; color: #6b4d00; line-height: 1.55;">
+    <strong>⚠ Note on the current palette:</strong> as-is, <code style="font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px;">#00AEEF</code> on <code style="font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px;">#F8F9FA</code> is only <strong>2.5:1</strong> and <code style="font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px;">#FF8C42</code> on <code style="font-family: 'JetBrains Mono', monospace; background: rgba(0,0,0,0.05); padding: 1px 6px; border-radius: 3px;">#F8F9FA</code> is only <strong>2.2:1</strong> &mdash; both fail the 3:1 non-text minimum. The cyan/orange in the wordmark&rsquo;s contrail and dot would need to darken slightly. All three options below fix this.
+  </div>
+
+  <!-- ─── OPTION A · Refined harmony ─── -->
+  <div class="palette-option">
+    <h3>A &middot; Refined harmony &mdash; tuned for contrast</h3>
+    <p class="palette-desc">Same DNA as the current palette, but the cyan deepens to an azure that holds 3:1 on white, and the orange shifts toward a vermilion that does the same. Most familiar to anyone who&rsquo;s seen the brand so far.</p>
+    <div class="palette-swatches">
+      <div class="row"><span class="chip" style="background:#1A2B3C"></span><span class="meta"><span class="name">Primary</span><span class="hex">#1A2B3C</span></span></div>
+      <div class="row"><span class="chip" style="background:#008CCF"></span><span class="meta"><span class="name">Action</span><span class="hex">#008CCF</span></span></div>
+      <div class="row"><span class="chip" style="background:#D9501C"></span><span class="meta"><span class="name">Secondary</span><span class="hex">#D9501C</span></span></div>
+      <div class="row"><span class="chip" style="background:#F8F9FA"></span><span class="meta"><span class="name">Surface · light</span><span class="hex">#F8F9FA</span></span></div>
+      <div class="row"><span class="chip" style="background:#0E1822"></span><span class="meta"><span class="name">Surface · dark</span><span class="hex">#0E1822</span></span></div>
+    </div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--zinc-500); margin-bottom: 18px; line-height: 1.6;">
+      Primary on Surface light <strong style="color:var(--zinc-700)">13.7:1</strong> AAA &middot;
+      Action on Surface light <strong style="color:var(--zinc-700)">3.5:1</strong> AA non-text &middot;
+      Secondary on Surface light <strong style="color:var(--zinc-700)">3.9:1</strong> AA non-text &middot;
+      Action on Primary <strong style="color:var(--zinc-700)">3.9:1</strong> &middot;
+      Secondary on Primary <strong style="color:var(--zinc-700)">3.5:1</strong>
+    </div>
+    <div class="palette-modes">
+      <!-- LIGHT -->
+      <div class="mode-card" style="background:#F8F9FA;border:1px solid #E4E4E7;">
+        <span class="mode-label" style="color:#71717A;">Light</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#D9501C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#D9501C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#D9501C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g>
+          </svg>
+        </div>
+      </div>
+      <!-- DARK -->
+      <div class="mode-card" style="background:#0E1822;border:1px solid #1f2a36;">
+        <span class="mode-label" style="color:#a1a1aa;">Dark</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#D9501C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#D9501C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#D9501C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── OPTION B · Vintage parchment ─── -->
+  <div class="palette-option">
+    <h3>B &middot; Vintage parchment &mdash; the treasure-map all the way down</h3>
+    <p class="palette-desc">Leans into the 13A treasure-map aesthetic. Coffee-brown primary, parchment surface, desaturated petrol-teal, and a warm terracotta. The icon and the rest of the brand feel cut from the same cloth.</p>
+    <div class="palette-swatches">
+      <div class="row"><span class="chip" style="background:#2A1F14"></span><span class="meta"><span class="name">Primary</span><span class="hex">#2A1F14</span></span></div>
+      <div class="row"><span class="chip" style="background:#3A7488"></span><span class="meta"><span class="name">Action</span><span class="hex">#3A7488</span></span></div>
+      <div class="row"><span class="chip" style="background:#C25E2C"></span><span class="meta"><span class="name">Secondary</span><span class="hex">#C25E2C</span></span></div>
+      <div class="row"><span class="chip" style="background:#F2EAD3"></span><span class="meta"><span class="name">Surface · light</span><span class="hex">#F2EAD3</span></span></div>
+      <div class="row"><span class="chip" style="background:#1A1208"></span><span class="meta"><span class="name">Surface · dark</span><span class="hex">#1A1208</span></span></div>
+    </div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--zinc-500); margin-bottom: 18px; line-height: 1.6;">
+      Primary on Surface light <strong style="color:var(--zinc-700)">13.3:1</strong> AAA &middot;
+      Action on Surface light <strong style="color:var(--zinc-700)">4.4:1</strong> AA &middot;
+      Secondary on Surface light <strong style="color:var(--zinc-700)">3.5:1</strong> AA non-text &middot;
+      Action on Primary <strong style="color:var(--zinc-700)">3.2:1</strong> &middot;
+      Secondary on Primary <strong style="color:var(--zinc-700)">3.9:1</strong>
+    </div>
+    <div class="palette-modes">
+      <div class="mode-card" style="background:#F2EAD3;border:1px solid #d9cdb0;">
+        <span class="mode-label" style="color:#7a6a4d;">Light</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#2A1F14"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F2EAD3"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#2A1F14" stroke-width="0.7" fill="none" opacity="0.5"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#2A1F14" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#C25E2C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#C25E2C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#3A7488" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#C25E2C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#2A1F14" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#C25E2C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#3A7488" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#C25E2C"/></g>
+          </svg>
+        </div>
+      </div>
+      <div class="mode-card" style="background:#1A1208;border:1px solid #2a1f14;">
+        <span class="mode-label" style="color:#a99a7c;">Dark</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#2A1F14"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F2EAD3"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#2A1F14" stroke-width="0.7" fill="none" opacity="0.5"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#2A1F14" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#C25E2C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#C25E2C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#3A7488" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#C25E2C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F2EAD3" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#C25E2C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#3A7488" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#C25E2C"/></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── OPTION C · Bold contemporary ─── -->
+  <div class="palette-option">
+    <h3>C &middot; Bold contemporary &mdash; deeper navy, mint-teal action</h3>
+    <p class="palette-desc">Pushes the brand more modern. Near-black navy as the dominant tone, mint-teal action color (different hue from the original cyan), and a punchy red-orange. Strongest contrast across the board, the most &ldquo;product&rdquo; feeling.</p>
+    <div class="palette-swatches">
+      <div class="row"><span class="chip" style="background:#0F1729"></span><span class="meta"><span class="name">Primary</span><span class="hex">#0F1729</span></span></div>
+      <div class="row"><span class="chip" style="background:#008B7B"></span><span class="meta"><span class="name">Action</span><span class="hex">#008B7B</span></span></div>
+      <div class="row"><span class="chip" style="background:#DC4F1C"></span><span class="meta"><span class="name">Secondary</span><span class="hex">#DC4F1C</span></span></div>
+      <div class="row"><span class="chip" style="background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(0,0,0,0.12)"></span><span class="meta"><span class="name">Surface · light</span><span class="hex">#FFFFFF</span></span></div>
+      <div class="row"><span class="chip" style="background:#050B14"></span><span class="meta"><span class="name">Surface · dark</span><span class="hex">#050B14</span></span></div>
+    </div>
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--zinc-500); margin-bottom: 18px; line-height: 1.6;">
+      Primary on Surface light <strong style="color:var(--zinc-700)">17.5:1</strong> AAA &middot;
+      Action on Surface light <strong style="color:var(--zinc-700)">4.2:1</strong> AA non-text &middot;
+      Secondary on Surface light <strong style="color:var(--zinc-700)">4.0:1</strong> AA non-text &middot;
+      Action on Primary <strong style="color:var(--zinc-700)">4.3:1</strong> AA &middot;
+      Secondary on Primary <strong style="color:var(--zinc-700)">4.5:1</strong> AA
+    </div>
+    <div class="palette-modes">
+      <div class="mode-card" style="background:#FFFFFF;border:1px solid #E4E4E7;">
+        <span class="mode-label" style="color:#71717A;">Light</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#0F1729"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#FFFFFF"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#0F1729" stroke-width="0.7" fill="none" opacity="0.5"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#0F1729" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#DC4F1C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#DC4F1C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008B7B" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#DC4F1C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#0F1729" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#DC4F1C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008B7B" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#DC4F1C"/></g>
+          </svg>
+        </div>
+      </div>
+      <div class="mode-card" style="background:#050B14;border:1px solid #131c2a;">
+        <span class="mode-label" style="color:#a1a1aa;">Dark</span>
+        <div class="mode-row" style="justify-content:center;gap:24px;">
+          <svg viewBox="0 0 64 64" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#0F1729"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#FFFFFF"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#0F1729" stroke-width="0.7" fill="none" opacity="0.5"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#0F1729" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.7"/>
+            <g transform="translate(46 38)"><line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="#DC4F1C" stroke-width="2.5" stroke-linecap="round"/><line x1="-3.5" y1="3.5" x2="3.5" y2="-3.5" stroke="#DC4F1C" stroke-width="2.5" stroke-linecap="round"/></g>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008B7B" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#DC4F1C"/></g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="160" height="56" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#FFFFFF" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#DC4F1C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008B7B" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#DC4F1C"/></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ─── Direction 15 · Square icon · dashed-i route · 6 variations ─── -->
+<section>
+  <h2>15 &middot; Square icon &middot; dashed-i route</h2>
+  <p class="desc">Locked palette: <strong>A</strong> (<code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#1A2B3C</code> &middot; <code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#008CCF</code> &middot; <code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#D9501C</code>). The route traces a lowercase &ldquo;i&rdquo; in cyan dashes &mdash; vertical stem + a separated tittle. Six approaches: pure, plane on path, plane as tittle, origin pin + tittle, multi-stop, and curved.</p>
+  <div class="grid">
+
+    <!-- 15A · Pure dashed i -->
+    <div class="card card-system">
+      <div class="label">15 &middot; A</div>
+      <div class="name">Pure &mdash; dashed stem + tittle</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+          <circle cx="32" cy="12" r="4" fill="#D9501C"/>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="4" stroke-linecap="round" stroke-dasharray="4 3"/><circle cx="32" cy="12" r="5" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="7" stroke-linecap="round" stroke-dasharray="6 4"/><circle cx="32" cy="11" r="7" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <line x1="32" y1="22" x2="32" y2="54" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="6 4"/>
+            <circle cx="32" cy="12" r="6" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Cleanest read &mdash; the i shape is unmistakable</div>
+      </div>
+    </div>
+
+    <!-- 15B · Dashed i with plane on path -->
+    <div class="card card-system">
+      <div class="label">15 &middot; B</div>
+      <div class="name">Plane mid-route on the stem</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+          <circle cx="32" cy="12" r="4" fill="#D9501C"/>
+          <g transform="translate(32 38) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="4 3"/><circle cx="32" cy="12" r="5" fill="#D9501C"/><g transform="translate(32 38) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="32" cy="11" r="7" fill="#D9501C"/><g transform="translate(32 38) scale(1.2)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <line x1="32" y1="22" x2="32" y2="54" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 4"/>
+            <circle cx="32" cy="12" r="6" fill="#fff"/>
+            <g transform="translate(32 38) scale(0.85)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">i shape + travel motif &mdash; both ideas in one mark</div>
+      </div>
+    </div>
+
+    <!-- 15C · Plane as tittle -->
+    <div class="card card-system">
+      <div class="label">15 &middot; C</div>
+      <div class="name">Plane is the tittle</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <line x1="32" y1="24" x2="32" y2="56" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+          <g transform="translate(32 12) scale(0.6)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="24" x2="32" y2="56" stroke="#008CCF" stroke-width="4" stroke-linecap="round" stroke-dasharray="4 3"/><g transform="translate(32 12) scale(0.75)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="28" x2="32" y2="58" stroke="#008CCF" stroke-width="6" stroke-linecap="round" stroke-dasharray="6 4"/><g transform="translate(32 14) scale(1.2)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <line x1="32" y1="24" x2="32" y2="56" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-dasharray="6 4"/>
+            <g transform="translate(32 12) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane = i&rsquo;s dot &mdash; literal &ldquo;destination above the path&rdquo;</div>
+      </div>
+    </div>
+
+    <!-- 15D · Origin pin + dashed stem + tittle -->
+    <div class="card card-system">
+      <div class="label">15 &middot; D</div>
+      <div class="name">Origin pin &middot; dashed stem &middot; tittle</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 32 36 C 28 36 25 39 25 43 C 25 48 32 56 32 56 C 32 56 39 48 39 43 C 39 39 36 36 32 36 Z" fill="#D9501C"/>
+          <circle cx="32" cy="42" r="2" fill="#1A2B3C"/>
+          <line x1="32" y1="20" x2="32" y2="36" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+          <circle cx="32" cy="12" r="4" fill="#D9501C"/>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 34 C 27 34 24 37 24 42 C 24 48 32 58 32 58 C 32 58 40 48 40 42 C 40 37 37 34 32 34 Z" fill="#D9501C"/><circle cx="32" cy="41" r="2.4" fill="#1A2B3C"/><line x1="32" y1="20" x2="32" y2="34" stroke="#008CCF" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="4 3"/><circle cx="32" cy="12" r="5" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 32 C 25 32 22 36 22 42 C 22 50 32 60 32 60 C 32 60 42 50 42 42 C 42 36 39 32 32 32 Z" fill="#D9501C"/><circle cx="32" cy="11" r="7" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 32 36 C 28 36 25 39 25 43 C 25 48 32 56 32 56 C 32 56 39 48 39 43 C 39 39 36 36 32 36 Z" fill="#fff"/>
+            <line x1="32" y1="20" x2="32" y2="36" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-dasharray="6 4"/>
+            <circle cx="32" cy="12" r="6" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Origin (pin) &rarr; route (dashes) &rarr; destination (dot) &mdash; full journey</div>
+      </div>
+    </div>
+
+    <!-- 15E · Multi-stop dashed i -->
+    <div class="card card-system">
+      <div class="label">15 &middot; E</div>
+      <div class="name">Multi-stop &middot; waypoints on stem</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 2"/>
+          <circle cx="32" cy="22" r="2.6" fill="#D9501C"/>
+          <circle cx="32" cy="33" r="2.6" fill="#D9501C"/>
+          <circle cx="32" cy="44" r="2.6" fill="#D9501C"/>
+          <circle cx="32" cy="54" r="2.6" fill="#D9501C"/>
+          <circle cx="32" cy="12" r="3.8" fill="#D9501C"/>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="22" r="3.5" fill="#D9501C"/><circle cx="32" cy="33" r="3.5" fill="#D9501C"/><circle cx="32" cy="44" r="3.5" fill="#D9501C"/><circle cx="32" cy="54" r="3.5" fill="#D9501C"/><circle cx="32" cy="12" r="4.5" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><circle cx="32" cy="22" r="5" fill="#D9501C"/><circle cx="32" cy="34" r="5" fill="#D9501C"/><circle cx="32" cy="46" r="5" fill="#D9501C"/><circle cx="32" cy="58" r="5" fill="#D9501C"/><circle cx="32" cy="10" r="6" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <line x1="32" y1="22" x2="32" y2="54" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+            <circle cx="32" cy="22" r="4" fill="#fff"/>
+            <circle cx="32" cy="33" r="4" fill="#fff"/>
+            <circle cx="32" cy="44" r="4" fill="#fff"/>
+            <circle cx="32" cy="54" r="4" fill="#fff"/>
+            <circle cx="32" cy="12" r="5" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Reads as &ldquo;multi-day itinerary&rdquo; &mdash; exactly the product</div>
+      </div>
+    </div>
+
+    <!-- 15F · Curved dashed stem -->
+    <div class="card card-system">
+      <div class="label">15 &middot; F</div>
+      <div class="name">Curved stem &middot; journey shape</div>
+      <div class="system-section">
+        <div class="section-label">Square icon</div>
+        <svg viewBox="0 0 64 64" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 32 22 C 22 32 42 44 32 54" stroke="#008CCF" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-dasharray="3 2.5"/>
+          <circle cx="32" cy="12" r="4" fill="#D9501C"/>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 22 C 22 32 42 44 32 54" stroke="#008CCF" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="4 3"/><circle cx="32" cy="12" r="5" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 22 C 22 32 42 44 32 54" stroke="#008CCF" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="6 4"/><circle cx="32" cy="11" r="7" fill="#D9501C"/></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Android badge</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 32 22 C 22 32 42 44 32 54" stroke="#fff" stroke-width="5.5" fill="none" stroke-linecap="round" stroke-dasharray="6 4"/>
+            <circle cx="32" cy="12" r="6" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">S-curve adds motion / journey feel &mdash; less rigid than the straight stem</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pairings: 9C wordmark + each candidate, light + dark -->
+  <h3 style="font-weight: 600; font-size: 16px; margin-top: 56px; margin-bottom: 6px; letter-spacing: -0.01em;">Pairings &middot; 9C wordmark + each candidate &middot; light + dark</h3>
+  <p style="font-size: 13px; color: var(--zinc-500); margin: 0 0 20px;">All six candidates next to the locked wordmark, in both modes (palette A).</p>
+
+  <div style="background: #F8F9FA; border: 1px solid #E4E4E7; border-radius: 12px; padding: 24px; margin-bottom: 14px;">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #71717A; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 18px;">Light</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/><g transform="translate(32 38) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="24" x2="32" y2="56" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><g transform="translate(32 12) scale(0.6)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 36 C 28 36 25 39 25 43 C 25 48 32 56 32 56 C 32 56 39 48 39 43 C 39 39 36 36 32 36 Z" fill="#D9501C"/><circle cx="32" cy="42" r="2" fill="#1A2B3C"/><line x1="32" y1="20" x2="32" y2="36" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 2"/><circle cx="32" cy="22" r="2.6" fill="#D9501C"/><circle cx="32" cy="33" r="2.6" fill="#D9501C"/><circle cx="32" cy="44" r="2.6" fill="#D9501C"/><circle cx="32" cy="54" r="2.6" fill="#D9501C"/><circle cx="32" cy="12" r="3.8" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 22 C 22 32 42 44 32 54" stroke="#008CCF" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+    </div>
+  </div>
+
+  <div style="background: #0E1822; border: 1px solid #1f2a36; border-radius: 12px; padding: 24px;">
+    <div style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #a1a1aa; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 18px;">Dark</div>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/><g transform="translate(32 38) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="24" x2="32" y2="56" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><g transform="translate(32 12) scale(0.6)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 36 C 28 36 25 39 25 43 C 25 48 32 56 32 56 C 32 56 39 48 39 43 C 39 39 36 36 32 36 Z" fill="#D9501C"/><circle cx="32" cy="42" r="2" fill="#1A2B3C"/><line x1="32" y1="20" x2="32" y2="36" stroke="#008CCF" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><line x1="32" y1="22" x2="32" y2="54" stroke="#008CCF" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 2"/><circle cx="32" cy="22" r="2.6" fill="#D9501C"/><circle cx="32" cy="33" r="2.6" fill="#D9501C"/><circle cx="32" cy="44" r="2.6" fill="#D9501C"/><circle cx="32" cy="54" r="2.6" fill="#D9501C"/><circle cx="32" cy="12" r="3.8" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <svg viewBox="0 0 64 64" width="44" height="44" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 32 22 C 22 32 42 44 32 54" stroke="#008CCF" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-dasharray="3 2.5"/><circle cx="32" cy="12" r="4" fill="#D9501C"/></svg>
+        <svg viewBox="0 0 200 80" width="130" height="46" xmlns="http://www.w3.org/2000/svg"><text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text><circle cx="8" cy="22" r="3" fill="#D9501C"/><path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/><g transform="translate(34 16) rotate(130) scale(0.55)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Direction 16 · Locked candidate · 14A with pin (palette A) ─── -->
+<section>
+  <h2>16 &middot; Locked candidate &middot; 14A with destination pin</h2>
+  <p class="desc">14A treasure-map structure with palette <strong>A</strong> applied (<code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#1A2B3C</code> / <code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#008CCF</code> / <code style="font-family: 'JetBrains Mono', monospace; background: var(--zinc-100); padding: 1px 6px; border-radius: 3px; font-size: 11px;">#D9501C</code>). The X is replaced with a lollipop destination pin; the Android badge swaps the X for the pin silhouette to match. Shown as a header (icon + 9C wordmark) in both modes.</p>
+
+  <!-- ── LIGHT MODE HEADER ── -->
+  <div style="border: 1px solid #E4E4E7; border-radius: 14px; overflow: hidden; margin-bottom: 18px;">
+    <div style="background: #fff; padding: 12px 18px; border-bottom: 1px solid #E4E4E7; display: flex; align-items: center; gap: 12px;">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #71717A; letter-spacing: 0.08em; text-transform: uppercase;">Light mode &middot; site / login page header</span>
+    </div>
+    <div style="background: #F8F9FA; padding: 0;">
+      <!-- Header bar -->
+      <header style="background: #fff; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #E4E4E7;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <!-- Square icon: 14A with pin -->
+          <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+            <ellipse cx="18" cy="38" rx="3" ry="1.5" fill="#1A2B3C" opacity="0.07"/>
+            <ellipse cx="50" cy="50" rx="2.5" ry="1.3" fill="#1A2B3C" opacity="0.06"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+            <!-- Destination pin (replaces X) -->
+            <path d="M 46 34 C 43 34 41 36 41 39 C 41 43 46 50 46 50 C 46 50 51 43 51 39 C 51 36 49 34 46 34 Z" fill="#D9501C"/>
+            <circle cx="46" cy="38.5" r="1.5" fill="#F8F9FA"/>
+            <!-- Plane + cyan contrail -->
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+            </g>
+          </svg>
+          <!-- 9C wordmark -->
+          <svg viewBox="0 0 200 80" width="120" height="48" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#1A2B3C" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#D9501C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+            </g>
+          </svg>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button style="background: transparent; color: #3f3f46; padding: 8px 12px; border: 1px solid #E4E4E7; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: inherit;">All trips</button>
+          <button style="background: #1A2B3C; color: #fff; padding: 8px 14px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: inherit;">+ New trip</button>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #D9501C; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff;">JM</div>
+        </div>
+      </header>
+      <!-- Page body sample -->
+      <div style="padding: 32px 32px 40px;">
+        <span style="display: inline-block; background: rgba(217, 80, 28, 0.1); color: #D9501C; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;">Upcoming</span>
+        <h1 style="font-size: 32px; font-weight: 600; margin: 6px 0 4px; letter-spacing: -0.02em; color: #1A2B3C;">Tokyo</h1>
+        <p style="font-size: 14px; color: #71717A; margin: 0;">7 days &middot; Apr 15 — Apr 22, 2026</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DARK MODE HEADER ── -->
+  <div style="border: 1px solid #1f2a36; border-radius: 14px; overflow: hidden; margin-bottom: 32px;">
+    <div style="background: #050B14; padding: 12px 18px; border-bottom: 1px solid #1f2a36; display: flex; align-items: center; gap: 12px;">
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #a1a1aa; letter-spacing: 0.08em; text-transform: uppercase;">Dark mode &middot; site / login page header</span>
+    </div>
+    <div style="background: #0E1822; padding: 0;">
+      <header style="background: #142233; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1f2a36;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <svg viewBox="0 0 64 64" width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+            <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+            <ellipse cx="18" cy="38" rx="3" ry="1.5" fill="#1A2B3C" opacity="0.07"/>
+            <ellipse cx="50" cy="50" rx="2.5" ry="1.3" fill="#1A2B3C" opacity="0.06"/>
+            <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+            <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+            <path d="M 46 34 C 43 34 41 36 41 39 C 41 43 46 50 46 50 C 46 50 51 43 51 39 C 51 36 49 34 46 34 Z" fill="#D9501C"/>
+            <circle cx="46" cy="38.5" r="1.5" fill="#F8F9FA"/>
+            <path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+            <g transform="translate(10 14) rotate(125) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+            </g>
+          </svg>
+          <svg viewBox="0 0 200 80" width="120" height="48" xmlns="http://www.w3.org/2000/svg">
+            <text x="0" y="58" font-family="Inter, sans-serif" font-size="48" font-weight="500" fill="#F8F9FA" letter-spacing="-1">&#x131;t&#x131;nly</text>
+            <circle cx="8" cy="22" r="3" fill="#D9501C"/>
+            <path d="M 11 20 Q 22 2 32 14" stroke="#008CCF" stroke-width="1.2" fill="none" stroke-dasharray="2.5 1.8" stroke-linecap="round"/>
+            <g transform="translate(34 16) rotate(130) scale(0.55)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+            </g>
+          </svg>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button style="background: transparent; color: #d4d4d8; padding: 8px 12px; border: 1px solid #2a3849; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: inherit;">All trips</button>
+          <button style="background: #F8F9FA; color: #1A2B3C; padding: 8px 14px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; font-family: inherit;">+ New trip</button>
+          <div style="width: 32px; height: 32px; border-radius: 50%; background: #D9501C; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff;">JM</div>
+        </div>
+      </header>
+      <div style="padding: 32px 32px 40px;">
+        <span style="display: inline-block; background: rgba(217, 80, 28, 0.18); color: #FF7A45; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;">Upcoming</span>
+        <h1 style="font-size: 32px; font-weight: 600; margin: 6px 0 4px; letter-spacing: -0.02em; color: #F8F9FA;">Tokyo</h1>
+        <p style="font-size: 14px; color: #a1a1aa; margin: 0;">7 days &middot; Apr 15 — Apr 22, 2026</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ICON SIZES + ANDROID BADGE ── -->
+  <div class="grid" style="grid-template-columns: 1fr 1fr;">
+
+    <!-- Square icon at all sizes -->
+    <div class="card card-system">
+      <div class="label">Locked &middot; square icon</div>
+      <div class="name">14A with destination pin</div>
+      <div class="system-section">
+        <div class="section-label">Display &middot; 96 px</div>
+        <svg viewBox="0 0 64 64" width="120" height="120" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="14" fill="#1A2B3C"/>
+          <path d="M 5 31 L 11 28 L 17 30 L 23 27 L 30 30 L 37 28 L 43 31 L 50 28 L 57 30 L 60 36 L 58 42 L 60 49 L 57 55 L 50 57 L 43 55 L 37 58 L 30 55 L 23 58 L 17 55 L 10 57 L 5 53 L 4 47 L 5 41 L 4 36 Z" fill="#F8F9FA"/>
+          <ellipse cx="18" cy="38" rx="3" ry="1.5" fill="#1A2B3C" opacity="0.07"/>
+          <ellipse cx="50" cy="50" rx="2.5" ry="1.3" fill="#1A2B3C" opacity="0.06"/>
+          <path d="M 8 42 Q 14 38 20 41 Q 26 44 32 40 Q 38 36 44 41 Q 50 44 56 40" stroke="#1A2B3C" stroke-width="0.7" fill="none" opacity="0.45"/>
+          <path d="M 12 50 Q 20 47 26 49 Q 34 52 40 46 Q 44 42 46 40" stroke="#1A2B3C" stroke-width="0.9" fill="none" stroke-dasharray="0.6 2" stroke-linecap="round" opacity="0.65"/>
+          <path d="M 46 34 C 43 34 41 36 41 39 C 41 43 46 50 46 50 C 46 50 51 43 51 39 C 51 36 49 34 46 34 Z" fill="#D9501C"/>
+          <circle cx="46" cy="38.5" r="1.5" fill="#F8F9FA"/>
+          <path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="1.4" fill="none" stroke-dasharray="2.5 2" stroke-linecap="round"/>
+          <g transform="translate(10 14) rotate(125) scale(0.55)">
+            <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/>
+          </g>
+        </svg>
+        <div class="sizes">
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="32" height="32"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 5 31 L 17 30 L 30 30 L 43 31 L 57 30 L 60 42 L 57 55 L 43 55 L 30 55 L 17 55 L 5 53 Z" fill="#F8F9FA"/><path d="M 8 42 Q 20 38 32 42 Q 44 44 56 40" stroke="#1A2B3C" stroke-width="1" fill="none" opacity="0.5"/><path d="M 46 32 C 42 32 39 35 39 39 C 39 44 46 52 46 52 C 46 52 53 44 53 39 C 53 35 50 32 46 32 Z" fill="#D9501C"/><circle cx="46" cy="38" r="1.8" fill="#F8F9FA"/><path d="M 10 14 Q 26 8 42 30" stroke="#008CCF" stroke-width="2" fill="none" stroke-dasharray="3 2.5" stroke-linecap="round"/><g transform="translate(10 14) rotate(125) scale(0.7)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">32 px</span>
+          </div>
+          <div class="size-block">
+            <div class="swatch">
+              <svg viewBox="0 0 64 64" width="16" height="16"><rect width="64" height="64" rx="14" fill="#1A2B3C"/><path d="M 4 30 L 60 28 L 60 56 L 4 58 Z" fill="#F8F9FA"/><path d="M 46 28 C 40 28 36 32 36 38 C 36 46 46 56 46 56 C 46 56 56 46 56 38 C 56 32 52 28 46 28 Z" fill="#D9501C"/><g transform="translate(14 14) rotate(120) scale(1.1)"><path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#D9501C"/></g></svg>
+            </div>
+            <span class="px">16 px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android badge -->
+    <div class="card card-system">
+      <div class="label">Locked &middot; Android badge</div>
+      <div class="name">Plane + contrail + pin (white silhouette)</div>
+      <div class="system-section bg-dark">
+        <div class="section-label">Status bar</div>
+        <div class="android-bar">
+          <span class="clock">9:41</span>
+          <svg viewBox="0 0 64 64" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 38 32" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(8 14) rotate(125) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+            <!-- Pin replaces the X -->
+            <path d="M 44 32 C 40 32 38 35 38 39 C 38 44 44 52 44 52 C 44 52 50 44 50 39 C 50 35 48 32 44 32 Z" fill="#fff"/>
+          </svg>
+          <span style="flex:1"></span>
+          <span style="opacity:0.7;font-size:10px;">100%</span>
+        </div>
+        <div class="sub">Plane + dashed trail + pin destination &mdash; rendered by Android in solid white</div>
+      </div>
+      <div class="system-section">
+        <div class="section-label">Larger preview &middot; on dark</div>
+        <div style="background: #050B14; border-radius: 12px; padding: 30px 40px; display: flex; align-items: center; justify-content: center;">
+          <svg viewBox="0 0 64 64" width="64" height="64" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 6 14 Q 22 10 38 32" stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="3.5 2.5" stroke-linecap="round"/>
+            <g transform="translate(8 14) rotate(125) scale(0.95)">
+              <path d="M 0 -14 L 2 -2 L 14 2 L 14 4 L 2 3 L 2 8 L 6 12 L 6 14 L 0 13 L -6 14 L -6 12 L -2 8 L -2 3 L -14 4 L -14 2 L -2 -2 Z" fill="#fff"/>
+            </g>
+            <path d="M 44 32 C 40 32 38 35 38 39 C 38 44 44 52 44 52 C 44 52 50 44 50 39 C 50 35 48 32 44 32 Z" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="sub">Same silhouette at 64 px so the shape is readable</div>
       </div>
     </div>
   </div>
