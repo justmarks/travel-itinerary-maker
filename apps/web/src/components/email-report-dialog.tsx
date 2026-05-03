@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useReportEmail } from "@travel-app/api-client";
+import { useEffect, useMemo, useState } from "react";
 import type { ParseReportReason } from "@travel-app/shared";
 import { toast } from "sonner";
 import {
@@ -14,8 +13,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send } from "lucide-react";
-import { describeError } from "@/lib/api-error";
+import { Send } from "lucide-react";
+
+const REPORT_TO = "emailerror@itinly.app";
+
+/**
+ * Conservative cap on the mailto: URL length. Mail clients vary widely —
+ * macOS Mail and Outlook handle ~2k cleanly, Gmail web handles much more,
+ * but Windows Mail truncates anything past ~2000 characters. We trim the
+ * body when needed and let the user paste more content into the draft.
+ */
+const MAILTO_BODY_BUDGET = 6000;
 
 const REASON_LABEL: Record<ParseReportReason, string> = {
   failed: "Parser failed",
@@ -35,15 +43,12 @@ export interface EmailReportDialogProps {
   onOpenChange: (open: boolean) => void;
   emailId: string;
   defaultReason: ParseReportReason;
-  /**
-   * Email subject for display in the dialog. Optional — when omitted the
-   * dialog just shows the reason.
-   */
+  /** Email subject for display in the dialog. */
   emailSubject?: string;
   /**
-   * Inline email content for sources we can't refetch server-side
-   * (HTML/EML imports). Pass `body` for those flows; for Gmail-scanned
-   * emails leave undefined and the server will refetch from Gmail.
+   * Inline email content for sources we can include in the mailto draft
+   * (HTML/EML imports). For Gmail-scanned emails this is undefined and
+   * the dialog tells the user to forward the original separately.
    */
   inlineEmail?: {
     subject?: string;
@@ -53,11 +58,61 @@ export interface EmailReportDialogProps {
   };
 }
 
+function buildMailtoBody(opts: {
+  reason: ParseReportReason;
+  emailId: string;
+  userNote: string;
+  expectedOutcome: string;
+  inlineEmail?: EmailReportDialogProps["inlineEmail"];
+}): string {
+  const { reason, emailId, userNote, expectedOutcome, inlineEmail } = opts;
+  const lines: string[] = [];
+  lines.push(`Reason: ${REASON_LABEL[reason]}`);
+  lines.push(`Email ID: ${emailId}`);
+  lines.push("");
+
+  if (userNote.trim()) {
+    lines.push("--- What went wrong ---");
+    lines.push(userNote.trim());
+    lines.push("");
+  }
+  if (expectedOutcome.trim()) {
+    lines.push("--- What I expected ---");
+    lines.push(expectedOutcome.trim());
+    lines.push("");
+  }
+
+  if (inlineEmail) {
+    lines.push("--- Original email ---");
+    if (inlineEmail.subject) lines.push(`Subject: ${inlineEmail.subject}`);
+    if (inlineEmail.from) lines.push(`From: ${inlineEmail.from}`);
+    if (inlineEmail.receivedAt)
+      lines.push(`Received: ${inlineEmail.receivedAt}`);
+    lines.push("");
+    lines.push(inlineEmail.body);
+  } else {
+    lines.push(
+      "(If helpful, please forward the original email to " +
+        REPORT_TO +
+        " from your inbox.)",
+    );
+  }
+
+  let body = lines.join("\n");
+  if (body.length > MAILTO_BODY_BUDGET) {
+    body =
+      body.slice(0, MAILTO_BODY_BUDGET) +
+      "\n\n[…truncated — original email is too long for a mailto draft. Please paste the rest manually or forward the original.]";
+  }
+  return body;
+}
+
 /**
  * Lightweight dialog that lets a user report an email that wasn't parsed
- * correctly. Submits to POST /emails/report — the server forwards to the
- * operator inbox and captures a Sentry event. The user is told that the
- * full email content is sent to us so they can make an informed decision.
+ * correctly. Composes a `mailto:emailerror@itinly.app` draft pre-filled
+ * with the reason, the user's note, and the email content (when we have
+ * it — HTML/EML imports). For Gmail-scanned emails the body lives only in
+ * the user's Gmail, so we ask them to forward it separately.
  */
 export function EmailReportDialog({
   open,
@@ -70,7 +125,6 @@ export function EmailReportDialog({
   const [reason, setReason] = useState<ParseReportReason>(defaultReason);
   const [userNote, setUserNote] = useState("");
   const [expectedOutcome, setExpectedOutcome] = useState("");
-  const reportEmail = useReportEmail();
 
   // Reset state whenever the dialog opens for a different email.
   useEffect(() => {
@@ -81,24 +135,33 @@ export function EmailReportDialog({
     }
   }, [open, defaultReason, emailId]);
 
-  const handleSubmit = async () => {
-    try {
-      const res = await reportEmail.mutateAsync({
-        emailId,
-        reason,
-        userNote: userNote.trim() || undefined,
-        expectedOutcome: expectedOutcome.trim() || undefined,
-        inlineEmail,
-      });
-      toast.success("Report sent. Thanks!", {
-        description: res.delivered
-          ? "We'll take a look and try to do better next time."
-          : "We received it (delivery is queued).",
-      });
-      onOpenChange(false);
-    } catch (err) {
-      toast.error("Couldn't send report", { description: describeError(err) });
-    }
+  const mailtoHref = useMemo(() => {
+    const subject =
+      `Parse report: ${REASON_LABEL[reason]}` +
+      (emailSubject ? ` — ${emailSubject}` : "");
+    const body = buildMailtoBody({
+      reason,
+      emailId,
+      userNote,
+      expectedOutcome,
+      inlineEmail,
+    });
+    return (
+      `mailto:${REPORT_TO}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`
+    );
+  }, [reason, emailId, emailSubject, userNote, expectedOutcome, inlineEmail]);
+
+  const handleSubmit = () => {
+    // Open in a new tab so the dialog state isn't lost if the user's mail
+    // client takes a moment to launch. Most browsers route mailto: to the
+    // OS handler regardless of target.
+    window.open(mailtoHref, "_blank", "noopener,noreferrer");
+    toast.success("Opening your mail app", {
+      description: `We pre-filled a draft to ${REPORT_TO}.`,
+    });
+    onOpenChange(false);
   };
 
   return (
@@ -107,9 +170,8 @@ export function EmailReportDialog({
         <DialogHeader>
           <DialogTitle>Report this email</DialogTitle>
           <DialogDescription>
-            We&apos;ll receive the full email contents along with your note so
-            we can debug the parser. Reports go to{" "}
-            <code>emailerror@itinly.app</code>.
+            We&apos;ll open a draft in your mail app so you can review what
+            gets sent. Reports go to <code>{REPORT_TO}</code>.
           </DialogDescription>
         </DialogHeader>
 
@@ -172,19 +234,23 @@ export function EmailReportDialog({
               maxLength={2000}
             />
           </div>
+
+          {!inlineEmail && (
+            <p className="rounded border border-dashed border-muted-foreground/30 bg-muted/20 p-2 text-[11px] text-muted-foreground">
+              We can&apos;t attach the original email automatically — if it
+              would help us debug, please forward it to {REPORT_TO} from your
+              inbox after sending this draft.
+            </p>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={reportEmail.isPending}>
-            {reportEmail.isPending ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Send className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            Send report
+          <Button onClick={handleSubmit}>
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            Open mail draft
           </Button>
         </DialogFooter>
       </DialogContent>

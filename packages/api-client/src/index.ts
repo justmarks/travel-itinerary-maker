@@ -39,7 +39,6 @@ export {
   useApplyParsedSegments,
   useProcessedEmails,
   useDismissEmail,
-  useReportEmail,
   usePushStatus,
   useSubscribePush,
   useUnsubscribePush,

@@ -216,12 +216,8 @@ export class GmailScanner {
     return emails;
   }
 
-  /**
-   * Fetch and parse a single email message by Gmail message ID. Public
-   * so other routes (e.g. /emails/report) can pull the raw body for an
-   * email the user wants to send to us as a parse-failure report.
-   */
-  async fetchEmail(messageId: string): Promise<RawEmail | null> {
+  /** Fetch and parse a single email message */
+  private async fetchEmail(messageId: string): Promise<RawEmail | null> {
     const res = await this.gmail.users.messages.get({
       userId: "me",
       id: messageId,
