@@ -140,6 +140,10 @@ export const tripShareSchema = z.object({
   showTodos: z.boolean(),
   expiresAt: z.string().datetime().optional(),
   createdAt: z.string().datetime(),
+  // Activity timestamps — optional so trips persisted before activity
+  // tracking existed still parse cleanly.
+  lastViewedAt: z.string().datetime().optional(),
+  lastEditedAt: z.string().datetime().optional(),
 });
 
 export const tripSchema = z.object({

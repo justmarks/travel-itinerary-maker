@@ -130,6 +130,23 @@ export interface TripShare {
   showTodos: boolean;
   expiresAt?: string;
   createdAt: string;
+  /**
+   * Last time the (named) recipient opened the trip in their dashboard.
+   * Anonymous public-link views don't update this — we only know it's
+   * the recipient when they're signed in as `sharedWithEmail`. Updates
+   * are throttled at the server: at most one write per 30-min window
+   * per share so a recipient scrolling around doesn't churn the trip
+   * JSON. Surfaces in the owner's share-management UI as
+   * "viewed 2h ago".
+   */
+  lastViewedAt?: string;
+  /**
+   * Last time an edit-share recipient mutated the trip — segment / todo
+   * / trip CRUD all bump this. Same throttle as `lastViewedAt`. Only
+   * present on `permission === "edit"` shares; view-only shares can't
+   * mutate by definition.
+   */
+  lastEditedAt?: string;
 }
 
 /**

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { shareActivityLabel } from "@/lib/share-activity";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 function buildShareUrl(token: string): string {
@@ -161,6 +162,7 @@ function ExistingShareRow({
     }
   };
 
+  const activityLabel = shareActivityLabel(share);
   return (
     <li className="flex items-start gap-2 rounded-xl border bg-card p-3">
       <div className="min-w-0 flex-1">
@@ -172,6 +174,9 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {activityLabel && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
+        )}
       </div>
       <button
         type="button"

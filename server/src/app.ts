@@ -13,6 +13,7 @@ import { ShareRegistry } from "./services/share-registry";
 import { ShareSnapshotStore } from "./services/share-snapshot-store";
 import { PushSubscriptionStore } from "./services/push-subscription-store";
 import { NotificationSender } from "./services/notification-sender";
+import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
@@ -128,6 +129,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   const pushStore = new PushSubscriptionStore(redisStore);
   const notificationSender =
     notificationSenderOverride ?? new NotificationSender(pushStore);
+  const shareActivityTracker = new ShareActivityTracker();
 
   // Hydrate caches from Redis. No-op without persistence configured.
   await Promise.all([
@@ -194,6 +196,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       shareSnapshotStore,
       resolveOwnerStorage,
       notificationSender,
+      shareActivityTracker,
     }));
   } else {
     app.use("/api/v1/trips", createTripRoutes({
@@ -202,6 +205,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       shareSnapshotStore,
       resolveOwnerStorage,
       notificationSender,
+      shareActivityTracker,
     }));
   }
 

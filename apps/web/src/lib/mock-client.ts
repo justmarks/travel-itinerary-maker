@@ -395,7 +395,33 @@ const SAMPLE_TRIPS: Trip[] = [
       { id: "todo-5", text: "Get IC card (Suica / Pasmo)", isCompleted: false, category: "logistics", sortOrder: 4, details: "[Welcome Suica](https://www.jreast.co.jp/multi/en/welcomesuica/) is the easiest option for tourists — no deposit, expires in 28 days. Available at airport stations." },
       { id: "todo-6", text: "Pack light layers for April weather", isCompleted: false, category: "logistics", sortOrder: 5 },
     ],
-    shares: [],
+    // Pre-populated activity stamps so the demo dialog renders the
+    // "Viewed/Edited Xh ago" line on the share row out of the box.
+    // Two shares: a view-only one that the recipient has just opened,
+    // and an editor-share where the recipient has been collaborating.
+    shares: [
+      {
+        id: "share-japan-view",
+        shareToken: "demo:demo-1:view:0:0:abc123",
+        sharedWithEmail: "mom@example.com",
+        permission: "view",
+        showCosts: false,
+        showTodos: false,
+        createdAt: "2025-03-10T08:00:00Z",
+        lastViewedAt: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+      },
+      {
+        id: "share-japan-edit",
+        shareToken: "demo:demo-1:edit:1:1:def456",
+        sharedWithEmail: "tess@example.com",
+        permission: "edit",
+        showCosts: true,
+        showTodos: true,
+        createdAt: "2025-03-08T12:00:00Z",
+        lastViewedAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+        lastEditedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      },
+    ],
   },
 
   // ── Demo 2: Paris Valentine's Weekend ────────────────────────────────────

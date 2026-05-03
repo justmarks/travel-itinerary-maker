@@ -26,10 +26,13 @@ import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";
 import type { NotificationSender } from "../services/notification-sender";
+import type { ShareActivityTracker, ShareActivityKind } from "../services/share-activity-tracker";
+import { recordShareActivity } from "../services/share-activity";
 import {
   resolveTripAccess,
   listSharedTrips,
   type AccessResult,
+  type AccessGranted,
   type AccessDenied,
   type ResolveOwnerStorage,
 } from "../services/trip-access";
@@ -58,6 +61,14 @@ export interface TripRoutesOptions {
    * (cold invite to a not-yet-onboarded user).
    */
   notificationSender?: NotificationSender;
+  /**
+   * Optional throttle for "recipient viewed / edited" pushes. When
+   * present, contributor view / edit operations bump the matching
+   * share's lastViewedAt / lastEditedAt and push the owner — at most
+   * once per 30-min window per share-and-kind. Without it, no
+   * activity tracking happens (matches the legacy behaviour).
+   */
+  shareActivityTracker?: ShareActivityTracker;
 }
 
 export function createTripRoutes(options: TripRoutesOptions): Router {
@@ -67,6 +78,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     shareSnapshotStore,
     resolveOwnerStorage,
     notificationSender,
+    shareActivityTracker,
   } = options;
 
   // Support both a resolver function and a direct storage instance
@@ -106,6 +118,35 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           ? "Trip owner needs to re-authenticate"
           : "Trip not found";
     res.status(denied.status).json({ error: message, reason: denied.reason });
+  }
+
+  /**
+   * Fire activity tracking + owner push when a contributor (not the
+   * owner) views or edits a shared trip. No-op for owners (they don't
+   * need to be notified about their own activity), no-op when no
+   * tracker is configured, and throttled to 30 min per share+kind so
+   * scrolling doesn't churn writes or pushes.
+   *
+   * Safe to await even when it'd be a no-op — the tracker check runs
+   * first and returns synchronously when the throttle bites.
+   */
+  async function recordContributorActivity(
+    access: AccessGranted,
+    req: Request,
+    kind: ShareActivityKind,
+  ): Promise<void> {
+    if (!shareActivityTracker) return;
+    if (access.accessLevel === "owner") return;
+    if (!req.userEmail) return;
+    await recordShareActivity({
+      trip: access.trip,
+      storage: access.storage,
+      recipientEmail: req.userEmail,
+      ownerEmail: access.ownerEmail,
+      kind,
+      tracker: shareActivityTracker,
+      notificationSender,
+    });
   }
 
   function denyOwnerOnly(res: Response): void {
@@ -424,6 +465,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     const access = await accessTrip(req, req.params.tripId as string, "view");
     if (!access.ok) return denyAccess(res, access);
     res.json(access.trip);
+    // Fire-and-forget activity tracking. Don't await before responding —
+    // the contributor's load shouldn't pay for the throttle write or
+    // owner push. Errors inside record* are swallowed and logged.
+    void recordContributorActivity(access, req, "view");
   });
 
   router.put("/:tripId", async (req: Request, res: Response) => {
@@ -493,6 +538,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
     await storage.saveTrip(trip);
     res.json(trip);
+    void recordContributorActivity(access, req, "edit");
   });
 
   router.delete("/:tripId", async (req: Request, res: Response) => {
@@ -551,6 +597,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(day);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -629,6 +676,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.status(201).json(segment);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -703,6 +751,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(found);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -742,6 +791,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       res.status(204).send();
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -768,6 +818,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(found);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -794,6 +845,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         await storage.saveTrip(trip);
       }
       res.json({ confirmed });
+      if (confirmed > 0) void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -889,6 +941,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.status(201).json(todo);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -925,6 +978,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(todo);
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
@@ -945,6 +999,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.status(204).send();
+      void recordContributorActivity(access, req, "edit");
     },
   );
 
