@@ -611,7 +611,16 @@ export function useCreateShare(tripId: string) {
 export function useDeleteShare(tripId: string) {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  // Shared mutation key so we can ask "how many delete-share mutations
+  // for this trip are still in flight?" in onSettled. Without it, each
+  // sibling's onSettled invalidates the cache and triggers a refetch
+  // whose response reflects the server *between* siblings' DELETEs —
+  // so shares optimistically removed but not yet DELETEd on the server
+  // flicker back into the list, then disappear again as their own
+  // DELETE lands. Same pattern as `useConfirmSegment` above.
+  const mutationKey = ["delete-share", tripId];
   return useMutation({
+    mutationKey,
     mutationFn: (shareId: string) => client.deleteShare(tripId, shareId),
     // Optimistic remove from the cached shares list so the UI updates the
     // moment the user taps "revoke", even when the network round-trip is
@@ -636,7 +645,12 @@ export function useDeleteShare(tripId: string) {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.shares(tripId) });
+      // Only invalidate once the last delete in the current batch has
+      // settled. isMutating returns 1 when this is the final mutation
+      // still resolving (the caller is counted until onSettled finishes).
+      if (queryClient.isMutating({ mutationKey }) === 1) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.shares(tripId) });
+      }
     },
   });
 }
