@@ -1,5 +1,6 @@
 import { google, type gmail_v1 } from "googleapis";
 import { convert } from "html-to-text";
+import { debugEmailScan } from "../utils/debug-log";
 
 export interface RawEmail {
   id: string;
@@ -170,7 +171,7 @@ export class GmailScanner {
       }
       listParams.labelIds = [labelId];
       listParams.q = age; // still constrain by age, but no subject/sender filter
-      console.log(
+      debugEmailScan(
         `Gmail search: labelIds=[${labelId}] (resolved from "${labelFilter}"), q="${age}"`,
       );
     } else {
@@ -184,13 +185,13 @@ export class GmailScanner {
       const travelSenders =
         "from:(airlines OR airline OR flight OR hotel OR marriott OR hilton OR hyatt OR airbnb OR vrbo OR expedia OR booking.com OR kayak OR united OR delta OR american OR southwest OR alaska OR hawaiian OR jetblue OR frontier OR spirit OR lufthansa OR klm OR british-airways OR airfrance OR emirates OR qatar)";
       listParams.q = `(${subjectTerms} OR ${travelSenders}) ${excludes} ${age}`;
-      console.log(`Gmail search query: ${listParams.q}`);
+      debugEmailScan(`Gmail search query: ${listParams.q}`);
     }
 
     const listRes = await this.gmail.users.messages.list(listParams);
 
     const messageIds = listRes.data.messages || [];
-    console.log(
+    debugEmailScan(
       `Gmail messages.list returned ${messageIds.length} message IDs` +
         (listRes.data.resultSizeEstimate !== undefined
           ? ` (resultSizeEstimate=${listRes.data.resultSizeEstimate})`
@@ -210,7 +211,7 @@ export class GmailScanner {
 
     // Log every email subject we pulled so skipped/missing ones are obvious.
     for (const e of emails) {
-      console.log(`  FOUND: "${e.subject}" from ${e.from} (${e.receivedAt})`);
+      debugEmailScan(`  FOUND: "${e.subject}" from ${e.from} (${e.receivedAt})`);
     }
 
     return emails;
@@ -226,7 +227,7 @@ export class GmailScanner {
 
     const msg = res.data;
     if (!msg.payload) {
-      console.log(`SKIP: email ${messageId} (no MIME payload)`);
+      debugEmailScan(`SKIP: email ${messageId} (no MIME payload)`);
       return null;
     }
 
@@ -240,7 +241,7 @@ export class GmailScanner {
 
     const bodyText = extractBody(msg.payload);
     if (!bodyText.trim()) {
-      console.log(
+      debugEmailScan(
         `SKIP: "${subject}" from ${from} (empty body — no text/plain or text/html content)`,
       );
       return null;

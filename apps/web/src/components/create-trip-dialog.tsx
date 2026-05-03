@@ -8,6 +8,7 @@ import { useDemoMode } from "@/lib/demo";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -94,6 +95,9 @@ export function CreateTripDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a new trip</DialogTitle>
+          <DialogDescription>
+            Give your trip a name and pick the dates you&apos;ll be away.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

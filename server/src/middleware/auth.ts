@@ -47,7 +47,16 @@ export async function requireAuth(
 
     next();
   } catch (err) {
-    console.error("Auth: token validation failed:", err instanceof Error ? err.message : err);
+    // A 401 from Google means the access token is expired/revoked/invalid — the
+    // expected failure mode, not worth logging. Anything else (network failure,
+    // 5xx, quota, etc.) is unexpected and worth surfacing.
+    const status =
+      (err as { response?: { status?: number } })?.response?.status ??
+      (err as { code?: number | string })?.code;
+    const isExpectedAuthFailure = status === 401 || status === "401";
+    if (!isExpectedAuthFailure) {
+      console.error("Auth: token validation failed:", err instanceof Error ? err.message : err);
+    }
     res.status(401).json({ error: "Invalid or expired access token" });
   }
 }

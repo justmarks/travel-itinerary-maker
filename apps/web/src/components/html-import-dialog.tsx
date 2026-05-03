@@ -46,6 +46,7 @@ import {
   Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { reportError } from "@/lib/monitoring";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 
@@ -217,6 +218,7 @@ export function HtmlImportDialog({
         }
       } catch (err) {
         console.error("Failed to read file:", err);
+        reportError(err, { context: "html-import:read-file" });
         setErrorMessage("Failed to read file");
       }
     },
@@ -266,6 +268,7 @@ export function HtmlImportDialog({
       setStep("results");
     } catch (err) {
       console.error("HTML import failed:", err);
+      reportError(err, { context: "html-import:import" });
       if (err instanceof ApiError) {
         const body = err.body as { error?: string; code?: string };
         setErrorMessage(body.error || `Import failed (${err.status})`);
@@ -445,6 +448,7 @@ export function HtmlImportDialog({
       setStep("done");
     } catch (err) {
       console.error("Apply failed:", err);
+      reportError(err, { context: "html-import:apply" });
       setErrorMessage(err instanceof Error ? err.message : "Apply failed");
       setStep("error");
     }

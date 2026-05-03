@@ -6,6 +6,7 @@ import type { Segment, SegmentType } from "@travel-app/shared";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -229,6 +230,9 @@ export function EditSegmentDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Edit segment</DialogTitle>
+          <DialogDescription>
+            Update the details of this trip segment.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <SegmentFormFields
