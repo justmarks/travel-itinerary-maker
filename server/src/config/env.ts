@@ -64,4 +64,23 @@ export const config = {
     privateKey: process.env.VAPID_PRIVATE_KEY || "",
     subject: process.env.VAPID_SUBJECT || "mailto:hello@itinly.app",
   },
+  /**
+   * Outbound mailer used by POST /api/v1/emails/report to forward
+   * user-submitted parse-failure reports to the operator inbox. When
+   * `host` is unset the route degrades to logging + Sentry capture so
+   * dev / CI don't need SMTP credentials.
+   */
+  smtp: {
+    host: process.env.SMTP_HOST || "",
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || "noreply@itinly.app",
+  },
+  /**
+   * Destination mailbox for parse-failure reports. The CLAUDE.md /
+   * README documents this as `emailerror@itinly.app`; override per
+   * environment when needed.
+   */
+  emailReportTo: process.env.EMAIL_REPORT_TO || "emailerror@itinly.app",
 };

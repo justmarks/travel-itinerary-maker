@@ -365,6 +365,46 @@ export const htmlImportRequestSchema = z
     path: ["html"],
   });
 
+/**
+ * Reasons a user can give when reporting that an email wasn't parsed
+ * correctly. Kept open enough to cover both auto-scan and HTML/EML
+ * imports — the UI surfaces these wherever a parse outcome looks
+ * questionable.
+ */
+export const PARSE_REPORT_REASONS = [
+  "failed",            // Parser threw / returned only invalid items
+  "no_travel_content", // Parser said "nothing to extract" but user disagrees
+  "parsed_wrong",      // Segments were extracted but they're incorrect
+] as const;
+export type ParseReportReason = (typeof PARSE_REPORT_REASONS)[number];
+
+/**
+ * Schema for POST /emails/report. The server uses `emailId` to look up
+ * Gmail-scanned emails (and re-fetch the body via the user's access
+ * token). For HTML/EML imports we don't store the raw source, so the
+ * client passes it inline via `inlineEmail`.
+ */
+export const emailReportRequestSchema = z.object({
+  emailId: z.string().min(1),
+  reason: z.enum(PARSE_REPORT_REASONS),
+  /** Free-form note from the user about what went wrong. */
+  userNote: z.string().max(2000).optional(),
+  /** What the user expected the parser to extract. */
+  expectedOutcome: z.string().max(2000).optional(),
+  /**
+   * Inline email content for sources we can't refetch (HTML / EML
+   * imports). When omitted the server tries to re-fetch from Gmail.
+   */
+  inlineEmail: z
+    .object({
+      subject: z.string().max(1000).optional(),
+      from: z.string().max(500).optional(),
+      receivedAt: z.string().optional(),
+      body: z.string().max(200_000),
+    })
+    .optional(),
+});
+
 /** Schema for triggering an email scan */
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
@@ -424,5 +464,6 @@ export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
 export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
+export type EmailReportRequest = z.infer<typeof emailReportRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
 export type XlsxImportRequest = z.infer<typeof xlsxImportRequestSchema>;

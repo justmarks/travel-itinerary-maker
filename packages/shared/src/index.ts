@@ -48,6 +48,7 @@ export {
   segmentFieldDiffSchema,
   emailScanRequestSchema,
   htmlImportRequestSchema,
+  emailReportRequestSchema,
   applyParsedSegmentsSchema,
   xlsxImportRequestSchema,
   SEGMENT_TYPES,
@@ -57,6 +58,7 @@ export {
   SHARE_PERMISSIONS,
   SEGMENT_MATCH_STATUSES,
   APPLY_ACTIONS,
+  PARSE_REPORT_REASONS,
 } from "./validators/trip";
 
 export type {
@@ -70,6 +72,8 @@ export type {
   PushSubscriptionInput,
   EmailScanRequest,
   HtmlImportRequest,
+  EmailReportRequest,
+  ParseReportReason,
   ApplyParsedSegmentsInput,
   ApplyAction,
   XlsxImportRequest,

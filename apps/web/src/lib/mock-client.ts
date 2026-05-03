@@ -25,6 +25,7 @@ import type {
   GmailLabel,
   EmailScanResult,
   EmailScanRequest,
+  EmailReportRequest,
   HtmlImportRequest,
   ApplyParsedSegmentsInput,
   XlsxImportRequest,
@@ -1844,6 +1845,16 @@ export class MockApiClient extends ApiClient {
 
   override dismissEmail(_emailId: string): Promise<{ status: string }> {
     return Promise.resolve({ status: "dismissed" });
+  }
+
+  override reportEmail(_input: EmailReportRequest): Promise<{
+    status: string;
+    delivered: boolean;
+    fallback?: string;
+  }> {
+    // Demo mode: pretend the report went through. Nothing actually leaves
+    // the browser — there's no backend in demo mode.
+    return Promise.resolve({ status: "reported", delivered: true });
   }
 
   // ─── Calendar Sync ─────────────────────────────────────

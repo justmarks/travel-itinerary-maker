@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import {
   emailScanRequestSchema,
   htmlImportRequestSchema,
+  emailReportRequestSchema,
   applyParsedSegmentsSchema,
   generateId,
   isDateInRange,
@@ -18,6 +19,9 @@ import type { ProcessedEmail } from "../services/google-drive/drive-storage";
 import { GmailScanner } from "../services/gmail-scanner";
 import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
+import { recordParseFailure } from "../services/email-telemetry";
+import { sendParseFailureReport } from "../services/email-mailer";
+import { reportError } from "../services/monitoring";
 import { config } from "../config/env";
 
 export interface EmailRoutesOptions {
@@ -706,12 +710,46 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           if (hasTravel) {
             console.log(`  → ${segments.length} segments extracted`);
+            if (invalidCount > 0) {
+              // Some items dropped — track aggregate signal so we can spot
+              // partial-failure patterns even when the email did parse.
+              recordParseFailure({
+                outcome: "parsed_with_invalid",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                rawItemCount,
+                invalidCount,
+              });
+            }
           } else if (validationFailedEverything) {
             console.warn(
               `  PARSE FAILURE: "${email.subject}" — Claude returned ${rawItemCount} items but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
             );
+            recordParseFailure({
+              outcome: "failed",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
           } else {
             console.log(`SKIP: "${email.subject}" (no travel content detected)`);
+            recordParseFailure({
+              outcome: "no_travel_content",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
           }
 
           // Auto-match segments to trips by date, then classify against itinerary
@@ -806,6 +844,23 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             );
           } else {
             console.error(`Failed to parse email ${email.id}:`, err);
+            // Only report non-transient exceptions — overloaded / billing /
+            // auth are environmental and would otherwise drown the signal.
+            if (!isBillingError && !isAuthError) {
+              recordParseFailure({
+                outcome: "exception",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                errorMessage: errMsg,
+              });
+              reportError(err, {
+                emailId: email.id,
+                source: "gmail_scan",
+              });
+            }
           }
 
           if (isBillingError || isAuthError || isOverloadedError) {
@@ -998,6 +1053,15 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
 
         console.error("POST /emails/import-html parser error:", err);
+        recordParseFailure({
+          outcome: "exception",
+          source: isEmlImport ? "eml_import" : "html_import",
+          subject,
+          from,
+          receivedAt,
+          errorMessage: errMsg,
+        });
+        reportError(err, { source: isEmlImport ? "eml_import" : "html_import" });
         res.status(500).json({ error: errMsg || "HTML parse failed" });
         return;
       }
@@ -1065,6 +1129,42 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       console.log(
         `${isEmlImport ? "EML" : "HTML"} import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
       );
+
+      // Telemetry: emit on every non-success outcome (and on partial failures
+      // where some items were dropped). Source distinguishes EML vs HTML so
+      // we can tell which format struggles more.
+      const telemetrySource = isEmlImport ? "eml_import" : "html_import";
+      if (validationFailedEverything) {
+        recordParseFailure({
+          outcome: "failed",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      } else if (!hasTravel) {
+        recordParseFailure({
+          outcome: "no_travel_content",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      } else if (invalidCount > 0) {
+        recordParseFailure({
+          outcome: "parsed_with_invalid",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      }
 
       res.status(201).json({ result });
     } catch (err) {
@@ -1293,6 +1393,108 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
     } catch (err) {
       console.error("POST /emails/dismiss error:", err);
       res.status(500).json({ error: "Failed to dismiss email" });
+    }
+  });
+
+  /**
+   * POST /emails/report
+   * User-initiated bug report for an email that wasn't parsed correctly.
+   * Forwards the email + the user's note to the operator inbox (default
+   * `emailerror@itinly.app`) and captures a Sentry event regardless. The
+   * client supplies inline body content for HTML/EML imports; for Gmail
+   * scans we re-fetch from Gmail using the user's existing access token.
+   *
+   * Always returns 200 once validation passes — SMTP being down or
+   * unconfigured is a server-side concern that shouldn't surface as a
+   * failed action to the user.
+   */
+  router.post("/report", async (req: Request, res: Response) => {
+    try {
+      const parsed = emailReportRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+      const { emailId, reason, userNote, expectedOutcome, inlineEmail } = parsed.data;
+
+      // Resolve the email body: prefer client-supplied inline content (the
+      // HTML/EML import path), otherwise re-fetch from Gmail. When neither
+      // path yields a body we still send the report — the operator gets
+      // metadata + the user's note, which is better than nothing.
+      let source: "gmail" | "inline" | "metadata-only" = "metadata-only";
+      let originalSubject: string | undefined;
+      let originalFrom: string | undefined;
+      let originalReceivedAt: string | undefined;
+      let originalBody: string | undefined;
+
+      if (inlineEmail) {
+        source = "inline";
+        originalSubject = inlineEmail.subject;
+        originalFrom = inlineEmail.from;
+        originalReceivedAt = inlineEmail.receivedAt;
+        originalBody = inlineEmail.body;
+      } else if (req.accessToken) {
+        try {
+          const scanner = new GmailScanner(req.accessToken);
+          const fetched = await scanner.fetchEmail(emailId);
+          if (fetched) {
+            source = "gmail";
+            originalSubject = fetched.subject;
+            originalFrom = fetched.from;
+            originalReceivedAt = fetched.receivedAt;
+            originalBody = fetched.bodyText;
+          }
+        } catch (err) {
+          // Don't fail the user-facing request — log + continue with
+          // metadata only. The operator can still investigate via Sentry.
+          console.warn(
+            `[POST /emails/report] failed to refetch ${emailId} from Gmail:`,
+            err instanceof Error ? err.message : err,
+          );
+        }
+      }
+
+      // Fall back to whatever the storage layer remembers about this
+      // email (subject / sender) when we couldn't recover the body. This
+      // gives the operator at least something to act on.
+      if (source === "metadata-only") {
+        try {
+          const storage = getStorage(req);
+          const processed = await storage.getProcessedEmails();
+          const known = processed.find((p) => p.gmailMessageId === emailId);
+          if (known) {
+            originalSubject ??= known.subject;
+            originalFrom ??= known.fromAddress;
+            originalReceivedAt ??= known.receivedAt;
+          }
+        } catch {
+          // Storage read failure is non-fatal here — keep going.
+        }
+      }
+
+      const result = await sendParseFailureReport({
+        reason,
+        reporterEmail: req.userEmail || "(unknown)",
+        reporterUserId: req.userId,
+        emailId,
+        userNote,
+        expectedOutcome,
+        source,
+        originalSubject,
+        originalFrom,
+        originalReceivedAt,
+        originalBody,
+      });
+
+      res.json({
+        status: "reported",
+        delivered: result.delivered,
+        fallback: result.fallbackReason,
+      });
+    } catch (err) {
+      console.error("POST /emails/report error:", err);
+      reportError(err, { route: "POST /emails/report" });
+      res.status(500).json({ error: "Failed to file report" });
     }
   });
 

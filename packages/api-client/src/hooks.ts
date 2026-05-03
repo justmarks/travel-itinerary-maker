@@ -20,6 +20,7 @@ import type {
   GmailLabel,
   ApplyParsedSegmentsInput,
   EmailScanRequest,
+  EmailReportRequest,
   HtmlImportRequest,
   XlsxImportRequest,
 } from "@travel-app/shared";
@@ -770,5 +771,12 @@ export function useDismissEmail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
     },
+  });
+}
+
+export function useReportEmail() {
+  const client = useApiClient();
+  return useMutation({
+    mutationFn: (input: EmailReportRequest) => client.reportEmail(input),
   });
 }

@@ -696,6 +696,73 @@ describe("Email Routes", () => {
     });
   });
 
+  describe("POST /api/v1/emails/report", () => {
+    it("rejects missing emailId", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/report")
+        .send({ reason: "failed" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects an invalid reason", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/report")
+        .send({ emailId: "msg-001", reason: "garbage" });
+      expect(res.status).toBe(400);
+    });
+
+    it("accepts a valid report with inline email content", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/report")
+        .send({
+          emailId: "html-import-123",
+          reason: "no_travel_content",
+          userNote: "This was a hotel confirmation we missed.",
+          inlineEmail: {
+            subject: "Hilton booking",
+            from: "noreply@hilton.example",
+            body: "<html>...</html>",
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("reported");
+      // SMTP isn't configured in tests so delivered=false with smtp_disabled.
+      expect(res.body.delivered).toBe(false);
+      expect(res.body.fallback).toBe("smtp_disabled");
+    });
+
+    it("accepts a report referencing a Gmail-scanned email by id", async () => {
+      // The mocked GmailScanner doesn't expose fetchEmail, so we skip the
+      // refetch path and rely on processedEmails metadata.
+      await request(app).post("/api/v1/emails/scan").send({});
+
+      const res = await request(app)
+        .post("/api/v1/emails/report")
+        .send({
+          emailId: "msg-001",
+          reason: "parsed_wrong",
+          expectedOutcome: "Should have arrived at HND not NRT",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("reported");
+    });
+
+    it("clamps oversized userNote / expectedOutcome", async () => {
+      const longNote = "x".repeat(2001);
+      const res = await request(app)
+        .post("/api/v1/emails/report")
+        .send({
+          emailId: "msg-001",
+          reason: "failed",
+          userNote: longNote,
+        });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe("POST /api/v1/emails/dismiss/:emailId", () => {
     it("marks email as skipped", async () => {
       const res = await request(app)

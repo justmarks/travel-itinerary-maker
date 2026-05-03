@@ -16,6 +16,7 @@ import type {
   GmailLabel,
   ApplyParsedSegmentsInput,
   EmailScanRequest,
+  EmailReportRequest,
   HtmlImportRequest,
   XlsxImportRequest,
 } from "@travel-app/shared";
@@ -448,6 +449,15 @@ export class ApiClient {
   dismissEmail(emailId: string): Promise<{ status: string }> {
     return this.request(`/emails/dismiss/${emailId}`, {
       method: "POST",
+    });
+  }
+
+  reportEmail(
+    input: EmailReportRequest,
+  ): Promise<{ status: string; delivered: boolean; fallback?: string }> {
+    return this.request("/emails/report", {
+      method: "POST",
+      body: JSON.stringify(input),
     });
   }
 

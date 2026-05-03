@@ -27,9 +27,9 @@ export function initMonitoring(): void {
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.nodeEnv,
-    // Low sample rate by default — crank up only once we know what the
-    // baseline event volume looks like. Errors are always captured.
-    tracesSampleRate: 0.05,
+    // Capture all transactions while we're still building visibility into
+    // the email-parse pipeline. Errors are always captured regardless.
+    tracesSampleRate: 1.0,
   });
 
   initialised = true;
@@ -45,6 +45,31 @@ export function reportError(err: unknown, context?: Record<string, unknown>): vo
   Sentry.withScope((scope) => {
     if (context) scope.setExtras(context);
     Sentry.captureException(err);
+  });
+}
+
+/**
+ * Report a non-error structured event to Sentry (e.g. a soft parse failure
+ * where no exception was thrown but the outcome is interesting). `tags` end
+ * up as searchable Sentry tags; `context` becomes free-form extras. No-op
+ * when Sentry is disabled.
+ */
+export function reportMessage(
+  message: string,
+  options?: {
+    level?: "info" | "warning" | "error";
+    tags?: Record<string, string>;
+    context?: Record<string, unknown>;
+  },
+): void {
+  if (!initialised) return;
+  Sentry.withScope((scope) => {
+    if (options?.tags) {
+      for (const [k, v] of Object.entries(options.tags)) scope.setTag(k, v);
+    }
+    if (options?.context) scope.setExtras(options.context);
+    scope.setLevel(options?.level ?? "warning");
+    Sentry.captureMessage(message);
   });
 }
 
