@@ -76,7 +76,9 @@ import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
-import { useDemoHref } from "@/lib/demo";
+import { useDemoHref, useDemoMode } from "@/lib/demo";
+import { useAuth } from "@/lib/auth";
+import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
@@ -573,11 +575,18 @@ function CalendarSyncButton({
 }) {
   const client = useApiClient();
   const queryClient = useQueryClient();
+  const { hasScope } = useAuth();
+  const isDemo = useDemoMode();
+  // Demo mode runs against MockApiClient and never hits Google, so we
+  // skip the scope gate there. Real users without `calendar` granted
+  // see a "Connect Calendar" CTA instead of the full sync dialog.
+  const calendarGranted = isDemo || hasScope(CALENDAR_SCOPE);
   const [syncing, setSyncing] = useState(false);
-  // "pick"  → choose-calendar dialog (not yet synced)
-  // "info"  → synced-status dialog
-  // null    → no dialog
-  const [dialog, setDialog] = useState<"pick" | "info" | null>(null);
+  // "pick"   → choose-calendar dialog (not yet synced)
+  // "info"   → synced-status dialog
+  // "scope"  → "needs Calendar permission" CTA
+  // null     → no dialog
+  const [dialog, setDialog] = useState<"pick" | "info" | "scope" | null>(null);
   const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
@@ -605,6 +614,10 @@ function CalendarSyncButton({
   };
 
   const openDialog = () => {
+    if (!calendarGranted) {
+      setDialog("scope");
+      return;
+    }
     if (isSynced) {
       setRemoveStep(null);
       setDeleteChoice("delete");
@@ -695,6 +708,33 @@ function CalendarSyncButton({
               : "Sync to Calendar"}
         </Button>
       )}
+
+      {/* ── Needs Calendar scope ── */}
+      <Dialog open={dialog === "scope"} onOpenChange={(o) => !o && setDialog(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Connect Google Calendar</DialogTitle>
+            <DialogDescription>
+              To sync this trip&apos;s events to your calendar, grant
+              Google Calendar access. You can revoke it any time from
+              your Google Account.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialog(null)}>Not now</Button>
+            <Button
+              onClick={() => {
+                const returnTo =
+                  window.location.pathname + window.location.search;
+                requestAdditionalScopes([CALENDAR_SCOPE], returnTo);
+              }}
+            >
+              <CalendarPlus className="mr-2 h-3.5 w-3.5" />
+              Connect Calendar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Calendar picker (not yet synced) ── */}
       <Dialog open={dialog === "pick"} onOpenChange={(o) => !o && setDialog(null)}>

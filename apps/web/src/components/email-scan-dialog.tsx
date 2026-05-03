@@ -55,6 +55,9 @@ import {
 import { cn } from "@/lib/utils";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
+import { useAuth } from "@/lib/auth";
+import { useDemoMode } from "@/lib/demo";
+import { GMAIL_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 
 const CONFIDENCE_STYLES: Record<string, string> = {
   high: "border-green-300 bg-green-50 text-green-700",
@@ -99,7 +102,15 @@ interface SegmentSelection extends ParsedSegment {
   existingSegmentId?: string;
 }
 
-type ScanStep = "loading" | "config" | "scanning" | "results" | "applying" | "done" | "error";
+type ScanStep =
+  | "loading"
+  | "needs-scope"
+  | "config"
+  | "scanning"
+  | "results"
+  | "applying"
+  | "done"
+  | "error";
 
 export function EmailScanDialog({
   tripId,
@@ -134,8 +145,19 @@ export function EmailScanDialog({
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
 
-  const { data: labels, error: labelsError } = useGmailLabels(open);
-  const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(open);
+  const { hasScope } = useAuth();
+  const isDemo = useDemoMode();
+  // Demo mode bypasses real Google APIs via MockApiClient, so we treat
+  // every feature as "granted" there. For real users, gate Gmail
+  // network calls behind the gmail.readonly scope so we don't fire a
+  // request that's guaranteed to 403 — the gate also drives the
+  // "Connect Gmail" prompt below.
+  const gmailGranted = isDemo || hasScope(GMAIL_SCOPE);
+
+  const { data: labels, error: labelsError } = useGmailLabels(open && gmailGranted);
+  const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(
+    open && gmailGranted,
+  );
   const { data: trips } = useTrips();
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
@@ -158,7 +180,16 @@ export function EmailScanDialog({
 
   // When dialog opens, check for pending results
   useEffect(() => {
-    if (!open || pendingLoading) return;
+    if (!open) return;
+
+    // Gmail scope hasn't been granted yet — show the connect CTA
+    // instead of trying to load anything from Google.
+    if (!gmailGranted) {
+      setStep("needs-scope");
+      return;
+    }
+
+    if (pendingLoading) return;
 
     if (pendingData?.results && pendingData.results.length > 0) {
       // We have pending results — go straight to results view
@@ -167,7 +198,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, gmailGranted, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(
@@ -292,9 +323,11 @@ export function EmailScanDialog({
       }
 
       if (status === 403 && body?.code === "GMAIL_SCOPE_REQUIRED") {
-        setErrorMessage(
-          "Gmail access is required. Please sign out and sign back in, granting Gmail permissions when prompted.",
-        );
+        // Token doesn't include gmail.readonly any more (revoked, downgraded,
+        // or stale localStorage). Bounce to the same connect step we use
+        // for first-time grants — it'll re-run the OAuth flow.
+        setStep("needs-scope");
+        return;
       } else if (status === 503 && body?.code === "ANTHROPIC_OVERLOADED") {
         setErrorMessage(
           "The AI service is temporarily overloaded. Please try scanning again in a few minutes.",
@@ -504,6 +537,38 @@ export function EmailScanDialog({
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Checking for pending results...</p>
           </div>
+        )}
+
+        {/* ── Step: Needs Gmail scope ── */}
+        {step === "needs-scope" && (
+          <>
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+              <Mail className="h-8 w-8 text-muted-foreground" />
+              <p className="text-base font-medium">Connect Gmail to scan</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Granting read-only Gmail access lets us find travel
+                confirmations and turn them into trip segments. You can
+                revoke this any time from your Google Account.
+              </p>
+            </div>
+            <DialogFooter className="flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Not now
+              </Button>
+              <Button
+                onClick={() => {
+                  // Send the user back to the same page they were on so
+                  // re-opening the dialog after consent feels seamless.
+                  const returnTo =
+                    window.location.pathname + window.location.search;
+                  requestAdditionalScopes([GMAIL_SCOPE], returnTo);
+                }}
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Connect Gmail
+              </Button>
+            </DialogFooter>
+          </>
         )}
 
         {/* ── Step: Config ── */}

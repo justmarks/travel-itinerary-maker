@@ -35,14 +35,31 @@
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
-const SCOPES = [
+/**
+ * Scopes requested at first sign-in. Kept minimal so most users see the
+ * shortest possible Google consent screen — Drive is the only Google API
+ * the app needs to function (trips live in the user's Drive). Gmail and
+ * Calendar are added on demand via `requestAdditionalScopes` when the
+ * user opts into a feature that needs them.
+ */
+export const INITIAL_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/drive.file",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/calendar",
-].join(" ");
+];
+
+/** Scope required to scan Gmail for travel confirmations. */
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+
+/** Scope required to push trip events to Google Calendar. */
+export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+
+/** Parses Google's space-separated `scope` response into an array. */
+export function parseScopeString(scope: string | null | undefined): string[] {
+  if (!scope) return [];
+  return scope.split(/\s+/).filter(Boolean);
+}
 
 const CSRF_KEY = "oauth_csrf";
 const RETURN_TO_KEY = "oauth_return_to";
@@ -147,7 +164,7 @@ export function isAllowlistedRelayOrigin(origin: string): boolean {
   return regex.test(origin);
 }
 
-export function startGoogleSignIn(returnTo: string): void {
+function buildAuthUrl(scopes: string[], returnTo: string): string {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) {
     throw new Error(
@@ -164,14 +181,38 @@ export function startGoogleSignIn(returnTo: string): void {
     client_id: clientId,
     redirect_uri: getOAuthRedirectUri(),
     response_type: "code",
-    scope: SCOPES,
+    scope: scopes.join(" "),
     access_type: "offline",
     prompt: "consent",
     include_granted_scopes: "true",
     state,
   });
 
-  window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`;
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+}
+
+export function startGoogleSignIn(returnTo: string): void {
+  window.location.href = buildAuthUrl(INITIAL_SCOPES, returnTo);
+}
+
+/**
+ * Re-runs the OAuth redirect to add scopes to an already-signed-in user.
+ *
+ * Pairs with `include_granted_scopes=true`: Google's consent screen only
+ * prompts for the *new* scopes, and the resulting access token covers
+ * everything the user has granted across all flows. After the callback,
+ * `login()` overwrites the stored auth state with the cumulative scope
+ * set returned in the token response.
+ *
+ * Pass the additional scopes (e.g. `[GMAIL_SCOPE]`) — the initial set is
+ * always included so we don't accidentally drop them.
+ */
+export function requestAdditionalScopes(
+  additionalScopes: string[],
+  returnTo: string,
+): void {
+  const merged = Array.from(new Set([...INITIAL_SCOPES, ...additionalScopes]));
+  window.location.href = buildAuthUrl(merged, returnTo);
 }
 
 export interface ConsumedOAuthState {

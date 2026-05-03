@@ -24,11 +24,19 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   expiresAt: number | null;
+  /**
+   * OAuth scopes Google has actually granted this session. Derived from
+   * the `scope` field in the token-exchange response. Drives feature
+   * gating for Gmail / Calendar — features whose scope isn't here show
+   * a "connect" CTA instead of running.
+   */
+  scopes: string[];
 }
 
 interface AuthContextValue extends AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasScope: (scope: string) => boolean;
   login: (googleAuthCode: string, redirectUri?: string) => Promise<void>;
   logout: () => void;
 }
@@ -37,16 +45,33 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const STORAGE_KEY = "travel-app-auth";
 
+const EMPTY_AUTH: AuthState = {
+  user: null,
+  accessToken: null,
+  refreshToken: null,
+  expiresAt: null,
+  scopes: [],
+};
+
 function loadAuth(): AuthState {
-  if (typeof window === "undefined") {
-    return { user: null, accessToken: null, refreshToken: null, expiresAt: null };
-  }
+  if (typeof window === "undefined") return EMPTY_AUTH;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { user: null, accessToken: null, refreshToken: null, expiresAt: null };
-    return JSON.parse(raw) as AuthState;
+    if (!raw) return EMPTY_AUTH;
+    const parsed = JSON.parse(raw) as Partial<AuthState>;
+    // `scopes` was added after launch; pre-existing localStorage entries
+    // won't have it. Coerce to [] so feature gates fall back to the
+    // "needs to grant" state — the user will re-auth on their next
+    // restricted-feature click and the scope list will populate.
+    return {
+      user: parsed.user ?? null,
+      accessToken: parsed.accessToken ?? null,
+      refreshToken: parsed.refreshToken ?? null,
+      expiresAt: parsed.expiresAt ?? null,
+      scopes: Array.isArray(parsed.scopes) ? parsed.scopes : [],
+    };
   } catch {
-    return { user: null, accessToken: null, refreshToken: null, expiresAt: null };
+    return EMPTY_AUTH;
   }
 }
 
@@ -60,12 +85,7 @@ function saveAuth(state: AuthState) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    accessToken: null,
-    refreshToken: null,
-    expiresAt: null,
-  });
+  const [state, setState] = useState<AuthState>(EMPTY_AUTH);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load from localStorage on mount
@@ -81,6 +101,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
       saveAuth(state);
     }
   }, [state, isLoading]);
+
+  // Bootstrap scope list from the server when we don't have one yet.
+  // Covers two cases:
+  //   1. Users who signed in before scope tracking shipped — their
+  //      localStorage has no `scopes` field, but their Google token
+  //      may already cover Gmail / Calendar from the old all-at-once
+  //      consent screen.
+  //   2. Edge cases where Google's code-exchange response omitted the
+  //      `scope` field on a fresh login.
+  // Fetches /auth/scopes (server uses tokeninfo to introspect the
+  // access token authoritatively), then merges into state. Skipped
+  // when scopes is already populated to avoid an extra request on
+  // every mount.
+  useEffect(() => {
+    if (isLoading) return;
+    if (!state.accessToken) return;
+    if (state.scopes.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/scopes`, {
+          headers: { Authorization: `Bearer ${state.accessToken}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled || !Array.isArray(data.scopes)) return;
+        if (data.scopes.length === 0) return;
+        setState((prev) => ({
+          ...prev,
+          scopes: Array.from(new Set([...prev.scopes, ...data.scopes])),
+        }));
+      } catch {
+        // Best-effort; the user can still re-grant scopes manually.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, state.accessToken, state.scopes.length]);
 
   // Auto-refresh token before expiry
   useEffect(() => {
@@ -106,12 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
         }));
       } catch {
         // If refresh fails, log the user out
-        setState({
-          user: null,
-          accessToken: null,
-          refreshToken: null,
-          expiresAt: null,
-        });
+        setState(EMPTY_AUTH);
       }
     }, refreshIn);
 
@@ -131,32 +185,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     }
 
     const data = await res.json();
-    setState({
-      user: data.user,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: data.expiresAt,
+    setState((prev) => {
+      const newScopes = Array.isArray(data.scopes) ? data.scopes : [];
+      // Google's `scope` field on the code-exchange response only
+      // reflects the scopes requested in *this* authorization grant —
+      // not the cumulative set the access token can access (which
+      // `include_granted_scopes=true` extends to cover earlier consents
+      // too). Union with the previously stored set when it's the same
+      // user so an incremental grant doesn't blow away the original
+      // sign-in scopes. Different user → start fresh.
+      const sameUser = !!prev.user && prev.user.id === data.user?.id;
+      return {
+        user: data.user,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+        scopes: sameUser
+          ? Array.from(new Set([...prev.scopes, ...newScopes]))
+          : newScopes,
+      };
     });
   }, []);
 
   const logout = useCallback(() => {
-    setState({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      expiresAt: null,
-    });
+    setState(EMPTY_AUTH);
   }, []);
+
+  const hasScope = useCallback(
+    (scope: string) => state.scopes.includes(scope),
+    [state.scopes],
+  );
 
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       isAuthenticated: !!state.user && !!state.accessToken,
       isLoading,
+      hasScope,
       login,
       logout,
     }),
-    [state, isLoading, login, logout],
+    [state, isLoading, hasScope, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
