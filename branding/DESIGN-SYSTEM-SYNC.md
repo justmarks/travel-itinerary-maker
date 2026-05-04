@@ -72,6 +72,26 @@ sed -i '' '/@import url(/d' apps/web/src/app/design-tokens.css
 # Tailwind utilities, not a `.itinly` wrapper). If you copy a fresh
 # bundle, hand-strip lines from `.itinly { ` through the last
 # `.itinly .kicker { ... }` rule.
+
+# IMPORTANT — Tailwind namespace transform: rename the bundle's type-
+# scale variables `--text-{display,h1,h2,h3,h4,body,body-md,small,xs,
+# mono}` to `--type-*`. Tailwind v4's `text-{xs,sm,…}` utilities read
+# CSS variables under the `--text-*` namespace; letting the bundle's
+# font-shorthand values land there breaks `text-xs` (it tries to set
+# `font-size: 500 11px/1.3 ...` which is invalid as a size and falls
+# back to inherited). Rename in place — values stay identical:
+sed -i '' \
+  -e 's/--text-display:/--type-display:/' \
+  -e 's/--text-h1:/--type-h1:/' \
+  -e 's/--text-h2:/--type-h2:/' \
+  -e 's/--text-h3:/--type-h3:/' \
+  -e 's/--text-h4:/--type-h4:/' \
+  -e 's/--text-body:/--type-body:/' \
+  -e 's/--text-body-md:/--type-body-md:/' \
+  -e 's/--text-small:/--type-small:/' \
+  -e 's/--text-xs:/--type-xs:/' \
+  -e 's/--text-mono:/--type-mono:/' \
+  apps/web/src/app/design-tokens.css
 ```
 
 ### 4. Read the diff
@@ -157,4 +177,4 @@ Title: `design: sync <what changed>`. Body should call out:
 
 | Date | Bundle | Token categories added/changed |
 |---|---|---|
-| 2026-05-04 | `XFMQMKA_Ssb4sFP82UlDHg` | Initial drop-in. `colors_and_type.css` checked in verbatim at `design-tokens.css`. New `--seg-{type}-{rail,bg,fg}` trio for the 8 design-system canonical types; 5 product extensions (`transport, show, brunch, tour, cruise`) live in `globals.css` until the design system grows. Refactored `SEGMENT_CONFIG` in `itinerary-day.tsx` and `mobile-segment-card.tsx` from Tailwind 50/600 classes to `var(--seg-…)` references. |
+| 2026-05-04 | `XFMQMKA_Ssb4sFP82UlDHg` | Initial drop-in. `colors_and_type.css` checked in verbatim at `design-tokens.css` (with the documented `@import url`, `.itinly` element styles, and `--text-*`→`--type-*` namespace transforms). New `--seg-{type}-{rail,bg,fg}` trio for the 8 design-system canonical types; 5 product extensions (`transport, show, brunch, tour, cruise`) live in `globals.css` until the design system grows. Refactored `SEGMENT_CONFIG` in `itinerary-day.tsx` and `mobile-segment-card.tsx` from Tailwind 50/600 classes to `var(--seg-…)` references. |
