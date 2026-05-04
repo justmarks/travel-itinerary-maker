@@ -53,7 +53,7 @@ import { EmailReportDialog } from "@/components/email-report-dialog";
 // Same shape as the EmailScanDialog's MATCH_STATUS_TONE — both dialogs
 // render the four match-status outcomes (new / enrichment / conflict /
 // duplicate) and route them through the design-system status palette.
-type StatusTone = "ok" | "warn" | "danger" | "info" | "attention" | "muted";
+type StatusTone = "ok" | "warn" | "danger" | "info" | "muted";
 
 function statusBadgeStyle(tone: StatusTone): React.CSSProperties {
   return {
@@ -65,7 +65,7 @@ function statusBadgeStyle(tone: StatusTone): React.CSSProperties {
 
 const MATCH_STATUS_TONE: Record<SegmentMatchStatus, StatusTone> = {
   new:        "info",
-  enrichment: "attention",
+  enrichment: "info",
   conflict:   "warn",
   duplicate:  "muted",
 };
