@@ -159,7 +159,7 @@ function ExistingShareRow({
           }}
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5 text-green-600" />
+            <Check className="h-3.5 w-3.5" style={{ color: "var(--status-ok-fg)" }} />
           ) : (
             <Copy className="h-3.5 w-3.5" />
           )}
@@ -302,8 +302,8 @@ export function ShareTripDialog({
         {inSuccessState ? (
           /* ── Success state: link + copy + close + create another ── */
           <>
-            <div className="rounded-lg border border-green-300 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/40">
-              <p className="inline-flex items-center gap-1.5 text-sm font-medium text-green-900 dark:text-green-200">
+            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--status-ok-bg)", borderColor: "var(--status-ok-rail)" }}>
+              <p className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--status-ok-fg)" }}>
                 <CheckCircle2 className="h-4 w-4" />
                 Share link ready
               </p>
@@ -311,7 +311,7 @@ export function ShareTripDialog({
                   long URL forces the dialog wider than the viewport because
                   flex children default to min-content sizing. */}
               <div className="mt-2 flex min-w-0 items-center gap-2">
-                <code className="min-w-0 flex-1 overflow-hidden truncate rounded bg-background px-2 py-1.5 text-xs text-green-900 dark:text-green-200">
+                <code className="min-w-0 flex-1 overflow-hidden truncate rounded bg-background px-2 py-1.5 text-xs" style={{ color: "var(--status-ok-fg)" }}>
                   {buildShareUrl(createdToken)}
                 </code>
                 <Button
@@ -322,7 +322,7 @@ export function ShareTripDialog({
                 >
                   {createdCopied ? (
                     <>
-                      <Check className="mr-1.5 h-3.5 w-3.5 text-green-600" />
+                      <Check className="mr-1.5 h-3.5 w-3.5" style={{ color: "var(--status-ok-fg)" }} />
                       Copied
                     </>
                   ) : (
@@ -334,7 +334,7 @@ export function ShareTripDialog({
                 </Button>
               </div>
               {createdToken && (
-                <p className="mt-2 text-xs text-green-900/80">
+                <p className="mt-2 text-xs" style={{ color: "var(--status-ok-fg)", opacity: 0.8 }}>
                   {permission === "edit"
                     ? `${trimmedEmail || "Contributor"} will need to sign in with this Gmail to edit.`
                     : "Anyone with this link can view."}

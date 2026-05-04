@@ -86,12 +86,26 @@ import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
 
-const STATUS_STYLES: Record<string, string> = {
-  planning:  "bg-blue-100  text-blue-700  dark:bg-blue-900/40  dark:text-blue-200",
-  active:    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200",
-  completed: "bg-gray-100  text-gray-600  dark:bg-gray-800/60  dark:text-gray-300",
-  cancelled: "bg-red-100   text-red-700   dark:bg-red-900/40   dark:text-red-200",
+/**
+ * Map each trip status to a `--status-*` token (mirrors the same map
+ * in `trip-card.tsx`). Pulling the colors from the design-system
+ * palette means a planning-blue tweak in `globals.css` propagates
+ * everywhere a status chip renders.
+ */
+const STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
+  planning:  "info",
+  active:    "ok",
+  completed: "muted",
+  cancelled: "danger",
 };
+
+function statusChipStyle(status: string): React.CSSProperties {
+  const t = STATUS_TOKEN[status] ?? "muted";
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
+}
 
 /** Order the status chip cycles through on click. */
 const TRIP_STATUS_CYCLE: TripStatus[] = [
@@ -453,7 +467,7 @@ function TripActionsMenu({
               }}
             >
               {isSynced ? (
-                <CalendarCheck className="mr-2 h-4 w-4 text-green-600" />
+                <CalendarCheck className="mr-2 h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
               ) : (
                 <CalendarPlus className="mr-2 h-4 w-4" />
               )}
@@ -603,7 +617,14 @@ function NeedsReviewBanner({
   );
   if (reviewCount === 0) return null;
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    <div
+      className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 text-sm"
+      style={{
+        backgroundColor: "var(--status-warn-bg)",
+        color: "var(--status-warn-fg)",
+        borderColor: "var(--status-warn-rail)",
+      }}
+    >
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
         <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
@@ -612,7 +633,11 @@ function NeedsReviewBanner({
       <Button
         size="sm"
         variant="outline"
-        className="border-amber-400 bg-card text-amber-900 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-950/60"
+        className="bg-card hover:bg-card/80"
+        style={{
+          borderColor: "var(--status-warn-rail)",
+          color: "var(--status-warn-fg)",
+        }}
         onClick={() => confirmAll.mutate()}
         disabled={confirmAll.isPending}
       >
@@ -770,7 +795,7 @@ function CalendarSyncButton({
           onClick={openDialog}
         >
           {isSynced ? (
-            <CalendarCheck className="mr-2 h-3.5 w-3.5 text-green-600" />
+            <CalendarCheck className="mr-2 h-3.5 w-3.5" style={{ color: "var(--status-ok-fg)" }} />
           ) : (
             <CalendarPlus className="mr-2 h-3.5 w-3.5" />
           )}
@@ -1097,10 +1122,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
             )}
             {isReadOnly ? (
               <span
-                className={cn(
-                  "rounded-full px-2.5 py-0.5 text-xs font-medium capitalize",
-                  STATUS_STYLES[trip.status] ?? "bg-muted text-muted-foreground",
-                )}
+                className="rounded-full px-2.5 py-0.5 text-xs font-medium capitalize"
+                style={statusChipStyle(trip.status)}
               >
                 {trip.status}
               </span>
@@ -1112,10 +1135,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 }
                 disabled={updateTripStatus.isPending}
                 title={`Status: ${trip.status}. Click to advance.`}
-                className={cn(
-                  "cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait",
-                  STATUS_STYLES[trip.status] ?? "bg-muted text-muted-foreground",
-                )}
+                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait"
+                style={statusChipStyle(trip.status)}
               >
                 {trip.status}
               </button>

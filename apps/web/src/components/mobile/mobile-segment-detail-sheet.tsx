@@ -117,7 +117,7 @@ function Row({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-1 border-b border-border/40 py-3 last:border-b-0">
-      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+      <p className="text-kicker font-medium text-muted-foreground">
         {label}
       </p>
       <div className="text-sm text-foreground">{children}</div>
@@ -149,7 +149,7 @@ function CopyButton({
       className="ml-2 inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
     >
       {copied ? (
-        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+        <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "var(--status-ok-fg)" }} />
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
@@ -288,7 +288,7 @@ export function MobileSegmentDetailSheet({
       {/* Header */}
       <div className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-kicker font-semibold text-muted-foreground">
             {TYPE_LABEL[segment.type] ?? "Segment"}
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
@@ -300,12 +300,12 @@ export function MobileSegmentDetailSheet({
             </p>
           )}
           {segment.needsReview ? (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
               <AlertCircle className="h-3 w-3" />
               Needs review
             </span>
           ) : segment.source === "email_confirmed" ? (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: "var(--status-ok-bg)", color: "var(--status-ok-fg)", borderColor: "var(--status-ok-rail)" }}>
               <CheckCircle2 className="h-3 w-3" />
               Confirmed
             </span>
@@ -395,7 +395,7 @@ export function MobileSegmentDetailSheet({
               className={cn(
                 "inline-flex items-center gap-1.5",
                 segment.breakfastIncluded
-                  ? "text-green-700"
+                  ? "text-[color:var(--status-ok-fg)]"
                   : "text-muted-foreground",
               )}
             >
@@ -422,7 +422,7 @@ export function MobileSegmentDetailSheet({
               )}
             </div>
             {segment.cancellationDeadline && (
-              <p className="mt-1 text-xs text-amber-700">
+              <p className="mt-1 text-xs" style={{ color: "var(--status-warn-fg)" }}>
                 Cancel by {fmtDateLong(segment.cancellationDeadline)}
               </p>
             )}

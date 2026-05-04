@@ -315,7 +315,7 @@ function MobileTripInner({ tripId }: { tripId: string }) {
         />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
           {offline ? (
-            <CloudOff className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            <CloudOff className="h-8 w-8" style={{ color: "var(--status-warn-fg)" }} />
           ) : (
             <AlertCircle className="h-8 w-8 text-destructive" />
           )}

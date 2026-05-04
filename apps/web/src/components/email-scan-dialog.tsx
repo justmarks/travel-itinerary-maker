@@ -59,17 +59,30 @@ import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import { GMAIL_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 
-const CONFIDENCE_STYLES: Record<string, string> = {
-  high: "border-green-300 bg-green-50 text-green-700",
-  medium: "border-amber-300 bg-amber-50 text-amber-700",
-  low: "border-red-300 bg-red-50 text-red-700",
+// Each badge maps to a `--status-*` token trio. Pulling the colors
+// from the design system rather than hand-rolling Tailwind 50/700
+// classes means any palette tweak in `globals.css` propagates.
+type StatusTone = "ok" | "warn" | "danger" | "info" | "attention" | "muted";
+
+function statusBadgeStyle(tone: StatusTone): React.CSSProperties {
+  return {
+    backgroundColor: `var(--status-${tone}-bg)`,
+    color: `var(--status-${tone}-fg)`,
+    borderColor: `var(--status-${tone}-rail)`,
+  };
+}
+
+const CONFIDENCE_TONE: Record<string, StatusTone> = {
+  high:   "ok",
+  medium: "warn",
+  low:    "danger",
 };
 
-const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
-  new:        "border-blue-300   bg-blue-50   text-blue-700   dark:border-blue-800   dark:bg-blue-950/60   dark:text-blue-200",
-  enrichment: "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
-  conflict:   "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-200",
-  duplicate:  "border-zinc-300   bg-zinc-100  text-zinc-600   dark:border-zinc-700   dark:bg-zinc-800/60   dark:text-zinc-300",
+const MATCH_STATUS_TONE: Record<SegmentMatchStatus, StatusTone> = {
+  new:        "info",
+  enrichment: "attention",
+  conflict:   "warn",
+  duplicate:  "muted",
 };
 
 const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
@@ -630,7 +643,10 @@ export function EmailScanDialog({
               </div>
 
               {labelsError && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-800">
+                <div
+                  className="flex items-start gap-2 rounded-md border p-2.5 text-xs"
+                  style={statusBadgeStyle("warn")}
+                >
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <p>
                     Could not load labels. You may need to sign out and back in for Gmail access.
@@ -690,19 +706,28 @@ export function EmailScanDialog({
                 {/* Summary bar */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   {matchCounts.new > 0 && (
-                    <span className="flex items-center gap-1.5 text-blue-700">
+                    <span
+                      className="flex items-center gap-1.5"
+                      style={{ color: "var(--status-info-fg)" }}
+                    >
                       <Plus className="h-4 w-4" />
                       {matchCounts.new} new
                     </span>
                   )}
                   {matchCounts.enrichment > 0 && (
-                    <span className="flex items-center gap-1.5 text-violet-700">
+                    <span
+                      className="flex items-center gap-1.5"
+                      style={{ color: "var(--status-attention-fg)" }}
+                    >
                       <CheckCircle2 className="h-4 w-4" />
                       {matchCounts.enrichment} with details
                     </span>
                   )}
                   {matchCounts.conflict > 0 && (
-                    <span className="flex items-center gap-1.5 text-orange-700">
+                    <span
+                      className="flex items-center gap-1.5"
+                      style={{ color: "var(--status-warn-fg)" }}
+                    >
                       <AlertCircle className="h-4 w-4" />
                       {matchCounts.conflict} conflict{matchCounts.conflict !== 1 ? "s" : ""}
                     </span>
@@ -720,7 +745,12 @@ export function EmailScanDialog({
                     </span>
                   )}
                   {errorMessage && (
-                    <p className="w-full text-xs text-amber-700">{errorMessage}</p>
+                    <p
+                      className="w-full text-xs"
+                      style={{ color: "var(--status-warn-fg)" }}
+                    >
+                      {errorMessage}
+                    </p>
                   )}
                 </div>
 
@@ -728,15 +758,18 @@ export function EmailScanDialog({
                 <div className="min-h-0 flex-1 overflow-y-auto">
                   {/* New Trip Creation — inline at top when segments are unassigned */}
                   {hasUnassignedSegments && !showNewTripForm && (
-                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                    <div
+                      className="mb-3 rounded-lg border p-2.5"
+                      style={statusBadgeStyle("warn")}
+                    >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-amber-800">
+                        <p className="text-xs">
                           Some segments don&apos;t match any trip.
                         </p>
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 shrink-0 border-amber-300 bg-card text-xs hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                          className="h-7 shrink-0 bg-card text-xs"
                           onClick={() => setShowNewTripForm(true)}
                         >
                           <Plus className="mr-1 h-3 w-3" />
@@ -747,16 +780,19 @@ export function EmailScanDialog({
                   )}
 
                   {showNewTripForm && (
-                    <div className="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+                    <div
+                      className="mb-3 rounded-lg border p-3 space-y-2"
+                      style={statusBadgeStyle("info")}
+                    >
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-blue-900 flex items-center gap-1.5">
+                        <p className="text-sm font-medium flex items-center gap-1.5">
                           <Plus className="h-4 w-4" />
                           Create New Trip
                         </p>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 text-blue-600 hover:text-blue-800"
+                          className="h-6 w-6"
                           onClick={() => setShowNewTripForm(false)}
                         >
                           <X className="h-3.5 w-3.5" />
@@ -771,7 +807,7 @@ export function EmailScanDialog({
                       />
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="text-[10px] text-blue-700">Start date</label>
+                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>Start date</label>
                           <Input
                             type="date"
                             value={newTripStart}
@@ -780,7 +816,7 @@ export function EmailScanDialog({
                           />
                         </div>
                         <div className="flex-1">
-                          <label className="text-[10px] text-blue-700">End date</label>
+                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>End date</label>
                           <Input
                             type="date"
                             value={newTripEnd}
@@ -948,7 +984,7 @@ export function EmailScanDialog({
         {step === "done" && (
           <>
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
-              <CheckCircle2 className="h-8 w-8 text-green-500" />
+              <CheckCircle2 className="h-8 w-8" style={{ color: "var(--status-ok-fg)" }} />
               <p className="text-lg font-medium">
                 {appliedCount} segment{appliedCount !== 1 ? "s" : ""} added!
               </p>
@@ -1055,18 +1091,16 @@ function SegmentCard({
             <span className="text-sm font-medium">{seg.title}</span>
             <Badge
               variant="outline"
-              className={cn(
-                "text-[10px]",
-                MATCH_STATUS_STYLES[matchStatus],
-              )}
+              className="text-[10px]"
+              style={statusBadgeStyle(MATCH_STATUS_TONE[matchStatus])}
             >
               {MATCH_STATUS_LABEL[matchStatus]}
             </Badge>
             <Badge
               variant="outline"
-              className={cn(
-                "text-[10px]",
-                CONFIDENCE_STYLES[seg.confidence],
+              className="text-[10px]"
+              style={statusBadgeStyle(
+                CONFIDENCE_TONE[seg.confidence] ?? "muted",
               )}
             >
               {seg.confidence}
@@ -1097,7 +1131,7 @@ function SegmentCard({
             <div className="mt-1.5 space-y-1 rounded border border-dashed border-muted-foreground/20 bg-muted/30 p-1.5 text-[11px]">
               {seg.match?.newFields && seg.match.newFields.length > 0 && (
                 <div>
-                  <span className="font-medium text-violet-700">Adds: </span>
+                  <span className="font-medium" style={{ color: "var(--status-attention-fg)" }}>Adds: </span>
                   <span className="text-muted-foreground">
                     {seg.match.newFields.join(", ")}
                   </span>
@@ -1105,7 +1139,7 @@ function SegmentCard({
               )}
               {seg.match?.conflictFields && seg.match.conflictFields.length > 0 && (
                 <div className="space-y-0.5">
-                  <span className="font-medium text-orange-700">Conflicts:</span>
+                  <span className="font-medium" style={{ color: "var(--status-warn-fg)" }}>Conflicts:</span>
                   {seg.match.conflictFields.map((diff) => (
                     <div key={diff.field} className="pl-2 text-muted-foreground">
                       <span className="font-mono text-[10px]">{diff.field}:</span>{" "}
@@ -1163,7 +1197,10 @@ function SegmentCard({
                     </SelectItem>
                   ))}
                   <SelectItem value="__create_new__">
-                    <span className="flex items-center gap-1.5 text-blue-600">
+                    <span
+                      className="flex items-center gap-1.5"
+                      style={{ color: "var(--status-info-fg)" }}
+                    >
                       <Plus className="h-3 w-3" />
                       Create new trip...
                     </span>
@@ -1171,7 +1208,10 @@ function SegmentCard({
                 </SelectContent>
               </Select>
               {!seg.assignedTripId && (
-                <p className="mt-0.5 text-[10px] text-amber-600">
+                <p
+                  className="mt-0.5 text-[10px]"
+                  style={{ color: "var(--status-warn-fg)" }}
+                >
                   Select a trip or create a new one
                 </p>
               )}
@@ -1223,7 +1263,7 @@ function SkippedEmailsSection({
                     <>
                       {" "}
                       &middot;{" "}
-                      <span className="text-amber-700">parser failed</span>
+                      <span style={{ color: "var(--status-warn-fg)" }}>parser failed</span>
                     </>
                   )}
                 </p>

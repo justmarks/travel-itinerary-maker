@@ -152,7 +152,7 @@ function RowLabel({ icon, name }: { icon: string; name: string }) {
       className="sticky left-0 z-10 bg-card border-r border-border border-b border-border/60 px-2 sm:px-3 py-2.5 flex items-center sm:items-start justify-center sm:justify-start gap-1.5"
     >
       <span className="text-sm leading-none sm:mt-0.5">{icon}</span>
-      <span className="hidden sm:inline text-[11px] font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+      <span className="hidden sm:inline text-kicker font-semibold text-muted-foreground whitespace-nowrap">
         {name}
       </span>
     </div>

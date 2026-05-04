@@ -11,17 +11,14 @@ import {
 } from "@vis.gl/react-google-maps";
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
 import { MapPin } from "lucide-react";
+import {
+  useCategoryPinColors,
+  type PinCategory,
+} from "@/lib/category-pin-colors";
 
 const EXCLUDED: Set<SegmentType> = new Set(["flight"]);
 
-type Category = "hotel" | "dining" | "activity" | "transport";
-
-const PIN_COLOR: Record<Category, string> = {
-  hotel:     "#2563eb",
-  dining:    "#dc2626",
-  activity:  "#16a34a",
-  transport: "#7c3aed",
-};
+type Category = PinCategory;
 
 function getCategory(type: SegmentType): Category | null {
   if (EXCLUDED.has(type)) return null;
@@ -137,6 +134,8 @@ function DayMapInner({
     map.fitBounds(bounds, 60);
   }, [map, visiblePins]);
 
+  const pinColors = useCategoryPinColors();
+
   return (
     <Map
       mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID ?? "DEMO_MAP_ID"}
@@ -149,9 +148,9 @@ function DayMapInner({
       {numbered.map((pin) => (
         <AdvancedMarker key={pin.id} position={pin.position}>
           <Pin
-            background={PIN_COLOR[pin.category]}
+            background={pinColors[pin.category]}
             glyphColor="#fff"
-            borderColor={PIN_COLOR[pin.category]}
+            borderColor={pinColors[pin.category]}
             glyph={pin.label || undefined}
             scale={0.9}
           />

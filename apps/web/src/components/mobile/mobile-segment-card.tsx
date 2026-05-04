@@ -209,12 +209,12 @@ export function MobileSegmentCard({
             {titleText}
           </span>
           {segment.needsReview ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
               <AlertCircle className="h-2.5 w-2.5" />
               Review
             </span>
           ) : segment.source === "email_confirmed" ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">
+            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "var(--status-ok-bg)", color: "var(--status-ok-fg)", borderColor: "var(--status-ok-rail)" }}>
               <CheckCircle2 className="h-2.5 w-2.5" />
               Confirmed
             </span>
@@ -277,7 +277,7 @@ export function MobileSegmentCard({
           <p
             className={cn(
               "mt-1 inline-flex items-center gap-1 text-xs",
-              segment.breakfastIncluded ? "text-green-700" : "text-muted-foreground",
+              segment.breakfastIncluded ? "text-[color:var(--status-ok-fg)]" : "text-muted-foreground",
             )}
           >
             <Coffee className="h-3 w-3 shrink-0" />

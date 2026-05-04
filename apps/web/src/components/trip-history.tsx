@@ -42,12 +42,26 @@ const KIND_PRESENTATION: Record<
   "bulk.confirm_all": { icon: <Layers className="h-3.5 w-3.5" />, tone: "info" },
 };
 
-const TONE_CLASSES: Record<"create" | "update" | "delete" | "info", string> = {
-  create: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
-  update: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300",
-  delete: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
-  info: "bg-muted text-muted-foreground",
-};
+/**
+ * Map each tone to a `--status-*` token. Tones map semantically:
+ * create→ok, update→info, delete→danger, info→muted. Tokens carry
+ * dark-mode lifts so the colored disc reads against either surface.
+ */
+type Tone = "create" | "update" | "delete" | "info";
+
+function toneStyle(tone: Tone): React.CSSProperties {
+  const map: Record<Tone, "ok" | "info" | "danger" | "muted"> = {
+    create: "ok",
+    update: "info",
+    delete: "danger",
+    info:   "muted",
+  };
+  const t = map[tone];
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
+}
 
 function formatRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
@@ -161,7 +175,8 @@ export function TripHistory({ entries }: TripHistoryProps): React.JSX.Element {
                   className="flex items-start gap-3 rounded-lg border bg-card p-3"
                 >
                   <span
-                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${TONE_CLASSES[presentation.tone]}`}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                    style={toneStyle(presentation.tone)}
                     aria-hidden
                   >
                     {presentation.icon}

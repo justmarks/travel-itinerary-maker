@@ -20,7 +20,7 @@ export function MobileHistorySheet({
     <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Trip history">
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-2 pt-1">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-kicker font-semibold text-muted-foreground">
             History
           </p>
           <h2 className="mt-0.5 text-2xl font-bold leading-tight">

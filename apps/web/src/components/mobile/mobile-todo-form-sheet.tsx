@@ -22,25 +22,25 @@ const CATEGORY_OPTIONS: {
     value: "logistics",
     label: "Logistics",
     icon: Briefcase,
-    iconClass: "text-purple-600",
+    iconClass: "text-[color:var(--todo-logistics-fg)]",
   },
   {
     value: "research",
     label: "Research",
     icon: Search,
-    iconClass: "text-blue-600",
+    iconClass: "text-[color:var(--todo-research-fg)]",
   },
   {
     value: "activities",
     label: "Activities",
     icon: MapPin,
-    iconClass: "text-green-600",
+    iconClass: "text-[color:var(--todo-activities-fg)]",
   },
   {
     value: "meals",
     label: "Meals",
     icon: Utensils,
-    iconClass: "text-amber-600",
+    iconClass: "text-[color:var(--todo-meals-fg)]",
   },
 ];
 
@@ -137,7 +137,7 @@ export function MobileTodoFormSheet({
       {/* Header */}
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-kicker font-semibold text-muted-foreground">
             To-do
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
@@ -162,7 +162,7 @@ export function MobileTodoFormSheet({
         }}
         className="flex flex-1 flex-col overflow-y-auto px-5 pb-3"
       >
-        <label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label className="text-kicker font-medium text-muted-foreground">
           Task
         </label>
         <input
@@ -174,7 +174,7 @@ export function MobileTodoFormSheet({
           className="mt-1 h-11 w-full rounded-xl border bg-background px-3 text-base text-foreground outline-none focus:border-foreground"
         />
 
-        <p className="mt-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="mt-4 text-kicker font-medium text-muted-foreground">
           Category
         </p>
         <div className="mt-1 flex flex-wrap gap-2">
@@ -208,7 +208,7 @@ export function MobileTodoFormSheet({
           })}
         </div>
 
-        <label className="mt-4 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <label className="mt-4 text-kicker font-medium text-muted-foreground">
           Notes
         </label>
         <textarea

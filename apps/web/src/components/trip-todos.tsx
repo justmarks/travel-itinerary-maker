@@ -24,12 +24,18 @@ import { AppLogo } from "@/components/app-logo";
 import { MarkdownText } from "@/components/markdown-text";
 import { cn } from "@/lib/utils";
 
-const CATEGORY_STYLES: Record<string, string> = {
-  meals:      "bg-amber-100  text-amber-700  dark:bg-amber-900/40  dark:text-amber-200",
-  activities: "bg-green-100  text-green-700  dark:bg-green-900/40  dark:text-green-200",
-  research:   "bg-blue-100   text-blue-700   dark:bg-blue-900/40   dark:text-blue-200",
-  logistics:  "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-200",
-};
+/**
+ * Each todo-category chip uses the matching `--todo-{category}-{bg,fg}`
+ * design-system token. Tokens alias to the status palette
+ * (`--status-warn` for meals, `--status-ok` for activities, etc.) so a
+ * palette tweak in `globals.css` propagates without component edits.
+ */
+function todoCategoryStyle(category: string): React.CSSProperties {
+  return {
+    backgroundColor: `var(--todo-${category}-bg)`,
+    color: `var(--todo-${category}-fg)`,
+  };
+}
 
 const TODO_CATEGORIES: { value: TodoCategory; label: string }[] = [
   { value: "meals", label: "Meals" },
@@ -116,7 +122,7 @@ export function TripTodos({
               onClick={() => setSuggestOpen(true)}
               title="Suggest to-dos for missing meals"
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <Sparkles className="h-3.5 w-3.5" style={{ color: "var(--brand)" }} />
               Suggest meals
             </Button>
           )}
@@ -203,7 +209,7 @@ export function TripTodos({
                   }
                 >
                   {todo.isCompleted ? (
-                    <CheckSquare2 className="h-4 w-4 text-green-500" />
+                    <CheckSquare2 className="h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
                   ) : (
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
@@ -240,10 +246,8 @@ export function TripTodos({
                 {todo.category &&
                   (readOnly ? (
                     <span
-                      className={cn(
-                        "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                        CATEGORY_STYLES[todo.category] ?? "bg-muted text-muted-foreground",
-                      )}
+                      className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                      style={todoCategoryStyle(todo.category)}
                     >
                       {todo.category}
                     </span>
@@ -251,10 +255,8 @@ export function TripTodos({
                     <button
                       type="button"
                       onClick={() => setEditingTodoId(todo.id)}
-                      className={cn(
-                        "mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80",
-                        CATEGORY_STYLES[todo.category] ?? "bg-muted text-muted-foreground",
-                      )}
+                      className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
+                      style={todoCategoryStyle(todo.category)}
                       title="Edit"
                     >
                       {todo.category}
