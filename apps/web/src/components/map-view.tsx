@@ -51,11 +51,19 @@ const PIN_COLOR: Record<Category, string> = {
 };
 
 const CATEGORY_LABEL: Record<Category, string> = {
-  hotel:     "Hotel",
+  hotel:     "Lodging",
   dining:    "Dining",
   activity:  "Activity",
   transport: "Transport",
 };
+
+/**
+ * Display order for the legend, the per-category counts, and any other
+ * place that fans the four categories out into a list. Locked in this
+ * order so it matches the Timeline view's grouped-rows order:
+ * Transport, Lodging, Activity, Dining.
+ */
+const CATEGORY_ORDER: Category[] = ["transport", "hotel", "activity", "dining"];
 
 // ── Data types ────────────────────────────────────────────────
 
@@ -224,7 +232,7 @@ function MapInner({
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap gap-3">
-          {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => (
+          {CATEGORY_ORDER.map((cat) => (
             <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <div
                 className="w-3 h-3 rounded-full shrink-0"

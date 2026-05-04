@@ -243,6 +243,9 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
 }
 
 function Legend() {
+  // Order matches the grouped-by-type rows below: Transport / Lodging /
+  // Activity / Dining. Mirrors the order on the Map view's legend so a
+  // user can scan either view and find the same swatch in the same slot.
   const items = [
     { label: "Transport", bg: "bg-blue-100 dark:bg-blue-900/60",       border: "border-blue-200 dark:border-blue-800"    },
     { label: "Lodging",   bg: "bg-amber-100 dark:bg-amber-900/60",     border: "border-amber-200 dark:border-amber-800"   },
@@ -250,7 +253,7 @@ function Legend() {
     { label: "Dining",    bg: "bg-rose-100 dark:bg-rose-900/60",       border: "border-rose-200 dark:border-rose-800"    },
   ];
   return (
-    <div className="flex flex-wrap gap-4 px-4 py-3 border-t border-border/60 bg-muted/40">
+    <div className="flex flex-wrap gap-3">
       {items.map(({ label, bg, border }) => (
         <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <div className={cn("w-2.5 h-2.5 rounded-sm border", bg, border)} />
@@ -285,8 +288,11 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
 
   return (
     <div>
-      {/* Toggle — hidden when printing */}
-      <div className="flex justify-end mb-3 print-hidden">
+      {/* Toolbar — legend on the left (matches the Map view layout), the
+          group-by-type / chronological toggle on the right. Hidden when
+          printing so the timeline owns the full page. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 print-hidden">
+        <Legend />
         <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
           {(["grouped", "chrono"] as const).map((m) => (
             <button
@@ -362,7 +368,6 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
             )}
           </div>
         </div>
-        <Legend />
       </div>
     </div>
   );
