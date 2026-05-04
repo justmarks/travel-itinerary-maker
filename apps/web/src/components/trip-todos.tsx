@@ -141,7 +141,10 @@ export function TripTodos({
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="mb-3 space-y-2">
+        <form
+          onSubmit={handleAdd}
+          className="mb-3 flex flex-col gap-2 rounded-md border bg-card p-3"
+        >
           <Input
             placeholder="What needs to be done?"
             value={newText}
