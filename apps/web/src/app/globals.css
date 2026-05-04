@@ -96,6 +96,46 @@
   --cat-dining-rail:    var(--seg-dinner-rail);
   --cat-dining-bg:      var(--seg-dinner-bg);
   --cat-dining-fg:      var(--seg-dinner-fg);
+
+  /* ===== STATUS TOKENS =====
+   * Semantic UI states — used by badges, pills, banners, and status
+   * chips that aren't tied to a segment type. Same trio shape as the
+   * segment tokens so consumers can reuse the same `style` patterns.
+   * Aliased to the closest hue in the `--seg-*` palette so dark-mode
+   * lifts come for free.
+   */
+  --status-ok-rail:        var(--seg-activity-rail);   /* green   — confirmed, success, sync ok */
+  --status-ok-bg:          var(--seg-activity-bg);
+  --status-ok-fg:          var(--seg-activity-fg);
+  --status-warn-rail:      var(--seg-lunch-rail);      /* amber   — review needed, caution    */
+  --status-warn-bg:        var(--seg-lunch-bg);
+  --status-warn-fg:        var(--seg-lunch-fg);
+  --status-danger-rail:    var(--seg-dinner-rail);     /* red     — destructive, conflict     */
+  --status-danger-bg:      var(--seg-dinner-bg);
+  --status-danger-fg:      var(--seg-dinner-fg);
+  --status-info-rail:      var(--seg-flight-rail);     /* blue    — neutral info / planning   */
+  --status-info-bg:        var(--seg-flight-bg);
+  --status-info-fg:        var(--seg-flight-fg);
+  --status-attention-rail: var(--seg-train-rail);      /* purple  — enrichment / "look here"  */
+  --status-attention-bg:   var(--seg-train-bg);
+  --status-attention-fg:   var(--seg-train-fg);
+  --status-muted-rail:     var(--seg-transport-rail);  /* grey    — completed, archived       */
+  --status-muted-bg:       var(--seg-transport-bg);
+  --status-muted-fg:       var(--seg-transport-fg);
+
+  /* ===== TODO CATEGORY TOKENS =====
+   * To-do view groups todos by category (meals / activities / research /
+   * logistics). Each gets a 50/600 pastel pair off the status palette.
+   * If the design system formalises todo categories, repoint these.
+   */
+  --todo-meals-bg:        var(--status-warn-bg);
+  --todo-meals-fg:        var(--status-warn-fg);
+  --todo-activities-bg:   var(--status-ok-bg);
+  --todo-activities-fg:   var(--status-ok-fg);
+  --todo-research-bg:     var(--status-info-bg);
+  --todo-research-fg:     var(--status-info-fg);
+  --todo-logistics-bg:    var(--status-attention-bg);
+  --todo-logistics-fg:    var(--status-attention-fg);
 }
 
 .dark, [data-theme="dark"] {
@@ -161,6 +201,26 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/*
+ * Kicker / metadata typography utility.
+ *
+ * The design system's `--type-xs` token (`500 11px/1.3 var(--font-sans)`)
+ * is meant for uppercase eyebrows, badges, and small-caps metadata. Most
+ * of those sites in the codebase used to spell it out as
+ * `text-[11px] font-medium uppercase tracking-wider` (or with `wide`).
+ * `text-kicker` collapses that to one utility tied to the design-system
+ * shorthand, so a future bundle update to the kicker recipe propagates
+ * automatically.
+ *
+ * Apply alongside `text-muted-foreground` (or another color) — `font:`
+ * shorthand only sets size/weight/line-height/family, not color.
+ */
+@utility text-kicker {
+  font: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-kicker);
 }
 
 /* country-flag-emoji-polyfill (booted in providers.tsx) loads the

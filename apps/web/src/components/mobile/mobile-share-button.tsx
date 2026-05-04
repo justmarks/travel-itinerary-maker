@@ -56,7 +56,7 @@ export function MobileShareButton({
       className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
     >
       {copied ? (
-        <Check className="h-4 w-4 text-green-600" />
+        <Check className="h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
       ) : (
         <Share2 className="h-4 w-4" />
       )}

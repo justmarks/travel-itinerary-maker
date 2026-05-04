@@ -37,7 +37,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AddSegmentDialog } from "@/components/add-segment-dialog";
-import { cn } from "@/lib/utils";
 
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
@@ -163,12 +162,24 @@ function SegmentRow({
             <span className="font-medium leading-snug">{titleText}</span>
           )}
           {segment.needsReview ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 px-2 py-0.5 text-xs text-amber-600">
+            <span
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+              style={{
+                color: "var(--status-warn-fg)",
+                borderColor: "var(--status-warn-rail)",
+              }}
+            >
               <AlertCircle className="h-3 w-3" />
               Review
             </span>
           ) : segment.source === "email_confirmed" ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-green-300 px-2 py-0.5 text-xs text-green-600">
+            <span
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs"
+              style={{
+                color: "var(--status-ok-fg)",
+                borderColor: "var(--status-ok-rail)",
+              }}
+            >
               <CheckCircle2 className="h-3 w-3" />
               Confirmed
             </span>
@@ -300,7 +311,10 @@ function SegmentRow({
 
         {/* Hotel breakfast */}
         {isHotel && segment.breakfastIncluded !== undefined && (
-          <p className={cn("mt-1 flex items-center gap-1 text-sm", segment.breakfastIncluded ? "text-green-600" : "text-muted-foreground")}>
+          <p
+            className="mt-1 flex items-center gap-1 text-sm"
+            style={{ color: segment.breakfastIncluded ? "var(--status-ok-fg)" : "var(--muted-foreground)" }}
+          >
             <Coffee className="h-3 w-3 shrink-0" />
             {segment.breakfastIncluded ? "Breakfast included" : "Breakfast not included"}
           </p>
@@ -320,7 +334,7 @@ function SegmentRow({
                 <CreditCard className="h-3 w-3 shrink-0" />
                 CC hold
                 {segment.cancellationDeadline && (
-                  <span className="text-amber-600">
+                  <span style={{ color: "var(--status-warn-fg)" }}>
                     · cancel by {fmtDate(segment.cancellationDeadline)}
                   </span>
                 )}
@@ -357,7 +371,8 @@ function SegmentRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-green-600 hover:text-green-700"
+                className="h-7 w-7 hover:opacity-80"
+                style={{ color: "var(--status-ok-fg)" }}
                 title="Confirm"
                 onClick={() => confirmSegment.mutate(segment.id)}
                 disabled={confirmSegment.isPending}

@@ -32,7 +32,7 @@ export function MobileFrame({
           <div
             role="status"
             aria-live="polite"
-            className="flex shrink-0 items-center justify-center gap-1.5 bg-amber-100 px-3 py-1 text-[11px] font-medium text-amber-900"
+            className="flex shrink-0 items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)" }}
           >
             <WifiOff className="h-3 w-3" />
             <span>Offline — showing last loaded data</span>

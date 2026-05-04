@@ -95,7 +95,7 @@ export function SuggestMealsDialog({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-amber-500" />
+            <Sparkles className="h-5 w-5" style={{ color: "var(--brand)" }} />
             Suggest meals
           </DialogTitle>
           <DialogDescription>

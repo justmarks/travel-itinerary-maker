@@ -70,7 +70,7 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
         </div>
 
         {isEditShare && (
-          <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="mb-6 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
             <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
               <strong>Edit access</strong> — editing shared trips ships in the

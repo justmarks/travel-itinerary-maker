@@ -172,6 +172,16 @@ The eight types in `itinly-design-system/colors_and_type.css` (flight, train, ca
 
 When adding segment-type UI (icon discs, accent rails, status pills tied to a segment type), reference these tokens — never hardcode `text-blue-500` style classes. Both the desktop `SEGMENT_CONFIG` in `itinerary-day.tsx` and the mobile `SEGMENT_CONFIG` in `mobile-segment-card.tsx` are wired this way.
 
+### Status palette + todo categories + kicker utility
+
+Three smaller token families layered on top of the segment palette in `globals.css`:
+
+- **`--status-{ok,warn,danger,info,attention,muted}-{rail,bg,fg}`** — semantic UI states. `ok` for confirmed / sync success / "copied". `warn` for review-needed banners and caution. `danger` for destructive errors. `info` for neutral attention (planning chip, "create new"). `attention` for "look here" colours that aren't a literal warning (enrichment, logistics). `muted` for completed/archived/duplicate. Each tone aliases to a segment-palette hue so dark-mode lifts come for free. Use these for any pill / badge / banner that signals a state — never hand-roll `bg-amber-50 text-amber-800 border-amber-300` class triples.
+- **`--todo-{meals,activities,research,logistics}-{bg,fg}`** — to-do category chip colours. Aliased to status tones (meals→warn, activities→ok, research→info, logistics→attention) so the chip and the status banner share a hue when they sit next to each other.
+- **`text-kicker`** — Tailwind v4 `@utility` shortcut for the design system's `--type-xs` shorthand (`500 11px/1.3 var(--font-sans)`) plus `text-transform: uppercase` and `letter-spacing: var(--tracking-kicker)`. Replaces the `text-[11px] font-medium uppercase tracking-wider` pattern that was sprinkled across mobile sheets and headers.
+
+The same convention applies — when adding a status pill, status banner, or kicker eyebrow, reach for the token / utility, never raw 50/600 hex utilities.
+
 ### Design system sync
 
 The brand and token system is iterated on in **Claude Designer** and exported as a gzipped handoff bundle. When the user passes a new bundle URL, follow [`branding/DESIGN-SYSTEM-SYNC.md`](branding/DESIGN-SYSTEM-SYNC.md) — it's the standing operating procedure that says which files to read, how to diff `colors_and_type.css` against `globals.css`, where consumers live, and how to verify. Keep that doc up to date as new token categories land.

@@ -247,7 +247,7 @@ function TripRow({
           {unavailable && (
             <>
               <span aria-hidden>·</span>
-              <span className="inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-400">
+              <span className="inline-flex items-center gap-0.5" style={{ color: "var(--status-warn-fg)" }}>
                 <CloudOff className="h-3 w-3" />
                 Offline — not loaded
               </span>
@@ -310,7 +310,7 @@ function Section({
 
   const heading = (
     <div className="flex items-center justify-between px-1 pb-1.5 pt-1">
-      <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-kicker font-semibold text-muted-foreground">
         {BUCKET_LABEL[bucket]}
         <span className="ml-1.5 text-muted-foreground/60">{trips.length}</span>
       </h2>

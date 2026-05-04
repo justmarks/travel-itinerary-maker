@@ -73,7 +73,7 @@ export function MobileCostsSheet({
       {/* Header */}
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-kicker font-semibold text-muted-foreground">
             Total · USD
           </p>
           <h2 className="mt-0.5 text-3xl font-bold leading-tight tabular-nums">

@@ -185,7 +185,7 @@ function ExistingShareRow({
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-foreground/80 active:bg-muted/40"
       >
         {copied ? (
-          <Check className="h-4 w-4 text-green-600" />
+          <Check className="h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
         ) : (
           <Copy className="h-4 w-4" />
         )}
@@ -319,7 +319,7 @@ export function MobileShareSheet({
       {/* Header */}
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-kicker font-semibold text-muted-foreground">
             Share trip
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
@@ -361,7 +361,7 @@ export function MobileShareSheet({
           <div className="mt-4 space-y-1">
             <label
               htmlFor="share-email"
-              className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+              className="text-kicker font-medium text-muted-foreground"
             >
               Contributor&apos;s Gmail
             </label>
@@ -399,7 +399,7 @@ export function MobileShareSheet({
 
         {shares.length > 0 && (
           <div className="mt-5">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-kicker font-semibold text-muted-foreground">
               Active shares · {shares.length}
             </p>
             <ul className="flex flex-col gap-2">

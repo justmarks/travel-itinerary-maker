@@ -38,7 +38,7 @@ function ReadOnlyTodos({ todos }: { todos: readonly Todo[] }): React.JSX.Element
   const completed = todos.filter((t) => t.isCompleted).length;
   return (
     <section className="border-t bg-background px-5 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <p className="text-kicker font-semibold text-muted-foreground">
         To-do · {completed}/{todos.length}
       </p>
       <ul className="mt-2 flex flex-col gap-1.5">
@@ -151,7 +151,7 @@ export default function SharedTripClient({
       <div className="flex-1 overflow-y-auto">
         {/* Cover: communicates the read-only nature up front. */}
         <div className="flex flex-col gap-1 border-b bg-gradient-to-br from-zinc-900 to-zinc-700 px-5 pb-5 pt-4 text-zinc-50">
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-300">
+          <span className="inline-flex items-center gap-1 text-kicker font-semibold text-zinc-300">
             <Lock className="h-3 w-3" />
             Shared with you
           </span>
@@ -177,7 +177,7 @@ export default function SharedTripClient({
             but writes go through a contributor flow that's not built yet —
             be honest about it instead of pretending the link is broken. */}
         {isEditShare && (
-          <div className="flex items-start gap-2 border-b bg-amber-50 px-5 py-3 text-xs text-amber-800">
+          <div className="flex items-start gap-2 border-b px-5 py-3 text-xs" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)" }}>
             <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               <strong>Edit access</strong> — editing shared trips ships in the

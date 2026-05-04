@@ -50,11 +50,24 @@ import { reportError } from "@/lib/monitoring";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 
-const MATCH_STATUS_STYLES: Record<SegmentMatchStatus, string> = {
-  new:        "border-blue-300   bg-blue-50   text-blue-700   dark:border-blue-800   dark:bg-blue-950/60   dark:text-blue-200",
-  enrichment: "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/60 dark:text-violet-200",
-  conflict:   "border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/60 dark:text-orange-200",
-  duplicate:  "border-zinc-300   bg-zinc-100  text-muted-foreground   dark:border-zinc-700   dark:bg-zinc-800/60   dark:text-zinc-300",
+// Same shape as the EmailScanDialog's MATCH_STATUS_TONE — both dialogs
+// render the four match-status outcomes (new / enrichment / conflict /
+// duplicate) and route them through the design-system status palette.
+type StatusTone = "ok" | "warn" | "danger" | "info" | "attention" | "muted";
+
+function statusBadgeStyle(tone: StatusTone): React.CSSProperties {
+  return {
+    backgroundColor: `var(--status-${tone}-bg)`,
+    color: `var(--status-${tone}-fg)`,
+    borderColor: `var(--status-${tone}-rail)`,
+  };
+}
+
+const MATCH_STATUS_TONE: Record<SegmentMatchStatus, StatusTone> = {
+  new:        "info",
+  enrichment: "attention",
+  conflict:   "warn",
+  duplicate:  "muted",
 };
 
 const MATCH_STATUS_LABEL: Record<SegmentMatchStatus, string> = {
@@ -562,7 +575,7 @@ export function HtmlImportDialog({
             </div>
 
             {errorMessage && (
-              <p className="shrink-0 text-sm text-red-600">{errorMessage}</p>
+              <p className="shrink-0 text-sm" style={{ color: "var(--status-danger-fg)" }}>{errorMessage}</p>
             )}
 
             <DialogFooter className="shrink-0 border-t pt-3">
@@ -593,15 +606,18 @@ export function HtmlImportDialog({
             {result.parsedSegments.length > 0 &&
               hasUnassignedSegments &&
               !showNewTripForm && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <div
+                  className="rounded-lg border p-2.5"
+                  style={statusBadgeStyle("warn")}
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-amber-800">
+                    <p className="text-xs">
                       Some segments don&apos;t match any trip.
                     </p>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 shrink-0 border-amber-300 bg-card text-xs hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                      className="h-7 shrink-0 bg-card text-xs"
                       onClick={() => setShowNewTripForm(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
@@ -612,16 +628,19 @@ export function HtmlImportDialog({
               )}
 
             {showNewTripForm && (
-              <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div
+                className="space-y-2 rounded-lg border p-3"
+                style={statusBadgeStyle("info")}
+              >
                 <div className="flex items-center justify-between">
-                  <p className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                  <p className="flex items-center gap-1.5 text-sm font-medium">
                     <Plus className="h-4 w-4" />
                     Create New Trip
                   </p>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-blue-600 hover:text-blue-800"
+                    className="h-6 w-6"
                     onClick={() => setShowNewTripForm(false)}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -636,7 +655,7 @@ export function HtmlImportDialog({
                 />
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <label className="text-[10px] text-blue-700">Start date</label>
+                    <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>Start date</label>
                     <Input
                       type="date"
                       value={newTripStart}
@@ -645,7 +664,7 @@ export function HtmlImportDialog({
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[10px] text-blue-700">End date</label>
+                    <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>End date</label>
                     <Input
                       type="date"
                       value={newTripEnd}
@@ -678,7 +697,10 @@ export function HtmlImportDialog({
             )}
 
             {result.parsedSegments.length === 0 ? (
-              <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <div
+                className="space-y-2 rounded-md border p-3 text-sm"
+                style={statusBadgeStyle("warn")}
+              >
                 <div className="flex items-start gap-2">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
@@ -687,13 +709,13 @@ export function HtmlImportDialog({
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="text-amber-900/80">
+                  <span className="opacity-80">
                     Think we got it wrong?
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 border-amber-300 bg-card text-xs"
+                    className="h-7 bg-card text-xs"
                     onClick={() => {
                       setReportReason(
                         result.parseStatus === "failed"
@@ -759,10 +781,8 @@ export function HtmlImportDialog({
                             {sel.match?.status && (
                               <Badge
                                 variant="outline"
-                                className={cn(
-                                  "text-xs",
-                                  MATCH_STATUS_STYLES[sel.match.status],
-                                )}
+                                className="text-xs"
+                                style={statusBadgeStyle(MATCH_STATUS_TONE[sel.match.status])}
                               >
                                 {MATCH_STATUS_LABEL[sel.match.status]}
                               </Badge>
@@ -797,7 +817,10 @@ export function HtmlImportDialog({
                                   </SelectItem>
                                 ))}
                                 <SelectItem value="__create_new__">
-                                  <span className="flex items-center gap-1.5 text-blue-600">
+                                  <span
+                                    className="flex items-center gap-1.5"
+                                    style={{ color: "var(--status-info-fg)" }}
+                                  >
                                     <Plus className="h-3 w-3" />
                                     Create new trip...
                                   </span>
@@ -816,7 +839,7 @@ export function HtmlImportDialog({
             </div>
 
             {errorMessage && (
-              <p className="shrink-0 text-sm text-red-600">{errorMessage}</p>
+              <p className="shrink-0 text-sm" style={{ color: "var(--status-danger-fg)" }}>{errorMessage}</p>
             )}
 
             <DialogFooter className="shrink-0 border-t pt-3">
@@ -842,7 +865,7 @@ export function HtmlImportDialog({
 
         {step === "done" && (
           <div className="flex flex-col items-center gap-3 py-8">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <CheckCircle2 className="h-10 w-10" style={{ color: "var(--status-ok-fg)" }} />
             <p className="text-sm text-foreground">
               Applied {appliedCount} segment{appliedCount === 1 ? "" : "s"}.
             </p>
@@ -854,8 +877,8 @@ export function HtmlImportDialog({
 
         {step === "error" && (
           <div className="flex flex-col items-center gap-3 py-8">
-            <XCircle className="h-10 w-10 text-red-600" />
-            <p className="text-sm text-red-700">{errorMessage}</p>
+            <XCircle className="h-10 w-10" style={{ color: "var(--status-danger-fg)" }} />
+            <p className="text-sm" style={{ color: "var(--status-danger-fg)" }}>{errorMessage}</p>
             <Button variant="outline" onClick={() => setStep("input")}>
               Try again
             </Button>
