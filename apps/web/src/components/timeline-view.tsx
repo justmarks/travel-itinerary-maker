@@ -42,23 +42,36 @@ const SEGMENT_ICON: Record<SegmentType, string> = {
   restaurant_dinner:    "🍽️",
 };
 
-// Pill and cell tints carry the category color in light mode; in dark mode
-// we drop the saturated -50 backgrounds (which would blow out against a
-// near-black surface) for a translucent -900 wash that keeps the hue cue
-// while preserving foreground contrast.
-const PILL_STYLES: Record<Category, string> = {
-  transport: "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-900",
-  hotel:     "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900",
-  activity:  "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-900",
-  dining:    "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-900",
+// Pill and cell tints come from the four `--cat-*` design-system tokens
+// (see `globals.css`). The Timeline `Category` type uses the legacy key
+// `hotel` for the lodging category; map it to the `lodging` token name
+// at the boundary so the rest of the file stays unchanged.
+const CATEGORY_TOKEN: Record<Category, string> = {
+  transport: "transport",
+  hotel:     "lodging",
+  activity:  "activity",
+  dining:    "dining",
 };
 
-const CELL_BG: Record<Category, string> = {
-  transport: "bg-blue-50/30 dark:bg-blue-950/20",
-  hotel:     "bg-amber-50/20 dark:bg-amber-950/15",
-  activity:  "bg-emerald-50/30 dark:bg-emerald-950/20",
-  dining:    "bg-rose-50/30 dark:bg-rose-950/20",
-};
+function pillStyle(cat: Category): React.CSSProperties {
+  const t = CATEGORY_TOKEN[cat];
+  return {
+    backgroundColor: `var(--cat-${t}-bg)`,
+    color: `var(--cat-${t}-fg)`,
+    borderColor: `var(--cat-${t}-rail)`,
+    borderWidth: "1px",
+    borderStyle: "solid",
+  };
+}
+
+function cellBgStyle(cat: Category): React.CSSProperties {
+  // Cells use a quarter-strength wash of the pill background so the row
+  // is hue-tinted without overpowering the pills sitting on top.
+  const t = CATEGORY_TOKEN[cat];
+  return {
+    backgroundColor: `color-mix(in oklab, var(--cat-${t}-bg) 30%, transparent)`,
+  };
+}
 
 // ── Data helpers ──────────────────────────────────────────────
 
@@ -110,7 +123,10 @@ function Pill({ segment, showIcon }: { segment: Segment; showIcon: boolean }) {
   // the other views and avoids bare city names crammed into a tiny pill.
   const label = segmentPillLabel(segment);
   return (
-    <div className={cn("rounded-md px-2 py-1.5 text-xs leading-tight mb-1 last:mb-0", PILL_STYLES[cat])}>
+    <div
+      className="rounded-md px-2 py-1.5 text-xs leading-tight mb-1 last:mb-0"
+      style={pillStyle(cat)}
+    >
       <div className="font-semibold truncate">
         {showIcon && <span className="mr-1">{SEGMENT_ICON[segment.type]}</span>}
         {label}
@@ -162,10 +178,8 @@ function TypeRow({
         return (
           <div
             key={day.date}
-            className={cn(
-              "border-b border-border/60 border-r border-border/60 p-1.5 min-h-12",
-              CELL_BG[category],
-            )}
+            className="border-b border-border/60 border-r border-border/60 p-1.5 min-h-12"
+            style={cellBgStyle(category)}
           >
             {segs.length === 0 ? (
               <div className="text-[10px] text-muted-foreground/40 text-center pt-2.5">—</div>
@@ -184,6 +198,11 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
   const cells: React.ReactNode[] = [];
   let idx = 0;
 
+  // Lodging row tints are derived from the lodging category token so the
+  // hotel band stays in sync with the legend swatch and Map pin color.
+  const rowBg = cellBgStyle("hotel");
+  const pillStyleLodging: React.CSSProperties = pillStyle("hotel");
+
   sorted.forEach((hotel) => {
     // Clamp so overlapping/out-of-range hotels cannot push this row past
     // `days.length` cells — that would wrap and misalign every row below it.
@@ -197,7 +216,8 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       cells.push(
         <div
           key={`he-${idx}`}
-          className="bg-amber-50/20 dark:bg-amber-950/15 border-b border-border/60 border-r border-border/60 min-h-14"
+          className="border-b border-border/60 border-r border-border/60 min-h-14"
+          style={rowBg}
         />,
       );
       idx++;
@@ -208,10 +228,13 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
     cells.push(
       <div
         key={h.id}
-        className="bg-amber-50/20 dark:bg-amber-950/15 border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
-        style={{ gridColumn: `span ${span}` }}
+        className="border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
+        style={{ ...rowBg, gridColumn: `span ${span}` }}
       >
-        <div className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-900 w-full min-w-0">
+        <div
+          className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
+          style={pillStyleLodging}
+        >
           <span className="hidden sm:inline shrink-0">🏨</span>
           <span className="truncate">{name}</span>
           <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
@@ -228,7 +251,8 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
     cells.push(
       <div
         key={`he-${idx}`}
-        className="bg-amber-50/20 border-b border-gray-100 border-r border-gray-100 min-h-14"
+        className="border-b border-border/60 border-r border-border/60 min-h-14"
+        style={rowBg}
       />,
     );
     idx++;
@@ -246,17 +270,22 @@ function Legend() {
   // Order matches the grouped-by-type rows below: Transport / Lodging /
   // Activity / Dining. Mirrors the order on the Map view's legend so a
   // user can scan either view and find the same swatch in the same slot.
-  const items = [
-    { label: "Transport", bg: "bg-blue-100 dark:bg-blue-900/60",       border: "border-blue-200 dark:border-blue-800"    },
-    { label: "Lodging",   bg: "bg-amber-100 dark:bg-amber-900/60",     border: "border-amber-200 dark:border-amber-800"   },
-    { label: "Activity",  bg: "bg-emerald-100 dark:bg-emerald-900/60", border: "border-emerald-200 dark:border-emerald-800" },
-    { label: "Dining",    bg: "bg-rose-100 dark:bg-rose-900/60",       border: "border-rose-200 dark:border-rose-800"    },
+  // Swatches reference the four `--cat-*` design-system tokens so the
+  // legend, pill backgrounds, and map pins all share one source of truth.
+  const items: { label: string; token: string }[] = [
+    { label: "Transport", token: "transport" },
+    { label: "Lodging",   token: "lodging" },
+    { label: "Activity",  token: "activity" },
+    { label: "Dining",    token: "dining" },
   ];
   return (
     <div className="flex flex-wrap gap-3">
-      {items.map(({ label, bg, border }) => (
+      {items.map(({ label, token }) => (
         <div key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <div className={cn("w-2.5 h-2.5 rounded-sm border", bg, border)} />
+          <div
+            className="w-3 h-3 rounded-full shrink-0"
+            style={{ background: `var(--cat-${token}-fg)` }}
+          />
           {label}
         </div>
       ))}

@@ -70,6 +70,32 @@
   --seg-brunch-rail:    #84CC16;  --seg-brunch-bg:    #ECFCCB;  --seg-brunch-fg:    #4D7C0F;
   --seg-tour-rail:      #14B8A6;  --seg-tour-bg:      #CCFBF1;  --seg-tour-fg:      #0F766E;
   --seg-cruise-rail:    #06B6D4;  --seg-cruise-bg:    #CFFAFE;  --seg-cruise-fg:    #0E7490;
+
+  /* ===== CATEGORY TOKENS =====
+   * Timeline + Map views collapse the 13 segment types into 4 broad
+   * categories: transport, lodging, activity, dining. The design system
+   * doesn't ship a separate category palette, so each category aliases
+   * to the most representative segment-type token (lodging → hotel,
+   * dining → dinner, etc.). When the bundle eventually adds a real
+   * category palette, change these aliases — components don't move.
+   *
+   * Same trio shape as `--seg-*`: rail (saturated accent), bg (pastel
+   * tint), fg (strong foreground). Dark-mode lifts come for free
+   * because the underlying segment tokens are already lifted in the
+   * `.dark` block below.
+   */
+  --cat-transport-rail: var(--seg-flight-rail);
+  --cat-transport-bg:   var(--seg-flight-bg);
+  --cat-transport-fg:   var(--seg-flight-fg);
+  --cat-lodging-rail:   var(--seg-hotel-rail);
+  --cat-lodging-bg:     var(--seg-hotel-bg);
+  --cat-lodging-fg:     var(--seg-hotel-fg);
+  --cat-activity-rail:  var(--seg-activity-rail);
+  --cat-activity-bg:    var(--seg-activity-bg);
+  --cat-activity-fg:    var(--seg-activity-fg);
+  --cat-dining-rail:    var(--seg-dinner-rail);
+  --cat-dining-bg:      var(--seg-dinner-bg);
+  --cat-dining-fg:      var(--seg-dinner-fg);
 }
 
 .dark, [data-theme="dark"] {
