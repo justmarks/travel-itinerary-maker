@@ -72,28 +72,45 @@ function formatCost(cost?: { amount: number; currency: string; details?: string 
 type SegmentConfig = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  /** CSS variable carrying the segment-type's foreground (icon glyph)
-   *  color. Defined in `globals.css` so each type can be re-skinned in
-   *  one place without hunting hardcoded Tailwind classes. */
-  fg: string;
+  /** Token suffix in `--seg-{token}-{rail,bg,fg}`. The row's left rail,
+   *  the icon-tile background, and the icon glyph all read from this
+   *  trio so a re-skin in `design-tokens.css` propagates automatically. */
+  token: string;
 };
 
 const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:                 { icon: Plane,           label: "Flight",      fg: "var(--seg-flight-fg)"    },
-  train:                  { icon: Train,           label: "Train",       fg: "var(--seg-train-fg)"     },
-  car_rental:             { icon: Car,             label: "Car Rental",  fg: "var(--seg-car-fg)"       },
-  car_service:            { icon: Car,             label: "Car Service", fg: "var(--seg-car-fg)"       },
-  other_transport:        { icon: Navigation,      label: "Transport",   fg: "var(--seg-transport-fg)" },
-  hotel:                  { icon: BedDouble,       label: "Hotel",       fg: "var(--seg-hotel-fg)"     },
-  activity:               { icon: MapPin,          label: "Activity",    fg: "var(--seg-activity-fg)"  },
-  show:                   { icon: Ticket,          label: "Show",        fg: "var(--seg-show-fg)"      },
-  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",   fg: "var(--seg-breakfast-fg)" },
-  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",      fg: "var(--seg-brunch-fg)"    },
-  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",       fg: "var(--seg-lunch-fg)"     },
-  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",      fg: "var(--seg-dinner-fg)"    },
-  tour:                   { icon: Camera,          label: "Tour",        fg: "var(--seg-tour-fg)"      },
-  cruise:                 { icon: Ship,            label: "Cruise",      fg: "var(--seg-cruise-fg)"    },
+  flight:                 { icon: Plane,           label: "Flight",      token: "flight"    },
+  train:                  { icon: Train,           label: "Train",       token: "train"     },
+  car_rental:             { icon: Car,             label: "Car Rental",  token: "car"       },
+  car_service:            { icon: Car,             label: "Car Service", token: "car"       },
+  other_transport:        { icon: Navigation,      label: "Transport",   token: "transport" },
+  hotel:                  { icon: BedDouble,       label: "Hotel",       token: "hotel"     },
+  activity:               { icon: MapPin,          label: "Activity",    token: "activity"  },
+  show:                   { icon: Ticket,          label: "Show",        token: "show"      },
+  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",   token: "breakfast" },
+  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",      token: "brunch"    },
+  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",       token: "lunch"     },
+  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",      token: "dinner"    },
+  tour:                   { icon: Camera,          label: "Tour",        token: "tour"      },
+  cruise:                 { icon: Ship,            label: "Cruise",      token: "cruise"    },
 };
+
+/**
+ * Trio style for a segment type. Used to paint the left rail, the
+ * icon-tile background, and the icon glyph color from a single
+ * design-system token family. Matches the visual idiom in the web
+ * UI kit's `Itinerary.jsx` (32×32 rounded-md tinted tile + 4 px
+ * left rail + shadow-xs row).
+ */
+function segmentRowStyle(token: string): React.CSSProperties {
+  return { borderLeftColor: `var(--seg-${token}-rail)` };
+}
+function segmentTileStyle(token: string): React.CSSProperties {
+  return {
+    backgroundColor: `var(--seg-${token}-bg)`,
+    color: `var(--seg-${token}-fg)`,
+  };
+}
 
 function SegmentRow({
   segment,
@@ -141,9 +158,15 @@ function SegmentRow({
       : segment.title;
 
   return (
-    <div className="group/seg flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
-      <div className="mt-0.5 shrink-0" style={{ color: config.fg }}>
-        <Icon className="h-4 w-4" />
+    <div
+      className="group/seg flex items-start gap-3.5 rounded-lg border border-l-4 bg-card px-4 py-3.5 shadow-xs"
+      style={segmentRowStyle(config.token)}
+    >
+      <div
+        className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+        style={segmentTileStyle(config.token)}
+      >
+        <Icon className="h-[18px] w-[18px]" />
       </div>
 
       <div className="min-w-0 flex-1">
