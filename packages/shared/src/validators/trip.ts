@@ -146,6 +146,36 @@ export const tripShareSchema = z.object({
   lastEditedAt: z.string().datetime().optional(),
 });
 
+export const TRIP_HISTORY_KINDS = [
+  "trip.update",
+  "trip.day_update",
+  "segment.create",
+  "segment.update",
+  "segment.delete",
+  "segment.confirm",
+  "todo.create",
+  "todo.update",
+  "todo.delete",
+  "share.create",
+  "share.revoke",
+  "bulk.import_xlsx",
+  "bulk.email_apply",
+  "bulk.confirm_all",
+] as const;
+
+export const tripHistoryEntrySchema = z.object({
+  id: z.string().min(1),
+  timestamp: z.string().datetime(),
+  actor: z.object({
+    email: z.string().email(),
+    name: z.string().optional(),
+  }),
+  kind: z.enum(TRIP_HISTORY_KINDS),
+  summary: z.string().min(1),
+  details: z.string().optional(),
+  entityId: z.string().optional(),
+});
+
 export const tripSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -155,6 +185,9 @@ export const tripSchema = z.object({
   days: z.array(tripDaySchema),
   todos: z.array(todoSchema),
   shares: z.array(tripShareSchema),
+  // Optional so trips persisted before history existed still parse cleanly.
+  // `migrateTrip` fills it in with `[]` on read.
+  history: z.array(tripHistoryEntrySchema).optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   calendarId: z.string().optional(),

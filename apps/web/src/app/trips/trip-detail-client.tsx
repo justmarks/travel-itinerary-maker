@@ -71,6 +71,7 @@ import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
 import { MapView } from "@/components/map-view";
+import { TripHistory } from "@/components/trip-history";
 import { toast } from "sonner";
 import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
@@ -850,7 +851,7 @@ function CalendarSyncButton({
   );
 }
 
-type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos";
+type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos" | "history";
 
 const TAB_LABELS: Record<Tab, string> = {
   itinerary: "Itinerary",
@@ -858,6 +859,7 @@ const TAB_LABELS: Record<Tab, string> = {
   map:       "Map",
   costs:     "Costs",
   todos:     "To-do",
+  history:   "History",
 };
 
 export default function TripDetailClient({ tripId }: { tripId: string }): React.JSX.Element | null {
@@ -906,7 +908,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // appear. Itinerary / Timeline / Map are always shown; Costs and
   // To-do drop out for shares with the matching toggle off.
   const visibleTabs = (
-    ["itinerary", "timeline", "map", "costs", "todos"] as Tab[]
+    ["itinerary", "timeline", "map", "costs", "todos", "history"] as Tab[]
   ).filter((t) => {
     if (t === "costs") return showCosts;
     if (t === "todos") return showTodos;
@@ -1146,6 +1148,10 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               readOnly={isReadOnly}
             />
           </div>
+        )}
+
+        {activeTab === "history" && (
+          <TripHistory entries={trip.history} />
         )}
         </div>
       </div>

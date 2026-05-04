@@ -29,8 +29,15 @@ export function migrateTrip(loaded: unknown): Trip {
     schemaVersion: (loaded as { schemaVersion?: number }).schemaVersion ?? 1,
   } as Trip;
 
-  // Future migrations go here, each guarded on `working.schemaVersion`.
-  // e.g. if (working.schemaVersion < 2) { ...migrate to v2...; working.schemaVersion = 2; }
+  // v1 → v2: introduce `history` (append-only audit log). Trips created
+  // before this field existed get an empty array; their pre-v2 mutation
+  // history is unrecoverable but new mutations record from this point on.
+  if (working.schemaVersion < 2) {
+    if (!Array.isArray(working.history)) {
+      working.history = [];
+    }
+    working.schemaVersion = 2;
+  }
 
   if (working.schemaVersion > CURRENT_TRIP_SCHEMA_VERSION) {
     // A trip saved by a newer build than this one is loading it. We don't

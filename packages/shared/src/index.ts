@@ -22,6 +22,9 @@ export type {
   SegmentFieldDiff,
   EmailScanResult,
   GmailLabel,
+  TripHistoryEntry,
+  TripHistoryActor,
+  TripHistoryKind,
 } from "./types/trip";
 export { CURRENT_TRIP_SCHEMA_VERSION } from "./types/trip";
 
@@ -46,6 +49,7 @@ export {
   parsedSegmentSchema,
   segmentMatchSchema,
   segmentFieldDiffSchema,
+  tripHistoryEntrySchema,
   emailScanRequestSchema,
   htmlImportRequestSchema,
   applyParsedSegmentsSchema,
@@ -58,6 +62,7 @@ export {
   SEGMENT_MATCH_STATUSES,
   APPLY_ACTIONS,
   PARSE_REPORT_REASONS,
+  TRIP_HISTORY_KINDS,
 } from "./validators/trip";
 
 export type {
@@ -97,6 +102,7 @@ export {
 } from "./utils/currency";
 export { generateId } from "./utils/ids";
 export { migrateTrip } from "./utils/migrations";
+export { appendTripHistory, TRIP_HISTORY_MAX_ENTRIES } from "./utils/trip-history";
 export {
   formatFlightLabel,
   formatFlightEndpoint,

@@ -422,6 +422,49 @@ const SAMPLE_TRIPS: Trip[] = [
         lastEditedAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
       },
     ],
+    // Sample audit-log entries so the History tab has something to show in
+    // the demo without requiring the user to make edits first. Mix of
+    // owner + co-editor actions to demonstrate the actor column.
+    history: [
+      {
+        id: "hist-japan-1",
+        timestamp: "2025-03-01T10:00:00Z",
+        actor: { email: "demo@example.com" },
+        kind: "trip.update",
+        summary: "Updated trip details",
+        details: 'title "Japan 2025" → "Japan Adventure"',
+      },
+      {
+        id: "hist-japan-2",
+        timestamp: "2025-03-05T14:22:00Z",
+        actor: { email: "demo@example.com" },
+        kind: "bulk.email_apply",
+        summary: "Applied 4 new segments from email scan",
+      },
+      {
+        id: "hist-japan-3",
+        timestamp: "2025-03-08T12:00:00Z",
+        actor: { email: "demo@example.com" },
+        kind: "share.create",
+        summary: "Shared trip with tess@example.com (edit)",
+        entityId: "share-japan-edit",
+      },
+      {
+        id: "hist-japan-4",
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        actor: { email: "tess@example.com" },
+        kind: "segment.update",
+        summary: 'Updated dinner "Sushi Saito"',
+        details: "Changed startTime, partySize",
+      },
+      {
+        id: "hist-japan-5",
+        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+        actor: { email: "tess@example.com" },
+        kind: "todo.update",
+        summary: 'Completed to-do "Pack light layers for April weather"',
+      },
+    ],
   },
 
   // ── Demo 2: Paris Valentine's Weekend ────────────────────────────────────
@@ -623,6 +666,7 @@ const SAMPLE_TRIPS: Trip[] = [
       { id: "todo-p3", text: "Research Montmartre neighbourhood", isCompleted: true, category: "research", sortOrder: 2 },
     ],
     shares: [],
+    history: [],
   },
 
   // ── Demo 3: Disney Fantasy Caribbean Cruise ───────────────────────────────
@@ -966,6 +1010,7 @@ const SAMPLE_TRIPS: Trip[] = [
       { id: "todo-d8", text: "Purchase Disney gift cards for onboard credit", isCompleted: false, category: "logistics", sortOrder: 7 },
     ],
     shares: [],
+    history: [],
   },
 
   // ── Demo 4: Iceland Ring Road Adventure (UPCOMING) ────────────────────────
@@ -1248,6 +1293,7 @@ const SAMPLE_TRIPS: Trip[] = [
       { id: "todo-i8", text: "Notify bank of international travel", isCompleted: false, category: "logistics", sortOrder: 7 },
     ],
     shares: [],
+    history: [],
   },
 ];
 
@@ -1323,6 +1369,7 @@ export class MockApiClient extends ApiClient {
       days,
       todos: [],
       shares: [],
+      history: [],
       createdAt: now(),
       updatedAt: now(),
       schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
@@ -1405,6 +1452,7 @@ export class MockApiClient extends ApiClient {
       days,
       todos: [],
       shares: [],
+      history: [],
       createdAt: now(),
       updatedAt: now(),
       schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
