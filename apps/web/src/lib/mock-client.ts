@@ -48,11 +48,18 @@ function now() {
  */
 const SHARED_DEMO_OVERRIDES: Record<
   string,
-  { sharedFromEmail: string; sharedPermission: "view" | "edit" }
+  {
+    sharedFromEmail: string;
+    sharedPermission: "view" | "edit";
+    sharedShareId: string;
+  }
 > = {
   "demo-3": {
     sharedFromEmail: "alex@example.com",
     sharedPermission: "edit",
+    // Fake share row so the trip card / detail page can render the
+    // recipient "Leave trip" affordance in demo mode.
+    sharedShareId: "demo-share-3",
   },
 };
 
@@ -1723,6 +1730,15 @@ export class MockApiClient extends ApiClient {
   override deleteShare(tripId: string, shareId: string): Promise<void> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
+    // For demo-mode "shared with you" trips, the recipient's leave
+    // action mirrors the real flow by removing the trip from the
+    // recipient's list entirely. (The static SAMPLE_TRIPS array
+    // means it'll re-appear on a hard reload — fine for demo.)
+    const override = SHARED_DEMO_OVERRIDES[tripId];
+    if (override && override.sharedShareId === shareId) {
+      this.trips.delete(tripId);
+      return Promise.resolve();
+    }
     trip.shares = trip.shares.filter((s) => s.id !== shareId);
     return Promise.resolve();
   }

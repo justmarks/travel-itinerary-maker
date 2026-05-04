@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import type { TripSummary } from "@travel-app/api-client";
 import type { TripStatus } from "@travel-app/shared";
 import { useDemoHref } from "@/lib/demo";
-import { useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
+import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   daysUntil,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Calendar,
+  LogOut,
   MoreVertical,
   Trash2,
   Pencil,
@@ -153,19 +155,24 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
 }
 
 export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
+  const router = useRouter();
   const deleteTrip = useDeleteTrip();
+  const deleteShare = useDeleteShare(trip.id);
   const updateTrip = useUpdateTrip(trip.id);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(trip.title);
   const tripHref = useDemoHref(`/trips/?id=${trip.id}`);
+  const homeHref = useDemoHref("/");
 
   // Capabilities — owner does everything, edit-share contributors can
   // rename + cycle status but not delete, view-share recipients can
-  // only open the trip.
+  // only open the trip. Recipients of any share kind can self-leave
+  // when the server surfaced their share id.
   const isShared = !!trip.sharedFromEmail;
   const canEdit = !isShared || trip.sharedPermission === "edit";
   const canDelete = !isShared;
-  const showMenu = canEdit || canDelete;
+  const canLeave = isShared && !!trip.sharedShareId;
+  const showMenu = canEdit || canDelete || canLeave;
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
@@ -177,6 +184,29 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
         },
       });
     }
+  };
+
+  const handleLeave = () => {
+    if (!trip.sharedShareId) return;
+    if (
+      !confirm(
+        `Leave "${trip.title}"? You'll lose access to this trip — the owner will be notified.`,
+      )
+    ) {
+      return;
+    }
+    deleteShare.mutate(trip.sharedShareId, {
+      onSuccess: () => {
+        // The list will drop this trip on its next refresh; this also
+        // ensures any open detail page bounces away.
+        router.push(homeHref);
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
   };
 
   const handleRename = () => {
@@ -257,6 +287,16 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
+                </DropdownMenuItem>
+              )}
+              {canLeave && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={handleLeave}
+                  disabled={deleteShare.isPending}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Leave trip
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

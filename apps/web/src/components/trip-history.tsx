@@ -36,6 +36,7 @@ const KIND_PRESENTATION: Record<
   "todo.delete": { icon: <Trash2 className="h-3.5 w-3.5" />, tone: "delete" },
   "share.create": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "create" },
   "share.revoke": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "delete" },
+  "share.leave": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "delete" },
   "bulk.import_xlsx": { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, tone: "info" },
   "bulk.email_apply": { icon: <Mail className="h-3.5 w-3.5" />, tone: "info" },
   "bulk.confirm_all": { icon: <Layers className="h-3.5 w-3.5" />, tone: "info" },

@@ -166,6 +166,7 @@ export type TripHistoryKind =
   | "todo.delete"
   | "share.create"
   | "share.revoke"
+  | "share.leave"
   | "bulk.import_xlsx"
   | "bulk.email_apply"
   | "bulk.confirm_all";

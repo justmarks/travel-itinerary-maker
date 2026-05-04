@@ -3,7 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useDeleteTrip, useTrip } from "@travel-app/api-client";
+import { useDeleteShare, useDeleteTrip, useTrip } from "@travel-app/api-client";
 import type { Trip } from "@travel-app/shared";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
   CloudOff,
   DollarSign,
   History,
+  LogOut,
   MoreVertical,
   Share2,
   Trash2,
@@ -57,16 +58,21 @@ function MobileTripOverflowMenu({
   tripTitle,
   onOpenHistory,
   showDelete,
+  leaveTripShareId,
 }: {
   tripId: string;
   tripTitle: string;
   onOpenHistory: () => void;
   /** Owner-only — contributors see the menu (for History) but not Delete. */
   showDelete: boolean;
+  /** When set, show "Leave trip" — recipient-only path that revokes the
+   *  share row identified by this id. Mirrors the desktop `LeaveTripMenu`. */
+  leaveTripShareId: string | null;
 }): React.JSX.Element {
   const router = useRouter();
   const homeHref = useDemoHref("/m");
   const deleteTrip = useDeleteTrip();
+  const deleteShare = useDeleteShare(tripId);
 
   const handleDelete = () => {
     if (
@@ -87,13 +93,37 @@ function MobileTripOverflowMenu({
     });
   };
 
+  const handleLeave = () => {
+    if (!leaveTripShareId) return;
+    if (
+      typeof window === "undefined" ||
+      !window.confirm(
+        `Leave "${tripTitle}"? You'll lose access to this trip — the owner will be notified.`,
+      )
+    ) {
+      return;
+    }
+    deleteShare.mutate(leaveTripShareId, {
+      onSuccess: () => {
+        router.push(homeHref);
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
+  };
+
+  const busy = deleteTrip.isPending || deleteShare.isPending;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           aria-label="More trip actions"
-          disabled={deleteTrip.isPending}
+          disabled={busy}
           className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80 disabled:opacity-50"
         >
           <MoreVertical className="h-4 w-4" />
@@ -104,6 +134,16 @@ function MobileTripOverflowMenu({
           <History className="mr-2 h-4 w-4" />
           View history
         </DropdownMenuItem>
+        {leaveTripShareId && (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={handleLeave}
+            disabled={deleteShare.isPending}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Leave trip
+          </DropdownMenuItem>
+        )}
         {showDelete && (
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
@@ -133,6 +173,7 @@ function HeaderActions({
   showTodos,
   showShare,
   showDeleteInOverflow,
+  leaveTripShareId,
 }: {
   tripId: string;
   tripTitle: string;
@@ -153,6 +194,9 @@ function HeaderActions({
    *  overflow menu. The menu itself is always shown so contributors can
    *  reach the History sheet. */
   showDeleteInOverflow: boolean;
+  /** Recipient-only — id of the share row that grants the current user
+   *  access. When set, the overflow menu shows "Leave trip". */
+  leaveTripShareId: string | null;
 }): React.JSX.Element {
   // The avatar lives on /m only — the trip-detail header was getting
   // squeezed by Costs + Todos + Share + Avatar all crowding the title.
@@ -200,6 +244,7 @@ function HeaderActions({
         tripTitle={tripTitle}
         onOpenHistory={onOpenHistory}
         showDelete={showDeleteInOverflow}
+        leaveTripShareId={leaveTripShareId}
       />
     </div>
   );
@@ -385,6 +430,12 @@ function TripFrame({
   // mirrors the per-share `showCosts` / `showTodos` flags + gates
   // resharing to owner-only.
   const permission = useTripPermission(trip.id);
+  // The id of the share row that grants this user access — surfaced on
+  // the trip summary so the recipient can self-leave. Absent on owned
+  // trips and anonymous link shares.
+  const leaveTripShareId = permission.isOwner
+    ? null
+    : permission.sharedShareId ?? null;
 
   return (
     <>
@@ -408,6 +459,7 @@ function TripFrame({
               showTodos={permission.showTodos}
               showShare={permission.isOwner}
               showDeleteInOverflow={permission.isOwner}
+              leaveTripShareId={leaveTripShareId}
             />
           )
         }

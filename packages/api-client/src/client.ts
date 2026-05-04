@@ -86,6 +86,12 @@ export interface TripSummary {
    * doesn't leak the count.
    */
   sharedShowTodos?: boolean;
+  /**
+   * The id of the share row that grants the current user access — what
+   * the trip card / detail page POSTs to the leave-trip endpoint when
+   * the recipient wants to self-remove. Absent on owned trips.
+   */
+  sharedShareId?: string;
 }
 
 export interface CostSummaryResponse {

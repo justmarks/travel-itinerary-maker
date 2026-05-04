@@ -289,6 +289,81 @@ describe("Contributor flow", () => {
     });
   });
 
+  describe("recipient self-leave", () => {
+    it("lets a recipient remove their own share row", async () => {
+      const trip = await createTrip(app, "alice", "Tokyo Trip");
+      const share = await shareTripWith(app, "alice", trip.id, bob.email, "edit");
+
+      // Bob removes himself.
+      const res = await request(app)
+        .delete(`/trips/${trip.id}/shares/${share.id}`)
+        .set("x-test-user", "bob");
+      expect(res.status).toBe(204);
+
+      // Alice's trip no longer carries the share.
+      const ownerTrip = await alice.storage.getTrip(trip.id);
+      expect(ownerTrip?.shares ?? []).toHaveLength(0);
+
+      // Bob no longer has access.
+      const followUp = await request(app)
+        .get(`/trips/${trip.id}`)
+        .set("x-test-user", "bob");
+      expect(followUp.status).toBe(404);
+
+      // Audit entry recorded as `share.leave` (not `share.revoke`).
+      const lastHistory = ownerTrip!.history!.at(-1)!;
+      expect(lastHistory.kind).toBe("share.leave");
+      expect(lastHistory.summary).toContain(bob.email);
+      expect(lastHistory.actor.email).toBe(bob.email);
+    });
+
+    it("blocks a contributor from removing someone else's share", async () => {
+      const trip = await createTrip(app, "alice", "Tokyo Trip");
+      const bobShare = await shareTripWith(
+        app,
+        "alice",
+        trip.id,
+        bob.email,
+        "edit",
+      );
+      // Carol also has access — she should not be able to revoke Bob's share.
+      await shareTripWith(app, "alice", trip.id, carol.email, "edit");
+
+      const res = await request(app)
+        .delete(`/trips/${trip.id}/shares/${bobShare.id}`)
+        .set("x-test-user", "carol");
+      expect(res.status).toBe(403);
+      expect(res.body.reason).toBe("owner-only");
+
+      // Bob's share is still intact.
+      const ownerTrip = await alice.storage.getTrip(trip.id);
+      expect(ownerTrip?.shares.find((s) => s.id === bobShare.id)).toBeTruthy();
+    });
+
+    it("the owner can still revoke any share (existing flow unchanged)", async () => {
+      const trip = await createTrip(app, "alice", "Tokyo Trip");
+      const share = await shareTripWith(
+        app,
+        "alice",
+        trip.id,
+        bob.email,
+        "view",
+      );
+
+      const res = await request(app)
+        .delete(`/trips/${trip.id}/shares/${share.id}`)
+        .set("x-test-user", "alice");
+      expect(res.status).toBe(204);
+
+      const ownerTrip = await alice.storage.getTrip(trip.id);
+      expect(ownerTrip?.shares ?? []).toHaveLength(0);
+      // Owner-initiated → `share.revoke` (distinguishable from self-leave).
+      const lastHistory = ownerTrip!.history!.at(-1)!;
+      expect(lastHistory.kind).toBe("share.revoke");
+      expect(lastHistory.actor.email).toBe(alice.email);
+    });
+  });
+
   describe("segment + todo writes via contributor flow", () => {
     it("lets an edit-share contributor add a segment", async () => {
       const trip = await createTrip(app, "alice", "Tokyo Trip");
