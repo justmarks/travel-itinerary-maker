@@ -16,47 +16,46 @@ import {
 import type { ReactNode } from "react";
 
 /**
- * Map each history entry kind to a small icon and short verb-class hint.
- * The hint feeds the icon's background colour so create / update / delete
- * scan visually at a glance ("green check = something completed", "red trash
- * = something removed").
- */
-const KIND_PRESENTATION: Record<
-  TripHistoryKind,
-  { icon: ReactNode; tone: "create" | "update" | "delete" | "info" }
-> = {
-  "trip.update": { icon: <Pencil className="h-3.5 w-3.5" />, tone: "update" },
-  "trip.day_update": { icon: <MapPin className="h-3.5 w-3.5" />, tone: "update" },
-  "segment.create": { icon: <Plus className="h-3.5 w-3.5" />, tone: "create" },
-  "segment.update": { icon: <Pencil className="h-3.5 w-3.5" />, tone: "update" },
-  "segment.delete": { icon: <Trash2 className="h-3.5 w-3.5" />, tone: "delete" },
-  "segment.confirm": { icon: <CheckCircle2 className="h-3.5 w-3.5" />, tone: "info" },
-  "todo.create": { icon: <Plus className="h-3.5 w-3.5" />, tone: "create" },
-  "todo.update": { icon: <Pencil className="h-3.5 w-3.5" />, tone: "update" },
-  "todo.delete": { icon: <Trash2 className="h-3.5 w-3.5" />, tone: "delete" },
-  "share.create": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "create" },
-  "share.revoke": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "delete" },
-  "share.leave": { icon: <Share2 className="h-3.5 w-3.5" />, tone: "delete" },
-  "bulk.import_xlsx": { icon: <FileSpreadsheet className="h-3.5 w-3.5" />, tone: "info" },
-  "bulk.email_apply": { icon: <Mail className="h-3.5 w-3.5" />, tone: "info" },
-  "bulk.confirm_all": { icon: <Layers className="h-3.5 w-3.5" />, tone: "info" },
-};
-
-/**
- * Map each tone to a `--status-*` token. Tones map semantically:
- * create→ok, update→info, delete→danger, info→muted. Tokens carry
- * dark-mode lifts so the colored disc reads against either surface.
+ * History tone — one of four `--status-*` palette buckets. The bundle's
+ * `History.jsx` UI kit uses the same four-tone scheme; we map each
+ * concrete entry kind to its tone via the table below.
+ *   create → ok     (green)
+ *   update → info   (blue)
+ *   delete → danger (red)
+ *   info   → muted  (slate)
  */
 type Tone = "create" | "update" | "delete" | "info";
 
-function toneStyle(tone: Tone): React.CSSProperties {
-  const map: Record<Tone, "ok" | "info" | "danger" | "muted"> = {
-    create: "ok",
-    update: "info",
-    delete: "danger",
-    info:   "muted",
-  };
-  const t = map[tone];
+const TONE_TO_STATUS: Record<Tone, "ok" | "info" | "danger" | "muted"> = {
+  create: "ok",
+  update: "info",
+  delete: "danger",
+  info: "muted",
+};
+
+const KIND_PRESENTATION: Record<
+  TripHistoryKind,
+  { icon: ReactNode; tone: Tone }
+> = {
+  "trip.update":      { icon: <Pencil className="h-3.5 w-3.5" />,           tone: "update" },
+  "trip.day_update":  { icon: <MapPin className="h-3.5 w-3.5" />,           tone: "update" },
+  "segment.create":   { icon: <Plus className="h-3.5 w-3.5" />,             tone: "create" },
+  "segment.update":   { icon: <Pencil className="h-3.5 w-3.5" />,           tone: "update" },
+  "segment.delete":   { icon: <Trash2 className="h-3.5 w-3.5" />,           tone: "delete" },
+  "segment.confirm":  { icon: <CheckCircle2 className="h-3.5 w-3.5" />,     tone: "info"   },
+  "todo.create":      { icon: <Plus className="h-3.5 w-3.5" />,             tone: "create" },
+  "todo.update":      { icon: <Pencil className="h-3.5 w-3.5" />,           tone: "update" },
+  "todo.delete":      { icon: <Trash2 className="h-3.5 w-3.5" />,           tone: "delete" },
+  "share.create":     { icon: <Share2 className="h-3.5 w-3.5" />,           tone: "create" },
+  "share.revoke":     { icon: <Share2 className="h-3.5 w-3.5" />,           tone: "delete" },
+  "share.leave":      { icon: <Share2 className="h-3.5 w-3.5" />,           tone: "delete" },
+  "bulk.import_xlsx": { icon: <FileSpreadsheet className="h-3.5 w-3.5" />,  tone: "info"   },
+  "bulk.email_apply": { icon: <Mail className="h-3.5 w-3.5" />,             tone: "info"   },
+  "bulk.confirm_all": { icon: <Layers className="h-3.5 w-3.5" />,           tone: "info"   },
+};
+
+function discStyle(tone: Tone): React.CSSProperties {
+  const t = TONE_TO_STATUS[tone];
   return {
     backgroundColor: `var(--status-${t}-bg)`,
     color: `var(--status-${t}-fg)`,
@@ -133,10 +132,10 @@ export function TripHistory({ entries }: TripHistoryProps): React.JSX.Element {
   const list = entries ?? [];
   if (list.length === 0) {
     return (
-      <div className="rounded-xl border p-6 text-center text-sm text-muted-foreground">
-        <HistoryIcon className="mx-auto mb-2 h-6 w-6 opacity-60" />
-        <p>No changes recorded yet.</p>
-        <p className="mt-1 text-xs">
+      <div className="flex flex-col items-center gap-1 rounded-xl border border-dashed p-7 text-center">
+        <HistoryIcon className="h-6 w-6 text-muted-foreground/60" />
+        <p className="text-sm text-muted-foreground">No changes recorded yet.</p>
+        <p className="text-xs text-muted-foreground/80">
           Edits to this trip will appear here once they happen.
         </p>
       </div>
@@ -159,11 +158,11 @@ export function TripHistory({ entries }: TripHistoryProps): React.JSX.Element {
   return (
     <div className="space-y-6">
       {[...groups.entries()].map(([dayKey, dayEntries]) => (
-        <section key={dayKey} className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">
+        <section key={dayKey} className="flex flex-col gap-2.5">
+          <h3 className="text-[13px] font-semibold tracking-tight text-muted-foreground">
             {dayLabel(dayEntries[0].timestamp)}
           </h3>
-          <ol className="space-y-2">
+          <ol className="flex flex-col gap-2">
             {dayEntries.map((entry) => {
               const presentation = KIND_PRESENTATION[entry.kind] ?? {
                 icon: <HistoryIcon className="h-3.5 w-3.5" />,
@@ -172,23 +171,25 @@ export function TripHistory({ entries }: TripHistoryProps): React.JSX.Element {
               return (
                 <li
                   key={entry.id}
-                  className="flex items-start gap-3 rounded-lg border bg-card p-3"
+                  className="flex items-start gap-3 rounded-lg border bg-card px-4 py-3.5 shadow-xs"
                 >
                   <span
                     className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
-                    style={toneStyle(presentation.tone)}
+                    style={discStyle(presentation.tone)}
                     aria-hidden
                   >
                     {presentation.icon}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug">{entry.summary}</p>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <p className="text-sm font-medium leading-snug text-foreground">
+                      {entry.summary}
+                    </p>
                     {entry.details && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
+                      <p className="text-xs leading-snug text-muted-foreground">
                         {entry.details}
                       </p>
                     )}
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       <span title={entry.actor.email}>
                         {shortActor(entry.actor.email)}
                       </span>
