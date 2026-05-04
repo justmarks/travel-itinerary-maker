@@ -160,6 +160,22 @@ Locked palette A (2026-05). Every color pairing has been verified to meet WCAG 2
 
 Source-of-truth files: `apps/web/src/app/globals.css` (CSS tokens), `apps/web/src/app/icon.svg` (canonical icon SVG), `apps/web/src/components/{app-logo,app-wordmark}.tsx` (inline brand components), `branding/generate-brand-assets.mjs` (regenerates every PNG in `branding/` and the in-app wordmark PNGs from the same color values), `apps/web/scripts/generate-favicon.mjs` (regenerates `favicon.ico`). Re-run both scripts after any palette tweak.
 
+### Segment-type colors
+
+Each itinerary segment type (flight, hotel, dinner, …) carries a trio of CSS tokens defined in `globals.css`:
+
+- `--seg-{type}-rail` — saturated accent for the left border / pill border
+- `--seg-{type}-bg` — pastel tint for the icon-disc background and row tint
+- `--seg-{type}-fg` — strong foreground for the icon glyph
+
+The eight types in `itinly-design-system/colors_and_type.css` (flight, train, car, hotel, activity, dinner, lunch, breakfast) use the design-system values verbatim. Five product-specific extensions (transport, show, brunch, tour, cruise) follow the same Tailwind 50 / 600 / saturated pattern. Dark mode overrides each token to a translucent 950/60 background and a 300-weight foreground so icons stay legible on near-black surfaces.
+
+When adding segment-type UI (icon discs, accent rails, status pills tied to a segment type), reference these tokens — never hardcode `text-blue-500` style classes. Both the desktop `SEGMENT_CONFIG` in `itinerary-day.tsx` and the mobile `SEGMENT_CONFIG` in `mobile-segment-card.tsx` are wired this way.
+
+### Design system sync
+
+The brand and token system is iterated on in **Claude Designer** and exported as a gzipped handoff bundle. When the user passes a new bundle URL, follow [`branding/DESIGN-SYSTEM-SYNC.md`](branding/DESIGN-SYSTEM-SYNC.md) — it's the standing operating procedure that says which files to read, how to diff `colors_and_type.css` against `globals.css`, where consumers live, and how to verify. Keep that doc up to date as new token categories land.
+
 ### Component Library
 
 - **ShadCN UI** (New York style, Zinc colors) with Lucide React icons.

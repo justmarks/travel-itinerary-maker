@@ -73,24 +73,27 @@ function formatCost(cost?: { amount: number; currency: string; details?: string 
 type SegmentConfig = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  color: string;
+  /** CSS variable carrying the segment-type's foreground (icon glyph)
+   *  color. Defined in `globals.css` so each type can be re-skinned in
+   *  one place without hunting hardcoded Tailwind classes. */
+  fg: string;
 };
 
 const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:            { icon: Plane,           label: "Flight",      color: "text-blue-500"   },
-  train:             { icon: Train,           label: "Train",       color: "text-purple-500" },
-  car_rental:        { icon: Car,             label: "Car Rental",  color: "text-orange-500" },
-  car_service:       { icon: Car,             label: "Car Service", color: "text-orange-500" },
-  other_transport:   { icon: Navigation,      label: "Transport",   color: "text-gray-500"   },
-  hotel:             { icon: BedDouble,       label: "Hotel",       color: "text-indigo-500" },
-  activity:               { icon: MapPin,          label: "Activity",   color: "text-green-500"  },
-  show:                   { icon: Ticket,          label: "Show",       color: "text-pink-500"   },
-  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",  color: "text-sky-500"    },
-  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",     color: "text-lime-500"   },
-  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",      color: "text-amber-500"  },
-  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",     color: "text-red-500"    },
-  tour:              { icon: Camera,          label: "Tour",        color: "text-teal-500"   },
-  cruise:            { icon: Ship,            label: "Cruise",      color: "text-cyan-500"   },
+  flight:                 { icon: Plane,           label: "Flight",      fg: "var(--seg-flight-fg)"    },
+  train:                  { icon: Train,           label: "Train",       fg: "var(--seg-train-fg)"     },
+  car_rental:             { icon: Car,             label: "Car Rental",  fg: "var(--seg-car-fg)"       },
+  car_service:            { icon: Car,             label: "Car Service", fg: "var(--seg-car-fg)"       },
+  other_transport:        { icon: Navigation,      label: "Transport",   fg: "var(--seg-transport-fg)" },
+  hotel:                  { icon: BedDouble,       label: "Hotel",       fg: "var(--seg-hotel-fg)"     },
+  activity:               { icon: MapPin,          label: "Activity",    fg: "var(--seg-activity-fg)"  },
+  show:                   { icon: Ticket,          label: "Show",        fg: "var(--seg-show-fg)"      },
+  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",   fg: "var(--seg-breakfast-fg)" },
+  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",      fg: "var(--seg-brunch-fg)"    },
+  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",       fg: "var(--seg-lunch-fg)"     },
+  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",      fg: "var(--seg-dinner-fg)"    },
+  tour:                   { icon: Camera,          label: "Tour",        fg: "var(--seg-tour-fg)"      },
+  cruise:                 { icon: Ship,            label: "Cruise",      fg: "var(--seg-cruise-fg)"    },
 };
 
 function SegmentRow({
@@ -140,7 +143,7 @@ function SegmentRow({
 
   return (
     <div className="group/seg flex items-start gap-3 rounded-lg border bg-card px-4 py-3">
-      <div className={cn("mt-0.5 shrink-0", config.color)}>
+      <div className="mt-0.5 shrink-0" style={{ color: config.fg }}>
         <Icon className="h-4 w-4" />
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTheme } from "next-themes";
 import {
   APIProvider,
   Map,
@@ -43,19 +44,69 @@ function getCategory(type: SegmentType): Category | null {
   return null;
 }
 
-const PIN_COLOR: Record<Category, string> = {
-  hotel:     "#2563eb", // blue
-  dining:    "#dc2626", // red
-  activity:  "#16a34a", // green
-  transport: "#7c3aed", // purple
+/**
+ * Maps each Map-view category to the matching `--cat-{name}-fg` design-
+ * system token. Resolved to a hex string at runtime via
+ * `useCategoryPinColors` because the Google Maps `<Pin>` component
+ * renders an SVG and doesn't pick up CSS variables. Light-mode hex
+ * values are inlined as a fallback for SSR / first-paint before the
+ * effect runs.
+ */
+const CATEGORY_TOKEN: Record<Category, { token: string; fallback: string }> = {
+  hotel:     { token: "lodging",   fallback: "#4F46E5" },
+  dining:    { token: "dining",    fallback: "#DC2626" },
+  activity:  { token: "activity",  fallback: "#15803D" },
+  transport: { token: "transport", fallback: "#2563EB" },
 };
 
 const CATEGORY_LABEL: Record<Category, string> = {
-  hotel:     "Hotel",
+  hotel:     "Lodging",
   dining:    "Dining",
   activity:  "Activity",
   transport: "Transport",
 };
+
+/**
+ * Reads the four `--cat-*-fg` tokens off `:root` so the SVG `<Pin>`
+ * component (which doesn't resolve CSS variables) can render with the
+ * design-system colors. Re-runs when the theme flips between light and
+ * dark — the bundle's `.dark` block lifts the segment foregrounds, so
+ * pins follow.
+ */
+function useCategoryPinColors(): Record<Category, string> {
+  const { resolvedTheme } = useTheme();
+  return useMemo(() => {
+    if (typeof window === "undefined") {
+      return {
+        hotel:     CATEGORY_TOKEN.hotel.fallback,
+        dining:    CATEGORY_TOKEN.dining.fallback,
+        activity:  CATEGORY_TOKEN.activity.fallback,
+        transport: CATEGORY_TOKEN.transport.fallback,
+      };
+    }
+    const cs = getComputedStyle(document.documentElement);
+    const read = (cat: Category) =>
+      cs.getPropertyValue(`--cat-${CATEGORY_TOKEN[cat].token}-fg`).trim() ||
+      CATEGORY_TOKEN[cat].fallback;
+    return {
+      hotel:     read("hotel"),
+      dining:    read("dining"),
+      activity:  read("activity"),
+      transport: read("transport"),
+    };
+    // resolvedTheme is the trigger; we read the live computed style on
+    // every theme flip so dark-mode lifts apply.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedTheme]);
+}
+
+/**
+ * Display order for the legend, the per-category counts, and any other
+ * place that fans the four categories out into a list. Locked in this
+ * order so it matches the Timeline view's grouped-rows order:
+ * Transport, Lodging, Activity, Dining.
+ */
+const CATEGORY_ORDER: Category[] = ["transport", "hotel", "activity", "dining"];
 
 // ── Data types ────────────────────────────────────────────────
 
@@ -178,6 +229,7 @@ function MapInner({
   const [resolvedPins, setResolvedPins] = useState<ResolvedPin[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [geocoding, setGeocoding] = useState(false);
+  const pinColors = useCategoryPinColors();
 
   // Geocode all pins once the library is ready
   useEffect(() => {
@@ -224,11 +276,11 @@ function MapInner({
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap gap-3">
-          {(Object.keys(CATEGORY_LABEL) as Category[]).map((cat) => (
+          {CATEGORY_ORDER.map((cat) => (
             <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ background: PIN_COLOR[cat] }}
+                style={{ background: `var(--cat-${CATEGORY_TOKEN[cat].token}-fg)` }}
               />
               {CATEGORY_LABEL[cat]}
             </div>
@@ -263,9 +315,9 @@ function MapInner({
               onClick={() => setSelectedId(pin.id === selectedId ? null : pin.id)}
             >
               <Pin
-                background={PIN_COLOR[pin.category]}
+                background={pinColors[pin.category]}
                 glyphColor="#fff"
-                borderColor={PIN_COLOR[pin.category]}
+                borderColor={pinColors[pin.category]}
               />
             </AdvancedMarker>
           ))}

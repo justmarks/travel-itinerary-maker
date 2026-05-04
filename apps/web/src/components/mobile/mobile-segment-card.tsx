@@ -35,32 +35,34 @@ const RESTAURANT_TYPES = new Set([
 type SegmentConfig = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  /** Tailwind text color for the icon. */
-  iconColor: string;
-  /** Tailwind border color for the left accent stripe. */
-  accent: string;
-  /** Tailwind background tint for the icon disc. */
+  /** CSS variable carrying the icon's foreground color. */
+  fg: string;
+  /** CSS variable carrying the icon-disc background tint. */
   bg: string;
+  /** CSS variable carrying the left accent rail color. */
+  rail: string;
 };
 
-// `iconColor` and `bg` carry the type's brand color in light mode; the
-// `dark:` overrides shift to a brighter foreground over a translucent dark
-// disc so the icon stays readable on a near-black card surface.
+// All three colors come from `--seg-{type}-{role}` tokens defined in
+// `globals.css`. Light mode uses Tailwind 50-weight pastels with
+// 600-weight icon foregrounds; the dark-mode overrides on those tokens
+// shift to translucent 950/60 backgrounds with lifted 300-weight
+// foregrounds so the icon stays legible on a near-black card surface.
 const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:               { icon: Plane,           label: "Flight",     iconColor: "text-blue-600 dark:text-blue-300",     accent: "border-l-blue-500",   bg: "bg-blue-50 dark:bg-blue-950/60"     },
-  train:                { icon: Train,           label: "Train",      iconColor: "text-purple-600 dark:text-purple-300", accent: "border-l-purple-500", bg: "bg-purple-50 dark:bg-purple-950/60" },
-  car_rental:           { icon: Car,             label: "Car Rental", iconColor: "text-orange-600 dark:text-orange-300", accent: "border-l-orange-500", bg: "bg-orange-50 dark:bg-orange-950/60" },
-  car_service:          { icon: Car,             label: "Car Service",iconColor: "text-orange-600 dark:text-orange-300", accent: "border-l-orange-500", bg: "bg-orange-50 dark:bg-orange-950/60" },
-  other_transport:      { icon: Navigation,      label: "Transport",  iconColor: "text-gray-600 dark:text-gray-300",     accent: "border-l-gray-400",   bg: "bg-gray-100 dark:bg-gray-800/60"    },
-  hotel:                { icon: BedDouble,       label: "Hotel",      iconColor: "text-indigo-600 dark:text-indigo-300", accent: "border-l-indigo-500", bg: "bg-indigo-50 dark:bg-indigo-950/60" },
-  activity:             { icon: MapPin,          label: "Activity",   iconColor: "text-green-600 dark:text-green-300",   accent: "border-l-green-500",  bg: "bg-green-50 dark:bg-green-950/60"   },
-  show:                 { icon: Ticket,          label: "Show",       iconColor: "text-pink-600 dark:text-pink-300",     accent: "border-l-pink-500",   bg: "bg-pink-50 dark:bg-pink-950/60"     },
-  restaurant_breakfast: { icon: UtensilsCrossed, label: "Breakfast",  iconColor: "text-sky-600 dark:text-sky-300",       accent: "border-l-sky-500",    bg: "bg-sky-50 dark:bg-sky-950/60"       },
-  restaurant_brunch:    { icon: UtensilsCrossed, label: "Brunch",     iconColor: "text-lime-600 dark:text-lime-300",     accent: "border-l-lime-500",   bg: "bg-lime-50 dark:bg-lime-950/60"     },
-  restaurant_lunch:     { icon: UtensilsCrossed, label: "Lunch",      iconColor: "text-amber-600 dark:text-amber-300",   accent: "border-l-amber-500",  bg: "bg-amber-50 dark:bg-amber-950/60"   },
-  restaurant_dinner:    { icon: UtensilsCrossed, label: "Dinner",     iconColor: "text-red-600 dark:text-red-300",       accent: "border-l-red-500",    bg: "bg-red-50 dark:bg-red-950/60"       },
-  tour:                 { icon: Camera,          label: "Tour",       iconColor: "text-teal-600 dark:text-teal-300",     accent: "border-l-teal-500",   bg: "bg-teal-50 dark:bg-teal-950/60"     },
-  cruise:               { icon: Ship,            label: "Cruise",     iconColor: "text-cyan-600 dark:text-cyan-300",     accent: "border-l-cyan-500",   bg: "bg-cyan-50 dark:bg-cyan-950/60"     },
+  flight:               { icon: Plane,           label: "Flight",      fg: "var(--seg-flight-fg)",    bg: "var(--seg-flight-bg)",    rail: "var(--seg-flight-rail)"    },
+  train:                { icon: Train,           label: "Train",       fg: "var(--seg-train-fg)",     bg: "var(--seg-train-bg)",     rail: "var(--seg-train-rail)"     },
+  car_rental:           { icon: Car,             label: "Car Rental",  fg: "var(--seg-car-fg)",       bg: "var(--seg-car-bg)",       rail: "var(--seg-car-rail)"       },
+  car_service:          { icon: Car,             label: "Car Service", fg: "var(--seg-car-fg)",       bg: "var(--seg-car-bg)",       rail: "var(--seg-car-rail)"       },
+  other_transport:      { icon: Navigation,      label: "Transport",   fg: "var(--seg-transport-fg)", bg: "var(--seg-transport-bg)", rail: "var(--seg-transport-rail)" },
+  hotel:                { icon: BedDouble,       label: "Hotel",       fg: "var(--seg-hotel-fg)",     bg: "var(--seg-hotel-bg)",     rail: "var(--seg-hotel-rail)"     },
+  activity:             { icon: MapPin,          label: "Activity",    fg: "var(--seg-activity-fg)",  bg: "var(--seg-activity-bg)",  rail: "var(--seg-activity-rail)"  },
+  show:                 { icon: Ticket,          label: "Show",        fg: "var(--seg-show-fg)",      bg: "var(--seg-show-bg)",      rail: "var(--seg-show-rail)"      },
+  restaurant_breakfast: { icon: UtensilsCrossed, label: "Breakfast",   fg: "var(--seg-breakfast-fg)", bg: "var(--seg-breakfast-bg)", rail: "var(--seg-breakfast-rail)" },
+  restaurant_brunch:    { icon: UtensilsCrossed, label: "Brunch",      fg: "var(--seg-brunch-fg)",    bg: "var(--seg-brunch-bg)",    rail: "var(--seg-brunch-rail)"    },
+  restaurant_lunch:     { icon: UtensilsCrossed, label: "Lunch",       fg: "var(--seg-lunch-fg)",     bg: "var(--seg-lunch-bg)",     rail: "var(--seg-lunch-rail)"     },
+  restaurant_dinner:    { icon: UtensilsCrossed, label: "Dinner",      fg: "var(--seg-dinner-fg)",    bg: "var(--seg-dinner-bg)",    rail: "var(--seg-dinner-rail)"    },
+  tour:                 { icon: Camera,          label: "Tour",        fg: "var(--seg-tour-fg)",      bg: "var(--seg-tour-bg)",      rail: "var(--seg-tour-rail)"      },
+  cruise:               { icon: Ship,            label: "Cruise",      fg: "var(--seg-cruise-fg)",    bg: "var(--seg-cruise-bg)",    rail: "var(--seg-cruise-rail)"    },
 };
 
 function fmt12h(t?: string): string | null {
@@ -160,12 +162,10 @@ export function MobileSegmentCard({
   const cardBody = (
     <div className="flex w-full gap-3 p-4 text-left">
       <div
-        className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-          config.bg,
-        )}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+        style={{ background: config.bg, color: config.fg }}
       >
-        <Icon className={cn("h-5 w-5", config.iconColor)} />
+        <Icon className="h-5 w-5" />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -346,10 +346,9 @@ export function MobileSegmentCard({
     </div>
   );
 
-  const baseClasses = cn(
-    "block w-full rounded-2xl border bg-card border-l-4 shadow-sm overflow-hidden",
-    config.accent,
-  );
+  const baseClasses =
+    "block w-full rounded-2xl border bg-card border-l-4 shadow-sm overflow-hidden";
+  const railStyle = { borderLeftColor: config.rail } as React.CSSProperties;
 
   if (interactive) {
     return (
@@ -357,11 +356,16 @@ export function MobileSegmentCard({
         type="button"
         onClick={() => onSelect?.(segment)}
         className={cn(baseClasses, "transition-transform active:scale-[0.99] active:bg-muted/40")}
+        style={railStyle}
       >
         {cardBody}
       </button>
     );
   }
 
-  return <div className={baseClasses}>{cardBody}</div>;
+  return (
+    <div className={baseClasses} style={railStyle}>
+      {cardBody}
+    </div>
+  );
 }
