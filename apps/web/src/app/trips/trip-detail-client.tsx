@@ -8,6 +8,7 @@ import {
   useTrip,
   useUpdateTrip,
   useDeleteTrip,
+  useDeleteShare,
   useApiClient,
   useConfirmAllSegments,
   ApiError,
@@ -64,6 +65,7 @@ import {
   Share2,
   Trash2,
   Users,
+  LogOut,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
 import { ItineraryDay } from "@/components/itinerary-day";
@@ -516,6 +518,76 @@ function TripActionsMenu({
   );
 }
 
+/**
+ * Standalone overflow menu shown to a trip's *recipient* (not the owner)
+ * with a single destructive action: leave the trip. Hits the same
+ * `DELETE /trips/:id/shares/:shareId` endpoint as the owner-initiated
+ * revoke, but the server detects the requester is the share's recipient
+ * and records the audit entry as `share.leave` rather than
+ * `share.revoke`, plus pushes the leaving notification to the owner
+ * instead of back to the requester.
+ */
+function LeaveTripMenu({
+  tripId,
+  tripTitle,
+  ownShareId,
+}: {
+  tripId: string;
+  tripTitle: string;
+  ownShareId: string;
+}): React.JSX.Element {
+  const router = useRouter();
+  const deleteShare = useDeleteShare(tripId);
+
+  const handleLeave = () => {
+    if (
+      typeof window === "undefined" ||
+      !window.confirm(
+        `Leave "${tripTitle}"? You'll lose access to this trip — the owner will be notified.`,
+      )
+    ) {
+      return;
+    }
+    deleteShare.mutate(ownShareId, {
+      onSuccess: () => {
+        // The trip is no longer visible to this user — bouncing to the
+        // dashboard avoids a 404 the moment the next GET fires.
+        router.push("/");
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label="More trip actions"
+          disabled={deleteShare.isPending}
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={handleLeave}
+          disabled={deleteShare.isPending}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Leave trip
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function NeedsReviewBanner({
   trip,
 }: {
@@ -896,7 +968,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // showCosts / showTodos flags mirror the share's per-recipient
   // visibility toggles set at share creation.
   const permission = useTripPermission(tripId);
-  const { isReadOnly, isOwner, sharedFromEmail } = permission;
+  const { isReadOnly, isOwner, sharedFromEmail, sharedShareId } = permission;
+  // The id of the share row that grants this user access. The server
+  // surfaces it on the trip summary so the recipient can self-leave
+  // without us having to look it up from `trip.shares` (which would also
+  // fail for anonymous link shares the user is signed in to view via a
+  // direct link). Absent on owned trips and anonymous public shares.
+  const ownShareId = !isOwner ? sharedShareId ?? null : null;
   // While the permission lookup is still in flight, suppress cost /
   // todo rendering (we'd otherwise flash inline costs / the to-do
   // sidebar in for a beat before the contributor's restrictive
@@ -998,6 +1076,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   onOpenChange={setShareOpen}
                 />
               </>
+            )}
+            {!permission.isLoading && !isOwner && ownShareId && (
+              <LeaveTripMenu
+                tripId={trip.id}
+                tripTitle={trip.title}
+                ownShareId={ownShareId}
+              />
             )}
             <UserMenu />
           </div>

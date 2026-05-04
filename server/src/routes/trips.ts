@@ -199,7 +199,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       const sharedSummaries = shared
         .filter(({ trip }) => !ownedIds.has(trip.id))
-        .map(({ trip, ownerEmail, permission, showCosts, showTodos }) => {
+        .map(({ trip, ownerEmail, permission, showCosts, showTodos, shareId }) => {
           const primary = primaryLocationFor(trip);
           return {
             id: trip.id,
@@ -223,6 +223,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
             sharedPermission: permission,
             sharedShowCosts: showCosts,
             sharedShowTodos: showTodos,
+            sharedShareId: shareId,
           };
         });
 
@@ -1283,9 +1284,11 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   router.delete(
     "/:tripId/shares/:shareId",
     async (req: Request, res: Response) => {
-      const access = await accessTrip(req, req.params.tripId as string, "edit");
+      // "view" — a view-only recipient should be able to remove themselves
+      // too. The fine-grained permission check for *which* share is being
+      // revoked happens after we look it up below.
+      const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
-      if (access.accessLevel !== "owner") return denyOwnerOnly(res);
       const { trip, storage } = access;
 
       const idx = trip.shares.findIndex((s) => s.id === (req.params.shareId as string));
@@ -1293,36 +1296,80 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         res.status(404).json({ error: "Share not found" });
         return;
       }
-
-      // Remove from share registry
       const removedShare = trip.shares[idx];
-      if (shareRegistry && removedShare) {
-        shareRegistry.remove(removedShare.shareToken);
-      }
-      if (shareSnapshotStore && removedShare) {
-        shareSnapshotStore.delete(removedShare.shareToken);
-      }
+
+      // Two paths into this endpoint:
+      //   1. Owner revoking any share (existing flow)
+      //   2. Recipient removing themselves (self-leave; this share's
+      //      `sharedWithEmail` matches the requester)
+      // Anonymous link shares (no `sharedWithEmail`) can only be revoked
+      // by the owner, since there's no recipient identity to match.
+      const isOwner = access.accessLevel === "owner";
+      const isSelfLeave =
+        !isOwner &&
+        !!removedShare.sharedWithEmail &&
+        !!req.userEmail &&
+        removedShare.sharedWithEmail.toLowerCase() === req.userEmail.toLowerCase();
+      if (!isOwner && !isSelfLeave) return denyOwnerOnly(res);
+
+      // Remove from share registry / snapshot store
+      if (shareRegistry) shareRegistry.remove(removedShare.shareToken);
+      if (shareSnapshotStore) shareSnapshotStore.delete(removedShare.shareToken);
 
       trip.shares.splice(idx, 1);
       trip.updatedAt = new Date().toISOString();
-      const revokeTarget = removedShare?.sharedWithEmail ?? "anyone with the link";
-      recordHistory(
-        trip,
-        req,
-        "share.revoke",
-        `Revoked share for ${revokeTarget}`,
-        { entityId: removedShare?.id },
-      );
+
+      if (isSelfLeave) {
+        const leaverEmail = req.userEmail ?? removedShare.sharedWithEmail!;
+        recordHistory(
+          trip,
+          req,
+          "share.leave",
+          `${leaverEmail} left the trip`,
+          { entityId: removedShare.id },
+        );
+      } else {
+        const revokeTarget = removedShare.sharedWithEmail ?? "anyone with the link";
+        recordHistory(
+          trip,
+          req,
+          "share.revoke",
+          `Revoked share for ${revokeTarget}`,
+          { entityId: removedShare.id },
+        );
+      }
+
       await storage.saveTrip(trip);
       res.status(204).send();
 
-      // Tell the recipient their access is gone — same fire-and-forget
-      // pattern as share creation. Anonymous link shares (no recipient
-      // email) don't push since we have no one to address. The push
-      // arrives just as the recipient's UI starts 404'ing on the trip
-      // they had open, so they understand why rather than seeing a
-      // blank "trip not found" page.
-      if (notificationSender && removedShare?.sharedWithEmail) {
+      // Push notification — fire-and-forget. The audience flips between
+      // the two paths: an owner-revoke notifies the recipient (their
+      // access is gone); a self-leave notifies the OWNER (one of their
+      // collaborators stepped away).
+      if (!notificationSender) return;
+      if (isSelfLeave) {
+        const ownerEmail = access.ownerEmail;
+        if (!ownerEmail) return;
+        const leaverEmail = req.userEmail ?? removedShare.sharedWithEmail!;
+        notificationSender
+          .sendToEmail(ownerEmail, {
+            title: `${leaverEmail} left your trip`,
+            body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
+            url: `/trips/?id=${trip.id}`,
+            tag: `share-leave:${removedShare.shareToken}`,
+            data: {
+              kind: "share-leave",
+              shareToken: removedShare.shareToken,
+              tripId: trip.id,
+            },
+          })
+          .catch((err) =>
+            console.warn(
+              "[trips] share-leave push failed:",
+              err instanceof Error ? err.message : err,
+            ),
+          );
+      } else if (removedShare.sharedWithEmail) {
         const senderName = req.userEmail ?? "The owner";
         notificationSender
           .sendToEmail(removedShare.sharedWithEmail, {

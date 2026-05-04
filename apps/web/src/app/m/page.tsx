@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useTrips } from "@travel-app/api-client";
+import { useDeleteShare, useTrips } from "@travel-app/api-client";
 import type { TripSummary } from "@travel-app/api-client";
 import {
   AlertCircle,
@@ -12,9 +13,17 @@ import {
   ChevronDown,
   ChevronUp,
   CloudOff,
+  LogOut,
+  MoreVertical,
   Plus,
   Users,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { RequireAuth } from "@/components/require-auth";
 import { useDemoMode } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -131,6 +140,79 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
   );
 }
 
+/**
+ * Tiny corner menu on a shared trip row that lets the recipient remove
+ * themselves from the trip. Stops click propagation so tapping the menu
+ * doesn't also follow the parent <Link>. Only renders when the server
+ * surfaced this row's `sharedShareId`.
+ */
+function MobileTripCardLeaveMenu({
+  trip,
+}: {
+  trip: TripSummary;
+}): React.JSX.Element | null {
+  const router = useRouter();
+  const deleteShare = useDeleteShare(trip.id);
+
+  if (!trip.sharedShareId) return null;
+
+  const handleLeave = () => {
+    if (!trip.sharedShareId) return;
+    if (
+      typeof window === "undefined" ||
+      !window.confirm(
+        `Leave "${trip.title}"? You'll lose access to this trip — the owner will be notified.`,
+      )
+    ) {
+      return;
+    }
+    deleteShare.mutate(trip.sharedShareId, {
+      onSuccess: () => {
+        router.push("/m");
+      },
+      onError: (err) => {
+        toast.error(
+          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
+  };
+
+  return (
+    <div
+      className="absolute right-1.5 top-1.5 z-20"
+      // The card itself is a single tap target. Absorb pointer events on
+      // the menu so they don't bubble up and navigate into the trip.
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label="More trip actions"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={handleLeave}
+            disabled={deleteShare.isPending}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Leave trip
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 function TripRow({
   trip,
   hrefSuffix,
@@ -195,12 +277,15 @@ function TripRow({
   }
 
   return (
-    <Link
-      href={href}
-      className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-transform active:scale-[0.99] active:bg-muted/40"
-    >
-      {meta}
-    </Link>
+    <div className="relative">
+      <Link
+        href={href}
+        className="group flex flex-col overflow-hidden rounded-2xl border bg-card transition-transform active:scale-[0.99] active:bg-muted/40"
+      >
+        {meta}
+      </Link>
+      <MobileTripCardLeaveMenu trip={trip} />
+    </div>
   );
 }
 

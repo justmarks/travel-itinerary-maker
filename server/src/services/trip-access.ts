@@ -156,6 +156,10 @@ export interface SharedTripWithMeta {
   /** Per-share visibility flags chosen by the owner at share creation. */
   showCosts: boolean;
   showTodos: boolean;
+  /** Id of the matching share row on the owner's trip — what the
+   *  recipient passes to `DELETE /trips/:id/shares/:shareId` to
+   *  self-remove. */
+  shareId: string;
 }
 
 /**
@@ -198,12 +202,17 @@ export async function listSharedTrips(opts: {
       try {
         const trip = await ownerStorage.getTrip(share.tripId);
         if (!trip) continue;
+        // Find the actual share row on the trip to grab its id. The
+        // registry tracks by shareToken; the trip itself stores by id.
+        const shareRow = trip.shares.find((s) => s.shareToken === share.shareToken);
+        if (!shareRow) continue;
         result.push({
           trip,
           ownerEmail: share.ownerEmail,
           permission: share.permission,
           showCosts: share.showCosts,
           showTodos: share.showTodos,
+          shareId: shareRow.id,
         });
       } catch {
         // Drive read failed for this trip — skip; the rest of the
