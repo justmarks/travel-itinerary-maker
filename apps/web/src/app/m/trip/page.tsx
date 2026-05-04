@@ -11,6 +11,7 @@ import {
   CheckSquare,
   CloudOff,
   DollarSign,
+  History,
   MoreVertical,
   Share2,
   Trash2,
@@ -24,6 +25,7 @@ import { MobileCarouselView } from "@/components/mobile/mobile-carousel-view";
 import { MobileCostsSheet } from "@/components/mobile/mobile-costs-sheet";
 import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
+import { MobileHistorySheet } from "@/components/mobile/mobile-history-sheet";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import {
   DropdownMenu,
@@ -53,9 +55,14 @@ function fmtUsdCompact(n: number): string {
 function MobileTripOverflowMenu({
   tripId,
   tripTitle,
+  onOpenHistory,
+  showDelete,
 }: {
   tripId: string;
   tripTitle: string;
+  onOpenHistory: () => void;
+  /** Owner-only — contributors see the menu (for History) but not Delete. */
+  showDelete: boolean;
 }): React.JSX.Element {
   const router = useRouter();
   const homeHref = useDemoHref("/m");
@@ -93,14 +100,20 @@ function MobileTripOverflowMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
-          onClick={handleDelete}
-          disabled={deleteTrip.isPending}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete trip
+        <DropdownMenuItem onClick={onOpenHistory}>
+          <History className="mr-2 h-4 w-4" />
+          View history
         </DropdownMenuItem>
+        {showDelete && (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={handleDelete}
+            disabled={deleteTrip.isPending}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete trip
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -115,10 +128,11 @@ function HeaderActions({
   onOpenCosts,
   onOpenTodos,
   onOpenShare,
+  onOpenHistory,
   showCosts,
   showTodos,
   showShare,
-  showOverflow,
+  showDeleteInOverflow,
 }: {
   tripId: string;
   tripTitle: string;
@@ -128,14 +142,17 @@ function HeaderActions({
   onOpenCosts: () => void;
   onOpenTodos: () => void;
   onOpenShare: () => void;
+  onOpenHistory: () => void;
   /** When false (e.g. share with `showCosts: false`), hide the Costs pill. */
   showCosts: boolean;
   /** Same idea for the to-do pill. */
   showTodos: boolean;
   /** Owner-only — contributors can't reshare. */
   showShare: boolean;
-  /** Owner-only — exposes the destructive "Delete trip" action. */
-  showOverflow: boolean;
+  /** Owner-only — exposes the destructive "Delete trip" action inside the
+   *  overflow menu. The menu itself is always shown so contributors can
+   *  reach the History sheet. */
+  showDeleteInOverflow: boolean;
 }): React.JSX.Element {
   // The avatar lives on /m only — the trip-detail header was getting
   // squeezed by Costs + Todos + Share + Avatar all crowding the title.
@@ -178,9 +195,12 @@ function HeaderActions({
           <Share2 className="h-4 w-4" />
         </button>
       )}
-      {showOverflow && (
-        <MobileTripOverflowMenu tripId={tripId} tripTitle={tripTitle} />
-      )}
+      <MobileTripOverflowMenu
+        tripId={tripId}
+        tripTitle={tripTitle}
+        onOpenHistory={onOpenHistory}
+        showDelete={showDeleteInOverflow}
+      />
     </div>
   );
 }
@@ -216,6 +236,7 @@ function MobileTripInner({ tripId }: { tripId: string }) {
   const [costsOpen, setCostsOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -312,12 +333,15 @@ function MobileTripInner({ tripId }: { tripId: string }) {
         costsOpen={costsOpen}
         todosOpen={todosOpen}
         shareOpen={shareOpen}
+        historyOpen={historyOpen}
         onOpenCosts={() => setCostsOpen(true)}
         onCloseCosts={() => setCostsOpen(false)}
         onOpenTodos={() => setTodosOpen(true)}
         onCloseTodos={() => setTodosOpen(false)}
         onOpenShare={() => setShareOpen(true)}
         onCloseShare={() => setShareOpen(false)}
+        onOpenHistory={() => setHistoryOpen(true)}
+        onCloseHistory={() => setHistoryOpen(false)}
       />
     </MobileFrame>
   );
@@ -330,12 +354,15 @@ function TripFrame({
   costsOpen,
   todosOpen,
   shareOpen,
+  historyOpen,
   onOpenCosts,
   onCloseCosts,
   onOpenTodos,
   onCloseTodos,
   onOpenShare,
   onCloseShare,
+  onOpenHistory,
+  onCloseHistory,
 }: {
   trip: Trip;
   dateRange: string;
@@ -343,12 +370,15 @@ function TripFrame({
   costsOpen: boolean;
   todosOpen: boolean;
   shareOpen: boolean;
+  historyOpen: boolean;
   onOpenCosts: () => void;
   onCloseCosts: () => void;
   onOpenTodos: () => void;
   onCloseTodos: () => void;
   onOpenShare: () => void;
   onCloseShare: () => void;
+  onOpenHistory: () => void;
+  onCloseHistory: () => void;
 }): React.JSX.Element {
   const { usdTotal, todoSummary } = useTripSummary(trip);
   // For owned trips this is always all-true. For shared trips it
@@ -373,10 +403,11 @@ function TripFrame({
               onOpenCosts={onOpenCosts}
               onOpenTodos={onOpenTodos}
               onOpenShare={onOpenShare}
+              onOpenHistory={onOpenHistory}
               showCosts={permission.showCosts}
               showTodos={permission.showTodos}
               showShare={permission.isOwner}
-              showOverflow={permission.isOwner}
+              showDeleteInOverflow={permission.isOwner}
             />
           )
         }
@@ -403,6 +434,11 @@ function TripFrame({
           onClose={onCloseTodos}
         />
       )}
+      <MobileHistorySheet
+        entries={trip.history}
+        open={historyOpen}
+        onClose={onCloseHistory}
+      />
       {permission.isOwner && (
         <MobileShareSheet
           tripId={trip.id}

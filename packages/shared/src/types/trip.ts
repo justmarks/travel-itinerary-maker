@@ -150,6 +150,52 @@ export interface TripShare {
 }
 
 /**
+ * Discriminator strings for `TripHistoryEntry.kind`. Dotted to make it cheap
+ * to filter ("show me everything that happened to segments") and to map to a
+ * small set of icons in the UI.
+ */
+export type TripHistoryKind =
+  | "trip.update"
+  | "trip.day_update"
+  | "segment.create"
+  | "segment.update"
+  | "segment.delete"
+  | "segment.confirm"
+  | "todo.create"
+  | "todo.update"
+  | "todo.delete"
+  | "share.create"
+  | "share.revoke"
+  | "bulk.import_xlsx"
+  | "bulk.email_apply"
+  | "bulk.confirm_all";
+
+export interface TripHistoryActor {
+  email: string;
+  name?: string;
+}
+
+/**
+ * One entry in a trip's audit log. Append-only — entries are never edited
+ * or removed (the list is trimmed to the most recent 500 on write to bound
+ * size, see `appendTripHistory`). Each entry captures a single mutation;
+ * bulk actions use a single summary entry rather than one per row.
+ */
+export interface TripHistoryEntry {
+  id: string;
+  /** ISO 8601 timestamp the mutation was applied. */
+  timestamp: string;
+  actor: TripHistoryActor;
+  kind: TripHistoryKind;
+  /** One-line human-readable summary, e.g. `Added flight "SEA → KEF"`. */
+  summary: string;
+  /** Optional secondary detail, e.g. `Changed startTime, title`. */
+  details?: string;
+  /** Optional identifier for the affected entity (segment id, todo id). */
+  entityId?: string;
+}
+
+/**
  * Current Trip JSON schema version.
  *
  * Bump this when the Trip shape changes in a way that existing persisted
@@ -160,7 +206,7 @@ export interface TripShare {
  * Storage layers call `migrateTrip` on every `getTrip`/`listTrips` read,
  * so by the next save the field has been normalised onto the trip.
  */
-export const CURRENT_TRIP_SCHEMA_VERSION = 1;
+export const CURRENT_TRIP_SCHEMA_VERSION = 2;
 
 export interface Trip {
   id: string;
@@ -171,6 +217,12 @@ export interface Trip {
   days: TripDay[];
   todos: Todo[];
   shares: TripShare[];
+  /**
+   * Append-only audit log of mutations. Trimmed to the most recent 500
+   * entries on write. Older trips loaded before this field existed get
+   * an empty array via `migrateTrip`.
+   */
+  history: TripHistoryEntry[];
   createdAt: string;
   updatedAt: string;
   /** Google Calendar ID this trip is synced to, if any. */

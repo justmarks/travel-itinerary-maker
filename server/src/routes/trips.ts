@@ -42,6 +42,11 @@ import {
   shiftWorkbookYears,
   type ParsedWorkbookSegment,
 } from "../services/xlsx-importer";
+import {
+  recordHistory,
+  segmentLabel,
+  summariseSegmentChanges,
+} from "../services/trip-history";
 
 export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -274,6 +279,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       days,
       todos: [],
       shares: [],
+      history: [],
       createdAt: now,
       updatedAt: now,
       schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
@@ -433,10 +439,29 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       days,
       todos: [],
       shares: [],
+      history: [],
       createdAt: now,
       updatedAt: now,
       schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
+
+    const importedSegmentCount = days.reduce(
+      (n, d) => n + d.segments.length,
+      0,
+    );
+    if (importedSegmentCount > 0) {
+      recordHistory(
+        trip,
+        req,
+        "bulk.import_xlsx",
+        `Imported ${importedSegmentCount} segment${importedSegmentCount === 1 ? "" : "s"} from XLSX`,
+        {
+          details: parsed.data.filename
+            ? `Source: ${parsed.data.filename}`
+            : undefined,
+        },
+      );
+    }
 
     await storage.saveTrip(trip);
     res.status(201).json({
@@ -508,14 +533,26 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
     }
 
-    if (updates.title !== undefined) trip.title = updates.title;
-    if (updates.status !== undefined) trip.status = updates.status;
+    const changedFields: string[] = [];
+    if (updates.title !== undefined && updates.title !== trip.title) {
+      changedFields.push(`title "${trip.title}" → "${updates.title}"`);
+      trip.title = updates.title;
+    }
+    if (updates.status !== undefined && updates.status !== trip.status) {
+      changedFields.push(`status ${trip.status} → ${updates.status}`);
+      trip.status = updates.status;
+    }
 
     // When dates change, rebuild the days array while preserving existing
     // segments for dates that remain in range.
     if (updates.startDate !== undefined || updates.endDate !== undefined) {
       const newStart = updates.startDate ?? trip.startDate;
       const newEnd = updates.endDate ?? trip.endDate;
+      if (newStart !== trip.startDate || newEnd !== trip.endDate) {
+        changedFields.push(
+          `dates ${trip.startDate}–${trip.endDate} → ${newStart}–${newEnd}`,
+        );
+      }
       trip.startDate = newStart;
       trip.endDate = newEnd;
 
@@ -535,6 +572,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     trip.updatedAt = new Date().toISOString();
+
+    if (changedFields.length > 0) {
+      recordHistory(trip, req, "trip.update", "Updated trip details", {
+        details: changedFields.join("; "),
+      });
+    }
 
     await storage.saveTrip(trip);
     res.json(trip);
@@ -593,7 +636,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
-      if (req.body.city !== undefined) day.city = req.body.city;
+      if (req.body.city !== undefined && req.body.city !== day.city) {
+        const previousCity = day.city || "(none)";
+        day.city = req.body.city;
+        recordHistory(
+          trip,
+          req,
+          "trip.day_update",
+          `Changed ${day.date} city to "${day.city || "(none)"}"`,
+          { details: `from "${previousCity}"` },
+        );
+      } else if (req.body.city !== undefined) {
+        day.city = req.body.city;
+      }
       trip.updatedAt = new Date().toISOString();
       await storage.saveTrip(trip);
       res.json(day);
@@ -674,6 +729,13 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         applyCruisePortsToDayCities(trip);
       }
       trip.updatedAt = new Date().toISOString();
+      recordHistory(
+        trip,
+        req,
+        "segment.create",
+        `Added ${segmentLabel(segment)} on ${day.date}`,
+        { entityId: segment.id },
+      );
       await storage.saveTrip(trip);
       res.status(201).json(segment);
       void recordContributorActivity(access, req, "edit");
@@ -714,6 +776,10 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       const { date: newDate, ...segmentUpdates } = parsed.data;
 
+      // Snapshot before mutating so we can compute the field-level diff.
+      const before: Segment = JSON.parse(JSON.stringify(found));
+      const movedFromDate = currentDay.date;
+
       if (newDate && newDate !== currentDay.date) {
         const targetDay = trip.days.find((d) => d.date === newDate);
         if (!targetDay) {
@@ -749,6 +815,23 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       trip.updatedAt = new Date().toISOString();
+
+      const detailParts: string[] = [];
+      if (newDate && newDate !== movedFromDate) {
+        detailParts.push(`moved ${movedFromDate} → ${newDate}`);
+      }
+      const fieldDiff = summariseSegmentChanges(before, found);
+      if (fieldDiff) detailParts.push(fieldDiff);
+      if (detailParts.length > 0) {
+        recordHistory(
+          trip,
+          req,
+          "segment.update",
+          `Updated ${segmentLabel(found)}`,
+          { details: detailParts.join("; "), entityId: found.id },
+        );
+      }
+
       await storage.saveTrip(trip);
       res.json(found);
       void recordContributorActivity(access, req, "edit");
@@ -763,23 +846,32 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       const { trip, storage } = access;
 
       let deletedCalendarEventId: string | undefined;
-      let deleted = false;
+      let deletedSegment: Segment | undefined;
+      let deletedFromDate: string | undefined;
       for (const day of trip.days) {
         const idx = day.segments.findIndex((s) => s.id === (req.params.segId as string));
         if (idx >= 0) {
-          deletedCalendarEventId = day.segments[idx].calendarEventId;
+          deletedSegment = day.segments[idx];
+          deletedCalendarEventId = deletedSegment.calendarEventId;
+          deletedFromDate = day.date;
           day.segments.splice(idx, 1);
-          deleted = true;
           break;
         }
       }
 
-      if (!deleted) {
+      if (!deletedSegment || !deletedFromDate) {
         res.status(404).json({ error: "Segment not found" });
         return;
       }
 
       trip.updatedAt = new Date().toISOString();
+      recordHistory(
+        trip,
+        req,
+        "segment.delete",
+        `Removed ${segmentLabel(deletedSegment)} from ${deletedFromDate}`,
+        { entityId: deletedSegment.id },
+      );
       await storage.saveTrip(trip);
 
       // Remove the corresponding Google Calendar event if the trip is synced
@@ -813,9 +905,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
+      const wasNeedsReview = found.needsReview;
       found.needsReview = false;
       found.source = "email_confirmed";
       trip.updatedAt = new Date().toISOString();
+      if (wasNeedsReview) {
+        recordHistory(
+          trip,
+          req,
+          "segment.confirm",
+          `Confirmed ${segmentLabel(found)}`,
+          { entityId: found.id },
+        );
+      }
       await storage.saveTrip(trip);
       res.json(found);
       void recordContributorActivity(access, req, "edit");
@@ -842,6 +944,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       if (confirmed > 0) {
         trip.updatedAt = new Date().toISOString();
+        recordHistory(
+          trip,
+          req,
+          "bulk.confirm_all",
+          `Confirmed ${confirmed} segment${confirmed === 1 ? "" : "s"}`,
+        );
         await storage.saveTrip(trip);
       }
       res.json({ confirmed });
@@ -939,6 +1047,9 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       trip.todos.push(todo);
       trip.updatedAt = new Date().toISOString();
+      recordHistory(trip, req, "todo.create", `Added to-do "${todo.text}"`, {
+        entityId: todo.id,
+      });
       await storage.saveTrip(trip);
       res.status(201).json(todo);
       void recordContributorActivity(access, req, "edit");
@@ -965,17 +1076,67 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       const updates = parsed.data;
-      if (updates.text !== undefined) todo.text = updates.text;
-      if (updates.isCompleted !== undefined)
+      const previousText = todo.text;
+      const previousCompleted = todo.isCompleted;
+      const changedFields: string[] = [];
+      if (updates.text !== undefined && updates.text !== todo.text) {
+        changedFields.push("text");
+        todo.text = updates.text;
+      }
+      if (
+        updates.isCompleted !== undefined &&
+        updates.isCompleted !== todo.isCompleted
+      ) {
+        // Tracked separately below so we can distinguish a check/uncheck
+        // from a content edit in the audit log.
         todo.isCompleted = updates.isCompleted;
-      if (updates.category !== undefined) todo.category = updates.category;
+      }
+      if (updates.category !== undefined && updates.category !== todo.category) {
+        changedFields.push("category");
+        todo.category = updates.category;
+      }
       // null or empty string clears notes; non-empty string sets them.
       if (updates.details !== undefined) {
-        todo.details = updates.details ? updates.details : undefined;
+        const next = updates.details ? updates.details : undefined;
+        if (next !== todo.details) changedFields.push("details");
+        todo.details = next;
       }
       if (updates.sortOrder !== undefined) todo.sortOrder = updates.sortOrder;
 
       trip.updatedAt = new Date().toISOString();
+
+      const completionChanged =
+        updates.isCompleted !== undefined &&
+        updates.isCompleted !== previousCompleted;
+      if (completionChanged) {
+        recordHistory(
+          trip,
+          req,
+          "todo.update",
+          todo.isCompleted
+            ? `Completed to-do "${todo.text}"`
+            : `Reopened to-do "${todo.text}"`,
+          { entityId: todo.id },
+        );
+      }
+      if (changedFields.length > 0) {
+        recordHistory(
+          trip,
+          req,
+          "todo.update",
+          `Updated to-do "${todo.text}"`,
+          {
+            details: [
+              changedFields.includes("text") ? `was "${previousText}"` : null,
+              `changed ${changedFields.join(", ")}`,
+            ]
+              .filter(Boolean)
+              .join("; "),
+            entityId: todo.id,
+          },
+        );
+      }
+
       await storage.saveTrip(trip);
       res.json(todo);
       void recordContributorActivity(access, req, "edit");
@@ -995,8 +1156,16 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
+      const removed = trip.todos[idx];
       trip.todos.splice(idx, 1);
       trip.updatedAt = new Date().toISOString();
+      recordHistory(
+        trip,
+        req,
+        "todo.delete",
+        `Removed to-do "${removed.text}"`,
+        { entityId: removed.id },
+      );
       await storage.saveTrip(trip);
       res.status(204).send();
       void recordContributorActivity(access, req, "edit");
@@ -1033,6 +1202,14 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       trip.shares.push(share);
       trip.updatedAt = new Date().toISOString();
+      const shareTarget = share.sharedWithEmail ?? "anyone with the link";
+      recordHistory(
+        trip,
+        req,
+        "share.create",
+        `Shared trip with ${shareTarget} (${share.permission})`,
+        { entityId: share.id },
+      );
       await storage.saveTrip(trip);
 
       // Register share token in the share registry for public access
@@ -1128,6 +1305,14 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       trip.shares.splice(idx, 1);
       trip.updatedAt = new Date().toISOString();
+      const revokeTarget = removedShare?.sharedWithEmail ?? "anyone with the link";
+      recordHistory(
+        trip,
+        req,
+        "share.revoke",
+        `Revoked share for ${revokeTarget}`,
+        { entityId: removedShare?.id },
+      );
       await storage.saveTrip(trip);
       res.status(204).send();
 

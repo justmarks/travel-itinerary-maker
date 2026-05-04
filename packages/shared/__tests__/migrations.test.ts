@@ -26,14 +26,39 @@ function makeV0TripJson(overrides: Record<string, unknown> = {}) {
 }
 
 describe("migrateTrip", () => {
-  it("stamps schemaVersion=1 on an unversioned trip", () => {
+  it("normalises an unversioned trip up to the current schema version", () => {
     const raw = makeV0TripJson();
     const migrated = migrateTrip(raw);
-    expect(migrated.schemaVersion).toBe(1);
+    expect(migrated.schemaVersion).toBe(CURRENT_TRIP_SCHEMA_VERSION);
     // All other fields survive the migration unchanged.
     expect(migrated.id).toBe("trip-abc");
     expect(migrated.title).toBe("Old Trip");
     expect(migrated.days).toEqual([]);
+  });
+
+  it("v1 → v2: stamps an empty history array on a v1 trip", () => {
+    const raw = makeV0TripJson({ schemaVersion: 1 });
+    const migrated = migrateTrip(raw);
+    expect(migrated.schemaVersion).toBeGreaterThanOrEqual(2);
+    expect(migrated.history).toEqual([]);
+  });
+
+  it("v1 → v2: preserves an existing history array if somehow set", () => {
+    const raw = makeV0TripJson({
+      schemaVersion: 1,
+      history: [
+        {
+          id: "h1",
+          timestamp: "2025-05-01T00:00:00.000Z",
+          actor: { email: "a@b.com" },
+          kind: "segment.create",
+          summary: "Added flight",
+        },
+      ],
+    });
+    const migrated = migrateTrip(raw);
+    expect(migrated.history).toHaveLength(1);
+    expect(migrated.history[0].id).toBe("h1");
   });
 
   it("passes through a trip already at the current schema version", () => {

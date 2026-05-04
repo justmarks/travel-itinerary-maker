@@ -21,6 +21,7 @@ import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { recordParseFailure } from "../services/email-telemetry";
 import { reportError } from "../services/monitoring";
 import { debugEmailScan } from "../utils/debug-log";
+import { recordHistory } from "../services/trip-history";
 import { config } from "../config/env";
 
 export interface EmailRoutesOptions {
@@ -1207,6 +1208,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           continue;
         }
         debugEmailScan(`  Trip "${trip.title}" (${tid}): applying ${segs.length} segments`);
+        const createdBeforeThisTrip = createdSegments.length;
+        const updatedBeforeThisTrip = updatedSegments.length;
 
         for (const seg of segs) {
           const action = seg.action ?? "create";
@@ -1313,6 +1316,24 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         for (const change of cruiseCityChanges) {
           debugEmailScan(
             `    City: cruise port ${change.date} → "${change.to}" (was "${change.from || "∅"}")`,
+          );
+        }
+
+        const newCreated = createdSegments.length - createdBeforeThisTrip;
+        const newUpdated = updatedSegments.length - updatedBeforeThisTrip;
+        if (newCreated > 0 || newUpdated > 0) {
+          const summaryParts: string[] = [];
+          if (newCreated > 0) {
+            summaryParts.push(`${newCreated} new segment${newCreated === 1 ? "" : "s"}`);
+          }
+          if (newUpdated > 0) {
+            summaryParts.push(`${newUpdated} updated segment${newUpdated === 1 ? "" : "s"}`);
+          }
+          recordHistory(
+            trip,
+            req,
+            "bulk.email_apply",
+            `Applied ${summaryParts.join(" and ")} from email scan`,
           );
         }
 
