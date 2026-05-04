@@ -322,13 +322,17 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
           printing so the timeline owns the full page. */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 print-hidden">
         <Legend />
-        <div className="flex bg-muted rounded-lg p-0.5 gap-0.5">
+        {/* Segmented toggle — outer wrapper is h-8 so the toolbar
+            matches the Map view's `Button size="sm"` (also 32 px)
+            instead of the previous 36 px custom height. Inner
+            buttons fill the wrapper minus its 2 px padding ring. */}
+        <div className="inline-flex h-8 items-center bg-muted rounded-lg p-0.5 gap-0.5">
           {(["grouped", "chrono"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={cn(
-                "px-3.5 py-1.5 text-sm font-medium rounded-md transition-all",
+                "inline-flex h-7 items-center rounded-md px-3 text-sm font-medium transition-all",
                 mode === m
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
