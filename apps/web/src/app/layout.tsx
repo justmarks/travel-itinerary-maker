@@ -78,12 +78,12 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }): Promise<React.JSX.Element> {
-  // Per-request CSP nonce, set by `src/middleware.ts`. Forwarded to
+  // Per-request CSP nonce, set by `src/proxy.ts`. Forwarded to
   // <Providers> so next-themes can stamp it onto its anti-flash inline
   // script — without it that script trips the strict
   // `script-src 'nonce-...' 'strict-dynamic'` policy. `?? undefined`
-  // keeps the type narrow when the header is absent (e.g. when
-  // middleware is skipped during static export of an error page).
+  // keeps the type narrow when the header is absent (e.g. when the
+  // proxy is skipped during static export of an error page).
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning is required by next-themes — the provider sets
