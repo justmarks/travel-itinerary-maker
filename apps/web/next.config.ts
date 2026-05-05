@@ -163,6 +163,20 @@ const SECURITY_HEADERS = [
   // working — the OAuth handler reopens itinly afterwards as a
   // top-level navigation, which COOP same-origin would sever.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  // Explicitly pin Access-Control-Allow-Origin to the site's own
+  // origin. Cloudflare Pages and various CDN intermediaries
+  // sometimes inject `Access-Control-Allow-Origin: *` on static
+  // asset responses; setting our own value overrides that default
+  // and resolves the "very lax CORS policy" finding from
+  // securityheaders.com / Roboshadow. The frontend HTML pages are
+  // never legitimately fetched cross-origin (the only client is
+  // the user's own browser hitting the same origin), so pinning
+  // ACAO to our origin is functionally equivalent to having no
+  // CORS at all but avoids the wildcard.
+  {
+    key: "Access-Control-Allow-Origin",
+    value: process.env.NEXT_PUBLIC_SITE_URL || "https://itinly.app",
+  },
 ];
 
 // ── Cache-Control ───────────────────────────────────────────────
