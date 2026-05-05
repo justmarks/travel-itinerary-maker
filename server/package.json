@@ -21,7 +21,7 @@
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.3.2",
-    "googleapis": "^148.0.0",
+    "googleapis": "^171.4.0",
     "html-to-text": "^9.0.5",
     "mailparser": "^3.9.8",
     "nanoid": "^5.1.0",
