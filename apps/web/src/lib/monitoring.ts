@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/browser";
+import { redactShareTokens } from "./sentry-scrub";
 
 /**
  * Sentry error tracking for the browser.
@@ -23,6 +24,34 @@ export function initMonitoring(): void {
     // Keep trace sampling low until we know baseline volume; errors are
     // always captured regardless.
     tracesSampleRate: 0.05,
+    // Don't auto-attach IPs, user agents, cookies, or headers. Sentry 8+
+    // defaults this to false; set it explicitly so a future SDK upgrade
+    // can't silently flip it.
+    sendDefaultPii: false,
+    // Strip share-link tokens out of every event URL / request before
+    // it leaves the browser. See `lib/sentry-scrub.ts` for what's
+    // redacted and why.
+    beforeSend(event) {
+      if (event.request?.url) {
+        event.request.url = redactShareTokens(event.request.url);
+      }
+      if (event.transaction) {
+        event.transaction = redactShareTokens(event.transaction);
+      }
+      return event;
+    },
+    beforeBreadcrumb(breadcrumb) {
+      if (typeof breadcrumb.data?.url === "string") {
+        breadcrumb.data.url = redactShareTokens(breadcrumb.data.url);
+      }
+      if (typeof breadcrumb.data?.from === "string") {
+        breadcrumb.data.from = redactShareTokens(breadcrumb.data.from);
+      }
+      if (typeof breadcrumb.data?.to === "string") {
+        breadcrumb.data.to = redactShareTokens(breadcrumb.data.to);
+      }
+      return breadcrumb;
+    },
   });
   initialised = true;
 }
