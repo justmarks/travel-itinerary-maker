@@ -28,6 +28,7 @@ import type { ShareSnapshotStore } from "../services/share-snapshot-store";
 import type { NotificationSender } from "../services/notification-sender";
 import type { ShareActivityTracker, ShareActivityKind } from "../services/share-activity-tracker";
 import { recordShareActivity } from "../services/share-activity";
+import { generateShareToken } from "../utils/share-token";
 import {
   resolveTripAccess,
   listSharedTrips,
@@ -1193,7 +1194,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       const share = {
         id: generateId(),
-        shareToken: generateId(),
+        shareToken: generateShareToken(),
         sharedWithEmail: parsed.data.sharedWithEmail,
         permission: parsed.data.permission,
         showCosts: parsed.data.showCosts,
