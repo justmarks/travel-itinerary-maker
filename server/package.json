@@ -25,7 +25,7 @@
     "html-to-text": "^9.0.5",
     "mailparser": "^3.9.8",
     "nanoid": "^5.1.11",
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.2.1",
     "pdfkit": "^0.18.0",
     "web-push": "^3.6.7"
   },
@@ -35,7 +35,7 @@
     "@types/html-to-text": "^9.0.4",
     "@types/jest": "^29.5.0",
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^22.0.0",
+    "@types/node": "^25.6.0",
     "@types/node-cron": "^3.0.11",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^7.2.0",
