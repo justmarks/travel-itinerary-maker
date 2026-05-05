@@ -15,7 +15,7 @@ import { AlertCircle } from "lucide-react";
 
 export default function AuthCallbackPage(): React.JSX.Element {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, linkGmail } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,7 +83,16 @@ export default function AuthCallbackPage(): React.JSX.Element {
       try {
         // The redirect URI sent to the backend MUST match what Google
         // saw — for previews that's the prod callback, not self.
-        await login(code, getOAuthRedirectUri());
+        const redirectUri = getOAuthRedirectUri();
+        // `state.flow` tells us which OAuth client this round-trip
+        // came from. Default to "primary" so older state blobs still
+        // in flight during a deploy don't break.
+        const flow = decoded.flow ?? "primary";
+        if (flow === "gmail") {
+          await linkGmail(code, redirectUri);
+        } else {
+          await login(code, redirectUri);
+        }
         router.replace(returnTo);
       } catch (err) {
         if (err instanceof TypeError && err.message === "Failed to fetch") {
@@ -95,7 +104,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
         }
       }
     })();
-  }, [login, router]);
+  }, [login, linkGmail, router]);
 
   if (error) {
     return (

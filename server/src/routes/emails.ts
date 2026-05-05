@@ -23,9 +23,19 @@ import { reportError } from "../services/monitoring";
 import { debugEmailScan } from "../utils/debug-log";
 import { recordHistory } from "../services/trip-history";
 import { config } from "../config/env";
+import { requireGmailAuth } from "../middleware/auth";
+import type { TokenStore } from "../services/token-store";
+import type { RequestHandler } from "express";
 
 export interface EmailRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
+  /**
+   * Required for routes that hit the Gmail API (`/labels`, `/scan`).
+   * When omitted, those routes still mount but reject every request
+   * with 503 — useful for tests / dev environments that don't exercise
+   * the Gmail flow. The other routes (storage-only) work without it.
+   */
+  tokenStore?: TokenStore;
 }
 
 /**
@@ -472,7 +482,7 @@ function deduplicateResults(results: EmailScanResult[]): void {
 const DONE_STATUSES = new Set(["mapped", "skipped"]);
 
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
-  const { resolveStorage } = options;
+  const { resolveStorage, tokenStore } = options;
 
   const getStorage: StorageResolver =
     typeof resolveStorage === "function"
@@ -481,13 +491,25 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
   const router = Router();
 
+  // Routes that hit the Gmail API need an access token from the *Gmail*
+  // OAuth client, not the primary one. `requireGmailAuth` looks up the
+  // user's stored Gmail refresh token, refreshes it, and attaches the
+  // result as `req.gmailAccessToken`. When no TokenStore is wired up
+  // (memory-mode tests / local dev without persistence), the guard
+  // becomes a pass-through — the GmailScanner is mocked in tests, and
+  // memory-mode dev doesn't exercise the real Gmail API anyway. The
+  // Gmail-link / refresh path is wired up only in `mode: "drive"`.
+  const gmailGuard: RequestHandler = tokenStore
+    ? requireGmailAuth(tokenStore)
+    : (_req, _res, next) => next();
+
   /**
    * GET /emails/labels
    * List Gmail labels for the authenticated user.
    */
-  router.get("/labels", async (req: Request, res: Response) => {
+  router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const scanner = new GmailScanner(req.accessToken || "");
+      const scanner = new GmailScanner(req.gmailAccessToken || "");
       const labels = await scanner.listLabels();
 
       // Return user labels + useful system labels
@@ -568,7 +590,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    * expensive and users don't need to hammer this button.
    */
   const scanRateLimiter = createEmailScanRateLimiter();
-  router.post("/scan", scanRateLimiter, async (req: Request, res: Response) => {
+  router.post("/scan", scanRateLimiter, gmailGuard, async (req: Request, res: Response) => {
     try {
       const parsed = emailScanRequestSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -608,7 +630,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
 
       // Scan Gmail for new emails
-      const scanner = new GmailScanner(req.accessToken || "");
+      const scanner = new GmailScanner(req.gmailAccessToken || "");
       const effectiveMaxResults = maxResults ?? 100;
       const rawEmails = await scanner.scanEmails({
         labelFilter,

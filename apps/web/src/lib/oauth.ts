@@ -36,17 +36,34 @@
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
 /**
- * Scopes requested at first sign-in. Kept minimal so most users see the
- * shortest possible Google consent screen — Drive is the only Google API
- * the app needs to function (trips live in the user's Drive). Gmail and
- * Calendar are added on demand via `requestAdditionalScopes` when the
- * user opts into a feature that needs them.
+ * Scopes requested at first sign-in against the *primary* OAuth client.
+ * Kept minimal so most users see the shortest possible Google consent
+ * screen — Drive is the only Google API the app needs to function
+ * (trips live in the user's Drive). Calendar is added on demand via
+ * `requestAdditionalScopes` when the user opts into calendar sync.
+ *
+ * `gmail.readonly` is NOT in this list — Gmail uses a separate OAuth
+ * client (see `startGmailLink`) so the primary client doesn't have to
+ * carry the restricted scope and trigger Google's CASA assessment.
  */
 export const INITIAL_SCOPES = [
   "openid",
   "email",
   "profile",
   "https://www.googleapis.com/auth/drive.file",
+];
+
+/**
+ * Scopes requested when the user opts into email scanning. Granted by
+ * the *Gmail* OAuth client (a separate Google Cloud Console project
+ * client from the primary one), so the primary stays off the
+ * restricted-scope path.
+ */
+export const GMAIL_SCOPES = [
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/gmail.readonly",
 ];
 
 /** Scope required to scan Gmail for travel confirmations. */
@@ -64,9 +81,18 @@ export function parseScopeString(scope: string | null | undefined): string[] {
 const CSRF_KEY = "oauth_csrf";
 const RETURN_TO_KEY = "oauth_return_to";
 
+/**
+ * Tags an OAuth round-trip with which client/flow it belongs to so the
+ * callback knows which exchange endpoint to hit. Defaults to "primary"
+ * when absent (so older state blobs in flight during a deploy don't
+ * break the callback). "gmail" routes through the Gmail OAuth client.
+ */
+export type OAuthFlow = "primary" | "gmail";
+
 interface OAuthState {
   csrf: string;
   origin: string;
+  flow?: OAuthFlow;
 }
 
 function encodeState(state: OAuthState): string {
@@ -164,55 +190,142 @@ export function isAllowlistedRelayOrigin(origin: string): boolean {
   return regex.test(origin);
 }
 
-function buildAuthUrl(scopes: string[], returnTo: string): string {
+interface BuildAuthUrlOptions {
+  clientId: string;
+  scopes: string[];
+  returnTo: string;
+  flow: OAuthFlow;
+  /**
+   * Whether to ask Google to extend the access token with previously
+   * granted scopes. We set this for the *primary* client (so an
+   * incremental Calendar grant doesn't drop the original Drive grant)
+   * but NOT for the Gmail client — the Gmail flow stands alone, has no
+   * prior grants on the same client, and `include_granted_scopes` only
+   * unions within a single client anyway.
+   */
+  includeGrantedScopes: boolean;
+}
+
+function buildAuthUrl(opts: BuildAuthUrlOptions): string {
+  const csrf = crypto.randomUUID();
+  sessionStorage.setItem(CSRF_KEY, csrf);
+  sessionStorage.setItem(RETURN_TO_KEY, opts.returnTo);
+
+  const state = encodeState({
+    csrf,
+    origin: window.location.origin,
+    flow: opts.flow,
+  });
+
+  const params = new URLSearchParams({
+    client_id: opts.clientId,
+    redirect_uri: getOAuthRedirectUri(),
+    response_type: "code",
+    scope: opts.scopes.join(" "),
+    access_type: "offline",
+    prompt: "consent",
+    state,
+  });
+  if (opts.includeGrantedScopes) {
+    params.set("include_granted_scopes", "true");
+  }
+
+  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+}
+
+function getPrimaryClientId(): string {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) {
     throw new Error(
       "NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set — cannot start sign-in.",
     );
   }
-  const csrf = crypto.randomUUID();
-  sessionStorage.setItem(CSRF_KEY, csrf);
-  sessionStorage.setItem(RETURN_TO_KEY, returnTo);
-
-  const state = encodeState({ csrf, origin: window.location.origin });
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: getOAuthRedirectUri(),
-    response_type: "code",
-    scope: scopes.join(" "),
-    access_type: "offline",
-    prompt: "consent",
-    include_granted_scopes: "true",
-    state,
-  });
-
-  return `${GOOGLE_AUTH_URL}?${params.toString()}`;
+  return clientId;
 }
 
-export function startGoogleSignIn(returnTo: string): void {
-  window.location.href = buildAuthUrl(INITIAL_SCOPES, returnTo);
+function getGmailClientId(): string {
+  const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL;
+  if (!clientId) {
+    throw new Error(
+      "NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL is not set — cannot link Gmail. Configure the Gmail OAuth client in Google Cloud Console and set this env var.",
+    );
+  }
+  return clientId;
 }
 
 /**
- * Re-runs the OAuth redirect to add scopes to an already-signed-in user.
+ * Returns whether the Gmail OAuth client is configured for this build.
+ * Lets the UI gate the "Connect Gmail" CTA on the env var being set,
+ * so misconfigured deploys show a config error instead of throwing
+ * inside the click handler. The check is build-time — `NEXT_PUBLIC_*`
+ * env vars are inlined into the static bundle.
+ */
+export function isGmailLinkConfigured(): boolean {
+  return !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL;
+}
+
+export function startGoogleSignIn(returnTo: string): void {
+  window.location.href = buildAuthUrl({
+    clientId: getPrimaryClientId(),
+    scopes: INITIAL_SCOPES,
+    returnTo,
+    flow: "primary",
+    includeGrantedScopes: true,
+  });
+}
+
+/**
+ * Re-runs the OAuth redirect to add scopes to the user's *primary*
+ * client grant. Used for Calendar — the user's already signed in with
+ * Drive, then opts into Calendar sync, and we ask Google for the extra
+ * scope on the same client.
  *
- * Pairs with `include_granted_scopes=true`: Google's consent screen only
- * prompts for the *new* scopes, and the resulting access token covers
- * everything the user has granted across all flows. After the callback,
- * `login()` overwrites the stored auth state with the cumulative scope
- * set returned in the token response.
+ * Pairs with `include_granted_scopes=true`: Google's consent screen
+ * only prompts for the *new* scopes, and the resulting access token
+ * covers everything the user has granted on this client. After the
+ * callback, `login()` overwrites the stored auth state with the
+ * cumulative scope set returned in the token response.
  *
- * Pass the additional scopes (e.g. `[GMAIL_SCOPE]`) — the initial set is
- * always included so we don't accidentally drop them.
+ * **Do not pass `gmail.readonly`** — Gmail lives on a separate client.
+ * Use `startGmailLink` for that.
  */
 export function requestAdditionalScopes(
   additionalScopes: string[],
   returnTo: string,
 ): void {
+  if (additionalScopes.includes(GMAIL_SCOPE)) {
+    throw new Error(
+      "gmail.readonly cannot be requested on the primary client — use startGmailLink instead.",
+    );
+  }
   const merged = Array.from(new Set([...INITIAL_SCOPES, ...additionalScopes]));
-  window.location.href = buildAuthUrl(merged, returnTo);
+  window.location.href = buildAuthUrl({
+    clientId: getPrimaryClientId(),
+    scopes: merged,
+    returnTo,
+    flow: "primary",
+    includeGrantedScopes: true,
+  });
+}
+
+/**
+ * Kicks off the *Gmail* OAuth dance — a separate consent screen against
+ * a separate Google Cloud Console client that holds only the restricted
+ * `gmail.readonly` scope. Splitting this off from the primary client is
+ * what keeps the primary client off the CASA-required path.
+ *
+ * The user must already be signed in with the primary client before
+ * calling this — the backend exchange endpoint requires primary auth
+ * and verifies the Gmail consent returned the same Google account ID.
+ */
+export function startGmailLink(returnTo: string): void {
+  window.location.href = buildAuthUrl({
+    clientId: getGmailClientId(),
+    scopes: GMAIL_SCOPES,
+    returnTo,
+    flow: "gmail",
+    includeGrantedScopes: false,
+  });
 }
 
 export interface ConsumedOAuthState {

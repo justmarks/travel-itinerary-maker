@@ -5,6 +5,24 @@ export const config = {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
   },
+  /**
+   * Separate OAuth client used exclusively for Gmail's restricted
+   * `gmail.readonly` scope. Keeping Gmail off the primary client lets
+   * the primary client clear standard verification (Drive + Calendar
+   * are sensitive but not restricted) without dragging the whole app
+   * through Google's CASA security assessment. Users who opt into
+   * email scanning consent to this client separately; it can stay in
+   * "Testing" mode (≤100 manually-added test users) until the project
+   * is ready to fund production verification.
+   *
+   * Either var unset (or empty) means "Gmail integration disabled" —
+   * the auth route returns 503 and the email-scan UI gates on the
+   * presence of a Gmail link.
+   */
+  googleGmail: {
+    clientId: process.env.GOOGLE_GMAIL_CLIENT_ID || "",
+    clientSecret: process.env.GOOGLE_GMAIL_CLIENT_SECRET || "",
+  },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
   },
