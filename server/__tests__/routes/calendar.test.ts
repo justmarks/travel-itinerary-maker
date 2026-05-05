@@ -107,6 +107,9 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
       expect.anything(),
       expect.anything(),
       "custom@group.calendar.google.com",
+      // userEmail — populated from requireAuth in drive mode, undefined in
+      // memory-mode tests where no auth runs.
+      undefined,
     );
   });
 

@@ -879,7 +879,11 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       // Remove the corresponding Google Calendar event if the trip is synced
       if (deletedCalendarEventId && trip.calendarId && req.accessToken) {
         const { deleteCalendarEvent } = await import("../services/google-calendar");
-        deleteCalendarEvent(req.accessToken, trip.calendarId, deletedCalendarEventId).catch(() => {
+        deleteCalendarEvent(req.accessToken, trip.calendarId, deletedCalendarEventId, {
+          userEmail: req.userEmail,
+          tripId: trip.id,
+          tripTitle: trip.title,
+        }).catch(() => {
           // Fire-and-forget — deletion failure is non-critical
         });
       }
