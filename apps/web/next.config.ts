@@ -152,6 +152,10 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
+  // Suppress the default `X-Powered-By: Next.js` response header — it's
+  // a small server-fingerprint leak with zero functional value. ZAP and
+  // similar scanners flag it as info-level.
+  poweredByHeader: false,
   // Cloudflare Pages serves the site at the project's root (or a custom
   // domain), so we no longer need GitHub Pages' `/travel-itinerary-maker`
   // basePath nor the static-export pipeline. The Edge runtime in
