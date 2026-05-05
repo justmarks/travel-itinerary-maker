@@ -13,11 +13,16 @@ import pkg from "./package.json";
 // Restrictive Permissions-Policy — opt out of every powerful
 // feature the app does not use. `interest-cohort=()` opts the
 // site out of FLoC / Topics API ad-tracking cohorts.
+//
+// `ambient-light-sensor` and `battery` were intentionally dropped:
+// Chrome doesn't recognize either feature name and emits
+// `Error with Permissions-Policy header: Unrecognized feature: 'X'`
+// on every navigation. The Battery Status API was un-shipped from
+// Chromium years ago and the Ambient Light Sensor never reached
+// stable. Adding them back when the spec catches up is one-line.
 const PERMISSIONS_POLICY = [
   "accelerometer=()",
-  "ambient-light-sensor=()",
   "autoplay=()",
-  "battery=()",
   "camera=()",
   "display-capture=()",
   "encrypted-media=()",

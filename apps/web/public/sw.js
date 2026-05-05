@@ -29,7 +29,11 @@
  * caches get evicted on activate.
  */
 
-const SW_VERSION = "v5";
+// Bumped to v6 to evict opaque Wikimedia image responses cached
+// before `<img crossOrigin="anonymous">` landed — without eviction
+// existing users would keep getting the COEP-blocked opaque entries
+// served from cache on every visit until they hard-refreshed.
+const SW_VERSION = "v6";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;

@@ -125,11 +125,21 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
         // with images.unoptimized=true). Plain <img> keeps the layout
         // predictable and avoids the cases where next/image's remote-URL
         // handling silently drops the element.
+        //
+        // `crossOrigin="anonymous"` is required by our
+        // `Cross-Origin-Embedder-Policy: credentialless` header — without
+        // it the browser fetches the image as `no-cors` opaque and the
+        // service worker's cached response then fails the COEP gate
+        // ("Cross-Origin-Resource-Policy prevented from serving the
+        // response to the client"). Wikimedia replies with
+        // `Access-Control-Allow-Origin: *` on CORS requests, so the
+        // anonymous mode works without credentials.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={image.url}
           alt={trip.title}
           loading="lazy"
+          crossOrigin="anonymous"
           className="absolute inset-0 h-full w-full object-cover"
         />
       )}
