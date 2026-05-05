@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/node";
 import { config } from "../config/env";
+import { redactShareTokens } from "./sentry-scrub";
 
 /**
  * Sentry error tracking for the server.
@@ -30,6 +31,28 @@ export function initMonitoring(): void {
     // Capture all transactions while we're still building visibility into
     // the email-parse pipeline. Errors are always captured regardless.
     tracesSampleRate: 1.0,
+    // Don't auto-attach IPs, user agents, cookies, or headers from the
+    // Express request. Sentry 8+ defaults this to false; set it
+    // explicitly so a future SDK upgrade can't silently flip it.
+    sendDefaultPii: false,
+    // Strip share-link tokens out of every event URL / transaction
+    // name before it leaves the server. See `services/sentry-scrub.ts`
+    // for what's redacted and why.
+    beforeSend(event) {
+      if (event.request?.url) {
+        event.request.url = redactShareTokens(event.request.url);
+      }
+      if (event.transaction) {
+        event.transaction = redactShareTokens(event.transaction);
+      }
+      return event;
+    },
+    beforeBreadcrumb(breadcrumb) {
+      if (typeof breadcrumb.data?.url === "string") {
+        breadcrumb.data.url = redactShareTokens(breadcrumb.data.url);
+      }
+      return breadcrumb;
+    },
   });
 
   initialised = true;
