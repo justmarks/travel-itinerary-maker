@@ -22,7 +22,7 @@
     "express": "^5.1.0",
     "express-rate-limit": "^8.5.0",
     "googleapis": "^171.4.0",
-    "html-to-text": "^9.0.5",
+    "html-to-text": "^10.0.0",
     "mailparser": "^3.9.8",
     "nanoid": "^5.1.11",
     "node-cron": "^4.2.1",
