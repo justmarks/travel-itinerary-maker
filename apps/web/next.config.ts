@@ -4,103 +4,11 @@ import pkg from "./package.json";
 
 // ── Security headers ────────────────────────────────────────────
 //
-// All three site-wide security headers (CSP, Permissions-Policy,
-// HSTS) are emitted from a single `headers()` route below so they
-// stay in one place. The CSP is the load-bearing one — adjustments
-// to third-party origins (analytics, maps, OAuth) live here.
-
-// Origin of the backend API. The browser hits this directly from
-// the trip pages, so it has to be in `connect-src`. Falls back to
-// the dev server when no env override is set.
-const API_ORIGIN = (() => {
-  const raw =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return "http://localhost:3001";
-  }
-})();
-
-// Per-directive allowlists. Keep each list narrow — wildcards are
-// only used where the third-party documents that subdomains rotate
-// (Sentry ingest, Google APIs).
-const CSP_DIRECTIVES: Record<string, string[]> = {
-  "default-src": ["'self'"],
-  // `'unsafe-inline'` is required by Next.js's inline hydration
-  // bootstrap (`__next_f.push(...)`). Upgrading to a per-request
-  // nonce needs middleware that wraps every response, which would
-  // disable static optimization — out of scope for this PR.
-  // `'unsafe-eval'` is required by the Google Maps JS API (it
-  // compiles its own modules at runtime).
-  "script-src": [
-    "'self'",
-    "'unsafe-inline'",
-    "'unsafe-eval'",
-    "https://maps.googleapis.com",
-    "https://maps.gstatic.com",
-    "https://va.vercel-scripts.com",
-  ],
-  // Tailwind v4 emits inline `<style>` for view-transition / preflight
-  // ordering, and Next.js inlines critical CSS — both need
-  // `'unsafe-inline'`.
-  "style-src": ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-  // `data:` covers the Inter glyphs that next/font inlines as base64
-  // for the first-paint subset; `cdn.jsdelivr.net` carries the
-  // Twemoji flag webfont loaded by country-flag-emoji-polyfill.
-  "font-src": [
-    "'self'",
-    "data:",
-    "https://cdn.jsdelivr.net",
-    "https://fonts.gstatic.com",
-  ],
-  // Trip-card hero photos resolve to upload.wikimedia.org;
-  // googleusercontent serves the user's profile picture in the
-  // header menu; gstatic + maps.googleapis cover Google Maps tiles
-  // and pin sprites.
-  "img-src": [
-    "'self'",
-    "data:",
-    "blob:",
-    "https://upload.wikimedia.org",
-    "https://*.wikipedia.org",
-    "https://*.googleusercontent.com",
-    "https://*.gstatic.com",
-    "https://maps.googleapis.com",
-  ],
-  "connect-src": [
-    "'self'",
-    API_ORIGIN,
-    "https://accounts.google.com",
-    "https://*.googleapis.com",
-    "https://en.wikipedia.org",
-    "https://upload.wikimedia.org",
-    "https://*.ingest.sentry.io",
-    "https://*.vercel-insights.com",
-  ],
-  // Service worker registered at /sw.js — same-origin only.
-  "worker-src": ["'self'"],
-  "manifest-src": ["'self'"],
-  // No third-party iframes embedded today; Google OAuth is a full
-  // top-level redirect, not a popup. Keep `frame-src 'self'` so
-  // future internal iframes work without policy churn.
-  "frame-src": ["'self'"],
-  // `frame-ancestors 'none'` is the modern replacement for the
-  // legacy `X-Frame-Options: DENY` header — refuses to render the
-  // site inside any iframe (clickjacking protection).
-  "frame-ancestors": ["'none'"],
-  // OAuth submits forms to accounts.google.com via top-level
-  // navigation; allowlisted explicitly because the default
-  // `form-action` derives from `default-src` which is 'self'.
-  "form-action": ["'self'", "https://accounts.google.com"],
-  "base-uri": ["'self'"],
-  "object-src": ["'none'"],
-};
-
-const CSP = Object.entries(CSP_DIRECTIVES)
-  .map(([k, v]) => `${k} ${v.join(" ")}`)
-  .concat("upgrade-insecure-requests")
-  .join("; ");
+// **CSP lives in `src/middleware.ts`**, not here. The CSP needs a
+// per-request nonce so it can drop `'unsafe-inline'` from
+// `script-src` (Mozilla Observatory red flag), and per-request
+// values can only come from middleware. Everything else — values
+// that don't change per request — stays in this file.
 
 // Restrictive Permissions-Policy — opt out of every powerful
 // feature the app does not use. `interest-cohort=()` opts the
@@ -136,7 +44,6 @@ const PERMISSIONS_POLICY = [
 const HSTS = "max-age=31536000; includeSubDomains";
 
 const SECURITY_HEADERS = [
-  { key: "Content-Security-Policy", value: CSP },
   { key: "Permissions-Policy", value: PERMISSIONS_POLICY },
   { key: "Strict-Transport-Security", value: HSTS },
   // Belt-and-suspenders alongside CSP `frame-ancestors 'none'`,
@@ -163,6 +70,15 @@ const SECURITY_HEADERS = [
   // working — the OAuth handler reopens itinly afterwards as a
   // top-level navigation, which COOP same-origin would sever.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  // Completes the cross-origin-isolated baseline: blocks the page
+  // from loading any cross-origin resource that hasn't opted in
+  // via CORP. `credentialless` is the lighter-weight variant of
+  // `require-corp` — it strips credentials (cookies / auth
+  // headers) on cross-origin sub-resource requests instead of
+  // demanding every third party serve a CORP header. Lets Google
+  // Maps tiles, Wikipedia images, and fonts.gstatic.com keep
+  // working without forcing those parties to opt in.
+  { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
   // Explicitly pin Access-Control-Allow-Origin to the site's own
   // origin. Cloudflare Pages and various CDN intermediaries
   // sometimes inject `Access-Control-Allow-Origin: *` on static
@@ -180,22 +96,9 @@ const SECURITY_HEADERS = [
 ];
 
 // ── Cache-Control ───────────────────────────────────────────────
-//
-// Default for HTML / JSON responses: never cache. Trip pages,
-// share links, and dialog state all carry user data that must
-// not be served stale from intermediaries. The narrow exceptions
-// — fingerprinted assets, public marketing files — declare their
-// own caching policy via more-specific `headers()` entries.
 
 const NO_STORE = "no-cache, no-store, must-revalidate";
-// One year + immutable for fingerprinted assets that bake a
-// content hash into their filename. They never change for a
-// given URL; CDNs and browsers can cache them indefinitely.
 const ASSET_IMMUTABLE = "public, max-age=31536000, immutable";
-// One day for static public files whose URLs do NOT carry a
-// content hash (favicon, manifest, robots, sitemap, icons).
-// Long enough to amortise CDN trips, short enough that a typo
-// fix is in users' browsers within a day.
 const STATIC_PUBLIC = "public, max-age=86400";
 
 const nextConfig: NextConfig = {
@@ -224,10 +127,6 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
   async headers() {
-    // Order matters: Next.js applies every matching entry in order,
-    // and a later entry's value for the same header key overrides
-    // an earlier one. So the default `Cache-Control: no-store` lands
-    // first, then more-specific paths override it.
     return [
       {
         source: "/:path*",
@@ -237,21 +136,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
-        // Fingerprinted Next.js bundles + media. Filenames carry a
-        // content hash (`/_next/static/chunks/abc123.js`), so an
-        // unchanged URL guarantees unchanged bytes — cache forever.
         source: "/_next/static/:path*",
         headers: [{ key: "Cache-Control", value: ASSET_IMMUTABLE }],
       },
       {
-        // Public marketing surfaces and crawler files.
         source: "/:path(robots\\.txt|sitemap\\.xml|manifest\\.json|favicon\\.ico|icon\\.svg|notification-badge\\.svg)",
         headers: [{ key: "Cache-Control", value: STATIC_PUBLIC }],
       },
       {
-        // Service worker stays no-store: the browser's update
-        // check on every page load only works if intermediaries
-        // can't hand back a stale copy.
         source: "/sw.js",
         headers: [{ key: "Cache-Control", value: NO_STORE }],
       },
