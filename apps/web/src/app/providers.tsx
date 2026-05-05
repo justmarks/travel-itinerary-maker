@@ -85,7 +85,7 @@ export function Providers({
   /**
    * Per-request CSP nonce, threaded through from the root layout
    * (which read it off the `x-nonce` request header set by
-   * `src/middleware.ts`). Passed to next-themes so its anti-flash
+   * `src/proxy.ts`). Passed to next-themes so its anti-flash
    * inline script carries the nonce and is allowed to execute under
    * the `script-src 'nonce-...' 'strict-dynamic'` policy. Without it
    * the inline script is blocked and the page flashes the wrong

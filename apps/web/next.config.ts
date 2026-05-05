@@ -4,7 +4,7 @@ import pkg from "./package.json";
 
 // ── Security headers ────────────────────────────────────────────
 //
-// **CSP lives in `src/middleware.ts`**, not here. The CSP needs a
+// **CSP lives in `src/proxy.ts`**, not here. The CSP needs a
 // per-request nonce so it can drop `'unsafe-inline'` from
 // `script-src` (Mozilla Observatory red flag), and per-request
 // values can only come from middleware. Everything else — values
@@ -98,7 +98,6 @@ const SECURITY_HEADERS = [
 // ── Cache-Control ───────────────────────────────────────────────
 
 const NO_STORE = "no-cache, no-store, must-revalidate";
-const ASSET_IMMUTABLE = "public, max-age=31536000, immutable";
 const STATIC_PUBLIC = "public, max-age=86400";
 
 const nextConfig: NextConfig = {
@@ -135,10 +134,13 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: NO_STORE },
         ],
       },
-      {
-        source: "/_next/static/:path*",
-        headers: [{ key: "Cache-Control", value: ASSET_IMMUTABLE }],
-      },
+      // `/_next/static/:path*` is intentionally NOT listed: Next.js
+      // already emits `Cache-Control: public, max-age=31536000,
+      // immutable` for that prefix natively, and overriding it from
+      // userland triggers the build-time warning
+      // `Custom Cache-Control headers detected for the following
+      // routes ... Setting a custom Cache-Control header can break
+      // Next.js development behavior.`. Trust the framework default.
       {
         source: "/:path(robots\\.txt|sitemap\\.xml|manifest\\.json|favicon\\.ico|icon\\.svg|notification-badge\\.svg)",
         headers: [{ key: "Cache-Control", value: STATIC_PUBLIC }],

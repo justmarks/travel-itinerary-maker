@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 /**
- * Per-request CSP nonce middleware.
+ * Per-request CSP nonce proxy.
+ *
+ * (Next.js 15 renamed the `middleware` file convention to `proxy`;
+ * this file used to be `src/middleware.ts` and the function used to
+ * be exported as `middleware`. Same shape, same behavior — Next just
+ * discourages the old name because it overloads the Express.js term.
+ * Migration documented at https://nextjs.org/docs/messages/middleware-to-proxy.)
  *
  * Mozilla Observatory flags any CSP that includes `'unsafe-inline'`
  * in `script-src` because it neutralises the inline-script attack
@@ -119,7 +125,7 @@ function buildCsp(nonce: string): string {
     .join("; ");
 }
 
-export function middleware(request: NextRequest): NextResponse {
+export function proxy(request: NextRequest): NextResponse {
   // Web Crypto's `getRandomValues` works in both the Edge runtime
   // (Cloudflare Pages) and Node 20+ (`next dev`). 128 bits is the
   // OWASP-recommended minimum for nonces; 256 doesn't add meaningful
