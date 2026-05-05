@@ -154,6 +154,15 @@ const SECURITY_HEADERS = [
   // mitigation — browsers check it before delivering a response
   // to a cross-origin embedder, regardless of whether ACAO is set.
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+  // Pair to CORP: isolates this document's window from cross-
+  // origin popups so a `window.opener` reference can't be used
+  // to read into the page from a third-party tab. Together with
+  // CORP this gets us the "cross-origin isolated" baseline.
+  // `same-origin-allow-popups` (rather than the strictest
+  // `same-origin`) keeps Google OAuth's full-page redirect flow
+  // working — the OAuth handler reopens itinly afterwards as a
+  // top-level navigation, which COOP same-origin would sever.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
 ];
 
 // ── Cache-Control ───────────────────────────────────────────────
