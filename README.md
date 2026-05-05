@@ -34,8 +34,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI |
-| Mobile | Expo SDK 55 · React Native 0.77 · expo-auth-session |
+| Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI (mobile served as a PWA at `/m`) |
 | Backend | Express 5 · TypeScript · Google Drive API · Gmail API |
 | AI | Claude API (Anthropic) for email parsing |
 | Shared packages | Zod validators · TanStack React Query · typed API client |
@@ -49,8 +48,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 ```
 travel-itinerary-maker/
 ├── apps/
-│   ├── web/                  # Next.js 15 frontend (App Router)
-│   └── mobile/               # Expo SDK 55 React Native app (Android)
+│   └── web/                  # Next.js 15 frontend (App Router); mobile is the `/m` route as a PWA
 ├── packages/
 │   ├── shared/               # Types, Zod schemas, utilities (framework-agnostic)
 │   └── api-client/           # Typed fetch client + React Query hooks
