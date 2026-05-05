@@ -272,7 +272,7 @@ function HowItWorks(): React.JSX.Element {
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-wider text-[var(--brand)]">
+          <p className="text-kicker text-[var(--brand)]">
             How it works
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -345,7 +345,7 @@ function Features(): React.JSX.Element {
     <section id="features" className="border-b border-border/60 py-20 sm:py-28">
       <div className="mx-auto max-w-6xl px-4 sm:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium uppercase tracking-wider text-[var(--brand)]">
+          <p className="text-kicker text-[var(--brand)]">
             What you get
           </p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
