@@ -9,7 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.100.7",
+    "@tanstack/react-query": "^5.100.9",
     "@travel-app/shared": "workspace:*"
   },
   "peerDependencies": {
