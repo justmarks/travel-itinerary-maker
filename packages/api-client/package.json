@@ -9,13 +9,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.100.9",
     "@travel-app/shared": "workspace:*"
   },
   "peerDependencies": {
+    "@tanstack/react-query": "^5.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@tanstack/react-query": "^5.100.9",
     "@types/react": "^19.1.2",
     "typescript": "^5.8.0"
   }
