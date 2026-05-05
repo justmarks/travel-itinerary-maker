@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import SharedTripClient from "./shared-trip-client";
 import { getShareSnapshot } from "@/lib/share-snapshot";
 
-// Edge runtime so unfurl crawlers hitting the mobile share URL get a
-// per-trip preview from Upstash, just like the desktop route.
-export const runtime = "edge";
+// Default Node serverless runtime. See the matching note in the
+// desktop variant (`app/shared/[token]/page.tsx`) for why we dropped
+// the Edge runtime here — Vercel Hobby's 1 MB Edge function cap was
+// blowing up at deploy time.
 
 function fmtRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = {

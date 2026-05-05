@@ -113,8 +113,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Cloudflare Pages serves the site at the project's root (or a custom
   // domain), so we no longer need GitHub Pages' `/travel-itinerary-maker`
-  // basePath nor the static-export pipeline. The Edge runtime in
-  // `app/shared/[token]/page.tsx` requires SSR.
+  // basePath nor the static-export pipeline. The shared-trip routes
+  // (`app/shared/[token]/page.tsx`, `app/m/shared/[token]/page.tsx`)
+  // run on the default Node serverless runtime — they SSR per-trip
+  // unfurl metadata from Upstash and were on Edge until the bundle
+  // exceeded Vercel Hobby's 1 MB Edge function cap.
   images: {
     // Keep unoptimised: we deploy to CF Pages and don't run Next's
     // optimiser server. Trip card hero images come from Wikipedia and

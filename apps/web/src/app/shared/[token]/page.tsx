@@ -3,10 +3,19 @@ import { headers } from "next/headers";
 import SharedPageClient from "./shared-page-client";
 import { getShareSnapshot } from "@/lib/share-snapshot";
 
-// Run `generateMetadata` on the Cloudflare Pages Edge runtime so unfurl
-// crawlers (Slack, iMessage, Twitter, etc.) get a per-trip title and
-// description fetched from Upstash, not the site-wide fallback.
-export const runtime = "edge";
+// Default Node serverless runtime. We previously set
+// `runtime = "edge"` here so unfurl crawlers got a per-trip title
+// fetched from Upstash with edge-distributed latency, but the bundle
+// size for the Edge function exceeded Vercel Hobby's 1 MB cap (the
+// route's RSC payload pulled in `@vercel/og` and the framework
+// runtime). Node serverless has a 50 MB cap; the cold-start cost vs
+// Edge is ~150-300 ms, which is invisible to crawlers (they cache
+// the response for hours/days) and to real users (the service
+// worker caches the page after the first load).
+//
+// The metadata logic itself (Upstash lookup + classifyUserAgent +
+// `<meta>` tag emission) is unchanged. Only the runtime declaration
+// changed.
 
 // Substrings of user-agents we treat as link-preview crawlers. Used
 // only to tag log lines so we can split unfurl traffic from real human
