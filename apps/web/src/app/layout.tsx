@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
@@ -72,11 +73,18 @@ export const viewport: Viewport = {
   themeColor: "#1A2B3C",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
-}): React.JSX.Element {
+}): Promise<React.JSX.Element> {
+  // Per-request CSP nonce, set by `src/middleware.ts`. Forwarded to
+  // <Providers> so next-themes can stamp it onto its anti-flash inline
+  // script — without it that script trips the strict
+  // `script-src 'nonce-...' 'strict-dynamic'` policy. `?? undefined`
+  // keeps the type narrow when the header is absent (e.g. when
+  // middleware is skipped during static export of an error page).
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     // suppressHydrationWarning is required by next-themes — the provider sets
     // a `class` and `style` on <html> before React hydrates so the page
@@ -84,7 +92,7 @@ export default function RootLayout({
     // hydration mismatch warning.
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <Providers nonce={nonce}>{children}</Providers>
         {/* top-center keeps toasts from overlapping the top-right header
             controls (avatar, share button, action pills) on the mobile
             trip page where vertical space is tight. */}

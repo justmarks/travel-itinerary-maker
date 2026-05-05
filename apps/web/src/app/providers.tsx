@@ -77,7 +77,22 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Providers({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function Providers({
+  children,
+  nonce,
+}: {
+  children: React.ReactNode;
+  /**
+   * Per-request CSP nonce, threaded through from the root layout
+   * (which read it off the `x-nonce` request header set by
+   * `src/middleware.ts`). Passed to next-themes so its anti-flash
+   * inline script carries the nonce and is allowed to execute under
+   * the `script-src 'nonce-...' 'strict-dynamic'` policy. Without it
+   * the inline script is blocked and the page flashes the wrong
+   * theme on first paint.
+   */
+  nonce?: string;
+}): React.JSX.Element {
   // Boot Sentry once on client hydration. No-op when NEXT_PUBLIC_SENTRY_DSN
   // is unset (dev, CI, and any deployment that hasn't opted in yet).
   //
@@ -102,6 +117,7 @@ export function Providers({ children }: { children: React.ReactNode }): React.JS
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      nonce={nonce}
     >
       <AuthProvider>
         <DemoProvider>
