@@ -4,6 +4,7 @@ import type { ShareRegistry } from "../services/share-registry";
 import type { TokenStore } from "../services/token-store";
 import { DriveStorage } from "../services/google-drive/drive-storage";
 import { rebuildRegistryForUser } from "../services/registry-rebuild";
+import { createShareLinkRateLimiter } from "../middleware/rate-limit";
 
 export interface SharedRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -24,8 +25,10 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
       : () => resolveStorage;
 
   const router = Router();
+  // Single instance so the in-memory counter is shared across requests.
+  const shareLinkRateLimit = createShareLinkRateLimiter();
 
-  router.get("/:token", async (req: Request, res: Response) => {
+  router.get("/:token", shareLinkRateLimit, async (req: Request, res: Response) => {
     const token = req.params.token as string;
     // Short prefix-only marker for the log lines so we can correlate
     // events without leaking full share tokens to logs.

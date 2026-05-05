@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { google } from "googleapis";
 import { config } from "../config/env";
 import { requireAuth } from "../middleware/auth";
+import { createAuthRateLimiter } from "../middleware/rate-limit";
 import type { TokenStore } from "../services/token-store";
 import type { ShareRegistry } from "../services/share-registry";
 import { rebuildRegistryForUser } from "../services/registry-rebuild";
@@ -55,13 +56,17 @@ async function fetchTokenScopes(
 export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
   const { tokenStore, shareRegistry } = options;
   const router = Router();
+  // Build the limiter once and apply per-route below; building it
+  // in the route registration line would create a fresh in-memory
+  // counter on every call.
+  const authRateLimit = createAuthRateLimiter();
 
   /**
    * POST /auth/google
    * Exchange a Google auth code for tokens.
    * Client sends the authorization code from Google Sign-In.
    */
-  router.post("/google", async (req: Request, res: Response) => {
+  router.post("/google", authRateLimit, async (req: Request, res: Response) => {
     const { code, redirectUri, codeVerifier } = req.body as {
       code: unknown;
       redirectUri?: string;
@@ -234,7 +239,7 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
    * POST /auth/refresh
    * Refresh an expired access token using a refresh token.
    */
-  router.post("/refresh", async (req: Request, res: Response) => {
+  router.post("/refresh", authRateLimit, async (req: Request, res: Response) => {
     const { refreshToken } = req.body;
     if (!refreshToken) {
       res.status(400).json({ error: "Refresh token is required" });

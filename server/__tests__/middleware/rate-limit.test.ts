@@ -1,6 +1,10 @@
 import express from "express";
 import request from "supertest";
-import { createEmailScanRateLimiter } from "../../src/middleware/rate-limit";
+import {
+  createEmailScanRateLimiter,
+  createAuthRateLimiter,
+  createShareLinkRateLimiter,
+} from "../../src/middleware/rate-limit";
 
 /**
  * The production middleware short-circuits under `NODE_ENV === "test"` so
@@ -73,5 +77,88 @@ describe("createEmailScanRateLimiter", () => {
     for (let i = 0; i < 5; i++) {
       await request(app).post("/scan").expect(200);
     }
+  });
+});
+
+describe("createAuthRateLimiter", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+  });
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("returns 429 once the limit is exceeded", async () => {
+    const app = express();
+    const limiter = createAuthRateLimiter({ windowMs: 60_000, limit: 2 });
+    app.post("/auth/google", limiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).post("/auth/google").expect(200);
+    await request(app).post("/auth/google").expect(200);
+    const over = await request(app).post("/auth/google");
+    expect(over.status).toBe(429);
+    expect(over.body.error).toMatch(/too many auth requests/i);
+  });
+
+  it("keys on IP only (an authenticated request still counts against the IP bucket)", async () => {
+    // Even if a request happens to have a userId attached, the auth
+    // limiter ignores it — most auth requests are unauthenticated and
+    // the goal is to cap brute-force attempts on a single connection.
+    const app = express();
+    app.use((req, _res, next) => {
+      req.userId = req.header("x-user-id");
+      next();
+    });
+    const limiter = createAuthRateLimiter({ windowMs: 60_000, limit: 1 });
+    app.post("/auth", limiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).post("/auth").set("x-user-id", "user-a").expect(200);
+    // Different userId, same IP — still rate-limited
+    await request(app).post("/auth").set("x-user-id", "user-b").expect(429);
+  });
+});
+
+describe("createShareLinkRateLimiter", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+  });
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("returns 429 once the limit is exceeded", async () => {
+    const app = express();
+    const limiter = createShareLinkRateLimiter({ windowMs: 60_000, limit: 3 });
+    app.get("/shared/:token", limiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    for (let i = 0; i < 3; i++) {
+      await request(app).get("/shared/aaa").expect(200);
+    }
+    const over = await request(app).get("/shared/aaa");
+    expect(over.status).toBe(429);
+    expect(over.body.error).toMatch(/too many requests to this share link/i);
+  });
+
+  it("treats different tokens from the same IP as the same bucket", async () => {
+    // The limiter keys on IP, not on the token path param. A scanner
+    // probing many tokens from one IP should burn through its bucket
+    // quickly even though each request is to a different URL.
+    const app = express();
+    const limiter = createShareLinkRateLimiter({ windowMs: 60_000, limit: 2 });
+    app.get("/shared/:token", limiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    await request(app).get("/shared/aaa").expect(200);
+    await request(app).get("/shared/bbb").expect(200);
+    await request(app).get("/shared/ccc").expect(429);
   });
 });
