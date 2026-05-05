@@ -28,6 +28,29 @@ function buildClient(accessToken: string): calendar_v3.Calendar {
   return google.calendar({ version: "v3", auth });
 }
 
+/**
+ * Context threaded through public sync functions so every log line
+ * carries enough breadcrumbs to triage a single user / trip's sync run
+ * from production logs (Railway). Without this, lines like
+ * `[calendar-sync] Updated "National - Ontario"` are unattributable —
+ * we can't tell whose sync that was without correlating timestamps to
+ * other requests, which is brittle.
+ */
+interface SyncLogContext {
+  /** Authenticated user's email. Falls back to "anon" when missing. */
+  userEmail?: string;
+  tripId: string;
+  tripTitle: string;
+}
+
+function logPrefix(ctx: SyncLogContext): string {
+  return `[calendar-sync ${ctx.userEmail ?? "anon"} trip:${ctx.tripId} "${ctx.tripTitle}"]`;
+}
+
+function ctxFromTrip(trip: Trip, userEmail?: string): SyncLogContext {
+  return { userEmail, tripId: trip.id, tripTitle: trip.title };
+}
+
 // ─── Time helpers ─────────────────────────────────────────────────────────────
 
 function addHoursToTime(time: string, hours: number): string {
@@ -446,8 +469,11 @@ export async function syncTripToCalendar(
   accessToken: string,
   trip: Trip,
   calendarId = "primary",
+  userEmail?: string,
 ): Promise<CalendarSyncResult> {
   const cal = buildClient(accessToken);
+  const ctx = ctxFromTrip(trip, userEmail);
+  const prefix = logPrefix(ctx);
   const result: CalendarSyncResult = {
     created: 0,
     updated: 0,
@@ -471,9 +497,9 @@ export async function syncTripToCalendar(
   if (needsMatching) {
     try {
       existingEvents = await fetchEventsInRange(cal, calendarId, trip.startDate, trip.endDate);
-      console.log(`[calendar-sync] Fetched ${existingEvents.length} existing event(s) for matching`);
+      console.log(`${prefix} Fetched ${existingEvents.length} existing event(s) for matching`);
     } catch {
-      console.warn("[calendar-sync] Could not fetch existing events for match check; will create new events.");
+      console.warn(`${prefix} Could not fetch existing events for match check; will create new events.`);
     }
   }
 
@@ -489,7 +515,7 @@ export async function syncTripToCalendar(
         if (!segment.calendarEventId) {
           const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
           if (matchId) {
-            console.log(`[calendar-sync] Matched "${segment.title}" to existing event ${matchId}`);
+            console.log(`${prefix} Matched "${segment.title}" to existing event ${matchId}`);
             segment.calendarEventId = matchId;
             trackedEventIds.add(matchId);
           }
@@ -504,7 +530,7 @@ export async function syncTripToCalendar(
             });
             result.updated++;
             result.eventMap[segment.id] = segment.calendarEventId;
-            console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
+            console.log(`${prefix} Updated  "${segment.title}" (${segment.calendarEventId})`);
           } catch (err: unknown) {
             const status =
               (err as { code?: number }).code ??
@@ -514,7 +540,7 @@ export async function syncTripToCalendar(
               const res = await cal.events.insert({ calendarId, requestBody: event });
               result.created++;
               result.eventMap[segment.id] = res.data.id!;
-              console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
+              console.log(`${prefix} Re-created "${segment.title}" → ${res.data.id}`);
             } else {
               throw err;
             }
@@ -523,7 +549,7 @@ export async function syncTripToCalendar(
           const res = await cal.events.insert({ calendarId, requestBody: event });
           result.created++;
           result.eventMap[segment.id] = res.data.id!;
-          console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
+          console.log(`${prefix} Created  "${segment.title}" → ${res.data.id}`);
         }
       } catch {
         result.failed++;
@@ -531,7 +557,7 @@ export async function syncTripToCalendar(
     }
   }
 
-  console.log(`[calendar-sync] Done: ${result.created} created, ${result.updated} updated, ${result.failed} failed (calendarId=${calendarId})`);
+  console.log(`${prefix} Done: ${result.created} created, ${result.updated} updated, ${result.failed} failed (calendarId=${calendarId})`);
   return result;
 }
 
@@ -545,8 +571,10 @@ export async function syncSegmentToCalendar(
   day: TripDay,
   segment: Segment,
   calendarId = "primary",
+  userEmail?: string,
 ): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
   const cal = buildClient(accessToken);
+  const prefix = logPrefix(ctxFromTrip(trip, userEmail));
   const event = segmentToEvent(segment, day, trip.title);
   event.extendedProperties!.private!.tripId = trip.id;
 
@@ -554,13 +582,13 @@ export async function syncSegmentToCalendar(
     if (segment.calendarEventId) {
       try {
         await cal.events.update({ calendarId, eventId: segment.calendarEventId, requestBody: event });
-        console.log(`[calendar-sync] Updated  "${segment.title}" (${segment.calendarEventId})`);
+        console.log(`${prefix} Updated  "${segment.title}" (${segment.calendarEventId})`);
         return { created: 0, updated: 1, failed: 0, eventId: segment.calendarEventId };
       } catch (err: unknown) {
         const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
         if (status === 404 || status === 410) {
           const res = await cal.events.insert({ calendarId, requestBody: event });
-          console.log(`[calendar-sync] Re-created "${segment.title}" → ${res.data.id}`);
+          console.log(`${prefix} Re-created "${segment.title}" → ${res.data.id}`);
           return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
         }
         throw err;
@@ -574,35 +602,43 @@ export async function syncSegmentToCalendar(
       const matchId = findMatchingEventId(segment, day, existingEvents, trackedEventIds);
       if (matchId) {
         await cal.events.update({ calendarId, eventId: matchId, requestBody: event });
-        console.log(`[calendar-sync] Matched+updated "${segment.title}" → ${matchId}`);
+        console.log(`${prefix} Matched+updated "${segment.title}" → ${matchId}`);
         return { created: 0, updated: 1, failed: 0, eventId: matchId };
       }
       const res = await cal.events.insert({ calendarId, requestBody: event });
-      console.log(`[calendar-sync] Created  "${segment.title}" → ${res.data.id}`);
+      console.log(`${prefix} Created  "${segment.title}" → ${res.data.id}`);
       return { created: 1, updated: 0, failed: 0, eventId: res.data.id! };
     }
   } catch {
-    console.warn(`[calendar-sync] Failed to sync "${segment.title}"`);
+    console.warn(`${prefix} Failed to sync "${segment.title}"`);
     return { created: 0, updated: 0, failed: 1 };
   }
 }
 
 /**
  * Delete a single calendar event. Treats 404/410 as success (already gone).
+ *
+ * Optional `ctx` lets callers carry user/trip identifiers into the log
+ * line — without it, prod logs would show a bare `event abc123` with no
+ * way to attribute the operation. Falls back to the bare prefix when
+ * the caller doesn't have a trip in scope (currently no such caller,
+ * but the optionality keeps the signature flexible).
  */
 export async function deleteCalendarEvent(
   accessToken: string,
   calendarId: string,
   eventId: string,
+  ctx?: SyncLogContext,
 ): Promise<void> {
   const cal = buildClient(accessToken);
+  const prefix = ctx ? logPrefix(ctx) : "[calendar-sync]";
   try {
     await cal.events.delete({ calendarId, eventId });
-    console.log(`[calendar-sync] Removed  event ${eventId}`);
+    console.log(`${prefix} Removed  event ${eventId}`);
   } catch (err: unknown) {
     const status = (err as { code?: number }).code ?? (err as { status?: number }).status;
     if (status !== 404 && status !== 410) throw err;
-    console.log(`[calendar-sync] Already gone event ${eventId}`);
+    console.log(`${prefix} Already gone event ${eventId}`);
   }
 }
 
@@ -610,8 +646,10 @@ export async function unsyncTripFromCalendar(
   accessToken: string,
   trip: Trip,
   calendarId = "primary",
+  userEmail?: string,
 ): Promise<CalendarUnsyncResult> {
   const cal = buildClient(accessToken);
+  const prefix = logPrefix(ctxFromTrip(trip, userEmail));
   const result: CalendarUnsyncResult = { removed: 0, failed: 0 };
 
   for (const day of trip.days) {
@@ -620,17 +658,17 @@ export async function unsyncTripFromCalendar(
       try {
         await cal.events.delete({ calendarId, eventId: segment.calendarEventId });
         result.removed++;
-        console.log(`[calendar-sync] Removed  "${segment.title}" (${segment.calendarEventId})`);
+        console.log(`${prefix} Removed  "${segment.title}" (${segment.calendarEventId})`);
       } catch (err: unknown) {
         const status =
           (err as { code?: number }).code ??
           (err as { status?: number }).status;
         if (status === 404 || status === 410) {
           result.removed++; // already gone — counts as removed
-          console.log(`[calendar-sync] Already gone "${segment.title}" (${segment.calendarEventId})`);
+          console.log(`${prefix} Already gone "${segment.title}" (${segment.calendarEventId})`);
         } else {
           result.failed++;
-          console.warn(`[calendar-sync] Failed to remove "${segment.title}" (${segment.calendarEventId}):`, err);
+          console.warn(`${prefix} Failed to remove "${segment.title}" (${segment.calendarEventId}):`, err);
         }
       }
     }

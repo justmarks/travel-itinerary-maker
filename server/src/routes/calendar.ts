@@ -50,7 +50,7 @@ export function createCalendarRoutes(
       import("../utils/timezone-lookup"),
     ]);
     await resolveTripTimezones(trip);
-    const result = await syncTripToCalendar(req.accessToken ?? "", trip, calendarId);
+    const result = await syncTripToCalendar(req.accessToken ?? "", trip, calendarId, req.userEmail);
 
     // Persist the returned event IDs back onto each segment
     for (const day of trip.days) {
@@ -106,7 +106,7 @@ export function createCalendarRoutes(
       import("../utils/timezone-lookup"),
     ]);
     await resolveTripTimezones(trip);
-    const result = await syncSegmentToCalendar(req.accessToken ?? "", trip, targetDay, targetSegment, calendarId);
+    const result = await syncSegmentToCalendar(req.accessToken ?? "", trip, targetDay, targetSegment, calendarId, req.userEmail);
 
     if (result.eventId && result.eventId !== targetSegment.calendarEventId) {
       targetSegment.calendarEventId = result.eventId;
@@ -139,7 +139,7 @@ export function createCalendarRoutes(
     let failed = 0;
     if (deleteEvents) {
       const { unsyncTripFromCalendar } = await import("../services/google-calendar");
-      const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId);
+      const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId, req.userEmail);
       removed = result.removed;
       failed = result.failed;
     }
