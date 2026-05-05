@@ -1,13 +1,23 @@
+// Set env vars before any imports so config picks them up. Without
+// these, requireGmailAuth would always return GMAIL_CLIENT_NOT_CONFIGURED
+// and the "happy path" tests below couldn't exercise the refresh path.
+process.env.GOOGLE_CLIENT_ID = "test-client-id";
+process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
+process.env.GOOGLE_GMAIL_CLIENT_ID = "test-gmail-id";
+process.env.GOOGLE_GMAIL_CLIENT_SECRET = "test-gmail-secret";
+
 import type { Request, Response, NextFunction } from "express";
 
 const mockUserinfoGet = jest.fn();
 const mockSetCredentials = jest.fn();
+const mockRefreshAccessToken = jest.fn();
 
 jest.mock("googleapis", () => ({
   google: {
     auth: {
       OAuth2: jest.fn().mockImplementation(() => ({
         setCredentials: mockSetCredentials,
+        refreshAccessToken: mockRefreshAccessToken,
       })),
     },
     oauth2: jest.fn().mockReturnValue({
@@ -18,7 +28,8 @@ jest.mock("googleapis", () => ({
   },
 }));
 
-import { requireAuth } from "../../src/middleware/auth";
+import { requireAuth, requireGmailAuth } from "../../src/middleware/auth";
+import { TokenStore } from "../../src/services/token-store";
 
 function makeReq(headers: Record<string, string> = {}): Request {
   return { headers } as unknown as Request;
@@ -131,5 +142,118 @@ describe("requireAuth middleware", () => {
     expect((res.status as jest.Mock).mock.calls[0][0]).toBe(401);
     expect(consoleErrorSpy).toHaveBeenCalled();
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("requireGmailAuth middleware", () => {
+  let next: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    next = jest.fn();
+  });
+
+  function makeReqWithUser(userId: string | undefined): Request {
+    return { headers: {}, userId } as unknown as Request;
+  }
+
+  it("returns 500 when requireAuth hasn't run first (no userId on req)", async () => {
+    const store = new TokenStore();
+    const middleware = requireGmailAuth(store);
+    const req = makeReqWithUser(undefined);
+    const res = makeRes();
+    await middleware(req, res, next as unknown as NextFunction);
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(500);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 GMAIL_CLIENT_NOT_CONFIGURED when env vars are unset", async () => {
+    const savedId = process.env.GOOGLE_GMAIL_CLIENT_ID;
+    const savedSecret = process.env.GOOGLE_GMAIL_CLIENT_SECRET;
+    delete process.env.GOOGLE_GMAIL_CLIENT_ID;
+    delete process.env.GOOGLE_GMAIL_CLIENT_SECRET;
+
+    try {
+      await jest.isolateModulesAsync(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { requireGmailAuth: freshMiddleware } = require("../../src/middleware/auth");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { TokenStore: FreshStore } = require("../../src/services/token-store");
+        const store = new FreshStore() as TokenStore;
+        store.set("u-1", "primary-refresh", "u-1@test.com");
+
+        const middleware = freshMiddleware(store);
+        const req = makeReqWithUser("u-1");
+        const res = makeRes();
+        await middleware(req, res, next as unknown as NextFunction);
+
+        expect((res.status as jest.Mock).mock.calls[0][0]).toBe(503);
+        expect((res.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+          code: "GMAIL_CLIENT_NOT_CONFIGURED",
+        });
+        expect(next).not.toHaveBeenCalled();
+      });
+    } finally {
+      if (savedId) process.env.GOOGLE_GMAIL_CLIENT_ID = savedId;
+      if (savedSecret) process.env.GOOGLE_GMAIL_CLIENT_SECRET = savedSecret;
+    }
+  });
+
+  it("returns 403 GMAIL_SCOPE_REQUIRED when the user has no gmail link", async () => {
+    const store = new TokenStore();
+    store.set("u-1", "primary-refresh", "u-1@test.com");
+    // No setGmail call.
+
+    const middleware = requireGmailAuth(store);
+    const req = makeReqWithUser("u-1");
+    const res = makeRes();
+    await middleware(req, res, next as unknown as NextFunction);
+
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(403);
+    expect((res.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+      code: "GMAIL_SCOPE_REQUIRED",
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 GMAIL_SCOPE_REQUIRED when the gmail refresh token fails (revoked / network)", async () => {
+    const store = new TokenStore();
+    store.set("u-1", "primary-refresh", "u-1@test.com");
+    store.setGmail("u-1", "gmail-refresh", [
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
+    mockRefreshAccessToken.mockRejectedValueOnce(new Error("Token has been revoked"));
+
+    const middleware = requireGmailAuth(store);
+    const req = makeReqWithUser("u-1");
+    const res = makeRes();
+    await middleware(req, res, next as unknown as NextFunction);
+
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(403);
+    expect((res.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+      code: "GMAIL_SCOPE_REQUIRED",
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("attaches a fresh gmail access token to req and calls next", async () => {
+    const store = new TokenStore();
+    store.set("u-1", "primary-refresh", "u-1@test.com");
+    store.setGmail("u-1", "gmail-refresh", [
+      "https://www.googleapis.com/auth/gmail.readonly",
+    ]);
+    mockRefreshAccessToken.mockResolvedValueOnce({
+      credentials: { access_token: "fresh-gmail-access-token" },
+    });
+
+    const middleware = requireGmailAuth(store);
+    const req = makeReqWithUser("u-1") as Request & {
+      gmailAccessToken?: string;
+    };
+    const res = makeRes();
+    await middleware(req, res, next as unknown as NextFunction);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.gmailAccessToken).toBe("fresh-gmail-access-token");
   });
 });

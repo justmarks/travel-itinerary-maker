@@ -57,7 +57,7 @@ import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
-import { GMAIL_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
+import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
 
 // Each badge maps to a `--status-*` token trio. Pulling the colors
 // from the design system rather than hand-rolling Tailwind 50/700
@@ -158,14 +158,15 @@ export function EmailScanDialog({
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
 
-  const { hasScope } = useAuth();
+  const { hasGmailLink } = useAuth();
   const isDemo = useDemoMode();
   // Demo mode bypasses real Google APIs via MockApiClient, so we treat
   // every feature as "granted" there. For real users, gate Gmail
-  // network calls behind the gmail.readonly scope so we don't fire a
-  // request that's guaranteed to 403 — the gate also drives the
-  // "Connect Gmail" prompt below.
-  const gmailGranted = isDemo || hasScope(GMAIL_SCOPE);
+  // network calls on the user having linked their Gmail OAuth client
+  // (a separate Google Cloud Console client from the primary one — see
+  // `lib/oauth.ts`). The gate also drives the "Connect Gmail" prompt
+  // below.
+  const gmailGranted = isDemo || hasGmailLink;
 
   const { data: labels, error: labelsError } = useGmailLabels(open && gmailGranted);
   const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(
@@ -336,9 +337,10 @@ export function EmailScanDialog({
       }
 
       if (status === 403 && body?.code === "GMAIL_SCOPE_REQUIRED") {
-        // Token doesn't include gmail.readonly any more (revoked, downgraded,
-        // or stale localStorage). Bounce to the same connect step we use
-        // for first-time grants — it'll re-run the OAuth flow.
+        // The user's Gmail link is gone (never linked, revoked at
+        // Google, or refresh token rejected). Bounce to the same
+        // connect step we use for first-time links — it'll re-run the
+        // Gmail OAuth flow.
         setStep("needs-scope");
         return;
       } else if (status === 503 && body?.code === "ANTHROPIC_OVERLOADED") {
@@ -555,32 +557,69 @@ export function EmailScanDialog({
         {/* ── Step: Needs Gmail scope ── */}
         {step === "needs-scope" && (
           <>
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
-              <Mail className="h-8 w-8 text-muted-foreground" />
-              <p className="text-base font-medium">Connect Gmail to scan</p>
-              <p className="max-w-sm text-sm text-muted-foreground">
-                Granting read-only Gmail access lets us find travel
-                confirmations and turn them into trip segments. You can
-                revoke this any time from your Google Account.
-              </p>
-            </div>
-            <DialogFooter className="flex-row justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Not now
-              </Button>
-              <Button
-                onClick={() => {
-                  // Send the user back to the same page they were on so
-                  // re-opening the dialog after consent feels seamless.
-                  const returnTo =
-                    window.location.pathname + window.location.search;
-                  requestAdditionalScopes([GMAIL_SCOPE], returnTo);
-                }}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Connect Gmail
-              </Button>
-            </DialogFooter>
+            {isGmailLinkConfigured() ? (
+              <>
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+                  <Mail className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-base font-medium">Connect Gmail to scan</p>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Granting read-only Gmail access lets us find travel
+                    confirmations and turn them into trip segments. You can
+                    revoke this any time from your Google Account.
+                  </p>
+                </div>
+                <DialogFooter className="flex-row justify-end gap-2">
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Not now
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      // Send the user back to the same page they were on so
+                      // re-opening the dialog after consent feels seamless.
+                      // Gmail consent runs against a separate OAuth client
+                      // (kept off the primary so the primary stays off
+                      // CASA), so this is a fresh consent screen — not an
+                      // incremental scope grant on the primary client.
+                      const returnTo =
+                        window.location.pathname + window.location.search;
+                      startGmailLink(returnTo);
+                    }}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    Connect Gmail
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              // Build is missing NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL.
+              // Bail out before the click handler so the user sees a
+              // meaningful message instead of an unexplained no-op.
+              <>
+                <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
+                  <AlertCircle
+                    className="h-8 w-8"
+                    style={{ color: "var(--status-warn-fg)" }}
+                  />
+                  <p className="text-base font-medium">
+                    Gmail scanning isn&apos;t configured
+                  </p>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    This build is missing the{" "}
+                    <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                      NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL
+                    </code>{" "}
+                    environment variable, so the Gmail OAuth flow can&apos;t
+                    start. Set it in your hosting provider and redeploy to
+                    enable email scanning.
+                  </p>
+                </div>
+                <DialogFooter className="flex-row justify-end gap-2">
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </>
         )}
 

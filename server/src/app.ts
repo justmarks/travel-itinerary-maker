@@ -235,10 +235,15 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     }));
   }
 
-  // Email routes — always require auth (needs Gmail access token)
+  // Email routes — primary auth gates everything; the Gmail-specific
+  // routes (`/labels`, `/scan`) layer `requireGmailAuth` on top, fed
+  // by the same TokenStore so they can mint a Gmail-client access
+  // token from the user's stored refresh token. Memory-mode tests
+  // skip both guards.
   if (mode === "drive") {
     app.use("/api/v1/emails", requireAuth, createEmailRoutes({
       resolveStorage,
+      tokenStore,
     }));
   } else {
     app.use("/api/v1/emails", createEmailRoutes({

@@ -43,6 +43,24 @@ export interface TokenEntry {
    * — those users will repopulate their scope list on next sign-in.
    */
   scopes: string[];
+  /**
+   * Refresh token issued by the *Gmail* OAuth client (separate from the
+   * primary client whose token lives in `refreshToken`). Present iff
+   * the user has linked Gmail via POST /auth/google/gmail. Encrypted at
+   * rest with the same key as `refreshToken` when an encryption key is
+   * configured. Absent for users who haven't opted into email scanning
+   * — the vast majority — and for legacy entries that pre-date the
+   * split.
+   */
+  gmailRefreshToken?: string;
+  /**
+   * Scopes granted on the Gmail OAuth client. Typically `[gmail.readonly,
+   * openid, email, profile]` for users who've linked. Empty / absent for
+   * users without a Gmail link.
+   */
+  gmailScopes?: string[];
+  /** ISO timestamp of the most recent Gmail-client login. */
+  gmailUpdatedAt?: string;
 }
 
 const REDIS_HASH = "tokens";
@@ -59,14 +77,22 @@ export class TokenStore {
 
   /**
    * Build the at-rest representation of an entry: same shape as the
-   * in-memory entry, but with the refresh token encrypted when a key
-   * is configured. Returned object is safe to pass directly to Redis.
+   * in-memory entry, but with refresh tokens encrypted when a key is
+   * configured. Returned object is safe to pass directly to Redis.
    */
   private toRedisEntry(entry: TokenEntry): TokenEntry {
     if (!this.encryptionKey) return entry;
     return {
       ...entry,
       refreshToken: encryptToken(entry.refreshToken, this.encryptionKey),
+      ...(entry.gmailRefreshToken
+        ? {
+            gmailRefreshToken: encryptToken(
+              entry.gmailRefreshToken,
+              this.encryptionKey,
+            ),
+          }
+        : {}),
     };
   }
 
@@ -112,7 +138,12 @@ export class TokenStore {
    * one on their next login.
    */
   private decryptEntry(entry: TokenEntry): TokenEntry | null {
-    if (!isEncrypted(entry.refreshToken)) {
+    const primaryEncrypted = isEncrypted(entry.refreshToken);
+    const gmailEncrypted =
+      entry.gmailRefreshToken !== undefined &&
+      isEncrypted(entry.gmailRefreshToken);
+
+    if (!primaryEncrypted && !gmailEncrypted) {
       // Pre-encryption legacy entry. Keep as-is — it'll get rewritten
       // as encrypted on this user's next login.
       return entry;
@@ -124,10 +155,19 @@ export class TokenStore {
       return null;
     }
     try {
-      return {
+      const decrypted: TokenEntry = {
         ...entry,
-        refreshToken: decryptToken(entry.refreshToken, this.encryptionKey),
+        refreshToken: primaryEncrypted
+          ? decryptToken(entry.refreshToken, this.encryptionKey)
+          : entry.refreshToken,
       };
+      if (gmailEncrypted && entry.gmailRefreshToken) {
+        decrypted.gmailRefreshToken = decryptToken(
+          entry.gmailRefreshToken,
+          this.encryptionKey,
+        );
+      }
+      return decrypted;
     } catch (err) {
       console.warn(
         `[token-store] failed to decrypt entry for ${entry.userId} — skipping:`,
@@ -137,30 +177,89 @@ export class TokenStore {
     }
   }
 
-  /** Store a user's refresh token after login. */
+  /**
+   * Store a user's primary-client refresh token after login. Preserves
+   * any previously stored Gmail-client fields — the primary login flow
+   * never touches the Gmail link, and vice versa, so the two halves of
+   * the entry can be updated independently.
+   */
   set(
     userId: string,
     refreshToken: string,
     email: string,
     scopes: string[] = [],
   ): void {
+    const existing = this.tokens.get(userId);
     const entry: TokenEntry = {
       userId,
       refreshToken,
       email,
       updatedAt: new Date().toISOString(),
       scopes,
+      // Carry forward Gmail link if the user already had one.
+      ...(existing?.gmailRefreshToken
+        ? {
+            gmailRefreshToken: existing.gmailRefreshToken,
+            gmailScopes: existing.gmailScopes,
+            gmailUpdatedAt: existing.gmailUpdatedAt,
+          }
+        : {}),
     };
-    this.tokens.set(userId, entry);
-    // Fire-and-forget write-through. We log but don't block the caller
-    // on Redis latency — the in-memory map is the authoritative copy
-    // for the running process. The Redis copy holds the encrypted form
-    // when a key is configured; in-memory stays plaintext.
+    this.persist(entry);
+  }
+
+  /**
+   * Store a user's Gmail-client refresh token after they opt into email
+   * scanning. The primary entry MUST already exist — this is purely an
+   * additive update. Returns false if there's no primary entry yet (the
+   * caller should treat this as "user must sign in first").
+   */
+  setGmail(
+    userId: string,
+    gmailRefreshToken: string,
+    gmailScopes: string[] = [],
+  ): boolean {
+    const existing = this.tokens.get(userId);
+    if (!existing) return false;
+    const entry: TokenEntry = {
+      ...existing,
+      gmailRefreshToken,
+      gmailScopes,
+      gmailUpdatedAt: new Date().toISOString(),
+    };
+    this.persist(entry);
+    return true;
+  }
+
+  /** Drop just the Gmail half of an entry. Leaves the primary half intact. */
+  clearGmail(userId: string): void {
+    const existing = this.tokens.get(userId);
+    if (!existing || !existing.gmailRefreshToken) return;
+    const entry: TokenEntry = {
+      userId: existing.userId,
+      refreshToken: existing.refreshToken,
+      email: existing.email,
+      updatedAt: existing.updatedAt,
+      scopes: existing.scopes,
+    };
+    this.persist(entry);
+  }
+
+  /**
+   * Internal: write `entry` to the in-memory map and fire-and-forget
+   * persist to Redis. Centralised here so `set` / `setGmail` /
+   * `clearGmail` stay short and consistent. We log but don't block the
+   * caller on Redis latency — the in-memory map is the authoritative
+   * copy for the running process. The Redis copy holds the encrypted
+   * form when a key is configured; in-memory stays plaintext.
+   */
+  private persist(entry: TokenEntry): void {
+    this.tokens.set(entry.userId, entry);
     this.redis
-      ?.hset(REDIS_HASH, userId, this.toRedisEntry(entry))
+      ?.hset(REDIS_HASH, entry.userId, this.toRedisEntry(entry))
       .catch((err) =>
         console.warn(
-          `[token-store] redis hset failed for ${userId}:`,
+          `[token-store] redis hset failed for ${entry.userId}:`,
           err instanceof Error ? err.message : err,
         ),
       );
@@ -176,7 +275,11 @@ export class TokenStore {
     return Array.from(this.tokens.keys());
   }
 
-  /** Get a fresh access token for a user using their stored refresh token. */
+  /**
+   * Get a fresh access token for a user from the *primary* OAuth client
+   * (Drive + Calendar + identity). Returns null when the user has no
+   * primary entry, or when the refresh fails (revoked / network error).
+   */
   async getAccessToken(userId: string): Promise<string | null> {
     const entry = this.get(userId);
     if (!entry) return null;
@@ -192,6 +295,48 @@ export class TokenStore {
       return credentials.access_token ?? null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Get a fresh access token for a user from the *Gmail* OAuth client
+   * (gmail.readonly + identity). Returns null when:
+   *   - the Gmail OAuth client isn't configured (returns "not-configured"
+   *     to distinguish from "user hasn't linked"),
+   *   - the user has no Gmail link,
+   *   - or refresh fails (revoked / network).
+   *
+   * The middleware translates these states into HTTP responses
+   * (`GMAIL_CLIENT_NOT_CONFIGURED` = 503, `GMAIL_SCOPE_REQUIRED` = 403).
+   */
+  async getGmailAccessToken(
+    userId: string,
+  ): Promise<
+    | { accessToken: string }
+    | { error: "not-configured" | "not-linked" | "refresh-failed" }
+  > {
+    if (!config.googleGmail.clientId || !config.googleGmail.clientSecret) {
+      return { error: "not-configured" };
+    }
+    const entry = this.get(userId);
+    if (!entry || !entry.gmailRefreshToken) {
+      return { error: "not-linked" };
+    }
+    try {
+      const oauth2Client = new google.auth.OAuth2(
+        config.googleGmail.clientId,
+        config.googleGmail.clientSecret,
+      );
+      oauth2Client.setCredentials({
+        refresh_token: entry.gmailRefreshToken,
+      });
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      if (!credentials.access_token) {
+        return { error: "refresh-failed" };
+      }
+      return { accessToken: credentials.access_token };
+    } catch {
+      return { error: "refresh-failed" };
     }
   }
 
