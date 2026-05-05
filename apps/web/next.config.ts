@@ -149,7 +149,31 @@ const SECURITY_HEADERS = [
   // Strip Referer on cross-origin nav so the path of a private
   // share link doesn't leak to the destination site.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Block other origins from loading this site's responses as
+  // resources. This is the modern Spectre / cross-origin-read
+  // mitigation — browsers check it before delivering a response
+  // to a cross-origin embedder, regardless of whether ACAO is set.
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
+
+// ── Cache-Control ───────────────────────────────────────────────
+//
+// Default for HTML / JSON responses: never cache. Trip pages,
+// share links, and dialog state all carry user data that must
+// not be served stale from intermediaries. The narrow exceptions
+// — fingerprinted assets, public marketing files — declare their
+// own caching policy via more-specific `headers()` entries.
+
+const NO_STORE = "no-cache, no-store, must-revalidate";
+// One year + immutable for fingerprinted assets that bake a
+// content hash into their filename. They never change for a
+// given URL; CDNs and browsers can cache them indefinitely.
+const ASSET_IMMUTABLE = "public, max-age=31536000, immutable";
+// One day for static public files whose URLs do NOT carry a
+// content hash (favicon, manifest, robots, sitemap, icons).
+// Long enough to amortise CDN trips, short enough that a typo
+// fix is in users' browsers within a day.
+const STATIC_PUBLIC = "public, max-age=86400";
 
 const nextConfig: NextConfig = {
   // Suppress the default `X-Powered-By: Next.js` response header — it's
@@ -177,10 +201,36 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
   async headers() {
+    // Order matters: Next.js applies every matching entry in order,
+    // and a later entry's value for the same header key overrides
+    // an earlier one. So the default `Cache-Control: no-store` lands
+    // first, then more-specific paths override it.
     return [
       {
         source: "/:path*",
-        headers: SECURITY_HEADERS,
+        headers: [
+          ...SECURITY_HEADERS,
+          { key: "Cache-Control", value: NO_STORE },
+        ],
+      },
+      {
+        // Fingerprinted Next.js bundles + media. Filenames carry a
+        // content hash (`/_next/static/chunks/abc123.js`), so an
+        // unchanged URL guarantees unchanged bytes — cache forever.
+        source: "/_next/static/:path*",
+        headers: [{ key: "Cache-Control", value: ASSET_IMMUTABLE }],
+      },
+      {
+        // Public marketing surfaces and crawler files.
+        source: "/:path(robots\\.txt|sitemap\\.xml|manifest\\.json|favicon\\.ico|icon\\.svg|notification-badge\\.svg)",
+        headers: [{ key: "Cache-Control", value: STATIC_PUBLIC }],
+      },
+      {
+        // Service worker stays no-store: the browser's update
+        // check on every page load only works if intermediaries
+        // can't hand back a stale copy.
+        source: "/sw.js",
+        headers: [{ key: "Cache-Control", value: NO_STORE }],
       },
     ];
   },
