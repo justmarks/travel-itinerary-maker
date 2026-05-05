@@ -54,19 +54,21 @@ const CATEGORY_TOKEN: Record<Category, string> = {
 };
 
 function pillStyle(cat: Category): React.CSSProperties {
+  // Solid saturated rail as background, white text. Matches the bundle's
+  // `Itinerary.jsx` web kit (`bar-{type}` style). The bars sit on top
+  // of the row's quarter-strength hue wash (`cellBgStyle`) — solid + hue
+  // wash gives both "what is this" (bar color) and "what row is this"
+  // (background tint) without the bars getting lost in the wash.
   const t = CATEGORY_TOKEN[cat];
   return {
-    backgroundColor: `var(--cat-${t}-bg)`,
-    color: `var(--cat-${t}-fg)`,
-    borderColor: `var(--cat-${t}-rail)`,
-    borderWidth: "1px",
-    borderStyle: "solid",
+    backgroundColor: `var(--cat-${t}-rail)`,
+    color: "#fff",
   };
 }
 
 function cellBgStyle(cat: Category): React.CSSProperties {
   // Cells use a quarter-strength wash of the pill background so the row
-  // is hue-tinted without overpowering the pills sitting on top.
+  // is hue-tinted without overpowering the bars sitting on top.
   const t = CATEGORY_TOKEN[cat];
   return {
     backgroundColor: `color-mix(in oklab, var(--cat-${t}-bg) 30%, transparent)`,

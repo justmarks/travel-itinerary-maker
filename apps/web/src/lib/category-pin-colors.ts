@@ -19,10 +19,16 @@ export type PinCategory = "hotel" | "dining" | "activity" | "transport";
  * flash a stale hue.
  */
 const CATEGORY_TOKEN: Record<PinCategory, { token: string; fallback: string }> = {
-  hotel:     { token: "lodging",   fallback: "#4F46E5" },
-  dining:    { token: "dining",    fallback: "#DC2626" },
+  // Fallbacks track the bundle's `--cat-*-fg` light-mode values (which
+  // alias to the matching `--seg-*-fg` token):
+  //   transport → flight   (sky)    → --seg-flight-fg   = #0284C7
+  //   lodging   → hotel    (violet) → --seg-hotel-fg    = #6D28D9
+  //   activity  → activity (green)  → --seg-activity-fg = #15803D
+  //   dining    → dinner   (red)    → --seg-dinner-fg   = #B91C1C
+  hotel:     { token: "lodging",   fallback: "#6D28D9" },
+  dining:    { token: "dining",    fallback: "#B91C1C" },
   activity:  { token: "activity",  fallback: "#15803D" },
-  transport: { token: "transport", fallback: "#2563EB" },
+  transport: { token: "transport", fallback: "#0284C7" },
 };
 
 /**

@@ -42,7 +42,13 @@
  * Renaming sidesteps the clash without changing intent. See the
  * `--type-*` block below.
  */
-
+/*
+ * country-flag-emoji-polyfill — Twemoji Country Flags webfont.
+ * Renders flag emoji consistently on Windows / Chromium where the OS has
+ * no flag font. Loaded via jsdelivr CDN; the font only contains the
+ * Regional Indicator codepoints, so it must precede the system sans
+ * stack (`var(--font-flag)`) and never be used for body text.
+ */
 :root {
   /* ===== BRAND COLORS (raw hex) ===== */
   --itinly-navy:        #1A2B3C;  /* primary navy — body text, headlines, dark surfaces */
@@ -72,6 +78,34 @@
   --success:            #16A34A;
   --warning:            #D97706;
 
+  /* ===== STATUS TOKENS =====
+   * Verb-class tones for inline event surfaces (history, audit logs,
+   * activity streams). Each tone has a light-pastel `bg` and a
+   * saturated `fg` for the icon glyph or accent text.
+   *   ok     · greens  — create, complete, succeed
+   *   info   · cyans   — update, edit, change
+   *   danger · reds    — delete, revoke, leave
+   *   muted  · slate   — neutral / informational
+   */
+  --status-ok-bg:     #DCFCE7;  --status-ok-fg:     #15803D;
+  --status-info-bg:   #DBEAFE;  --status-info-fg:   #1D4ED8;
+  --status-warn-bg:   #FEF3C7;  --status-warn-fg:   #B45309;
+  --status-danger-bg: #FEE2E2;  --status-danger-fg: #B91C1C;
+  --status-muted-bg:  #E2E8F0;  --status-muted-fg:  #475569;
+
+  /* ===== TODO CATEGORY TOKENS =====
+   * Each todo category aliases a status tone so a palette tweak in the
+   * status block propagates here automatically.
+   *   meals      → warn   (amber  — appetite / warmth)
+   *   activities → ok     (green  — go-do)
+   *   research   → info   (blue   — learn / read)
+   *   logistics  → muted  (slate  — admin)
+   */
+  --todo-meals-bg:      var(--status-warn-bg);   --todo-meals-fg:      var(--status-warn-fg);
+  --todo-activities-bg: var(--status-ok-bg);     --todo-activities-fg: var(--status-ok-fg);
+  --todo-research-bg:   var(--status-info-bg);   --todo-research-fg:   var(--status-info-fg);
+  --todo-logistics-bg:  var(--status-muted-bg);  --todo-logistics-fg:  var(--status-muted-fg);
+
   /* ===== SEGMENT TYPE TOKENS =====
    * Each segment type has three tokens: rail (left border / accent line),
    * tint-bg (icon-disc background, ~50-weight), and tint-fg (icon-disc
@@ -79,26 +113,65 @@
    * usually the same hue but tint-bg is the lightest pastel. Use the
    * .seg-* class on the row OR the icon disc to apply the trio.
    */
-  --seg-flight-rail:    #3B82F6;  --seg-flight-bg:    #DBEAFE;  --seg-flight-fg:    #2563EB;
-  --seg-train-rail:     #A855F7;  --seg-train-bg:     #F3E8FF;  --seg-train-fg:     #9333EA;
-  --seg-car-rail:       #F97316;  --seg-car-bg:       #FFEDD5;  --seg-car-fg:       #EA580C;
-  --seg-hotel-rail:     #6366F1;  --seg-hotel-bg:     #E0E7FF;  --seg-hotel-fg:     #4F46E5;
-  --seg-activity-rail:  #22C55E;  --seg-activity-bg:  #DCFCE7;  --seg-activity-fg:  #15803D;
-  --seg-dinner-rail:    #EF4444;  --seg-dinner-bg:    #FEE2E2;  --seg-dinner-fg:    #DC2626;
-  --seg-lunch-rail:     #F59E0B;  --seg-lunch-bg:     #FEF3C7;  --seg-lunch-fg:     #B45309;
-  --seg-breakfast-rail: #0EA5E9;  --seg-breakfast-bg: #E0F2FE;  --seg-breakfast-fg: #0369A1;
+  /* ===== SEGMENT TYPE TOKENS =====
+   * Each segment is colored within its category family (transport=blue,
+   * lodging=indigo, activity=green, dining=warm) so a glance reads as
+   * "this row is transport-ish" before you parse the icon. Within a
+   * family, hue/saturation shifts distinguish siblings:
+   *   transport  · flight=sky·600    train=blue·600   car=cyan·600
+   *   lodging    · hotel=indigo·600
+   *   activity   · activity=emerald·600
+   *   dining     · dinner=red·600    lunch=orange·600 breakfast=amber·600
+   * Trio shape: rail (saturated accent ~600), bg (lightest pastel ~50–100),
+   * fg (foreground ~600–700).
+   */
+  /* — transport family (blues) — */
+  --seg-flight-rail:    #0EA5E9;  --seg-flight-bg:    #E0F2FE;  --seg-flight-fg:    #0284C7;
+  --seg-train-rail:     #2563EB;  --seg-train-bg:     #DBEAFE;  --seg-train-fg:     #1D4ED8;
+  --seg-car-rail:       #0891B2;  --seg-car-bg:       #CFFAFE;  --seg-car-fg:       #0E7490;
+  /* — lodging family (violet · separated from transport blues) — */
+  --seg-hotel-rail:     #8B5CF6;  --seg-hotel-bg:     #EDE9FE;  --seg-hotel-fg:     #6D28D9;
+  /* — activity family (greens) — */
+  --seg-activity-rail:  #16A34A;  --seg-activity-bg:  #DCFCE7;  --seg-activity-fg:  #15803D;
+  /* — dining family (warm: red→orange→amber) — */
+  --seg-dinner-rail:    #DC2626;  --seg-dinner-bg:    #FEE2E2;  --seg-dinner-fg:    #B91C1C;
+  --seg-lunch-rail:     #EA580C;  --seg-lunch-bg:     #FFEDD5;  --seg-lunch-fg:     #C2410C;
+  --seg-breakfast-rail: #D97706;  --seg-breakfast-bg: #FEF3C7;  --seg-breakfast-fg: #B45309;
+  /* — transport family · extras — */
+  --seg-transport-rail: #475569;  --seg-transport-bg: #E2E8F0;  --seg-transport-fg: #334155;  /* generic transport: slate */
+  --seg-cruise-rail:    #0E7490;  --seg-cruise-bg:    #CFFAFE;  --seg-cruise-fg:    #155E75;  /* cyan, deeper than car */
+  /* — activity family · extras (shifted greens / teals to stay inside) — */
+  --seg-tour-rail:      #14B8A6;  --seg-tour-bg:      #CCFBF1;  --seg-tour-fg:      #0F766E;  /* teal */
+  --seg-show-rail:      #059669;  --seg-show-bg:      #D1FAE5;  --seg-show-fg:      #047857;  /* emerald-deep */
+  /* — dining family · extras — */
+  --seg-brunch-rail:    #F59E0B;  --seg-brunch-bg:    #FEF3C7;  --seg-brunch-fg:    #B45309;  /* amber, between breakfast & lunch */
+
+  /* ===== CATEGORY TOKENS =====
+   * Timeline + Map views collapse the 8 segment types into 4 broad
+   * categories. Each category aliases to the most representative segment-
+   * type token (transport→flight, lodging→hotel, activity→activity,
+   * dining→dinner). Same trio shape as `--seg-*`: rail · bg · fg. Apply
+   * via the `.cat-*` class on a wrapper to expose `--rail / --tint-bg /
+   * --tint-fg` locally — same convention as `.seg-*`. */
+  --cat-transport-rail: var(--seg-flight-rail);
+  --cat-transport-bg:   var(--seg-flight-bg);
+  --cat-transport-fg:   var(--seg-flight-fg);
+  --cat-lodging-rail:   var(--seg-hotel-rail);
+  --cat-lodging-bg:     var(--seg-hotel-bg);
+  --cat-lodging-fg:     var(--seg-hotel-fg);
+  --cat-activity-rail:  var(--seg-activity-rail);
+  --cat-activity-bg:    var(--seg-activity-bg);
+  --cat-activity-fg:    var(--seg-activity-fg);
+  --cat-dining-rail:    var(--seg-dinner-rail);
+  --cat-dining-bg:      var(--seg-dinner-bg);
+  --cat-dining-fg:      var(--seg-dinner-fg);
 
   /* ===== TYPOGRAPHY — FAMILIES ===== */
   --font-sans:          "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono:          "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-flag:          "Twemoji Country Flags", sans-serif;
 
-  /* ===== TYPE SCALE (semantic) =====
-   * Renamed from the bundle's `--text-*` to `--type-*` to avoid
-   * clobbering Tailwind v4's `text-{xs,sm,…}` font-size scale. See the
-   * file-header comment for the rationale. Use as
-   * `font: var(--type-h1);` etc. in CSS.
-   */
+  /* ===== TYPE SCALE (semantic) ===== */
   --type-display: 600 60px/1.05 var(--font-sans);    /* hero only */
   --type-h1:      600 36px/1.15 var(--font-sans);    /* page title */
   --type-h2:      600 28px/1.2  var(--font-sans);    /* section title */
@@ -165,6 +238,13 @@
   --border:             #25323F;
   --input:              #25323F;
   --ring:               #2FA9DC;
+
+  /* Status tokens — dark-mode pairs (lifted bg, brighter fg). */
+  --status-ok-bg:     #14532D;  --status-ok-fg:     #86EFAC;
+  --status-info-bg:   #1E3A8A;  --status-info-fg:   #93C5FD;
+  --status-warn-bg:   #78350F;  --status-warn-fg:   #FCD34D;
+  --status-danger-bg: #7F1D1D;  --status-danger-fg: #FCA5A5;
+  --status-muted-bg:  #1F2D3B;  --status-muted-fg:  #94A3B0;
 }
 
 /* ===== SEGMENT TYPES =====
@@ -185,11 +265,31 @@
 .seg-dinner    { --rail: var(--seg-dinner-rail);    --tint-bg: var(--seg-dinner-bg);    --tint-fg: var(--seg-dinner-fg); }
 .seg-lunch     { --rail: var(--seg-lunch-rail);     --tint-bg: var(--seg-lunch-bg);     --tint-fg: var(--seg-lunch-fg); }
 .seg-breakfast { --rail: var(--seg-breakfast-rail); --tint-bg: var(--seg-breakfast-bg); --tint-fg: var(--seg-breakfast-fg); }
+.seg-transport { --rail: var(--seg-transport-rail); --tint-bg: var(--seg-transport-bg); --tint-fg: var(--seg-transport-fg); }
+.seg-cruise    { --rail: var(--seg-cruise-rail);    --tint-bg: var(--seg-cruise-bg);    --tint-fg: var(--seg-cruise-fg); }
+.seg-tour      { --rail: var(--seg-tour-rail);      --tint-bg: var(--seg-tour-bg);      --tint-fg: var(--seg-tour-fg); }
+.seg-show      { --rail: var(--seg-show-rail);      --tint-bg: var(--seg-show-bg);      --tint-fg: var(--seg-show-fg); }
+.seg-brunch    { --rail: var(--seg-brunch-rail);    --tint-bg: var(--seg-brunch-bg);    --tint-fg: var(--seg-brunch-fg); }
+
+/* ===== CATEGORY CLASSES =====
+ * Same shape as the segment classes: each .cat-{type} exposes the trio as
+ * --rail / --tint-bg / --tint-fg so consumers (timeline pills, map legend,
+ * filter chips) can theme themselves with one class. */
+.cat-transport { --rail: var(--cat-transport-rail); --tint-bg: var(--cat-transport-bg); --tint-fg: var(--cat-transport-fg); }
+.cat-lodging   { --rail: var(--cat-lodging-rail);   --tint-bg: var(--cat-lodging-bg);   --tint-fg: var(--cat-lodging-fg); }
+.cat-activity  { --rail: var(--cat-activity-rail);  --tint-bg: var(--cat-activity-bg);  --tint-fg: var(--cat-activity-fg); }
+.cat-dining    { --rail: var(--cat-dining-rail);    --tint-bg: var(--cat-dining-bg);    --tint-fg: var(--cat-dining-fg); }
+
+.cat-transport, .cat-lodging, .cat-activity, .cat-dining { border-left-color: var(--rail); }
+
+[class*="cat-"].icon-disc,
+[class*="cat-"]   .icon-disc { background: var(--tint-bg); color: var(--tint-fg); }
 
 /* When .seg-* lands on a row container with `border-left-style: solid`,
    the rail var paints it. Doing this per-class keeps the cascade simple. */
 .seg-flight, .seg-train, .seg-car, .seg-hotel,
-.seg-activity, .seg-dinner, .seg-lunch, .seg-breakfast { border-left-color: var(--rail); }
+.seg-activity, .seg-dinner, .seg-lunch, .seg-breakfast,
+.seg-transport, .seg-cruise, .seg-tour, .seg-show, .seg-brunch { border-left-color: var(--rail); }
 
 /* When .seg-* is applied to (or contains) an .icon-disc, tint it. */
 [class*="seg-"].icon-disc,

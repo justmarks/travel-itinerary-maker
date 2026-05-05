@@ -62,7 +62,7 @@ import { GMAIL_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 // Each badge maps to a `--status-*` token trio. Pulling the colors
 // from the design system rather than hand-rolling Tailwind 50/700
 // classes means any palette tweak in `globals.css` propagates.
-type StatusTone = "ok" | "warn" | "danger" | "info" | "attention" | "muted";
+type StatusTone = "ok" | "warn" | "danger" | "info" | "muted";
 
 function statusBadgeStyle(tone: StatusTone): React.CSSProperties {
   return {
@@ -80,7 +80,7 @@ const CONFIDENCE_TONE: Record<string, StatusTone> = {
 
 const MATCH_STATUS_TONE: Record<SegmentMatchStatus, StatusTone> = {
   new:        "info",
-  enrichment: "attention",
+  enrichment: "info",
   conflict:   "warn",
   duplicate:  "muted",
 };
@@ -717,7 +717,7 @@ export function EmailScanDialog({
                   {matchCounts.enrichment > 0 && (
                     <span
                       className="flex items-center gap-1.5"
-                      style={{ color: "var(--status-attention-fg)" }}
+                      style={{ color: "var(--status-info-fg)" }}
                     >
                       <CheckCircle2 className="h-4 w-4" />
                       {matchCounts.enrichment} with details
@@ -1131,7 +1131,7 @@ function SegmentCard({
             <div className="mt-1.5 space-y-1 rounded border border-dashed border-muted-foreground/20 bg-muted/30 p-1.5 text-[11px]">
               {seg.match?.newFields && seg.match.newFields.length > 0 && (
                 <div>
-                  <span className="font-medium" style={{ color: "var(--status-attention-fg)" }}>Adds: </span>
+                  <span className="font-medium" style={{ color: "var(--status-info-fg)" }}>Adds: </span>
                   <span className="text-muted-foreground">
                     {seg.match.newFields.join(", ")}
                   </span>

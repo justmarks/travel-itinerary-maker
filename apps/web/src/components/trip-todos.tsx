@@ -141,7 +141,10 @@ export function TripTodos({
       </div>
 
       {showAdd && (
-        <form onSubmit={handleAdd} className="mb-3 space-y-2">
+        <form
+          onSubmit={handleAdd}
+          className="mb-3 flex flex-col gap-2 rounded-md border bg-card p-3"
+        >
           <Input
             placeholder="What needs to be done?"
             value={newText}
@@ -209,7 +212,7 @@ export function TripTodos({
                   }
                 >
                   {todo.isCompleted ? (
-                    <CheckSquare2 className="h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
+                    <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
