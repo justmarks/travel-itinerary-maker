@@ -212,7 +212,7 @@ export function TripTodos({
                   }
                 >
                   {todo.isCompleted ? (
-                    <CheckSquare2 className="h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
+                    <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
                   ) : (
                     <Square className="h-4 w-4 text-muted-foreground" />
                   )}
