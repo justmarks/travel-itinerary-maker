@@ -93,6 +93,32 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       origin: buildCorsOriginCheck(allowedOrigins, allowedOriginPattern),
     }),
   );
+  // Security headers for every response. The web app sets a richer
+  // suite via `next.config.ts`; this is the API-side baseline.
+  //
+  //   `Cache-Control: no-cache, no-store, must-revalidate` keeps trip
+  //     data, auth tokens, and share-link responses from being held by
+  //     intermediaries (CDNs, corporate proxies, browser back/forward
+  //     cache).
+  //   `Cross-Origin-Resource-Policy: same-origin` blocks cross-origin
+  //     embedders from reading API responses, mitigating Spectre-class
+  //     side-channel reads regardless of CORS.
+  //   `X-Content-Type-Options: nosniff` keeps clients from MIME-sniffing
+  //     a JSON response into anything else.
+  //   `Referrer-Policy: no-referrer` is appropriate for an API:
+  //     responses don't carry user-clickable links.
+  app.use((_req, res, next) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    next();
+  });
+  // `app.disable('x-powered-by')` strips the `X-Powered-By: Express`
+  // server-fingerprint header from every response — small leak, cheap
+  // to remove, flagged by ZAP / Mozilla Observatory.
+  app.disable("x-powered-by");
   // Raised from the 100kb default so users can paste/upload full .eml or
   // .html email sources (which commonly run 100-500kb with embedded styles
   // and base64 images).
