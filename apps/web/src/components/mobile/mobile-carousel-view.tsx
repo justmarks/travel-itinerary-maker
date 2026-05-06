@@ -19,6 +19,7 @@ import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
+import { MobileEditableCity } from "./mobile-editable-city";
 import {
   MobileSegmentFormSheet,
   type SegmentFormTarget,
@@ -221,12 +222,23 @@ export function MobileCarouselView({
       <div className="shrink-0 border-b bg-zinc-100 dark:bg-zinc-900">
         <MobileDayMap trip={trip} activeDate={activeDay?.date} height={210} />
         <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <MapPin className="h-3 w-3" />
-            {isAllView
-              ? `${tripStats.segmentCount} segment${tripStats.segmentCount === 1 ? "" : "s"} · ${days.length} days`
-              : (activeDay?.city ?? "—")}
-          </span>
+          {isAllView ? (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {`${tripStats.segmentCount} segment${tripStats.segmentCount === 1 ? "" : "s"} · ${days.length} days`}
+            </span>
+          ) : activeDay && canEdit ? (
+            <MobileEditableCity
+              tripId={trip.id}
+              date={activeDay.date}
+              city={activeDay.city}
+            />
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {activeDay?.city ?? "—"}
+            </span>
+          )}
           <div className="flex items-center gap-1">
             <button
               onClick={() => activeIdx > 0 && goToPage(activeIdx - 1)}
@@ -265,6 +277,7 @@ export function MobileCarouselView({
                 : undefined
             }
             showCosts={showCosts}
+            editableCityTripId={canEdit ? trip.id : undefined}
           />
         </div>
 
