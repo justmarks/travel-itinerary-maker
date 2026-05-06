@@ -128,7 +128,31 @@ export function ConfirmDialogProvider({
           if (!open) handleResult(false);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onOpenAutoFocus={(e) => {
+            // Radix focuses Cancel by default (its safety stance for
+            // destructive actions). We override that so Enter activates
+            // the primary action — matching the convention that the
+            // highlighted button is the one Enter presses. Esc still
+            // cancels.
+            //
+            // The action button is queried by `data-slot` because
+            // `AlertDialogAction` is a wrapper component that doesn't
+            // forward a ref to its underlying button. The focus call
+            // is deferred so we win the race against any parent Radix
+            // overlay (DropdownMenu / ContextMenu) running its own
+            // `onCloseAutoFocus` on a delayed schedule that would
+            // otherwise stomp our focus.
+            e.preventDefault();
+            const target = e.currentTarget as HTMLElement;
+            window.setTimeout(() => {
+              const actionBtn = target.querySelector<HTMLElement>(
+                '[data-slot="alert-dialog-action"]',
+              );
+              actionBtn?.focus();
+            }, 50);
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>{pending?.options.title}</AlertDialogTitle>
             {pending?.options.description && (
