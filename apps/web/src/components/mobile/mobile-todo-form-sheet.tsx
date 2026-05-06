@@ -216,6 +216,15 @@ export function MobileTodoFormSheet({
           onChange={(e) => setDetails(e.target.value)}
           placeholder="Optional details, links, references…"
           rows={4}
+          // Ctrl/Cmd + Enter submits the form on a hardware keyboard
+          // (matches the desktop edit-todo-dialog). Plain Enter still
+          // inserts a newline.
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              if (canSave && !isPending) handleSave();
+            }
+          }}
           className="mt-1 w-full resize-none rounded-xl border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-foreground"
         />
       </form>
