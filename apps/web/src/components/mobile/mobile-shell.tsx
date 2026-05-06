@@ -6,6 +6,7 @@ import { ArrowLeft, WifiOff } from "lucide-react";
 import { useDemoHref } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { cn } from "@/lib/utils";
+import { PwaInstallHint } from "./pwa-install-hint";
 
 /**
  * Constrains the mobile prototype to a phone-sized frame on desktop while
@@ -38,6 +39,10 @@ export function MobileFrame({
             <span>Offline — showing last loaded data</span>
           </div>
         )}
+        {/* One-time PWA install nudge. Renders nothing on subsequent
+            visits, when the app is already installed, or when neither
+            install path is available. See `pwa-install-hint.tsx`. */}
+        <PwaInstallHint />
         {children}
       </div>
     </div>

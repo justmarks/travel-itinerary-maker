@@ -8,6 +8,7 @@ import {
 } from "@travel-app/api-client";
 import type { TripShare } from "@travel-app/shared";
 import { toast } from "sonner";
+import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -203,6 +204,7 @@ export function ShareTripDialog({
   const { data: shares = [], isLoading } = useShares(tripId);
   const createShare = useCreateShare(tripId);
   const deleteShare = useDeleteShare(tripId);
+  const shareNotificationsHint = useShareNotificationsHint();
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
   const [email, setEmail] = useState("");
@@ -250,6 +252,10 @@ export function ShareTripDialog({
       {
         onSuccess: (share) => {
           setCreatedToken(share.shareToken);
+          // Surface the one-time "turn on notifications?" hint on
+          // first share creation. No-op on subsequent shares (the
+          // hint marks itself dismissed after firing once).
+          shareNotificationsHint.maybeShow();
           // Hold form values until "Create another" so the user has the
           // option to immediately copy the success URL without losing
           // their selections.
