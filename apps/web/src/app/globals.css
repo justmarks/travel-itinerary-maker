@@ -3,10 +3,13 @@
 /* Brand and segment-color tokens — checked in verbatim from the design
  * system bundle (claude.ai/design). Provides --background / --foreground /
  * --primary / --brand / --card / --muted / --border / --ring / --seg-* /
- * --cat-* / --status-* / --todo-* and the type-scale, spacing, radius,
- * shadow, motion tokens. To update: replace the body of `design-tokens.css`
- * from a fresh design bundle and `git diff` to see what changed.
- * See `branding/DESIGN-SYSTEM-SYNC.md`. */
+ * --cat-* / --pin-* / --status-* / --todo-* / --secondary / --accent /
+ * --popover / --destructive-foreground, the type-scale, spacing, radius,
+ * shadow, motion tokens, plus the timeline grid sizing tokens with their
+ * 640/768 breakpoints, dark-mode segment lifts, the .no-scrollbar utility,
+ * and the @media print rules. To update: replace the body of
+ * `design-tokens.css` from a fresh design bundle and `git diff` to see
+ * what changed. See `branding/DESIGN-SYSTEM-SYNC.md`. */
 @import "./design-tokens.css";
 
 /*
@@ -35,65 +38,6 @@
  * ignore the user's explicit theme choice.
  */
 @custom-variant dark (&:where(.dark, .dark *));
-
-/* App-layer tokens that aren't in the design system bundle yet.
- *
- * Three groups:
- *
- *   1. ShadCN UI primitives need `--secondary`, `--accent`, `--popover`
- *      and `--destructive-foreground`. The design system doesn't define
- *      them; we keep them here until it does. Values match the prior
- *      production palette so existing primitives (dropdowns, popovers)
- *      look unchanged.
- *
- *   2. Dark-mode lifts for every segment token. The bundle's `.dark`
- *      block doesn't override `--seg-*`, which would leave 50/100-weight
- *      pastels on a near-black surface (illegible). Until the design
- *      system adds a dark policy for segments, we lift `bg` to a
- *      translucent 950/60 wash and `fg` to a 300-weight glyph here.
- *
- *      Values track the bundle's regrouped segment hues:
- *        transport family → flight=sky · train=blue · car=cyan
- *        lodging family   → hotel=violet
- *        activity family  → activity=emerald · tour=teal · show=emerald-deep
- *        dining family    → dinner=red · lunch=orange · breakfast=amber
- *        extras           → transport=slate · cruise=cyan-deep · brunch=amber
- */
-:root {
-  --secondary:             oklch(0.965 0 0);
-  --secondary-foreground:  oklch(0.255 0.034 255);
-  --accent:                oklch(0.965 0 0);
-  --accent-foreground:     oklch(0.255 0.034 255);
-  --popover:               var(--card);
-  --popover-foreground:    var(--card-foreground);
-  --destructive-foreground:var(--itinly-surface);
-}
-
-.dark, [data-theme="dark"] {
-  --secondary:             oklch(0.25 0.018 250);
-  --secondary-foreground:  var(--itinly-surface);
-  --accent:                oklch(0.25 0.018 250);
-  --accent-foreground:     var(--itinly-surface);
-  --popover:               var(--card);
-  --popover-foreground:    var(--card-foreground);
-  --destructive-foreground:var(--itinly-surface);
-
-  /* Segment-token dark-mode lifts. `color-mix` produces a translucent
-   * 950/60 wash; foregrounds lift from ~600 to ~300. */
-  --seg-flight-bg:    color-mix(in oklab, #0C4A6E 60%, transparent);  --seg-flight-fg:    #7DD3FC;
-  --seg-train-bg:     color-mix(in oklab, #1E3A8A 60%, transparent);  --seg-train-fg:     #93C5FD;
-  --seg-car-bg:       color-mix(in oklab, #164E63 60%, transparent);  --seg-car-fg:       #67E8F9;
-  --seg-hotel-bg:     color-mix(in oklab, #4C1D95 60%, transparent);  --seg-hotel-fg:     #C4B5FD;
-  --seg-activity-bg:  color-mix(in oklab, #14532D 60%, transparent);  --seg-activity-fg:  #86EFAC;
-  --seg-dinner-bg:    color-mix(in oklab, #7F1D1D 60%, transparent);  --seg-dinner-fg:    #FCA5A5;
-  --seg-lunch-bg:     color-mix(in oklab, #7C2D12 60%, transparent);  --seg-lunch-fg:     #FDBA74;
-  --seg-breakfast-bg: color-mix(in oklab, #78350F 60%, transparent);  --seg-breakfast-fg: #FCD34D;
-  --seg-transport-bg: color-mix(in oklab, #0F172A 60%, transparent);  --seg-transport-fg: #CBD5E1;
-  --seg-cruise-bg:    color-mix(in oklab, #164E63 60%, transparent);  --seg-cruise-fg:    #67E8F9;
-  --seg-tour-bg:      color-mix(in oklab, #134E4A 60%, transparent);  --seg-tour-fg:      #5EEAD4;
-  --seg-show-bg:      color-mix(in oklab, #064E3B 60%, transparent);  --seg-show-fg:      #6EE7B7;
-  --seg-brunch-bg:    color-mix(in oklab, #78350F 60%, transparent);  --seg-brunch-fg:    #FCD34D;
-}
 
 @theme inline {
   --color-background: var(--background);
@@ -161,105 +105,13 @@
   font-family: "Twemoji Country Flags", sans-serif;
 }
 
-/* Hide the scrollbar on horizontally-scrollable rows (e.g. the tab strip)
- * while still allowing the user to scroll. iOS Safari already hides
- * scrollbars except during active scroll; this brings desktop in line. */
-.no-scrollbar {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Timeline column widths scale with viewport. Phones get a narrow icon-only
- * label column and roomier day cells so ~3 days fit on screen at a time
- * (the rest scrolls horizontally). Tablets and up restore the full text label
- * and proportionally larger day columns. The CSS variables are read by
- * .timeline-grid's gridTemplateColumns inline style in timeline-view.tsx,
- * and overridden again by the @media print block below. */
-.timeline-grid {
-  --timeline-label-col: 2.75rem;
-  --timeline-day-min: 7rem;
-}
-
-/* Allow grid cells to shrink below their content's intrinsic min-content so
- * that pills with `truncate` (white-space: nowrap) actually clip to the cell
- * instead of forcing the column wider than --timeline-day-min. Without this,
- * a single long pill title makes one day fill the whole mobile viewport. */
+/* Allow timeline grid cells to shrink below their content's intrinsic
+ * min-content so that pills with `truncate` (white-space: nowrap) actually
+ * clip to the cell instead of forcing the column wider than
+ * --timeline-day-min. Without this, a single long pill title makes one
+ * day fill the whole mobile viewport. The bundle owns the
+ * --timeline-{label-col,day-min} tokens; this app-only rule pairs with
+ * them to keep narrow cells from blowing up. */
 .timeline-grid > * {
   min-width: 0;
-}
-
-@media (min-width: 640px) {
-  .timeline-grid {
-    --timeline-label-col: 7rem;
-    --timeline-day-min: 6.5rem;
-  }
-}
-
-@media (min-width: 768px) {
-  .timeline-grid {
-    --timeline-label-col: 8rem;
-    --timeline-day-min: 7.5rem;
-  }
-}
-
-@media print {
-  /* Preserve background colours on all elements */
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Hide interactive chrome */
-  .print-hidden {
-    display: none !important;
-  }
-
-  /* Timeline: let the grid stretch to fill the page width.
-   *
-   * In the viewport the timeline lives inside a horizontally-scrollable card
-   * (overflow-x-auto on .timeline-scroll, overflow-hidden on .timeline-card)
-   * with per-day columns that insist on `minmax(7.5rem, 1fr)` so they stay
-   * readable at desktop widths. On paper, none of those constraints work:
-   * the browser only prints what's visible in the flow, so any content past
-   * the card's clipped right edge is silently dropped. For a 3-week trip
-   * that's most of the itinerary.
-   *
-   * The fix pulls every clip/min-width lever at once so the grid collapses
-   * into whatever width the page gives it. The column template uses CSS
-   * custom properties specifically so we can shrink the per-day minimum to
-   * `0` here — cells share the page width equally instead of demanding a
-   * fixed px floor. See timeline-view.tsx for where the properties are set.
-   */
-  .timeline-scroll {
-    overflow: visible !important;
-  }
-
-  .timeline-card {
-    overflow: visible !important;
-  }
-
-  .timeline-grid {
-    --timeline-label-col: 3.5rem;
-    --timeline-day-min: 0px;
-    min-width: unset !important;
-    font-size: 8px !important;
-  }
-
-  /* Sticky labels don't make sense on paper — reset to flow */
-  .timeline-grid .sticky {
-    position: static !important;
-  }
-
-  /* Pills truncate in the viewport so narrow cells stay tidy. On paper the
-   * cells are much narrower (3-week trip ÷ page width), so truncation would
-   * hide most titles. Let text wrap instead. */
-  .timeline-grid .truncate {
-    overflow: visible !important;
-    text-overflow: clip !important;
-    white-space: normal !important;
-    word-break: break-word !important;
-  }
 }

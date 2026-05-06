@@ -78,6 +78,26 @@
   --success:            #16A34A;
   --warning:            #D97706;
 
+  /* ===== SHADCN PRIMITIVES =====
+   * ShadCN UI primitives (dropdowns, popovers, toasts) need their own
+   * tokens beyond the brand palette. Kept in the DS so the kit and the
+   * production app share the same neutral scale. */
+  --secondary:             oklch(0.965 0 0);
+  --secondary-foreground:  oklch(0.255 0.034 255);
+  --accent:                oklch(0.965 0 0);
+  --accent-foreground:     oklch(0.255 0.034 255);
+  --popover:               var(--card);
+  --popover-foreground:    var(--card-foreground);
+  --destructive-foreground:var(--itinly-surface);
+
+  /* ===== TIMELINE SIZING =====
+   * Read by the timeline grid's `gridTemplateColumns`. Phones get an
+   * icon-only label column and roomier day cells (~3 days fit at a time);
+   * tablets and up restore the full label and proportionally sized days.
+   * Overridden in @media (min-width: 640px / 768px) and @media print. */
+  --timeline-label-col: 2.75rem;
+  --timeline-day-min:   7rem;
+
   /* ===== STATUS TOKENS =====
    * Verb-class tones for inline event surfaces (history, audit logs,
    * activity streams). Each tone has a light-pastel `bg` and a
@@ -166,6 +186,23 @@
   --cat-dining-bg:      var(--seg-dinner-bg);
   --cat-dining-fg:      var(--seg-dinner-fg);
 
+  /* ===== MAP-PIN TOKENS =====
+   * Four-bucket collapse used by both the desktop Map view and the mobile
+   * per-day mini-map. Each pin reads `--pin-{category}` for its glyph
+   * fill — the same hue as the matching `--cat-*-fg` token so the legend
+   * swatch (CSS) and the SVG pin (runtime via getComputedStyle) never
+   * drift. Mirrors `apps/web/src/lib/category-pin-colors.ts`.
+   *   PinCategory   →  token alias               →  hue
+   *   transport     →  --cat-transport-fg        →  sky    (#0284C7)
+   *   hotel         →  --cat-lodging-fg          →  violet (#6D28D9)
+   *   activity      →  --cat-activity-fg         →  green  (#15803D)
+   *   dining        →  --cat-dining-fg           →  red    (#B91C1C)
+   * Single source of truth — never hand-roll a pin color downstream. */
+  --pin-transport: var(--cat-transport-fg);
+  --pin-hotel:     var(--cat-lodging-fg);
+  --pin-activity:  var(--cat-activity-fg);
+  --pin-dining:    var(--cat-dining-fg);
+
   /* ===== TYPOGRAPHY — FAMILIES ===== */
   --font-sans:          "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono:          "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -245,6 +282,33 @@
   --status-warn-bg:   #78350F;  --status-warn-fg:   #FCD34D;
   --status-danger-bg: #7F1D1D;  --status-danger-fg: #FCA5A5;
   --status-muted-bg:  #1F2D3B;  --status-muted-fg:  #94A3B0;
+
+  /* ShadCN primitives — dark-mode pairs. */
+  --secondary:             oklch(0.25 0.018 250);
+  --secondary-foreground:  var(--itinly-surface);
+  --accent:                oklch(0.25 0.018 250);
+  --accent-foreground:     var(--itinly-surface);
+  --popover:               var(--card);
+  --popover-foreground:    var(--card-foreground);
+  --destructive-foreground:var(--itinly-surface);
+
+  /* Segment-token dark-mode lifts. The light-mode 50/100-weight pastels
+   * are illegible on near-black; we wash the bg with color-mix at 60%
+   * opacity over a 950-weight base, and lift the fg to a 300-weight
+   * glyph. Rails stay the same — they read fine against either surface. */
+  --seg-flight-bg:    color-mix(in oklab, #0C4A6E 60%, transparent);  --seg-flight-fg:    #7DD3FC;
+  --seg-train-bg:     color-mix(in oklab, #1E3A8A 60%, transparent);  --seg-train-fg:     #93C5FD;
+  --seg-car-bg:       color-mix(in oklab, #164E63 60%, transparent);  --seg-car-fg:       #67E8F9;
+  --seg-hotel-bg:     color-mix(in oklab, #4C1D95 60%, transparent);  --seg-hotel-fg:     #C4B5FD;
+  --seg-activity-bg:  color-mix(in oklab, #14532D 60%, transparent);  --seg-activity-fg:  #86EFAC;
+  --seg-dinner-bg:    color-mix(in oklab, #7F1D1D 60%, transparent);  --seg-dinner-fg:    #FCA5A5;
+  --seg-lunch-bg:     color-mix(in oklab, #7C2D12 60%, transparent);  --seg-lunch-fg:     #FDBA74;
+  --seg-breakfast-bg: color-mix(in oklab, #78350F 60%, transparent);  --seg-breakfast-fg: #FCD34D;
+  --seg-transport-bg: color-mix(in oklab, #0F172A 60%, transparent);  --seg-transport-fg: #CBD5E1;
+  --seg-cruise-bg:    color-mix(in oklab, #164E63 60%, transparent);  --seg-cruise-fg:    #67E8F9;
+  --seg-tour-bg:      color-mix(in oklab, #134E4A 60%, transparent);  --seg-tour-fg:      #5EEAD4;
+  --seg-show-bg:      color-mix(in oklab, #064E3B 60%, transparent);  --seg-show-fg:      #6EE7B7;
+  --seg-brunch-bg:    color-mix(in oklab, #78350F 60%, transparent);  --seg-brunch-fg:    #FCD34D;
 }
 
 /* ===== SEGMENT TYPES =====
@@ -294,3 +358,54 @@
 /* When .seg-* is applied to (or contains) an .icon-disc, tint it. */
 [class*="seg-"].icon-disc,
 [class*="seg-"]   .icon-disc { background: var(--tint-bg); color: var(--tint-fg); }
+
+/* ===== TIMELINE GRID — RESPONSIVE OVERRIDES =====
+ * The timeline's gridTemplateColumns reads --timeline-label-col and
+ * --timeline-day-min. Tablets get a wider label column; desktops get
+ * roomier day cells. Print collapses to fit a single page. */
+@media (min-width: 640px) {
+  :root {
+    --timeline-label-col: 7rem;
+    --timeline-day-min:   6.5rem;
+  }
+}
+@media (min-width: 768px) {
+  :root {
+    --timeline-label-col: 8rem;
+    --timeline-day-min:   7.5rem;
+  }
+}
+
+/* ===== UTILITIES ===== */
+/* Hide scrollbar on horizontally-scrollable rows (e.g. tab strips) while
+ * keeping scroll. iOS already hides except during active scroll; this
+ * brings desktop in line. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ===== PRINT =====
+ * Preserve background colors so segment tints, pin colors, and category
+ * pills survive the page. Hide interactive chrome via .print-hidden.
+ * Timeline-specific resets let the grid flow to fill the page width
+ * instead of overflowing past a clipped right edge. */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-hidden { display: none !important; }
+
+  :root {
+    --timeline-label-col: 3.5rem;
+    --timeline-day-min:   0px;
+  }
+  .timeline-scroll, .timeline-card { overflow: visible !important; }
+  .timeline-grid { min-width: unset !important; font-size: 8px !important; }
+  .timeline-grid .sticky { position: static !important; }
+  .timeline-grid .truncate {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+}
