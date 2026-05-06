@@ -33,12 +33,14 @@ import {
   Calendar,
   LogOut,
   MoreVertical,
+  Share2,
   Trash2,
   Pencil,
   Check,
   Users,
   X,
 } from "lucide-react";
+import { ShareTripDialog } from "@/components/share-trip-dialog";
 
 /**
  * Map each trip status to a `--status-*` token. Pulled out so the
@@ -195,8 +197,14 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const isShared = !!trip.sharedFromEmail;
   const canEdit = !isShared || trip.sharedPermission === "edit";
   const canDelete = !isShared;
+  // Share creation is owner-only on the server, so the menu item only
+  // shows for trips the user owns. Recipients can already see who
+  // else has access from inside the trip detail page.
+  const canShare = !isShared;
   const canLeave = isShared && !!trip.sharedShareId;
-  const showMenu = canEdit || canDelete || canLeave;
+  const showMenu = canEdit || canDelete || canShare || canLeave;
+
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handleDelete = () => {
     if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
@@ -292,6 +300,12 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {canShare && (
+                <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share
+                </DropdownMenuItem>
+              )}
               {canEdit && (
                 <DropdownMenuItem
                   onClick={() => {
@@ -407,6 +421,17 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
           )}
         </div>
       </CardContent>
+      {canShare && (
+        // Mounted at the card level (not inside the menu) so the dialog
+        // outlives the dropdown's auto-close on selection. Rendered
+        // unconditionally with `open` driving visibility — Radix
+        // Dialog skips DOM cost when closed.
+        <ShareTripDialog
+          tripId={trip.id}
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+        />
+      )}
     </Card>
   );
 }
