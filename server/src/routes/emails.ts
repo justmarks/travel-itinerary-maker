@@ -481,6 +481,27 @@ function deduplicateResults(results: EmailScanResult[]): void {
 /** Statuses that mean the email is "done" and shouldn't be re-shown */
 const DONE_STATUSES = new Set(["mapped", "skipped"]);
 
+/**
+ * Prefix for always-on email-flow log lines so production logs in
+ * Railway can be traced back to a specific user / trip. Mirrors the
+ * pattern used by `[calendar-sync ...]` in `services/google-calendar.ts`.
+ *
+ * Use console.log directly (not `debugEmailScan`) for milestones the
+ * user actually wants visible without setting DEBUG_EMAIL_SCAN=1:
+ * scan start / Gmail-fetch result / per-email skip + outcome /
+ * import / apply summaries. Verbose mechanics (dedup detail,
+ * per-segment apply minutiae) stay behind `debugEmailScan`.
+ */
+function emailLogPrefix(
+  scope: "email-scan" | "email-import" | "email-apply",
+  userEmail: string | undefined,
+  trip?: { id: string; title: string },
+): string {
+  const email = userEmail ?? "anon";
+  const tripPart = trip ? ` trip:${trip.id} "${trip.title}"` : "";
+  return `[${scope} ${email}${tripPart}]`;
+}
+
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
   const { resolveStorage, tokenStore } = options;
 
@@ -591,6 +612,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   const scanRateLimiter = createEmailScanRateLimiter();
   router.post("/scan", scanRateLimiter, gmailGuard, async (req: Request, res: Response) => {
+    // Declared outside the try so the catch block at the bottom can
+    // include it in error logs without falling out of scope.
+    const scanPrefix = emailLogPrefix("email-scan", req.userEmail);
     try {
       const parsed = emailScanRequestSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -600,6 +624,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
       const storage = getStorage(req);
+      console.log(
+        `${scanPrefix} Starting scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+      );
 
       // Load all processed email records
       const processedEmails = await storage.getProcessedEmails();
@@ -638,12 +665,12 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays: newerThanDays ?? 365,
       });
 
-      debugEmailScan(
-        `Gmail returned ${rawEmails.length} emails (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+      console.log(
+        `${scanPrefix} Gmail returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
       );
       if (rawEmails.length >= effectiveMaxResults) {
         console.warn(
-          `  NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
+          `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
         );
       }
 
@@ -662,17 +689,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
         if (forceRescan) {
           if (prior.parseStatus === "mapped") {
-            debugEmailScan(`SKIP: "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
+            console.log(`${scanPrefix} Skipped "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
             return false;
           }
-          debugEmailScan(`RETRY: "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
+          console.log(`${scanPrefix} Retrying "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
           return true;
         }
 
         // Auto-retry prior failed status — previous attempt errored and the
         // code that caused it may have been fixed since.
         if (prior.parseStatus === "failed") {
-          debugEmailScan(`RETRY: "${e.subject}" (previously failed — retrying)`);
+          console.log(`${scanPrefix} Retrying "${e.subject}" (previously failed — retrying)`);
           return true;
         }
 
@@ -684,16 +711,17 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               : prior.parseStatus === "parsed"
                 ? "already parsed, pending review"
                 : `already processed (${prior.parseStatus})`;
-        debugEmailScan(`SKIP: "${e.subject}" (${reason})`);
+        console.log(`${scanPrefix} Skipped "${e.subject}" (${reason})`);
         return false;
       });
 
       // If no new emails to parse, just return pending results
       if (newEmails.length === 0) {
         if (pendingResults.length > 0) {
-          debugEmailScan(`No new emails. Returning ${pendingResults.length} pending results.`);
+          console.log(`${scanPrefix} Done: 0 new, ${pendingResults.length} pending result(s) returned`);
           res.json({ results: pendingResults, pendingCount: pendingResults.length, newCount: 0 });
         } else {
+          console.log(`${scanPrefix} Done: 0 new emails to process`);
           res.json({ results: [], message: "No new emails to process" });
         }
         return;
@@ -710,11 +738,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const noTravelResults: EmailScanResult[] = []; // for UI display only
       const newProcessedEmails: ProcessedEmail[] = [];
 
-      debugEmailScan(`Scanning ${newEmails.length} new emails (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
+      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
 
       for (const email of newEmails) {
         try {
-          debugEmailScan(`Parsing email: "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
+          console.log(`${scanPrefix} Parsing "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
           const { segments, invalidCount, rawItemCount } = await parser.parseEmail({
             subject: email.subject,
             from: email.from,
@@ -731,7 +759,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             !hasTravel && rawItemCount > 0 && invalidCount > 0;
 
           if (hasTravel) {
-            debugEmailScan(`  → ${segments.length} segments extracted`);
+            console.log(
+              `${scanPrefix} Parsed "${email.subject}" → ${segments.length} segment(s)${invalidCount > 0 ? ` (${invalidCount} invalid item(s) dropped)` : ""}`,
+            );
             if (invalidCount > 0) {
               // Some items dropped — track aggregate signal so we can spot
               // partial-failure patterns even when the email did parse.
@@ -748,7 +778,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             }
           } else if (validationFailedEverything) {
             console.warn(
-              `  PARSE FAILURE: "${email.subject}" — Claude returned ${rawItemCount} items but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
+              `${scanPrefix} Parse failure for "${email.subject}" — Claude returned ${rawItemCount} item(s) but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
             );
             recordParseFailure({
               outcome: "failed",
@@ -761,7 +791,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
               invalidCount,
             });
           } else {
-            debugEmailScan(`SKIP: "${email.subject}" (no travel content detected)`);
+            console.log(`${scanPrefix} Skipped "${email.subject}" (no travel content detected)`);
             recordParseFailure({
               outcome: "no_travel_content",
               source: "gmail_scan",
@@ -862,10 +892,10 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           // Overloaded errors are transient — log a short message, not the full stack
           if (isOverloadedError) {
             console.warn(
-              `  AI service overloaded — halting scan. Email "${email.subject}" will be retried on next scan.`,
+              `${scanPrefix} AI service overloaded — halting scan. Email "${email.subject}" will be retried on next scan.`,
             );
           } else {
-            console.error(`Failed to parse email ${email.id}:`, err);
+            console.error(`${scanPrefix} Failed to parse "${email.subject}" (${email.id}):`, err);
             // Only report non-transient exceptions — overloaded / billing /
             // auth are environmental and would otherwise drown the signal.
             if (!isBillingError && !isAuthError) {
@@ -947,13 +977,24 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
+      // Bucket the new processed records by parseStatus so the summary
+      // matches what'll be visible to the user (and what triage cares
+      // about): how many actually produced segments vs were dropped vs
+      // failed mid-parse.
+      const parsedCount = newProcessedEmails.filter((p) => p.parseStatus === "parsed").length;
+      const noTravelCount = newProcessedEmails.filter((p) => p.parseStatus === "skipped").length;
+      const failedCount = newProcessedEmails.filter((p) => p.parseStatus === "failed").length;
+      console.log(
+        `${scanPrefix} Done: ${parsedCount} parsed, ${noTravelCount} no-travel, ${failedCount} failed (${pendingResults.length} pending result(s) carried over)`,
+      );
+
       res.json({
         results: allResults,
         pendingCount: pendingResults.length,
         newCount: newResults.length,
       });
     } catch (err) {
-      console.error("POST /emails/scan error:", err);
+      console.error(`${scanPrefix} POST /emails/scan error:`, err);
       const message = err instanceof Error ? err.message : "Scan failed";
       if (message.includes("insufficient") || message.includes("scope")) {
         res.status(403).json({
@@ -978,6 +1019,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    * mark it as "mapped" once the user applies the segments.
    */
   router.post("/import-html", async (req: Request, res: Response) => {
+    // Declared outside the try so the catch block at the bottom can
+    // include it in error logs without falling out of scope.
+    const importPrefix = emailLogPrefix("email-import", req.userEmail);
     try {
       const parsed = htmlImportRequestSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -993,6 +1037,10 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const { html, eml, subject, from, receivedAt, tripId } = parsed.data;
       const storage = getStorage(req);
       const isEmlImport = Boolean(eml);
+      const sourceLength = isEmlImport ? eml!.length : html!.length;
+      console.log(
+        `${importPrefix} Importing ${isEmlImport ? "EML" : "HTML"} "${subject ?? "(no subject)"}" from ${from ?? "(no sender)"} (${sourceLength} chars${tripId ? `, tripId=${tripId}` : ""})`,
+      );
 
       // Run through the parser using the same pipeline as Gmail.
       const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
@@ -1074,7 +1122,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           return;
         }
 
-        console.error("POST /emails/import-html parser error:", err);
+        console.error(`${importPrefix} POST /emails/import-html parser error:`, err);
         recordParseFailure({
           outcome: "exception",
           source: isEmlImport ? "eml_import" : "html_import",
@@ -1148,8 +1196,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
-      debugEmailScan(
-        `${isEmlImport ? "EML" : "HTML"} import: ${segments.length} segments extracted, ${invalidCount} invalid (rawItems=${rawItemCount}, emailId=${emailId})`,
+      console.log(
+        `${importPrefix} Done: "${effectiveSubject ?? "(no subject)"}" → ${segments.length} segment(s)${invalidCount > 0 ? `, ${invalidCount} invalid` : ""} (rawItems=${rawItemCount}, emailId=${emailId})`,
       );
 
       // Telemetry: emit on every non-success outcome (and on partial failures
@@ -1190,7 +1238,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       res.status(201).json({ result });
     } catch (err) {
-      console.error("POST /emails/import-html error:", err);
+      console.error(`${importPrefix} POST /emails/import-html error:`, err);
       const message = err instanceof Error ? err.message : "HTML import failed";
       res.status(500).json({ error: message });
     }
@@ -1202,6 +1250,9 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    * Each segment may specify action=create|merge|replace + existingSegmentId.
    */
   router.post("/apply", async (req: Request, res: Response) => {
+    // Declared outside the try so the catch block can use it for the
+    // error log too — otherwise the prefix would be out of scope.
+    const applyPrefix = emailLogPrefix("email-apply", req.userEmail);
     try {
       const parsed = applyParsedSegmentsSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -1213,7 +1264,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const createdSegments: Array<{ tripId: string; segmentId: string; title: string }> = [];
       const updatedSegments: Array<{ tripId: string; segmentId: string; title: string; action: "merge" | "replace" }> = [];
 
-      debugEmailScan(`Applying ${parsed.data.segments.length} segments from email scan`);
+      console.log(`${applyPrefix} Applying ${parsed.data.segments.length} segment(s) from email scan`);
 
       // Group segments by trip
       const byTrip = new Map<string, typeof parsed.data.segments>();
@@ -1226,10 +1277,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       for (const [tid, segs] of byTrip) {
         const trip = await storage.getTrip(tid);
         if (!trip) {
-          console.warn(`  Trip ${tid} not found, skipping ${segs.length} segments`);
+          console.warn(`${applyPrefix} Trip ${tid} not found, skipping ${segs.length} segment(s)`);
           continue;
         }
-        debugEmailScan(`  Trip "${trip.title}" (${tid}): applying ${segs.length} segments`);
+        const tripApplyPrefix = emailLogPrefix("email-apply", req.userEmail, trip);
+        console.log(`${tripApplyPrefix} Applying ${segs.length} segment(s)`);
         const createdBeforeThisTrip = createdSegments.length;
         const updatedBeforeThisTrip = updatedSegments.length;
 
@@ -1383,12 +1435,12 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         await storage.saveProcessedEmails(processedEmails);
       }
 
-      debugEmailScan(
-        `Apply complete: ${createdSegments.length} created, ${updatedSegments.length} updated`,
+      console.log(
+        `${applyPrefix} Done: ${createdSegments.length} created, ${updatedSegments.length} updated`,
       );
       res.status(201).json({ created: createdSegments, updated: updatedSegments });
     } catch (err) {
-      console.error("POST /emails/apply error:", err);
+      console.error(`${applyPrefix} POST /emails/apply error:`, err);
       res.status(500).json({ error: "Failed to apply segments" });
     }
   });
