@@ -244,7 +244,10 @@ export function EditSegmentDialog({
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
             const t = e.target as HTMLElement;
-            if (t.tagName === "TEXTAREA" || t.tagName === "BUTTON") return;
+            if (t.tagName === "BUTTON") return;
+            // Plain Enter in a textarea inserts a newline; Ctrl/Cmd+Enter
+            // submits — matches the convention in Slack / GitHub / Linear.
+            if (t.tagName === "TEXTAREA" && !e.ctrlKey && !e.metaKey) return;
             const expanded = (t as HTMLElement).getAttribute(
               "aria-expanded",
             );

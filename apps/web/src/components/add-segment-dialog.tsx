@@ -135,7 +135,12 @@ export function AddSegmentDialog({
           onKeyDown={(e) => {
             if (e.key !== "Enter") return;
             const t = e.target as HTMLElement;
-            if (t.tagName === "TEXTAREA" || t.tagName === "BUTTON") return;
+            // Buttons activate themselves on Enter — never override.
+            if (t.tagName === "BUTTON") return;
+            // In a textarea, plain Enter inserts a newline (correct).
+            // Ctrl/Cmd+Enter is the standard submit shortcut and should
+            // still fire the form's Submit action.
+            if (t.tagName === "TEXTAREA" && !e.ctrlKey && !e.metaKey) return;
             // Skip when a Radix Select dropdown is open — Enter there
             // picks the highlighted option, which is the right behavior.
             const expanded = (t as HTMLElement).getAttribute(
