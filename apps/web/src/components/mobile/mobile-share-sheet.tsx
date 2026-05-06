@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { shareActivityLabel } from "@/lib/share-activity";
+import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 function buildShareUrl(token: string): string {
@@ -228,6 +229,7 @@ export function MobileShareSheet({
   const { data: shares = [] } = useShares(tripId);
   const createShare = useCreateShare(tripId);
   const deleteShare = useDeleteShare(tripId);
+  const shareNotificationsHint = useShareNotificationsHint();
   const shareTitle = formatShareTitle(tripTitle, tripStartDate, tripEndDate);
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
@@ -280,6 +282,11 @@ export function MobileShareSheet({
       setError(err instanceof Error ? err.message : "Couldn't create share.");
       return;
     }
+
+    // Surface the one-time "turn on notifications?" hint on first
+    // share creation. No-op on subsequent shares (the hint marks
+    // itself dismissed after firing once).
+    shareNotificationsHint.maybeShow();
 
     const url = buildShareUrl(createdShare.shareToken);
 
