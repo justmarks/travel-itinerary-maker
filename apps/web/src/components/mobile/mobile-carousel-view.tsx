@@ -13,11 +13,16 @@ import {
   ChevronRight,
   LayoutList,
   MapPin,
+  Plus,
 } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
+import {
+  MobileSegmentFormSheet,
+  type SegmentFormTarget,
+} from "./mobile-segment-form-sheet";
 import { getTodayIso } from "@/lib/today";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +53,7 @@ function dayShort(date: string) {
 export function MobileCarouselView({
   trip,
   showCosts = true,
+  canEdit = false,
 }: {
   trip: Trip;
   /**
@@ -58,6 +64,13 @@ export function MobileCarouselView({
    * owned-trip behaviour.
    */
   showCosts?: boolean;
+  /**
+   * When true, shows the per-day "Add" buttons and the Edit/Delete
+   * actions inside the segment detail sheet. Mirrors the desktop
+   * itinerary's `readOnly` gate so view-only contributors can't reach
+   * mutations they wouldn't be permitted to commit.
+   */
+  canEdit?: boolean;
 }): React.JSX.Element {
   const days = trip.days;
   // Index 0 = "All" overview; indices 1..days.length = individual days.
@@ -71,6 +84,7 @@ export function MobileCarouselView({
     return idx >= 0 ? idx + 1 : 0;
   });
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
+  const [formTarget, setFormTarget] = useState<SegmentFormTarget>(null);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
@@ -245,6 +259,11 @@ export function MobileCarouselView({
           <MobileDaysList
             days={days}
             onSelectSegment={setSelectedSegment}
+            onAddSegment={
+              canEdit
+                ? (date) => setFormTarget({ mode: "new", date })
+                : undefined
+            }
             showCosts={showCosts}
           />
         </div>
@@ -258,20 +277,48 @@ export function MobileCarouselView({
               className="flex h-full w-full shrink-0 snap-start snap-always flex-col overflow-y-auto"
             >
               <div className="flex flex-col gap-2.5 px-4 py-4">
-                <div className="flex items-baseline gap-2 pb-1">
-                  <h2 className="text-base font-semibold">
-                    {day.dayOfWeek}, {dayShort(day.date)}
-                  </h2>
-                  {sorted.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {sorted.length} {sorted.length === 1 ? "item" : "items"}
-                    </span>
+                <div className="flex items-baseline justify-between gap-2 pb-1">
+                  <div className="flex items-baseline gap-2">
+                    <h2 className="text-base font-semibold">
+                      {day.dayOfWeek}, {dayShort(day.date)}
+                    </h2>
+                    {sorted.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {sorted.length} {sorted.length === 1 ? "item" : "items"}
+                      </span>
+                    )}
+                  </div>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormTarget({ mode: "new", date: day.date })
+                      }
+                      className="inline-flex h-8 items-center gap-1 rounded-full border bg-background px-2.5 text-xs font-medium text-foreground active:bg-muted/40"
+                      aria-label={`Add segment to ${day.dayOfWeek}, ${dayShort(day.date)}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add
+                    </button>
                   )}
                 </div>
                 {sorted.length === 0 ? (
-                  <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                    Nothing planned this day.
-                  </p>
+                  canEdit ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFormTarget({ mode: "new", date: day.date })
+                      }
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed bg-card px-4 py-6 text-sm text-muted-foreground active:bg-muted/40"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add the first segment
+                    </button>
+                  ) : (
+                    <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+                      Nothing planned this day.
+                    </p>
+                  )
                 ) : (
                   sorted.map((seg) => (
                     <MobileSegmentCard
@@ -296,7 +343,18 @@ export function MobileCarouselView({
         segment={selectedSegment}
         date={segmentDate}
         showCosts={showCosts}
+        canEdit={canEdit}
         onClose={() => setSelectedSegment(null)}
+        onEdit={(seg, date) => {
+          setSelectedSegment(null);
+          setFormTarget({ mode: "edit", segment: seg, date });
+        }}
+      />
+
+      <MobileSegmentFormSheet
+        tripId={trip.id}
+        target={formTarget}
+        onClose={() => setFormTarget(null)}
       />
     </div>
   );
