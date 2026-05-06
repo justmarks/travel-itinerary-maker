@@ -20,6 +20,7 @@ import {
   defaultEndDate,
   deriveCityFromForm,
   getTypeFlags,
+  resolveSegmentTitle,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
@@ -200,7 +201,12 @@ function SegmentFormBody({
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const canSave = form.title.trim().length > 0;
+  // Title is optional for dining segments — `resolveSegmentTitle` falls
+  // back to "<Meal> @ <Venue>" when the user leaves it blank but has set
+  // a venue. Use the resolved value for both the can-save check and the
+  // mutation payload so the UX reflects what'll actually be saved.
+  const resolvedTitle = resolveSegmentTitle(form);
+  const canSave = resolvedTitle.length > 0;
   const isPending = createSegment.isPending || updateSegment.isPending;
 
   const handleSave = () => {
@@ -224,7 +230,7 @@ function SegmentFormBody({
         {
           date: form.date || target.date,
           type: form.type as SegmentType,
-          title: form.title,
+          title: resolvedTitle,
           startTime: form.startTime || undefined,
           endTime: form.endTime || undefined,
           venueName: form.venueName || undefined,
@@ -278,7 +284,7 @@ function SegmentFormBody({
     const updates: Record<string, unknown> = {
       segmentId: target.segment.id,
       type: form.type as SegmentType,
-      title: form.title,
+      title: resolvedTitle,
       startTime: form.startTime || undefined,
       endTime: form.endTime || undefined,
       url: form.url || undefined,

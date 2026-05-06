@@ -176,6 +176,30 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   costDetails: "",
 };
 
+const MEAL_LABELS: Record<string, string> = {
+  restaurant_breakfast: "Breakfast",
+  restaurant_brunch: "Brunch",
+  restaurant_lunch: "Lunch",
+  restaurant_dinner: "Dinner",
+};
+
+/**
+ * Returns the title to save for the segment. If the user typed one,
+ * use it verbatim. For dining segments (breakfast / brunch / lunch /
+ * dinner) where the user left the title blank, derive it from the
+ * meal type + venue name — "Lunch @ Araxi". Returns "" when no title
+ * is available (the form-level `canSave` should refuse to submit in
+ * that case).
+ */
+export function resolveSegmentTitle(form: SegmentFormState): string {
+  const typed = form.title.trim();
+  if (typed) return typed;
+  const mealLabel = MEAL_LABELS[form.type];
+  const venue = form.venueName.trim();
+  if (mealLabel && venue) return `${mealLabel} @ ${venue}`;
+  return "";
+}
+
 /**
  * Picks a city to associate with the segment, in priority order:
  *   1. Explicit `city` field (used by hotel, restaurant, activity, etc.)
@@ -569,13 +593,20 @@ export function SegmentFormFields({
 
       {/* ── Title ── */}
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-title`}>Title</Label>
+        <Label htmlFor={`${idPrefix}-title`}>
+          Title
+          {isRestaurant && (
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              (optional)
+            </span>
+          )}
+        </Label>
         <Input
           id={`${idPrefix}-title`}
           placeholder={
             isFlight ? "e.g. SEA → NRT" :
             isHotel ? "e.g. Hilton Garden Inn" :
-            isRestaurant ? "e.g. Canlis" :
+            isRestaurant ? "Auto: \"<Meal> @ <Venue>\"" :
             isCarRental ? "e.g. National - Lihue" :
             "e.g. City Walking Tour"
           }

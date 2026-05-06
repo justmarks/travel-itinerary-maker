@@ -16,6 +16,7 @@ import {
   SegmentFormFields,
   getTypeFlags,
   defaultEndDate,
+  resolveSegmentTitle,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 
@@ -88,6 +89,11 @@ export function EditSegmentDialog({
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // Dining titles can fall back to "<Meal> @ <Venue>" when blank — see
+  // resolveSegmentTitle. Used both for the submit-button enable check
+  // below and the mutation payload.
+  const resolvedTitle = resolveSegmentTitle(form);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -104,7 +110,7 @@ export function EditSegmentDialog({
     const updates: Record<string, unknown> = {
       segmentId: segment.id,
       type: form.type as SegmentType,
-      title: form.title,
+      title: resolvedTitle,
       startTime: form.startTime || undefined,
       endTime: form.endTime || undefined,
       url: form.url || undefined,
@@ -275,7 +281,7 @@ export function EditSegmentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={!form.title.trim() || updateSegment.isPending}
+              disabled={!resolvedTitle || updateSegment.isPending}
             >
               {updateSegment.isPending ? (
                 <>

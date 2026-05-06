@@ -17,6 +17,7 @@ import {
   SegmentFormFields,
   EMPTY_FORM_STATE,
   defaultEndDate,
+  resolveSegmentTitle,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
 
@@ -41,6 +42,12 @@ export function AddSegmentDialog({
 
   const reset = () => setForm({ ...EMPTY_FORM_STATE, date });
 
+  // Title is optional for dining segments — `resolveSegmentTitle` falls
+  // back to "<Meal> @ <Venue>" when blank but venue is set. The submit
+  // button below mirrors this so dining types unlock as soon as either
+  // a title or a venue is filled in.
+  const resolvedTitle = resolveSegmentTitle(form);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -57,7 +64,7 @@ export function AddSegmentDialog({
       {
         date: form.date || date,
         type: form.type as SegmentType,
-        title: form.title,
+        title: resolvedTitle,
         startTime: form.startTime || undefined,
         endTime: form.endTime || undefined,
         venueName: form.venueName || undefined,
@@ -171,7 +178,7 @@ export function AddSegmentDialog({
             </Button>
             <Button
               type="submit"
-              disabled={!form.title.trim() || createSegment.isPending}
+              disabled={!resolvedTitle || createSegment.isPending}
             >
               {createSegment.isPending ? "Adding..." : "Add Segment"}
             </Button>
