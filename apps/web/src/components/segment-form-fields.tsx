@@ -326,11 +326,30 @@ export function SegmentTypeSelect({
   id?: string;
 }): React.JSX.Element {
   return (
-    <Select value={value} onValueChange={onValueChange}>
+    <Select
+      value={value}
+      // Radix Select can fire onValueChange with `""` when a touch
+      // gesture is interpreted as "cancel" (tap-and-release on the
+      // trigger without dragging to an item). Ignore those — the
+      // user didn't pick anything, so the previous value should
+      // stick. Without this guard, a stray tap on Android wiped
+      // form.type and the next save failed Zod's enum validation.
+      onValueChange={(v) => {
+        if (!v) return;
+        onValueChange(v);
+      }}
+    >
       <SelectTrigger id={id}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      {/* `position="popper"` instead of the ShadCN default
+          `"item-aligned"`. item-aligned uses Radix's drag-to-select
+          interaction (touch the trigger, drag to an item, release).
+          On Android a normal tap-and-release on the trigger is
+          interpreted as "cancel" and the dropdown closes immediately
+          — the user has to tap a second time to actually use it. The
+          popper position uses standard click semantics. */}
+      <SelectContent position="popper">
         {SEGMENT_TYPE_GROUPS.map((group) => (
           <SelectGroup key={group.label}>
             <SelectLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
