@@ -153,6 +153,14 @@ export function EditTodoDialog({
                 onChange={(e) => setDetails(e.target.value)}
                 placeholder="Add details, links, or context. Markdown is supported — try [link text](https://example.com) or paste a URL."
                 rows={5}
+                // Ctrl/Cmd + Enter submits the form. Plain Enter is left
+                // alone so the user can still type multi-line notes.
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
               />
               {details.trim() && (
                 <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2">
