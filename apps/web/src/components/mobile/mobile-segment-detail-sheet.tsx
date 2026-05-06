@@ -16,6 +16,7 @@ import {
   CreditCard,
   ExternalLink,
   MapPin,
+  Pencil,
   Phone,
   UserRound,
   Users,
@@ -184,17 +185,31 @@ export function MobileSegmentDetailSheet({
   segment,
   date,
   onClose,
+  onEdit,
   showCosts = true,
+  canEdit = false,
 }: {
   segment: Segment | null;
   /** ISO date the segment lives on (the parent day). */
   date?: string;
   onClose: () => void;
   /**
+   * Fires when the user taps "Edit" — the parent should close the
+   * detail sheet and open the form sheet pre-filled with this segment.
+   * Required when `canEdit` is true; ignored when read-only.
+   */
+  onEdit?: (segment: Segment, date: string) => void;
+  /**
    * When false, suppress the cost row inside the sheet — matches the
    * inline card behaviour when the parent share has `showCosts: false`.
    */
   showCosts?: boolean;
+  /**
+   * When true, render an "Edit" footer action that delegates to
+   * `onEdit`. The form sheet is where Delete lives, so we don't
+   * duplicate it here.
+   */
+  canEdit?: boolean;
 }): React.JSX.Element | null {
   if (!segment) {
     return (
@@ -517,7 +532,10 @@ export function MobileSegmentDetailSheet({
       </div>
 
       {/* Actions */}
-      {(mapsQ || segment.url || ((isRestaurant || isCarService) && segment.phone)) && (
+      {(mapsQ ||
+        segment.url ||
+        ((isRestaurant || isCarService) && segment.phone) ||
+        (canEdit && date && onEdit)) && (
         <div className="flex shrink-0 gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
           {mapsQ && (
             <ActionButton
@@ -541,6 +559,16 @@ export function MobileSegmentDetailSheet({
               label="Open"
               external
             />
+          )}
+          {canEdit && date && onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(segment, date)}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground active:bg-primary/90"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit
+            </button>
           )}
         </div>
       )}

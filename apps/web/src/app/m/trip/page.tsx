@@ -470,6 +470,7 @@ function TripFrame({
       <MobileCarouselView
         trip={trip}
         showCosts={!permission.isLoading && permission.showCosts}
+        canEdit={!permission.isLoading && permission.canEdit}
       />
       {/* Sheets are only mounted when the corresponding pill is allowed
           to open them — keeps the data off the page entirely for shares

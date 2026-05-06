@@ -1,7 +1,7 @@
 "use client";
 
 import type { TripDay, Segment } from "@travel-app/shared";
-import { MapPin, ArrowDown, Plane, Train } from "lucide-react";
+import { MapPin, ArrowDown, Plane, Plus, Train } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 
 function fmtDayHeader(date: string, dayOfWeek: string) {
@@ -47,11 +47,18 @@ export function MobileDaysList({
   days,
   stickyHeaderTopClass = "top-0",
   onSelectSegment,
+  onAddSegment,
   showCosts = true,
 }: {
   days: readonly TripDay[];
   stickyHeaderTopClass?: string;
   onSelectSegment?: (segment: Segment) => void;
+  /**
+   * When provided, renders a per-day "Add" button in the sticky day
+   * header. Omit for read-only contexts (public viewer, share with
+   * `canEdit: false`).
+   */
+  onAddSegment?: (date: string) => void;
   /**
    * Threaded down to `MobileSegmentCard`. When false, suppresses the
    * inline cost line — used by the contributor view of a shared trip
@@ -106,20 +113,43 @@ export function MobileDaysList({
                     {weekday}, {md}
                   </h2>
                 </div>
-                {day.city && (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" />
-                    {day.city}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {day.city && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <MapPin className="h-3 w-3" />
+                      {day.city}
+                    </span>
+                  )}
+                  {onAddSegment && (
+                    <button
+                      type="button"
+                      onClick={() => onAddSegment(day.date)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-foreground active:bg-muted/40"
+                      aria-label={`Add segment to ${weekday}, ${md}`}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-2.5 px-4 py-4">
               {sorted.length === 0 ? (
-                <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                  Nothing planned.
-                </p>
+                onAddSegment ? (
+                  <button
+                    type="button"
+                    onClick={() => onAddSegment(day.date)}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed bg-card px-4 py-6 text-sm text-muted-foreground active:bg-muted/40"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add the first segment
+                  </button>
+                ) : (
+                  <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
+                    Nothing planned.
+                  </p>
+                )
               ) : (
                 sorted.map((seg) => (
                   <MobileSegmentCard
