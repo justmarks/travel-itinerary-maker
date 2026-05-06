@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { shareActivityLabel } from "@/lib/share-activity";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
@@ -230,6 +231,7 @@ export function MobileShareSheet({
   const createShare = useCreateShare(tripId);
   const deleteShare = useDeleteShare(tripId);
   const shareNotificationsHint = useShareNotificationsHint();
+  const confirm = useConfirm();
   const shareTitle = formatShareTitle(tripTitle, tripStartDate, tripEndDate);
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
@@ -416,13 +418,15 @@ export function MobileShareSheet({
                   share={share}
                   shareUrl={buildShareUrl(share.shareToken)}
                   shareTitle={shareTitle}
-                  onRevoke={() => {
-                    if (
-                      typeof window === "undefined" ||
-                      !window.confirm("Revoke this share link?")
-                    ) {
-                      return;
-                    }
+                  onRevoke={async () => {
+                    const ok = await confirm({
+                      title: "Revoke this share link?",
+                      description:
+                        "Anyone using this link will lose access immediately.",
+                      confirmText: "Revoke",
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     deleteShare.mutate(share.id, {
                       onSuccess: () => toast.success("Share link revoked"),
                       onError: (err) =>

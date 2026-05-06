@@ -61,7 +61,6 @@ import {
   AlertTriangle,
   MoreHorizontal,
   FileCode2,
-  Smartphone,
   Share2,
   Trash2,
   Users,
@@ -79,6 +78,7 @@ import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref, useDemoMode } from "@/lib/demo";
 import { useAuth } from "@/lib/auth";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
@@ -384,12 +384,18 @@ function TripActionsMenu({
 }) {
   const client = useApiClient();
   const router = useRouter();
+  const confirm = useConfirm();
   const deleteTrip = useDeleteTrip();
   const [exporting, setExporting] = useState(false);
-  const mobilePreviewHref = useDemoHref(`/m/trip?id=${tripId}&v=carousel`);
 
-  const handleDelete = () => {
-    if (!confirm(`Delete "${tripTitle}"? This cannot be undone.`)) return;
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${tripTitle}"?`,
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteTrip.mutate(tripId, {
       onSuccess: () => {
         // Bounce to the dashboard so the user isn't stuck on a now-404
@@ -409,8 +415,10 @@ function TripActionsMenu({
     setExporting(true);
     try {
       await fn();
-    } catch {
-      alert("Export failed.");
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setExporting(false);
     }
@@ -483,12 +491,6 @@ function TripActionsMenu({
           <FileCode2 className="mr-2 h-4 w-4" />
           Import email
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href={mobilePreviewHref}>
-            <Smartphone className="mr-2 h-4 w-4" />
-            Mobile preview
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
@@ -551,17 +553,18 @@ function LeaveTripMenu({
   ownShareId: string;
 }): React.JSX.Element {
   const router = useRouter();
+  const confirm = useConfirm();
   const deleteShare = useDeleteShare(tripId);
 
-  const handleLeave = () => {
-    if (
-      typeof window === "undefined" ||
-      !window.confirm(
-        `Leave "${tripTitle}"? You'll lose access to this trip — the owner will be notified.`,
-      )
-    ) {
-      return;
-    }
+  const handleLeave = async () => {
+    const ok = await confirm({
+      title: `Leave "${tripTitle}"?`,
+      description:
+        "You'll lose access to this trip — the owner will be notified.",
+      confirmText: "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteShare.mutate(ownShareId, {
       onSuccess: () => {
         // The trip is no longer visible to this user — bouncing to the

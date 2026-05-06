@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RequireAuth } from "@/components/require-auth";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoMode } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { useCachedTripIds } from "@/lib/use-cached-trips";
@@ -154,20 +155,21 @@ function MobileTripCardLeaveMenu({
   trip: TripSummary;
 }): React.JSX.Element | null {
   const router = useRouter();
+  const confirm = useConfirm();
   const deleteShare = useDeleteShare(trip.id);
 
   if (!trip.sharedShareId) return null;
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
     if (!trip.sharedShareId) return;
-    if (
-      typeof window === "undefined" ||
-      !window.confirm(
-        `Leave "${trip.title}"? You'll lose access to this trip — the owner will be notified.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Leave "${trip.title}"?`,
+      description:
+        "You'll lose access to this trip — the owner will be notified.",
+      confirmText: "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
         router.push("/m");

@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { useTripPermission } from "@/lib/use-trip-permission";
@@ -70,17 +71,19 @@ function MobileTripOverflowMenu({
   leaveTripShareId: string | null;
 }): React.JSX.Element {
   const router = useRouter();
+  const confirm = useConfirm();
   const homeHref = useDemoHref("/m");
   const deleteTrip = useDeleteTrip();
   const deleteShare = useDeleteShare(tripId);
 
-  const handleDelete = () => {
-    if (
-      typeof window === "undefined" ||
-      !window.confirm(`Delete "${tripTitle}"? This cannot be undone.`)
-    ) {
-      return;
-    }
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${tripTitle}"?`,
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteTrip.mutate(tripId, {
       onSuccess: () => {
         router.push(homeHref);
@@ -93,16 +96,16 @@ function MobileTripOverflowMenu({
     });
   };
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
     if (!leaveTripShareId) return;
-    if (
-      typeof window === "undefined" ||
-      !window.confirm(
-        `Leave "${tripTitle}"? You'll lose access to this trip — the owner will be notified.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Leave "${tripTitle}"?`,
+      description:
+        "You'll lose access to this trip — the owner will be notified.",
+      confirmText: "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteShare.mutate(leaveTripShareId, {
       onSuccess: () => {
         router.push(homeHref);

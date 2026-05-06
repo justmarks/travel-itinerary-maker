@@ -6,6 +6,7 @@ import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ApiClientProvider } from "@travel-app/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
+import { ConfirmDialogProvider } from "@/lib/confirm-dialog";
 import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 import { initMonitoring } from "@/lib/monitoring";
@@ -121,8 +122,10 @@ export function Providers({
     >
       <AuthProvider>
         <DemoProvider>
-          <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
-          <ServiceWorkerRegister />
+          <ConfirmDialogProvider>
+            <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
+            <ServiceWorkerRegister />
+          </ConfirmDialogProvider>
         </DemoProvider>
       </AuthProvider>
     </ThemeProvider>
