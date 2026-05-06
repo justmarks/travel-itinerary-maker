@@ -126,6 +126,25 @@ export function AddSegmentDialog({
             `max-h-[85vh]` cap. */}
         <form
           onSubmit={handleSubmit}
+          // Enter anywhere inside this form (other than a textarea, where
+          // Enter should insert a newline, or a button, which activates
+          // itself) fires the default Submit. Without this, focus on the
+          // Type / Currency Selects intercepts Enter to open their
+          // dropdowns and the user can't submit until they explicitly
+          // click the Add Segment button.
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === "TEXTAREA" || t.tagName === "BUTTON") return;
+            // Skip when a Radix Select dropdown is open — Enter there
+            // picks the highlighted option, which is the right behavior.
+            const expanded = (t as HTMLElement).getAttribute(
+              "aria-expanded",
+            );
+            if (expanded === "true") return;
+            e.preventDefault();
+            e.currentTarget.requestSubmit();
+          }}
           className="flex min-h-0 flex-1 flex-col"
         >
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">

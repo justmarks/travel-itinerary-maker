@@ -143,6 +143,19 @@ export function TripTodos({
       {showAdd && (
         <form
           onSubmit={handleAdd}
+          // ESC anywhere inside the inline-add form closes it. The Plus
+          // toggle on the header is hidden by the X icon while showAdd
+          // is true, so without a keyboard escape hatch the user has
+          // to mouse over to that X to bail out.
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setNewText("");
+              setNewCategory("");
+              setShowAdd(false);
+            }
+          }}
           className="mb-3 flex flex-col gap-2 rounded-md border bg-card p-3"
         >
           <Input

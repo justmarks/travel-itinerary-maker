@@ -238,6 +238,20 @@ export function EditSegmentDialog({
             see add-segment-dialog.tsx for the same pattern + rationale. */}
         <form
           onSubmit={handleSubmit}
+          // See add-segment-dialog.tsx for the rationale — without
+          // this, Enter from a focused Select trigger opens the
+          // dropdown instead of submitting the form.
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            const t = e.target as HTMLElement;
+            if (t.tagName === "TEXTAREA" || t.tagName === "BUTTON") return;
+            const expanded = (t as HTMLElement).getAttribute(
+              "aria-expanded",
+            );
+            if (expanded === "true") return;
+            e.preventDefault();
+            e.currentTarget.requestSubmit();
+          }}
           className="flex min-h-0 flex-1 flex-col"
         >
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
