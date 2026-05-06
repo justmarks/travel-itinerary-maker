@@ -13,10 +13,7 @@ import {
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
 import { ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  useCategoryPinColors,
-  categoryTokenName,
-} from "@/lib/category-pin-colors";
+import { useCategoryPinColors } from "@/lib/category-pin-colors";
 
 // ── Category helpers ──────────────────────────────────────────
 
@@ -234,7 +231,7 @@ function MapInner({
             <div key={cat} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <div
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ background: `var(--cat-${categoryTokenName(cat)}-fg)` }}
+                style={{ background: `var(--pin-${cat})` }}
               />
               {CATEGORY_LABEL[cat]}
             </div>
