@@ -227,21 +227,28 @@ export function EditSegmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Edit segment</DialogTitle>
           <DialogDescription>
             Update the details of this trip segment.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <SegmentFormFields
-            form={form}
-            onChange={handleChange}
-            idPrefix="edit"
-          />
+        {/* Three-region layout (header / scrollable body / pinned footer);
+            see add-segment-dialog.tsx for the same pattern + rationale. */}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <SegmentFormFields
+              form={form}
+              onChange={handleChange}
+              idPrefix="edit"
+            />
+          </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
             <Button
               type="button"
               variant="outline"
