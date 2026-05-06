@@ -176,6 +176,25 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   costDetails: "",
 };
 
+/**
+ * Picks a city to associate with the segment, in priority order:
+ *   1. Explicit `city` field (used by hotel, restaurant, activity, etc.)
+ *   2. `arrivalCity` (flight, train, transport, cruise — destination is
+ *      the most likely "where you'll be" for the day)
+ *   3. `departureCity` (fallback for transport segments where only the
+ *      origin is known)
+ * Returns `null` when none are filled. Trims whitespace.
+ */
+export function deriveCityFromForm(form: SegmentFormState): string | null {
+  const city = form.city.trim();
+  if (city) return city;
+  const arrival = form.arrivalCity.trim();
+  if (arrival) return arrival;
+  const departure = form.departureCity.trim();
+  if (departure) return departure;
+  return null;
+}
+
 // ─── Airport autocomplete ───────────────────────────────────────────────────
 
 /**

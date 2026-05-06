@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  queryKeys,
   useCreateSegment,
   useDeleteSegment,
+  useUpdateDay,
   useUpdateSegment,
 } from "@travel-app/api-client";
-import type { Segment, SegmentType } from "@travel-app/shared";
+import type { Segment, SegmentType, Trip } from "@travel-app/shared";
 import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
@@ -15,6 +18,7 @@ import {
   EMPTY_FORM_STATE,
   SegmentFormFields,
   defaultEndDate,
+  deriveCityFromForm,
   getTypeFlags,
   type SegmentFormState,
 } from "@/components/segment-form-fields";
@@ -128,7 +132,57 @@ function SegmentFormBody({
   const createSegment = useCreateSegment(tripId);
   const updateSegment = useUpdateSegment(tripId);
   const deleteSegment = useDeleteSegment(tripId);
+  const updateDay = useUpdateDay(tripId);
+  const queryClient = useQueryClient();
   const confirm = useConfirm();
+
+  /**
+   * Decides whether saving the current form should also push a city
+   * update onto the destination day. Mobile only — desktop has the
+   * `EditableCity` affordance for explicit day-city edits, but mobile
+   * has no manual control, so the form derives the day's city from the
+   * segment as a sensible default.
+   *
+   * Rules:
+   *   - Add: if the destination day has no city yet, set it from the
+   *     new segment.
+   *   - Edit: if the segment will be the only one on the destination
+   *     day after the edit (covers same-day edits where it's already
+   *     the lone segment, and cross-day moves into an empty day),
+   *     update the day's city to match. Doesn't touch days with
+   *     other segments — those have multiple inputs to derive from
+   *     and the user might have set the city deliberately.
+   *
+   * Returns the day mutation payload, or null if no update is needed.
+   */
+  const computeDayCityUpdate = (): {
+    date: string;
+    city: string;
+  } | null => {
+    const trip = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
+    if (!trip) return null;
+    const targetDate = form.date || target.date;
+    const day = trip.days.find((d) => d.date === targetDate);
+    if (!day) return null;
+    const newCity = deriveCityFromForm(form);
+    if (!newCity) return null;
+
+    if (target.mode === "new") {
+      return day.city ? null : { date: targetDate, city: newCity };
+    }
+
+    // Edit: count other segments on the destination day. For same-day
+    // edits, this is `day.segments.length - 1` (excluding the segment
+    // being edited). For cross-day moves, the segment isn't on this
+    // day yet, so other-count == day.segments.length. Either way,
+    // `willBeOnly` true means after the save, this segment is the
+    // only one on the destination day.
+    const willBeOnly =
+      day.segments.filter((s) => s.id !== target.segment.id).length === 0;
+    if (!willBeOnly) return null;
+    if (day.city === newCity) return null;
+    return { date: targetDate, city: newCity };
+  };
 
   const isAdd = target.mode === "new";
   const isEdit = target.mode === "edit";
@@ -160,6 +214,10 @@ function SegmentFormBody({
             details: form.costDetails || undefined,
           }
         : undefined;
+
+    // Snapshot before either mutation so the day-state check reflects
+    // the pre-mutation cache (the segment hasn't been added/edited yet).
+    const dayCityUpdate = computeDayCityUpdate();
 
     if (target.mode === "new") {
       createSegment.mutate(
@@ -200,7 +258,10 @@ function SegmentFormBody({
           cost,
         },
         {
-          onSuccess: onClose,
+          onSuccess: () => {
+            if (dayCityUpdate) updateDay.mutate(dayCityUpdate);
+            onClose();
+          },
           onError: (err) => {
             toast.error("Couldn't add segment", {
               description: describeError(err),
@@ -313,7 +374,10 @@ function SegmentFormBody({
     updateSegment.mutate(
       updates as Parameters<typeof updateSegment.mutate>[0],
       {
-        onSuccess: onClose,
+        onSuccess: () => {
+          if (dayCityUpdate) updateDay.mutate(dayCityUpdate);
+          onClose();
+        },
         onError: (err) => {
           toast.error("Couldn't save segment", {
             description: describeError(err),
