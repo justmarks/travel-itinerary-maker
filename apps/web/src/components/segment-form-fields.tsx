@@ -345,10 +345,10 @@ export function SegmentTypeSelect({
       {/* `position="popper"` instead of the ShadCN default
           `"item-aligned"`. item-aligned uses Radix's drag-to-select
           interaction (touch the trigger, drag to an item, release).
-          On Android a normal tap-and-release on the trigger is
-          interpreted as "cancel" and the dropdown closes immediately
-          — the user has to tap a second time to actually use it. The
-          popper position uses standard click semantics. */}
+          The popper position uses standard click semantics — better
+          on touch (mobile uses a native <select> via NativeSegmentTypeSelect
+          below regardless, but popper is a sensible default for any
+          touch-based desktop too). */}
       <SelectContent position="popper">
         {SEGMENT_TYPE_GROUPS.map((group) => (
           <SelectGroup key={group.label}>
@@ -367,6 +367,59 @@ export function SegmentTypeSelect({
   );
 }
 
+/**
+ * Mobile-friendly type picker backed by a native HTML `<select>` so the
+ * platform's native picker UI (Android bottom sheet, iOS wheel) handles
+ * the interaction. Radix's Select on Android Chrome had two pre-fixed
+ * issues: (1) the dropdown flashed away on tap because of Radix's
+ * pointer-event-based "drag to select / cancel on quick release"
+ * gesture model, and (2) cancel paths could fire `onValueChange("")`
+ * which wiped form state. Using a native select sidesteps both — the
+ * platform owns the picker and only fires `change` when the user
+ * actually picks something.
+ */
+export function NativeSegmentTypeSelect({
+  value,
+  onValueChange,
+  id,
+}: {
+  value: string;
+  onValueChange: (v: string) => void;
+  id?: string;
+}): React.JSX.Element {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onValueChange(e.target.value)}
+      // Match the Input/SelectTrigger height + border so the field sits
+      // alongside the other form rows without restyling. The
+      // `appearance-none` keeps the platform chrome (chevron, picker)
+      // off the visible field on iOS — the chevron is rendered by the
+      // background-image below. Without this, iOS renders a small
+      // native arrow inside the field that doesn't match the rest of
+      // the form.
+      className={cn(
+        "h-9 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-9 text-sm shadow-xs",
+        "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat",
+        // Inline chevron-down SVG so we don't need an extra wrapper element.
+        "bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")]",
+      )}
+    >
+      {SEGMENT_TYPE_GROUPS.map((group) => (
+        <optgroup key={group.label} label={group.label}>
+          {group.items.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
 // ─── Form fields component ──────────────────────────────────────────────────
 
 export function SegmentFormFields({
@@ -374,6 +427,7 @@ export function SegmentFormFields({
   onChange,
   idPrefix,
   autoFocusTitle = false,
+  useNativeTypeSelect = false,
 }: {
   form: SegmentFormState;
   onChange: (patch: Partial<SegmentFormState>) => void;
@@ -384,6 +438,13 @@ export function SegmentFormFields({
    * so we don't pop the keyboard on mobile just for tapping a row open.
    */
   autoFocusTitle?: boolean;
+  /**
+   * Render a native HTML `<select>` for the type field instead of the
+   * Radix Select. Used by the mobile bottom-sheet form so Android /
+   * iOS use the platform's native picker — the Radix pointer-event
+   * gesture model interacts poorly with quick taps on touch.
+   */
+  useNativeTypeSelect?: boolean;
 }): React.JSX.Element {
   const flags = getTypeFlags(form.type);
   const {
@@ -445,21 +506,36 @@ export function SegmentFormFields({
       {/* ── Type + Date ── */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Type</Label>
-          <SegmentTypeSelect
-            value={form.type}
-            onValueChange={(v) => {
-              const patch: Partial<SegmentFormState> = { type: v };
-              // Hotels: default check-in to 3 PM and check-out to 11 AM
-              // when the user picks the type. Only fills empty fields so we
-              // never clobber a value the user already typed.
-              if (v === "hotel") {
-                if (!form.startTime) patch.startTime = "15:00";
-                if (!form.endTime) patch.endTime = "11:00";
-              }
-              onChange(patch);
-            }}
-          />
+          <Label htmlFor={`${idPrefix}-type`}>Type</Label>
+          {useNativeTypeSelect ? (
+            <NativeSegmentTypeSelect
+              id={`${idPrefix}-type`}
+              value={form.type}
+              onValueChange={(v) => {
+                const patch: Partial<SegmentFormState> = { type: v };
+                if (v === "hotel") {
+                  if (!form.startTime) patch.startTime = "15:00";
+                  if (!form.endTime) patch.endTime = "11:00";
+                }
+                onChange(patch);
+              }}
+            />
+          ) : (
+            <SegmentTypeSelect
+              value={form.type}
+              onValueChange={(v) => {
+                const patch: Partial<SegmentFormState> = { type: v };
+                // Hotels: default check-in to 3 PM and check-out to 11 AM
+                // when the user picks the type. Only fills empty fields so we
+                // never clobber a value the user already typed.
+                if (v === "hotel") {
+                  if (!form.startTime) patch.startTime = "15:00";
+                  if (!form.endTime) patch.endTime = "11:00";
+                }
+                onChange(patch);
+              }}
+            />
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-date`}>Date</Label>

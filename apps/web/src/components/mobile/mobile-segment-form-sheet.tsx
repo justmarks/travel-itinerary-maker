@@ -374,6 +374,7 @@ function SegmentFormBody({
           onChange={handleChange}
           idPrefix={isAdd ? "m-add" : "m-edit"}
           autoFocusTitle={isAdd}
+          useNativeTypeSelect
         />
       </form>
 
