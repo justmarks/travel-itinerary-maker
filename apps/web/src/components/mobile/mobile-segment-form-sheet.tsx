@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   useCreateSegment,
   useDeleteSegment,
@@ -73,6 +73,14 @@ function segmentToFormState(
  *   - `null`              → sheet is closed
  *   - `{ mode: "new" }`   → "Add" mode, form starts blank for the day
  *   - `{ mode: "edit" }`  → "Edit" mode, pre-filled, delete button shown
+ *
+ * The form body lives in a child component that is unmounted whenever
+ * the sheet closes, and keyed on `target` so re-opening always builds
+ * a fresh `useState` from the new target. Without this, form state
+ * survives close/reopen (the outer component stays mounted), and the
+ * first render after re-open briefly showed the previous segment's
+ * data — a fast tap on Android could submit before a reset effect
+ * fired, producing segments with the wrong type.
  */
 export function MobileSegmentFormSheet({
   tripId,
@@ -83,36 +91,66 @@ export function MobileSegmentFormSheet({
   target: SegmentFormTarget;
   onClose: () => void;
 }): React.JSX.Element {
+  const open = target !== null;
+  const isAdd = target?.mode === "new";
+
+  return (
+    <MobileBottomSheet
+      open={open}
+      onClose={onClose}
+      ariaLabel={isAdd ? "Add segment" : "Edit segment"}
+    >
+      {target && (
+        <SegmentFormBody
+          key={
+            target.mode === "edit"
+              ? `edit-${target.segment.id}`
+              : `new-${target.date}`
+          }
+          tripId={tripId}
+          target={target}
+          onClose={onClose}
+        />
+      )}
+    </MobileBottomSheet>
+  );
+}
+
+function SegmentFormBody({
+  tripId,
+  target,
+  onClose,
+}: {
+  tripId: string;
+  target: Exclude<SegmentFormTarget, null>;
+  onClose: () => void;
+}): React.JSX.Element {
   const createSegment = useCreateSegment(tripId);
   const updateSegment = useUpdateSegment(tripId);
   const deleteSegment = useDeleteSegment(tripId);
   const confirm = useConfirm();
 
-  const isAdd = target?.mode === "new";
-  const isEdit = target?.mode === "edit";
-  const open = target !== null;
+  const isAdd = target.mode === "new";
+  const isEdit = target.mode === "edit";
 
-  const [form, setForm] = useState<SegmentFormState>(EMPTY_FORM_STATE);
-
-  useEffect(() => {
-    if (!target) return;
+  // Initializer derives initial state from target so the very first
+  // render is correct — no race with a useEffect resetter.
+  const [form, setForm] = useState<SegmentFormState>(() => {
     if (target.mode === "new") {
-      setForm({ ...EMPTY_FORM_STATE, date: target.date });
-    } else {
-      setForm(segmentToFormState(target.segment, target.date));
+      return { ...EMPTY_FORM_STATE, date: target.date };
     }
-  }, [target]);
+    return segmentToFormState(target.segment, target.date);
+  });
 
   const handleChange = useCallback((patch: Partial<SegmentFormState>) => {
     setForm((prev) => ({ ...prev, ...patch }));
   }, []);
 
   const canSave = form.title.trim().length > 0;
-  const isPending =
-    createSegment.isPending || updateSegment.isPending;
+  const isPending = createSegment.isPending || updateSegment.isPending;
 
   const handleSave = () => {
-    if (!canSave || !target) return;
+    if (!canSave) return;
 
     const cost =
       form.costAmount && parseFloat(form.costAmount) >= 0
@@ -304,11 +342,7 @@ export function MobileSegmentFormSheet({
   };
 
   return (
-    <MobileBottomSheet
-      open={open}
-      onClose={onClose}
-      ariaLabel={isAdd ? "Add segment" : "Edit segment"}
-    >
+    <>
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
           <p className="text-kicker font-semibold text-muted-foreground">
@@ -372,6 +406,6 @@ export function MobileSegmentFormSheet({
           {isAdd ? "Add" : "Save"}
         </button>
       </div>
-    </MobileBottomSheet>
+    </>
   );
 }
