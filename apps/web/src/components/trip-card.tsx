@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { TripSummary } from "@travel-app/api-client";
 import type { TripStatus } from "@travel-app/shared";
 import { useDemoHref } from "@/lib/demo";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -180,6 +181,7 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
 
 export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const router = useRouter();
+  const confirm = useConfirm();
   const deleteTrip = useDeleteTrip();
   const deleteShare = useDeleteShare(trip.id);
   const updateTrip = useUpdateTrip(trip.id);
@@ -198,27 +200,33 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const canLeave = isShared && !!trip.sharedShareId;
   const showMenu = canEdit || canDelete || canLeave;
 
-  const handleDelete = () => {
-    if (confirm(`Delete "${trip.title}"? This cannot be undone.`)) {
-      deleteTrip.mutate(trip.id, {
-        onError: (err) => {
-          toast.error(
-            `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-          );
-        },
-      });
-    }
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${trip.title}"?`,
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteTrip.mutate(trip.id, {
+      onError: (err) => {
+        toast.error(
+          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
+      },
+    });
   };
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
     if (!trip.sharedShareId) return;
-    if (
-      !confirm(
-        `Leave "${trip.title}"? You'll lose access to this trip — the owner will be notified.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Leave "${trip.title}"?`,
+      description:
+        "You'll lose access to this trip — the owner will be notified.",
+      confirmText: "Leave",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
         // The list will drop this trip on its next refresh; this also

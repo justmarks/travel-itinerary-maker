@@ -5,6 +5,7 @@ import { useUpdateTodo, useDeleteTodo } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
+import { useConfirm } from "@/lib/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -50,6 +51,7 @@ export function EditTodoDialog({
   const [details, setDetails] = useState(todo.details ?? "");
   const [category, setCategory] = useState<string>(todo.category ?? NO_CATEGORY);
 
+  const confirm = useConfirm();
   const updateTodo = useUpdateTodo(tripId);
   const deleteTodo = useDeleteTodo(tripId);
 
@@ -89,8 +91,13 @@ export function EditTodoDialog({
     onOpenChange(false);
   };
 
-  const handleDelete = () => {
-    if (!confirm(`Delete "${todo.text}"?`)) return;
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${todo.text}"?`,
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteTodo.mutate(todo.id, {
       onError: (err) => {
         toast.error("Couldn't delete to-do", {

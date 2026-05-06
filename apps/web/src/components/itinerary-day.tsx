@@ -8,6 +8,7 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
   Plane,
@@ -131,6 +132,7 @@ function SegmentRow({
   showCosts?: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const confirm = useConfirm();
   const deleteSegment = useDeleteSegment(tripId ?? "");
   const confirmSegment = useConfirmSegment(tripId ?? "");
   const config = SEGMENT_CONFIG[segment.type] ?? SEGMENT_CONFIG.activity;
@@ -417,10 +419,13 @@ function SegmentRow({
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
               title="Delete"
-              onClick={() => {
-                if (confirm(`Delete "${segment.title}"?`)) {
-                  deleteSegment.mutate(segment.id);
-                }
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Delete "${segment.title}"?`,
+                  confirmText: "Delete",
+                  destructive: true,
+                });
+                if (ok) deleteSegment.mutate(segment.id);
               }}
               disabled={deleteSegment.isPending}
             >

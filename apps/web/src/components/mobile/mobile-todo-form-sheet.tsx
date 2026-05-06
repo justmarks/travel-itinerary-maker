@@ -9,6 +9,7 @@ import {
 import type { Todo, TodoCategory } from "@travel-app/shared";
 import { Briefcase, MapPin, Search, Trash2, Utensils, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 const CATEGORY_OPTIONS: {
@@ -68,6 +69,7 @@ export function MobileTodoFormSheet({
   const createTodo = useCreateTodo(tripId);
   const updateTodo = useUpdateTodo(tripId);
   const deleteTodo = useDeleteTodo(tripId);
+  const confirm = useConfirm();
 
   const isAdd = target === "new";
   const isEdit = target !== null && target !== "new";
@@ -120,11 +122,14 @@ export function MobileTodoFormSheet({
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!isEdit) return;
-    if (typeof window !== "undefined" && !window.confirm("Delete this to-do?")) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Delete this to-do?",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     deleteTodo.mutate(target.id, { onSuccess: onClose });
   };
 

@@ -8,6 +8,7 @@ import {
 } from "@travel-app/api-client";
 import type { TripShare } from "@travel-app/shared";
 import { toast } from "sonner";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { Button } from "@/components/ui/button";
 import {
@@ -205,6 +206,7 @@ export function ShareTripDialog({
   const createShare = useCreateShare(tripId);
   const deleteShare = useDeleteShare(tripId);
   const shareNotificationsHint = useShareNotificationsHint();
+  const confirm = useConfirm();
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
   const [email, setEmail] = useState("");
@@ -459,8 +461,15 @@ export function ShareTripDialog({
                 <ExistingShareRow
                   key={share.id}
                   share={share}
-                  onRevoke={() => {
-                    if (!window.confirm("Revoke this share link?")) return;
+                  onRevoke={async () => {
+                    const ok = await confirm({
+                      title: "Revoke this share link?",
+                      description:
+                        "Anyone using this link will lose access immediately.",
+                      confirmText: "Revoke",
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     // Optimistic mutation removes the row immediately;
                     // surface a toast on success or failure (the row
                     // restores itself on error).
