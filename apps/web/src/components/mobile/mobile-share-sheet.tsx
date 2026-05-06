@@ -100,7 +100,7 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 px-1 py-2">
+    <label className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5">
       <span className="text-sm font-medium">{label}</span>
       <span
         role="switch"
