@@ -103,62 +103,69 @@ export function EditTodoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Edit to-do</DialogTitle>
           <DialogDescription>
             Update or delete this to-do item.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="todo-text">Task</Label>
-            <Input
-              id="todo-text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              autoFocus
-              required
-            />
-          </div>
+        {/* Three-region layout (header / scrollable body / pinned footer)
+            so Save / Cancel / Delete stay visible on short viewports. */}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="todo-text">Task</Label>
+              <Input
+                id="todo-text"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                autoFocus
+                required
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="todo-category">Tag</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="todo-category">
-                <SelectValue placeholder="No tag" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_CATEGORY}>No tag</SelectItem>
-                {TODO_CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="todo-category">Tag</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger id="todo-category">
+                  <SelectValue placeholder="No tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_CATEGORY}>No tag</SelectItem>
+                  {TODO_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="todo-details">Notes</Label>
-            <Textarea
-              id="todo-details"
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              placeholder="Add details, links, or context. Markdown is supported — try [link text](https://example.com) or paste a URL."
-              rows={5}
-            />
-            {details.trim() && (
-              <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2">
-                <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  Preview
+            <div className="space-y-1.5">
+              <Label htmlFor="todo-details">Notes</Label>
+              <Textarea
+                id="todo-details"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
+                placeholder="Add details, links, or context. Markdown is supported — try [link text](https://example.com) or paste a URL."
+                rows={5}
+              />
+              {details.trim() && (
+                <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2">
+                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Preview
+                  </div>
+                  <MarkdownText className="text-sm">{details}</MarkdownText>
                 </div>
-                <MarkdownText className="text-sm">{details}</MarkdownText>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-2">
+          <div className="mt-4 flex shrink-0 items-center justify-between gap-2 border-t pt-3">
             <Button
               type="button"
               variant="ghost"

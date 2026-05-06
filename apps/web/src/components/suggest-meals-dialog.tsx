@@ -92,8 +92,8 @@ export function SuggestMealsDialog({
         }
       }}
     >
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5" style={{ color: "var(--brand)" }} />
             Suggest meals
@@ -105,25 +105,30 @@ export function SuggestMealsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {suggestions.length === 0 ? (
-          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-            <Utensils className="mx-auto mb-2 h-6 w-6 opacity-50" />
-            All meals are planned (or already on your to-do list).
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {suggestions.map((s) => (
-              <SuggestionRow
-                key={s.key}
-                suggestion={s}
-                excluded={excluded.has(s.key)}
-                onToggle={() => toggle(s.key)}
-              />
-            ))}
-          </ul>
-        )}
+        {/* Three-region layout (header / scrollable body / pinned footer)
+            so the action buttons stay visible on short viewports when the
+            suggestion list is long. */}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {suggestions.length === 0 ? (
+            <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+              <Utensils className="mx-auto mb-2 h-6 w-6 opacity-50" />
+              All meals are planned (or already on your to-do list).
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {suggestions.map((s) => (
+                <SuggestionRow
+                  key={s.key}
+                  suggestion={s}
+                  excluded={excluded.has(s.key)}
+                  onToggle={() => toggle(s.key)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
           <Button
             type="button"
             variant="outline"

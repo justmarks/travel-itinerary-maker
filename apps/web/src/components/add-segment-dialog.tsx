@@ -112,22 +112,32 @@ export function AddSegmentDialog({
           Add
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Add segment</DialogTitle>
           <DialogDescription>
             Add a flight, hotel, activity, or other segment to this day.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <SegmentFormFields
-            form={form}
-            onChange={handleChange}
-            idPrefix="add"
-            autoFocusTitle
-          />
+        {/* Three-region layout (header / scrollable body / pinned footer)
+            so the action buttons stay visible on short viewports while the
+            form fields scroll. `min-h-0` is required on the form + body so
+            the inner overflow-y-auto can size against the dialog's
+            `max-h-[85vh]` cap. */}
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <SegmentFormFields
+              form={form}
+              onChange={handleChange}
+              idPrefix="add"
+              autoFocusTitle
+            />
+          </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
             <Button
               type="button"
               variant="outline"
