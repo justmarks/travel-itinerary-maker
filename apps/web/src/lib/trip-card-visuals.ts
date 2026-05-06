@@ -58,11 +58,146 @@ async function fetchSummary(query: string): Promise<WikipediaSummary | undefined
     return undefined;
   }
   if (!res.ok) return undefined;
-  const data = (await res.json()) as WikipediaSummary;
-  // Wikipedia returns 200 with `type === "disambiguation"` for ambiguous
-  // queries — those don't have a useful representative image.
-  if (data.type === "disambiguation") return undefined;
-  return data;
+  // Returns the data even when `type === "disambiguation"` — callers
+  // detect that case (`pickImageFromSummary` skips disambiguation
+  // because it has no thumbnail) and can opt into walking the
+  // disambiguation page's links via `fetchDisambiguationPlaceLinks`.
+  return (await res.json()) as WikipediaSummary;
+}
+
+interface WikipediaLinksResponse {
+  query?: {
+    pages?: Record<
+      string,
+      {
+        links?: Array<{ ns: number; title: string }>;
+      }
+    >;
+  };
+}
+
+/**
+ * Walk a Wikipedia disambiguation page's outbound links and return the
+ * subset that match `^{query}, .*` — the canonical disambiguator for
+ * geographic places (e.g. "Whistler" → "Whistler, British Columbia",
+ * "Palm Desert" → "Palm Desert, California"). Filtering on this shape
+ * keeps person and band entries out of the candidate list.
+ *
+ * Order is "as Wikipedia listed them," which is alphabetical for
+ * generic disambiguation pages. Callers should still verify each
+ * candidate has a thumbnail before using it (some tiny census-
+ * designated places get a stub article with no image).
+ */
+interface WikipediaImagesResponse {
+  query?: {
+    pages?: Record<
+      string,
+      {
+        title?: string;
+        imageinfo?: Array<{ thumburl?: string; descriptionurl?: string }>;
+      }
+    >;
+  };
+}
+
+/**
+ * Last-resort image lookup for articles whose `summary`/`pageimages`
+ * endpoints don't surface a thumbnail despite the article actually
+ * having usable images (Wikipedia's `pageimage` property is sometimes
+ * unset even on well-illustrated articles — e.g. "Whistler, British
+ * Columbia" has the Olympic Inukshuk statue as its lead image but
+ * Wikipedia hasn't tagged it as the page image).
+ *
+ * Walks the article's image list via `generator=images` + `iiprop=url`,
+ * filters out SVGs (almost always maps, location-marker overlays, or
+ * Wikipedia chrome) and obvious icon files, returns the first
+ * remaining JPEG/PNG. The first content image on a Wikipedia article
+ * is reliably the lead image, so this is good enough.
+ */
+async function fetchFirstArticleImage(
+  title: string,
+): Promise<CityImage | undefined> {
+  const url =
+    `https://en.wikipedia.org/w/api.php` +
+    `?action=query&format=json&generator=images&gimlimit=10` +
+    `&prop=imageinfo&iiprop=url&iiurlwidth=400` +
+    `&titles=${encodeURIComponent(title.replace(/\s+/g, "_"))}` +
+    `&origin=*`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "itinly (itinly.app)",
+      },
+    });
+    if (!res.ok) return undefined;
+    const data = (await res.json()) as WikipediaImagesResponse;
+    const pages = Object.values(data.query?.pages ?? {});
+    // The pages collection from `generator=images` is keyed by image
+    // pageid in arbitrary order, but Wikipedia's documented behaviour
+    // is to surface them in article-occurrence order — first match is
+    // usually the infobox / lead image. We further filter to sane
+    // content image types and skip Wikipedia chrome.
+    for (const page of pages) {
+      const fileTitle = (page.title ?? "").toLowerCase();
+      // Skip SVGs (location maps, flags, icon overlays) and files whose
+      // names betray they're chrome / generic icons rather than the
+      // lead photo.
+      if (fileTitle.endsWith(".svg")) continue;
+      if (
+        /(logo|icon|commons-?logo|edit-?icon|location_?map|locator|flag_of)/.test(
+          fileTitle,
+        )
+      ) {
+        continue;
+      }
+      const info = page.imageinfo?.[0];
+      if (info?.thumburl) {
+        return {
+          url: info.thumburl,
+          pageUrl: info.descriptionurl,
+        };
+      }
+    }
+    return undefined;
+  } catch (err) {
+    console.warn(
+      `[trip-card-visuals] Wikipedia images fallback failed for "${title}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
+}
+
+async function fetchDisambiguationPlaceLinks(title: string): Promise<string[]> {
+  const url =
+    `https://en.wikipedia.org/w/api.php` +
+    `?action=query&format=json&prop=links&pllimit=50&plnamespace=0` +
+    `&titles=${encodeURIComponent(title.replace(/\s+/g, "_"))}` +
+    // origin=* permits the CORS request from arbitrary browser origins.
+    `&origin=*`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+        "Api-User-Agent": "itinly (itinly.app)",
+      },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as WikipediaLinksResponse;
+    const pages = data.query?.pages ?? {};
+    const links = Object.values(pages)[0]?.links ?? [];
+    const placePrefix = `${title}, `;
+    return links
+      .map((l) => l.title)
+      .filter((t) => t.startsWith(placePrefix));
+  } catch (err) {
+    console.warn(
+      `[trip-card-visuals] Wikipedia disambiguation links failed for "${title}":`,
+      err instanceof Error ? err.message : err,
+    );
+    return [];
+  }
 }
 
 interface WikipediaSearchHit {
@@ -145,20 +280,71 @@ export function useCityImage(
     queryFn: async (): Promise<CityImage | null> => {
       const cityHead = city!.split(",")[0]?.trim() ?? city!;
 
+      // Track whether any of the lookups landed on a disambiguation
+      // page so step 3 can walk its place-link list.
+      let disambigTitle: string | undefined;
+
       // 1) Try the raw title — fast path for unambiguous cities.
-      const direct = pickImageFromSummary(await fetchSummary(cityHead));
+      const directSummary = await fetchSummary(cityHead);
+      const direct = pickImageFromSummary(directSummary);
       if (direct) return direct;
+      if (directSummary?.type === "disambiguation") {
+        disambigTitle = cityHead;
+      }
 
       // 2) Search for the article. Use the country (if known) as a hint
       //    so "Palm Desert" lands on "Palm Desert, California" rather
       //    than disambiguating to a generic landform.
       const matchedTitle = await searchForArticleTitle(cityHead, country);
-      if (matchedTitle) {
-        const searched = pickImageFromSummary(await fetchSummary(matchedTitle));
+      if (matchedTitle && matchedTitle !== cityHead) {
+        const searchedSummary = await fetchSummary(matchedTitle);
+        const searched = pickImageFromSummary(searchedSummary);
         if (searched) return searched;
+        if (searchedSummary?.type === "disambiguation") {
+          disambigTitle = matchedTitle;
+        }
       }
 
-      // 3) Country fallback so cruise stops and small towns still show
+      // 3) Disambiguation walk. When step 1 or 2 landed on a
+      //    disambiguation page (e.g. "Whistler" → the disambiguation
+      //    page that lists Whistler, British Columbia + Whistler,
+      //    Alabama + people named Whistler + …), pull the
+      //    `^{title}, *` candidates and try each. Capped at 5 to
+      //    bound the worst-case cost — beyond that we'd be burning
+      //    network for a tiny census-designated place that probably
+      //    has no image anyway.
+      let disambigCandidates: string[] = [];
+      if (disambigTitle) {
+        disambigCandidates = (
+          await fetchDisambiguationPlaceLinks(disambigTitle)
+        ).slice(0, 5);
+        for (const candidate of disambigCandidates) {
+          const candidateImg = pickImageFromSummary(
+            await fetchSummary(candidate),
+          );
+          if (candidateImg) return candidateImg;
+        }
+      }
+
+      // 4) Deeper image fallback. Wikipedia's `pageimage` property
+      //    isn't always populated even on well-illustrated articles
+      //    (e.g. "Whistler, British Columbia" has the Olympic Inukshuk
+      //    statue as its lead image, but the summary endpoint returns
+      //    no thumbnail). Walk the article's image list directly via
+      //    `prop=images` and pick the first content image. We try this
+      //    on the disambiguation candidates first (most likely to be
+      //    the city the user meant), then fall back to the matched
+      //    search title.
+      const imageWalkTargets = [
+        ...disambigCandidates,
+        ...(matchedTitle ? [matchedTitle] : []),
+      ].filter(Boolean);
+      for (const target of imageWalkTargets.slice(0, 3)) {
+        const found = await fetchFirstArticleImage(target);
+        if (found) return found;
+      }
+
+      // 5) Country fallback so cruise stops and small towns still show
       //    *something* recognisable.
       if (country) {
         const countryResult = pickImageFromSummary(await fetchSummary(country));
