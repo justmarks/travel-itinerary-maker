@@ -28,13 +28,29 @@ function subscribe(callback: () => void): () => void {
   const origPush = history.pushState.bind(history);
   const origReplace = history.replaceState.bind(history);
 
+  // Defer the `useSyncExternalStore` notify to the next microtask. Next's
+  // router (and Vercel Speed Insights' own pushState patch, which layers
+  // on top of ours) sometimes calls pushState during React's commit
+  // phase — including from inside `useInsertionEffect`, which cannot
+  // tolerate scheduling updates synchronously. Calling `callback()`
+  // straight from the patched pushState produced a runtime warning:
+  //
+  //     useInsertionEffect must not schedule updates.
+  //
+  // `queueMicrotask` runs after the current commit completes but before
+  // the next macrotask, so the snapshot re-read happens with React in a
+  // safe state. State updates that don't change the snapshot are no-ops
+  // in `useSyncExternalStore`, so coalescing multiple pushState calls
+  // into one microtask is fine.
+  const notify = () => queueMicrotask(callback);
+
   history.pushState = (...args) => {
     origPush(...args);
-    callback();
+    notify();
   };
   history.replaceState = (...args) => {
     origReplace(...args);
-    callback();
+    notify();
   };
 
   return () => {
