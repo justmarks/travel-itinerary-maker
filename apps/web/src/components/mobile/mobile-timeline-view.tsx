@@ -289,12 +289,19 @@ export function MobileTimelineView({
       )?.date
     : undefined;
 
-  // Mobile-tuned column widths. Sticky label column is a phone-friendly
-  // 3.5rem in portrait (icon-only) and lifts to 5.5rem in landscape so
-  // the lane name has room to render.
+  // Mobile-tuned column widths. Tuned so a 390px portrait phone fits
+  // exactly 3 day columns and an 800px landscape phone fits 6 columns.
+  // Fixed widths (not `minmax(...,1fr)`) so the grid doesn't balloon
+  // when a pill's intrinsic content is wider than the column — that
+  // would defeat `truncate` and force horizontal scroll inside what
+  // should be a snug grid. The wrapper's `overflow-auto` handles the
+  // scroll when there are more days than fit.
+  //
+  //   Portrait 390px: 3rem label + 3 × 7rem cols = 384px < 390 ✓
+  //   Landscape 800px: 5rem label + 6 × 7rem cols = 752px < 800 ✓
   const gridCols =
-    "var(--m-timeline-label-col, 3.5rem) " +
-    `repeat(${days.length}, minmax(var(--m-timeline-day-min, 6rem), 1fr))`;
+    "var(--m-timeline-label-col, 3rem) " +
+    `repeat(${days.length}, var(--m-timeline-day-min, 7rem))`;
 
   if (days.length === 0) {
     return (
@@ -307,7 +314,7 @@ export function MobileTimelineView({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden landscape:[--m-timeline-label-col:5.5rem]">
+    <div className="flex flex-1 flex-col overflow-hidden landscape:[--m-timeline-label-col:5rem]">
       {/* Mode toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-background px-3 py-2">
         <p className="text-kicker font-semibold text-muted-foreground">
@@ -333,11 +340,14 @@ export function MobileTimelineView({
         </div>
       </div>
 
-      {/* Scrollable timeline grid */}
+      {/* Scrollable timeline grid. Width comes from the explicit
+          column widths in `gridCols`; no `width: max-content` so a
+          pill with long text truncates inside its column instead of
+          stretching the column to fit. */}
       <div className="flex-1 overflow-auto">
         <div
           className="grid"
-          style={{ gridTemplateColumns: gridCols, width: "max-content" }}
+          style={{ gridTemplateColumns: gridCols }}
         >
           {/* Day header row — sticky to the top so vertical scroll keeps it visible. */}
           <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-muted/60" />
