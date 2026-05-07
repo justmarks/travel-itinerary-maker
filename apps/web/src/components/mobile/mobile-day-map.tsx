@@ -10,7 +10,7 @@ import {
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
-import { MapPin } from "lucide-react";
+import { Maximize2, MapPin } from "lucide-react";
 import {
   useCategoryPinColors,
   type PinCategory,
@@ -164,11 +164,18 @@ export function MobileDayMap({
   trip,
   activeDate,
   height = 200,
+  onExpand,
 }: {
   trip: Trip;
   /** Date to focus on. Omit to show the entire trip. */
   activeDate?: string;
   height?: number;
+  /**
+   * When set, render an "expand" button overlaying the map that opens
+   * the parent's full-screen map view. Omit to keep the preview
+   * non-interactive (used by surfaces that don't have a full map).
+   */
+  onExpand?: () => void;
 }): React.JSX.Element {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
   const rawPins = useMemo(() => rawPinsForTrip(trip), [trip]);
@@ -180,11 +187,28 @@ export function MobileDayMap({
     [rawPins, activeDate],
   );
 
+  // Sits above the map's gestureHandling layer. The bg-white/90
+  // contrast keeps the icon readable over both light and dark map
+  // tiles. Right-aligned so the chevron-pagination row at the bottom
+  // of the map header keeps its left-aligned segment-count text.
+  // Rendered in both the api-key and no-api-key branches so the affordance
+  // is consistent — the full-map sheet has its own no-key fallback message.
+  const expandButton = onExpand ? (
+    <button
+      type="button"
+      onClick={onExpand}
+      aria-label="Open full map"
+      className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-zinc-900 shadow-md backdrop-blur-sm hover:bg-white active:bg-white/80 dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
+    >
+      <Maximize2 className="h-4 w-4" />
+    </button>
+  ) : null;
+
   if (!apiKey) {
     return (
       <div
         style={{ height }}
-        className="flex flex-col items-center justify-center gap-1 bg-[radial-gradient(circle_at_30%_20%,#dbeafe_0%,transparent_40%),radial-gradient(circle_at_70%_70%,#fce7f3_0%,transparent_40%),linear-gradient(135deg,#f1f5f9,#e2e8f0)] text-muted-foreground"
+        className="relative flex flex-col items-center justify-center gap-1 bg-[radial-gradient(circle_at_30%_20%,#dbeafe_0%,transparent_40%),radial-gradient(circle_at_70%_70%,#fce7f3_0%,transparent_40%),linear-gradient(135deg,#f1f5f9,#e2e8f0)] text-muted-foreground"
       >
         <MapPin className="h-5 w-5" />
         <p className="text-xs font-medium">Map preview</p>
@@ -192,6 +216,7 @@ export function MobileDayMap({
           {visibleCount} location{visibleCount === 1 ? "" : "s"}
           {activeDate ? "" : " · whole trip"}
         </p>
+        {expandButton}
       </div>
     );
   }
@@ -201,6 +226,7 @@ export function MobileDayMap({
       <APIProvider apiKey={apiKey}>
         <DayMapInner rawPins={rawPins} activeDate={activeDate} />
       </APIProvider>
+      {expandButton}
     </div>
   );
 }
