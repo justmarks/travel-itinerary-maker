@@ -21,6 +21,17 @@ describe("GET /health", () => {
   });
 });
 
+describe("CORS rejection", () => {
+  it("returns 403 (not 500) when Origin is not on the allowlist", async () => {
+    const res = await request(app)
+      .post("/")
+      .set("Origin", "https://api.itinly.app")
+      .send({});
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("https://api.itinly.app");
+  });
+});
+
 describe("Trip CRUD", () => {
   describe("POST /api/v1/trips", () => {
     it("creates a trip with auto-generated days", async () => {
