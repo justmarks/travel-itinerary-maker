@@ -204,7 +204,7 @@ function ScanBody({
   // weren't applied (e.g. user closed the sheet mid-review), surface
   // them on next open instead of forcing a re-scan. The hook is gated
   // on `gmailGranted` so unlinked users skip the call.
-  const { data: pendingData } = usePendingEmails(gmailGranted);
+  const { data: pendingData, error: pendingError } = usePendingEmails(gmailGranted);
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
@@ -254,6 +254,27 @@ function ScanBody({
     setItems(built);
     setStep("review");
   }, [pendingData, step, tripId, defaultTripId]);
+
+  // Stale-cache bounce: if `hasGmailLink` is true locally but the
+  // server rejects the labels or pending fetch (link revoked at
+  // Google, refresh token expired), drop the user back to the
+  // connect screen *before* they tap Start scan and hit the same
+  // wall. Without this, the cached state was strong enough to show
+  // them config first → confusing.
+  useEffect(() => {
+    const isAuthError = (e: unknown): boolean => {
+      if (!(e instanceof ApiError)) return false;
+      const body = e.body as { code?: string } | null;
+      return (
+        e.status === 401 ||
+        e.status === 403 ||
+        body?.code === "GMAIL_SCOPE_REQUIRED"
+      );
+    };
+    if (isAuthError(labelsError) || isAuthError(pendingError)) {
+      setStep("needs-scope");
+    }
+  }, [labelsError, pendingError]);
 
   const handleStartScan = async () => {
     setStep("scanning");
@@ -619,22 +640,31 @@ function ScanBody({
               <p>{partialError}</p>
             </div>
           )}
-          {labelsError && (
-            <div
-              className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
-              style={{
-                backgroundColor: "var(--status-warn-bg)",
-                color: "var(--status-warn-fg)",
-                borderColor: "var(--status-warn-rail)",
-              }}
-            >
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>
-                Couldn&apos;t load Gmail labels. You may need to sign out
-                and re-link Gmail.
-              </p>
-            </div>
-          )}
+          {labelsError &&
+            // Auth errors are handled by the bounce-to-needs-scope
+            // effect above; this banner only surfaces for non-auth
+            // failures (network, server) where the user is still on
+            // the review screen but their label suggestions are
+            // missing.
+            !(
+              labelsError instanceof ApiError &&
+              (labelsError.status === 401 || labelsError.status === 403)
+            ) && (
+              <div
+                className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
+                style={{
+                  backgroundColor: "var(--status-warn-bg)",
+                  color: "var(--status-warn-fg)",
+                  borderColor: "var(--status-warn-rail)",
+                }}
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  Couldn&apos;t load Gmail labels — the scan may still
+                  work, but suggestions below will be empty.
+                </p>
+              </div>
+            )}
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
               <Inbox className="h-7 w-7 text-muted-foreground" />
