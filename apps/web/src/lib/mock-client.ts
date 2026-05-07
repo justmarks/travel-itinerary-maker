@@ -1113,8 +1113,11 @@ const SAMPLE_TRIPS: Trip[] = [
             confirmationCode: "BL-5598201",
             partySize: 3,
             cost: { amount: 210, currency: "EUR", details: "Comfort · 3 adults · silica mask + drink" },
-            source: "email_confirmed",
-            needsReview: false,
+            // Flagged so the demo showcases the review-pending pill
+            // and tap-to-confirm shortcuts. Imagine this segment was
+            // just auto-parsed from a Blue Lagoon confirmation email.
+            source: "email_auto",
+            needsReview: true,
             sortOrder: 2,
             url: "https://www.bluelagoon.com/",
           },

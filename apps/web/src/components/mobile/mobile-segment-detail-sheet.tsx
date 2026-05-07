@@ -186,6 +186,7 @@ export function MobileSegmentDetailSheet({
   date,
   onClose,
   onEdit,
+  onConfirm,
   showCosts = true,
   canEdit = false,
 }: {
@@ -199,6 +200,12 @@ export function MobileSegmentDetailSheet({
    * Required when `canEdit` is true; ignored when read-only.
    */
   onEdit?: (segment: Segment, date: string) => void;
+  /**
+   * Fires when the user taps the "Review" badge in the sheet header.
+   * Wired by the parent to `useConfirmSegment` so the user can clear
+   * the review flag without opening Edit. Omit for read-only viewers.
+   */
+  onConfirm?: (segment: Segment) => void;
   /**
    * When false, suppress the cost row inside the sheet — matches the
    * inline card behaviour when the parent share has `showCosts: false`.
@@ -315,10 +322,27 @@ export function MobileSegmentDetailSheet({
             </p>
           )}
           {segment.needsReview ? (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
-              <AlertCircle className="h-3 w-3" />
-              Needs review
-            </span>
+            onConfirm ? (
+              // Tap-to-confirm shortcut. The detail sheet's header
+              // has no parent button so a real <button> is fine here
+              // (unlike the card's badge which uses role="button" on
+              // a span to avoid nesting).
+              <button
+                type="button"
+                aria-label={`Confirm "${segment.title}" — clears the review flag`}
+                onClick={() => onConfirm(segment)}
+                className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium active:opacity-70"
+                style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}
+              >
+                <AlertCircle className="h-3 w-3" />
+                Tap to confirm
+              </button>
+            ) : (
+              <span className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
+                <AlertCircle className="h-3 w-3" />
+                Needs review
+              </span>
+            )
           ) : segment.source === "email_confirmed" ? (
             <span className="mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: "var(--status-ok-bg)", color: "var(--status-ok-fg)", borderColor: "var(--status-ok-rail)" }}>
               <CheckCircle2 className="h-3 w-3" />

@@ -71,10 +71,19 @@ function formatCostOriginal(cost?: { amount: number; currency: string }) {
 export function MobileSegmentCard({
   segment,
   onSelect,
+  onConfirm,
   showCosts = true,
 }: {
   segment: Segment;
   onSelect?: (segment: Segment) => void;
+  /**
+   * When set and `segment.needsReview === true`, the "Review" badge
+   * becomes tap-to-confirm — same shortcut as desktop's inline green
+   * check, but on the badge itself so users don't need to find a
+   * second control. Wired by the parent to `useConfirmSegment`. Omit
+   * for read-only viewers — the badge stays inert.
+   */
+  onConfirm?: (segment: Segment) => void;
   /**
    * When false (e.g. share with `showCosts: false`), suppress the
    * inline cost line on the card. Defaults to true so owned-trip
@@ -159,10 +168,38 @@ export function MobileSegmentCard({
             {titleText}
           </span>
           {segment.needsReview ? (
-            <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
-              <AlertCircle className="h-2.5 w-2.5" />
-              Review
-            </span>
+            onConfirm ? (
+              // Tap-to-confirm shortcut. Rendered as `role="button"` on
+              // a span (rather than a real <button>) so the parent
+              // card's wrapper button doesn't nest a button. stopPropagation
+              // keeps the tap from bubbling to the card's onSelect.
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`Confirm "${segment.title}" — clears the review flag`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfirm(segment);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onConfirm(segment);
+                  }
+                }}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium active:opacity-70"
+                style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}
+              >
+                <AlertCircle className="h-2.5 w-2.5" />
+                Review
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "var(--status-warn-bg)", color: "var(--status-warn-fg)", borderColor: "var(--status-warn-rail)" }}>
+                <AlertCircle className="h-2.5 w-2.5" />
+                Review
+              </span>
+            )
           ) : segment.source === "email_confirmed" ? (
             <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "var(--status-ok-bg)", color: "var(--status-ok-fg)", borderColor: "var(--status-ok-rail)" }}>
               <CheckCircle2 className="h-2.5 w-2.5" />
