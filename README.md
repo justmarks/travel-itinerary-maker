@@ -297,11 +297,8 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 - [ ] **Confirm-segment shortcuts** — auto-parsed segments wear a "Review" badge; mobile users can confirm them today by opening Edit and saving, but there's no green-check shortcut and no batch "Confirm all." Add an inline tap-to-confirm and an overflow-menu bulk action
 - [ ] **Segment reorder** — drag-to-reorder within a day. Desktop has it via the segment row; mobile needs a long-press-to-grab gesture or a dedicated reorder mode
 - [ ] **Full Map view** — mobile shows a small per-day map preview only. Add a full-screen map tab with all trip pins + KML export, mirroring the desktop `MapView`
+- [ ] **Timeline view** — Hipmunk/Gantt grid on `/m`. The carousel + day list cover the day-by-day shape today; the timeline gives a complementary "what overlaps when" read that's worth porting
 - [ ] **Suggest meals** dialog — the AI meal-suggestion flow that exists on desktop
-
-**Intentionally desktop-only on mobile:**
-
-- **HTML / EML email import**, **XLSX trip import**, and **Markdown / OneNote / PDF / iCal export** — these are batch / file-handling operations where a phone is the wrong form factor (file pickers / downloads / pasting raw HTML are clunky on touch, and the resulting files generally end up shared via desktop anyway). Keep them under "Import" / "Export" on desktop only
 
 **Sharing:**
 
@@ -317,7 +314,6 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 **Potential ideas for the future:**
 
 - [ ] **Google Calendar sync on mobile** — push/unsync + calendar picker, surfaced from the trip-detail overflow menu mirroring the desktop button + dropdown
-- [ ] **Mobile timeline view** — Hipmunk/Gantt grid on `/m`. The carousel + day list already cover the day-by-day shape that desktop's timeline competes with, so this is a "nice to have" once the higher-priority mobile work lands
 - [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 
