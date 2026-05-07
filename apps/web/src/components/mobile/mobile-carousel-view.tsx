@@ -20,6 +20,7 @@ import { MobileDayMap } from "./mobile-day-map";
 import { MobileDaysList } from "./mobile-feed-view";
 import { MobileSegmentDetailSheet } from "./mobile-segment-detail-sheet";
 import { MobileEditableCity } from "./mobile-editable-city";
+import { MobileFullMapSheet } from "./mobile-full-map-sheet";
 import {
   MobileSegmentFormSheet,
   type SegmentFormTarget,
@@ -86,6 +87,7 @@ export function MobileCarouselView({
   });
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const [formTarget, setFormTarget] = useState<SegmentFormTarget>(null);
+  const [fullMapOpen, setFullMapOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const dayStripRef = useRef<HTMLDivElement | null>(null);
   const isProgrammaticScroll = useRef(false);
@@ -220,7 +222,12 @@ export function MobileCarouselView({
 
       {/* Map header (shared, swaps as user swipes) */}
       <div className="shrink-0 border-b bg-zinc-100 dark:bg-zinc-900">
-        <MobileDayMap trip={trip} activeDate={activeDay?.date} height={210} />
+        <MobileDayMap
+          trip={trip}
+          activeDate={activeDay?.date}
+          height={210}
+          onExpand={() => setFullMapOpen(true)}
+        />
         <div className="flex items-center justify-between px-4 py-2 text-xs text-muted-foreground">
           {isAllView ? (
             <span className="inline-flex items-center gap-1">
@@ -368,6 +375,16 @@ export function MobileCarouselView({
         tripId={trip.id}
         target={formTarget}
         onClose={() => setFormTarget(null)}
+      />
+
+      <MobileFullMapSheet
+        trip={trip}
+        open={fullMapOpen}
+        // Seed the filter with whatever day the user was on when they
+        // tapped expand. "All" view (activeIdx=0) starts unfiltered so
+        // the user sees the whole trip.
+        initialDate={activeDay?.date}
+        onClose={() => setFullMapOpen(false)}
       />
     </div>
   );
