@@ -63,7 +63,7 @@ export const config = {
   /**
    * Optional regex (as a string) for dynamic origins like Vercel
    * preview URLs that change per deployment. Example for this project:
-   *   ^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$
+   *   ^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$
    * Unset means "no pattern matching"; literal `corsOrigin` still applies.
    */
   corsOriginPattern: process.env.CORS_ORIGIN_PATTERN || "",

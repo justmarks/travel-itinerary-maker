@@ -1,5 +1,5 @@
 {
-  "name": "travel-itinerary-maker",
+  "name": "itinly",
   "version": "0.72.0",
   "private": true,
   "description": "Auto-generate travel itineraries from email confirmations",
