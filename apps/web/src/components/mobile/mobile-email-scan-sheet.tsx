@@ -177,7 +177,7 @@ function ScanBody({
     setStep("scanning");
     try {
       const response = await scanEmails.mutateAsync({
-        labelId: labelId || undefined,
+        labelFilter: labelId || undefined,
         forceRescan: forceRescan || undefined,
       });
       const built = buildReviewItems(response.results, tripId, defaultTripId);
@@ -247,7 +247,11 @@ function ScanBody({
             ...it.segment,
             tripId: it.tripId,
             emailId: it.emailId,
-            action: it.action,
+            // Filter above guarantees `it.action !== "skip"`. The
+            // server schema's `action` enum is just create / merge /
+            // replace, so narrow back to that union here — TS can't
+            // infer the narrowing from the .filter() predicate.
+            action: it.action as "create" | "merge" | "replace",
             existingSegmentId: it.segment.match?.existingSegmentId,
           })),
         });
