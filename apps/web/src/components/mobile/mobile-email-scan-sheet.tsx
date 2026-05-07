@@ -1,0 +1,701 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  useApplyParsedSegments,
+  useDismissEmail,
+  useGmailLabels,
+  useScanEmails,
+  useTrips,
+} from "@travel-app/api-client";
+import type {
+  EmailScanResult,
+  ParsedSegment,
+  SegmentMatchStatus,
+} from "@travel-app/shared";
+import {
+  Check,
+  CheckCircle2,
+  Inbox,
+  Loader2,
+  Mail,
+  Search,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
+import { cn } from "@/lib/utils";
+import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
+import { MobileBottomSheet } from "./mobile-bottom-sheet";
+
+// ── Types ──────────────────────────────────────────────────
+
+type Step = "config" | "scanning" | "review" | "done";
+
+type ApplyAction = "create" | "merge" | "replace" | "skip";
+
+interface ReviewItem {
+  emailId: string;
+  emailSubject: string;
+  segment: ParsedSegment;
+  /** Local UI state — selected to apply, with a chosen action + trip. */
+  selected: boolean;
+  action: ApplyAction;
+  tripId: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<SegmentMatchStatus, string> = {
+  new: "New",
+  enrichment: "Enrich",
+  conflict: "Conflict",
+  duplicate: "Duplicate",
+};
+
+const STATUS_TOKEN: Record<SegmentMatchStatus, string> = {
+  new: "ok",
+  enrichment: "info",
+  conflict: "warn",
+  duplicate: "muted",
+};
+
+function defaultActionFor(status: SegmentMatchStatus | undefined): ApplyAction {
+  if (status === "duplicate") return "skip";
+  if (status === "enrichment") return "merge";
+  if (status === "conflict") return "merge";
+  return "create";
+}
+
+function dayShort(date: string) {
+  return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function buildReviewItems(
+  results: readonly EmailScanResult[],
+  tripIdFilter: string | undefined,
+  defaultTripId: string,
+): ReviewItem[] {
+  const items: ReviewItem[] = [];
+  for (const res of results) {
+    if (res.parseStatus !== "success") continue;
+    for (const seg of res.parsedSegments) {
+      // When opened from a specific trip, only surface segments
+      // suggested for that trip — keeps the review focused.
+      if (tripIdFilter && seg.suggestedTripId && seg.suggestedTripId !== tripIdFilter) {
+        continue;
+      }
+      const tripId = seg.suggestedTripId ?? defaultTripId;
+      items.push({
+        emailId: res.emailId,
+        emailSubject: res.subject,
+        segment: seg,
+        selected: defaultActionFor(seg.match?.status) !== "skip",
+        action: defaultActionFor(seg.match?.status),
+        tripId,
+      });
+    }
+  }
+  return items;
+}
+
+// ── Component ──────────────────────────────────────────────
+
+/**
+ * Multi-step bottom sheet for the mobile email-scan flow:
+ * config → scanning → review → done. Mirrors the desktop
+ * `EmailScanDialog` + `EmailReportDialog` but tuned for thumbs.
+ *
+ * Open from two entry points:
+ * - Per-trip: trip-detail overflow menu, with `tripId` set so the
+ *   review step pre-filters to segments matched to this trip.
+ * - Account-level: mobile user menu, no `tripId` — review shows all
+ *   parsed segments and the user picks a trip per row.
+ *
+ * Out of scope (desktop has these; the mobile cut omits to fit):
+ * - Inline "create new trip" from the review step. Mobile users can
+ *   create the trip first via `MobileCreateTripSheet`, then re-scan.
+ * - Email-report mailto: flow for reporting bad parses.
+ * - Low-confidence / skipped collapsibles — all parsed segments
+ *   render inline.
+ */
+export function MobileEmailScanSheet({
+  tripId,
+  open,
+  onClose,
+}: {
+  /** When set, the review step pre-filters to segments matched here. */
+  tripId?: string;
+  open: boolean;
+  onClose: () => void;
+}): React.JSX.Element {
+  return (
+    <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Scan emails">
+      {open && <ScanBody tripId={tripId} onClose={onClose} />}
+    </MobileBottomSheet>
+  );
+}
+
+function ScanBody({
+  tripId,
+  onClose,
+}: {
+  tripId?: string;
+  onClose: () => void;
+}): React.JSX.Element {
+  const { data: trips = [] } = useTrips();
+  const { data: labels = [] } = useGmailLabels(true);
+  const scanEmails = useScanEmails();
+  const applySegments = useApplyParsedSegments();
+  const dismissEmail = useDismissEmail();
+
+  const [step, setStep] = useState<Step>("config");
+  const [labelId, setLabelId] = useState<string | null>(null);
+  const [forceRescan, setForceRescan] = useState(false);
+  const [results, setResults] = useState<EmailScanResult[]>([]);
+  const [items, setItems] = useState<ReviewItem[]>([]);
+  const [appliedCount, setAppliedCount] = useState(0);
+
+  // Default trip for items without a `suggestedTripId` — the per-trip
+  // entry point uses the active trip; account-level falls back to the
+  // first available trip so the picker is never blank on first render.
+  const defaultTripId = tripId ?? trips[0]?.id ?? "";
+
+  // When labels load, default to "Travel" if it exists (matches what
+  // most people use for confirmations) — otherwise leave unfiltered.
+  useEffect(() => {
+    if (labelId !== null) return;
+    const travel = labels.find((l) => l.name.toLowerCase() === "travel");
+    if (travel) setLabelId(travel.id);
+  }, [labels, labelId]);
+
+  const handleStartScan = async () => {
+    setStep("scanning");
+    try {
+      const response = await scanEmails.mutateAsync({
+        labelId: labelId || undefined,
+        forceRescan: forceRescan || undefined,
+      });
+      const built = buildReviewItems(response.results, tripId, defaultTripId);
+      setResults(response.results);
+      setItems(built);
+      // Skip the review step entirely if nothing parsed — go straight
+      // to a "done — no new emails" terminal state.
+      setStep(built.length === 0 ? "done" : "review");
+    } catch (err) {
+      toast.error("Couldn't scan emails", { description: describeError(err) });
+      setStep("config");
+    }
+  };
+
+  const summary = useMemo(() => {
+    const counts: Record<SegmentMatchStatus | "skipped", number> = {
+      new: 0,
+      enrichment: 0,
+      conflict: 0,
+      duplicate: 0,
+      skipped: 0,
+    };
+    for (const it of items) {
+      const status = it.segment.match?.status ?? "new";
+      counts[status] += 1;
+    }
+    counts.skipped = results.filter((r) => r.parseStatus !== "success").length;
+    return counts;
+  }, [items, results]);
+
+  const selectedCount = items.filter((it) => it.selected).length;
+
+  const toggleSelected = (idx: number) => {
+    setItems((prev) =>
+      prev.map((it, i) =>
+        i === idx ? { ...it, selected: !it.selected } : it,
+      ),
+    );
+  };
+
+  const setTripId = (idx: number, next: string) => {
+    setItems((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, tripId: next } : it)),
+    );
+  };
+
+  const cycleAction = (idx: number) => {
+    const order: ApplyAction[] = ["create", "merge", "replace", "skip"];
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const cur = order.indexOf(it.action);
+        const next = order[(cur + 1) % order.length];
+        return { ...it, action: next, selected: next !== "skip" };
+      }),
+    );
+  };
+
+  const handleApply = async () => {
+    const toApply = items.filter(
+      (it) => it.selected && it.action !== "skip" && it.tripId,
+    );
+    try {
+      if (toApply.length > 0) {
+        await applySegments.mutateAsync({
+          segments: toApply.map((it) => ({
+            ...it.segment,
+            tripId: it.tripId,
+            emailId: it.emailId,
+            action: it.action,
+            existingSegmentId: it.segment.match?.existingSegmentId,
+          })),
+        });
+      }
+      // Auto-dismiss emails whose every segment was skipped/deselected
+      // — matches desktop. Reduces re-scan noise.
+      const appliedEmailIds = new Set(toApply.map((it) => it.emailId));
+      const allEmailIds = new Set(results.map((r) => r.emailId));
+      for (const id of allEmailIds) {
+        if (!appliedEmailIds.has(id)) {
+          dismissEmail.mutate(id);
+        }
+      }
+      setAppliedCount(toApply.length);
+      setStep("done");
+    } catch (err) {
+      toast.error("Couldn't apply segments", {
+        description: describeError(err),
+      });
+    }
+  };
+
+  // ── Render per step ──
+
+  if (step === "scanning") {
+    return (
+      <>
+        <Header title="Scanning email" onClose={onClose} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm font-medium">Searching Gmail…</p>
+          <p className="max-w-[280px] text-xs text-muted-foreground">
+            We&apos;re looking through travel emails and parsing each
+            with Claude. This usually takes a few seconds.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  if (step === "done") {
+    return (
+      <>
+        <Header title="Done" onClose={onClose} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+          {appliedCount > 0 ? (
+            <>
+              <CheckCircle2
+                className="h-8 w-8"
+                style={{ color: "var(--status-ok-fg)" }}
+              />
+              <p className="text-sm font-medium">
+                Added {appliedCount} segment{appliedCount === 1 ? "" : "s"}
+              </p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                Look for the yellow{" "}
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium"
+                  style={{
+                    backgroundColor: "var(--status-warn-bg)",
+                    color: "var(--status-warn-fg)",
+                    borderColor: "var(--status-warn-rail)",
+                  }}
+                >
+                  Review
+                </span>{" "}
+                badge on each one. Tap to confirm.
+              </p>
+            </>
+          ) : (
+            <>
+              <Inbox className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">No new emails to add</p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                Either nothing matched, or everything was already
+                processed. Try the &quot;Re-parse&quot; toggle if you
+                expected results.
+              </p>
+            </>
+          )}
+        </div>
+        <Footer>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 flex-1 rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+          >
+            Done
+          </button>
+        </Footer>
+      </>
+    );
+  }
+
+  if (step === "review") {
+    return (
+      <>
+        <Header
+          title={`Review (${items.length})`}
+          subtitle={`${selectedCount} selected`}
+          onClose={onClose}
+        />
+        <div className="flex shrink-0 flex-wrap gap-1.5 border-b bg-background px-3 py-2">
+          {(["new", "enrichment", "conflict", "duplicate"] as const).map(
+            (k) =>
+              summary[k] > 0 ? (
+                <SummaryChip
+                  key={k}
+                  label={STATUS_LABEL[k]}
+                  count={summary[k]}
+                  token={STATUS_TOKEN[k]}
+                />
+              ) : null,
+          )}
+          {summary.skipped > 0 && (
+            <SummaryChip
+              label="Skipped"
+              count={summary.skipped}
+              token="muted"
+            />
+          )}
+        </div>
+        <div className="flex-1 overflow-y-auto px-3 py-2">
+          {items.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+              <Inbox className="h-7 w-7 text-muted-foreground" />
+              <p className="text-sm font-medium">No matching segments</p>
+              <p className="max-w-[260px] text-xs text-muted-foreground">
+                The scan didn&apos;t find anything that matched this
+                trip&apos;s dates.
+              </p>
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {items.map((item, idx) => (
+                <ReviewCard
+                  key={`${item.emailId}-${idx}`}
+                  item={item}
+                  trips={trips.map((t) => ({ id: t.id, title: t.title }))}
+                  showTripPicker={!tripId}
+                  onToggleSelected={() => toggleSelected(idx)}
+                  onCycleAction={() => cycleAction(idx)}
+                  onChangeTrip={(next) => setTripId(idx, next)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+        <Footer>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 flex-1 rounded-full border bg-background text-sm font-medium"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleApply}
+            disabled={selectedCount === 0 || applySegments.isPending}
+            className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {applySegments.isPending && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            Apply {selectedCount > 0 ? selectedCount : ""}
+          </button>
+        </Footer>
+      </>
+    );
+  }
+
+  // Default: config step.
+  return (
+    <>
+      <Header title="Scan emails" onClose={onClose} />
+      <div className="flex-1 overflow-y-auto px-5 py-3">
+        <p className="text-sm text-muted-foreground">
+          We&apos;ll look through your Gmail for travel confirmations and
+          parse each one with Claude. Pick a label below to narrow the
+          search.
+        </p>
+
+        <div className="mt-4 space-y-1.5">
+          <p className="text-kicker font-medium text-muted-foreground">
+            Gmail label
+          </p>
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+            <LabelPill
+              active={labelId === null}
+              onClick={() => setLabelId(null)}
+              icon={<Inbox className="h-3 w-3" />}
+              label="All mail"
+            />
+            {labels.map((l) => (
+              <LabelPill
+                key={l.id}
+                active={labelId === l.id}
+                onClick={() => setLabelId(l.id)}
+                label={l.name}
+              />
+            ))}
+          </div>
+        </div>
+
+        <label className="mt-4 flex items-center gap-3 rounded-xl border bg-card p-3">
+          <input
+            type="checkbox"
+            checked={forceRescan}
+            onChange={(e) => setForceRescan(e.target.checked)}
+            className="h-4 w-4"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Re-parse processed emails</p>
+            <p className="text-xs text-muted-foreground">
+              Re-scans emails that previously failed or were skipped.
+              Skips ones already added to a trip.
+            </p>
+          </div>
+        </label>
+      </div>
+      <Footer>
+        <button
+          type="button"
+          onClick={onClose}
+          className="h-11 flex-1 rounded-full border bg-background text-sm font-medium"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleStartScan}
+          disabled={scanEmails.isPending}
+          className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {scanEmails.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+          Start scan
+        </button>
+      </Footer>
+    </>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────
+
+function Header({
+  title,
+  subtitle,
+  onClose,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
+      <div className="min-w-0 flex-1">
+        <p className="text-kicker font-semibold text-muted-foreground">
+          <Mail className="mr-1 inline h-3 w-3" />
+          Email scan
+        </p>
+        <h2 className="mt-0.5 text-lg font-semibold leading-snug">{title}</h2>
+        {subtitle && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+      >
+        <X className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
+function Footer({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+      {children}
+    </div>
+  );
+}
+
+function LabelPill({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon?: React.ReactNode;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors",
+        active
+          ? "border-foreground bg-foreground text-background"
+          : "border-border bg-background text-muted-foreground",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function SummaryChip({
+  label,
+  count,
+  token,
+}: {
+  label: string;
+  count: number;
+  token: string;
+}): React.JSX.Element {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+      style={{
+        backgroundColor: `var(--status-${token}-bg)`,
+        color: `var(--status-${token}-fg)`,
+        borderColor: `var(--status-${token}-rail)`,
+      }}
+    >
+      <span className="tabular-nums">{count}</span>
+      {label}
+    </span>
+  );
+}
+
+function ReviewCard({
+  item,
+  trips,
+  showTripPicker,
+  onToggleSelected,
+  onCycleAction,
+  onChangeTrip,
+}: {
+  item: ReviewItem;
+  trips: { id: string; title: string }[];
+  showTripPicker: boolean;
+  onToggleSelected: () => void;
+  onCycleAction: () => void;
+  onChangeTrip: (next: string) => void;
+}): React.JSX.Element {
+  const cfg = SEGMENT_CONFIG[item.segment.type] ?? SEGMENT_CONFIG.activity;
+  const Icon = cfg.icon;
+  const status = item.segment.match?.status ?? "new";
+  const startTime = fmt12h(item.segment.startTime);
+
+  const actionLabel: Record<ApplyAction, string> = {
+    create: "Add",
+    merge: "Merge",
+    replace: "Replace",
+    skip: "Skip",
+  };
+
+  return (
+    <li
+      className={cn(
+        "flex flex-col gap-2 rounded-xl border bg-card p-3 transition-opacity",
+        !item.selected && "opacity-60",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <div
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+          style={{ background: cfg.bg, color: cfg.fg }}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold leading-tight">
+            {item.segment.title}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {dayShort(item.segment.date)}
+            {startTime && ` · ${startTime}`}
+            {item.segment.venueName && ` · ${item.segment.venueName}`}
+          </p>
+        </div>
+        <span
+          className="inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
+          style={{
+            backgroundColor: `var(--status-${STATUS_TOKEN[status]}-bg)`,
+            color: `var(--status-${STATUS_TOKEN[status]}-fg)`,
+            borderColor: `var(--status-${STATUS_TOKEN[status]}-rail)`,
+          }}
+        >
+          {STATUS_LABEL[status]}
+        </span>
+      </div>
+
+      {showTripPicker && (
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Trip</span>
+          <select
+            value={item.tripId}
+            onChange={(e) => onChangeTrip(e.target.value)}
+            className="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+          >
+            {trips.length === 0 && <option value="">(no trips)</option>}
+            {trips.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onCycleAction}
+          aria-label={`Action: ${actionLabel[item.action]}. Tap to cycle.`}
+          className="inline-flex h-8 items-center gap-1 rounded-full border bg-background px-2.5 text-[11px] font-medium"
+        >
+          {actionLabel[item.action]}
+        </button>
+        <div className="flex-1" />
+        <button
+          type="button"
+          onClick={onToggleSelected}
+          aria-pressed={item.selected}
+          aria-label={item.selected ? "Deselect" : "Select"}
+          className={cn(
+            "flex h-8 w-8 items-center justify-center rounded-full border",
+            item.selected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-background text-muted-foreground",
+          )}
+        >
+          {item.selected && <Check className="h-4 w-4" />}
+        </button>
+      </div>
+    </li>
+  );
+}

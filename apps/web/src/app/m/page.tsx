@@ -32,6 +32,7 @@ import { useCachedTripIds } from "@/lib/use-cached-trips";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
+import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
 import { AppLogo } from "@/components/app-logo";
 import {
   daysUntil,
@@ -470,6 +471,7 @@ function MobileTripList({
 
 function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
@@ -485,7 +487,7 @@ function MobileHomeContent(): React.JSX.Element {
         >
           <Plus className="h-5 w-5" />
         </button>
-        <MobileUserMenu />
+        <MobileUserMenu onScanEmails={() => setScanOpen(true)} />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
         <MobileTripList onCreateTrip={() => setCreateOpen(true)} />
@@ -493,6 +495,10 @@ function MobileHomeContent(): React.JSX.Element {
       <MobileCreateTripSheet
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <MobileEmailScanSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
       />
     </MobileFrame>
   );

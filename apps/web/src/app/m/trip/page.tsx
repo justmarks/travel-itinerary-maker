@@ -21,6 +21,7 @@ import {
   History,
   LayoutGrid,
   LogOut,
+  Mail,
   MoreVertical,
   Pencil,
   Share2,
@@ -38,6 +39,7 @@ import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileHistorySheet } from "@/components/mobile/mobile-history-sheet";
 import { MobileEditTripSheet } from "@/components/mobile/mobile-edit-trip-sheet";
+import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
 import { MobileReviewPendingSheet } from "@/components/mobile/mobile-review-pending-sheet";
 import { MobileTimelineView } from "@/components/mobile/mobile-timeline-view";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
@@ -77,16 +79,19 @@ function MobileTripOverflowMenu({
   tripTitle,
   onOpenHistory,
   onOpenEdit,
+  onOpenScan,
   onSwitchView,
   view,
   showDelete,
   showEdit,
+  showScan,
   leaveTripShareId,
 }: {
   tripId: string;
   tripTitle: string;
   onOpenHistory: () => void;
   onOpenEdit: () => void;
+  onOpenScan: () => void;
   /** Flips the URL `?v=` between carousel + timeline. */
   onSwitchView: () => void;
   /** Current view, drives the switch label + icon. */
@@ -95,6 +100,8 @@ function MobileTripOverflowMenu({
   showDelete: boolean;
   /** Owner + edit-contributor only. View-only contributors don't see Edit. */
   showEdit: boolean;
+  /** Owner + edit-contributor only. View-only / public viewers can't write. */
+  showScan: boolean;
   /** When set, show "Leave trip" — recipient-only path that revokes the
    *  share row identified by this id. Mirrors the desktop `LeaveTripMenu`. */
   leaveTripShareId: string | null;
@@ -170,6 +177,12 @@ function MobileTripOverflowMenu({
           )}
           {view === "timeline" ? "Switch to days" : "Switch to timeline"}
         </DropdownMenuItem>
+        {showScan && (
+          <DropdownMenuItem onClick={onOpenScan}>
+            <Mail className="mr-2 h-4 w-4" />
+            Scan emails
+          </DropdownMenuItem>
+        )}
         {showEdit && (
           <DropdownMenuItem onClick={onOpenEdit}>
             <Pencil className="mr-2 h-4 w-4" />
@@ -218,6 +231,7 @@ function HeaderActions({
   onOpenHistory,
   onOpenEdit,
   onOpenReview,
+  onOpenScan,
   onSwitchView,
   view,
   showCosts,
@@ -225,6 +239,7 @@ function HeaderActions({
   showShare,
   showReview,
   showEditInOverflow,
+  showScanInOverflow,
   showDeleteInOverflow,
   leaveTripShareId,
 }: {
@@ -241,6 +256,7 @@ function HeaderActions({
   onOpenHistory: () => void;
   onOpenEdit: () => void;
   onOpenReview: () => void;
+  onOpenScan: () => void;
   onSwitchView: () => void;
   view: MobileView;
   /** When false (e.g. share with `showCosts: false`), hide the Costs pill. */
@@ -257,6 +273,10 @@ function HeaderActions({
   /** Owner + shared-edit only — exposes the "Edit trip" affordance in
    *  the overflow menu. View-only contributors don't see it. */
   showEditInOverflow: boolean;
+  /** Owner + shared-edit only — exposes "Scan emails" in the
+   *  overflow menu. Parses go to the trip's owner Drive, which
+   *  contributors can write to but viewers can't. */
+  showScanInOverflow: boolean;
   /** Owner-only — exposes the destructive "Delete trip" action inside the
    *  overflow menu. The menu itself is always shown so contributors can
    *  reach the History sheet. */
@@ -327,10 +347,12 @@ function HeaderActions({
         tripTitle={tripTitle}
         onOpenHistory={onOpenHistory}
         onOpenEdit={onOpenEdit}
+        onOpenScan={onOpenScan}
         onSwitchView={onSwitchView}
         view={view}
         showDelete={showDeleteInOverflow}
         showEdit={showEditInOverflow}
+        showScan={showScanInOverflow}
         leaveTripShareId={leaveTripShareId}
       />
     </div>
@@ -389,6 +411,7 @@ function MobileTripInner({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -490,6 +513,7 @@ function MobileTripInner({
         historyOpen={historyOpen}
         editOpen={editOpen}
         reviewOpen={reviewOpen}
+        scanOpen={scanOpen}
         onOpenCosts={() => setCostsOpen(true)}
         onCloseCosts={() => setCostsOpen(false)}
         onOpenTodos={() => setTodosOpen(true)}
@@ -502,6 +526,8 @@ function MobileTripInner({
         onCloseEdit={() => setEditOpen(false)}
         onOpenReview={() => setReviewOpen(true)}
         onCloseReview={() => setReviewOpen(false)}
+        onOpenScan={() => setScanOpen(true)}
+        onCloseScan={() => setScanOpen(false)}
       />
     </MobileFrame>
   );
@@ -519,6 +545,7 @@ function TripFrame({
   historyOpen,
   editOpen,
   reviewOpen,
+  scanOpen,
   onOpenCosts,
   onCloseCosts,
   onOpenTodos,
@@ -531,6 +558,8 @@ function TripFrame({
   onCloseEdit,
   onOpenReview,
   onCloseReview,
+  onOpenScan,
+  onCloseScan,
 }: {
   trip: Trip;
   dateRange: string;
@@ -543,6 +572,7 @@ function TripFrame({
   historyOpen: boolean;
   editOpen: boolean;
   reviewOpen: boolean;
+  scanOpen: boolean;
   onOpenCosts: () => void;
   onCloseCosts: () => void;
   onOpenTodos: () => void;
@@ -555,6 +585,8 @@ function TripFrame({
   onCloseEdit: () => void;
   onOpenReview: () => void;
   onCloseReview: () => void;
+  onOpenScan: () => void;
+  onCloseScan: () => void;
 }): React.JSX.Element {
   const { usdTotal, todoSummary, pendingCount } = useTripSummary(trip);
   const confirmSegment = useConfirmSegment(trip.id);
@@ -600,6 +632,7 @@ function TripFrame({
               onOpenHistory={onOpenHistory}
               onOpenEdit={onOpenEdit}
               onOpenReview={onOpenReview}
+              onOpenScan={onOpenScan}
               onSwitchView={onSwitchView}
               view={view}
               showCosts={permission.showCosts}
@@ -607,6 +640,7 @@ function TripFrame({
               showShare={permission.isOwner}
               showReview={permission.canEdit}
               showEditInOverflow={permission.canEdit}
+              showScanInOverflow={permission.canEdit}
               showDeleteInOverflow={permission.isOwner}
               leaveTripShareId={leaveTripShareId}
             />
@@ -662,6 +696,13 @@ function TripFrame({
           trip={trip}
           open={reviewOpen}
           onClose={onCloseReview}
+        />
+      )}
+      {permission.canEdit && (
+        <MobileEmailScanSheet
+          tripId={trip.id}
+          open={scanOpen}
+          onClose={onCloseScan}
         />
       )}
       {permission.isOwner && (
