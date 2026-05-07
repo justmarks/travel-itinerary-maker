@@ -12,13 +12,20 @@ import { PwaInstallHint } from "./pwa-install-hint";
  * Constrains the mobile prototype to a phone-sized frame on desktop while
  * letting it fill the viewport on actual phones. Pixel 10 XL is ~430px wide
  * in CSS pixels, so we cap the frame at 430px and centre it.
+ *
+ * `widenInLandscape` opts a specific page out of the 430px cap when the
+ * device is rotated to landscape — the timeline view turns this on so a
+ * rotated phone can use the full viewport for its Gantt grid. Carousel
+ * (and everything else) keeps the existing 430px feel.
  */
 export function MobileFrame({
   children,
   className,
+  widenInLandscape = false,
 }: {
   children: ReactNode;
   className?: string;
+  widenInLandscape?: boolean;
 }): React.JSX.Element {
   const online = useOnlineStatus();
   return (
@@ -26,6 +33,11 @@ export function MobileFrame({
       <div
         className={cn(
           "relative mx-auto flex min-h-screen max-w-[430px] flex-col overflow-hidden bg-background shadow-xl md:my-4 md:min-h-[calc(100vh-2rem)] md:rounded-3xl md:border",
+          // In landscape, drop the desktop-preview chrome (rounded card,
+          // border, top/bottom margin) since a rotated phone uses the
+          // full viewport and the framing reads as wasted space.
+          widenInLandscape &&
+            "landscape:max-w-none landscape:shadow-none md:landscape:my-0 md:landscape:rounded-none md:landscape:border-0 md:landscape:min-h-screen",
           className,
         )}
       >

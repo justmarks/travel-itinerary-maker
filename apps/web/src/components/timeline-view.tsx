@@ -4,26 +4,14 @@ import { useState } from "react";
 import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
 import { formatFlightEndpoint } from "@travel-app/shared";
 import { cn } from "@/lib/utils";
-
-// ── Category helpers ──────────────────────────────────────────
-
-type Category = "transport" | "hotel" | "activity" | "dining";
-
-const TRANSPORT_TYPES = new Set<SegmentType>([
-  "flight", "train", "car_rental", "car_service", "other_transport",
-]);
-const ACTIVITY_TYPES = new Set<SegmentType>(["activity", "tour", "cruise", "show"]);
-const DINING_TYPES = new Set<SegmentType>([
-  "restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner",
-]);
-
-function getCategory(type: SegmentType): Category {
-  if (TRANSPORT_TYPES.has(type)) return "transport";
-  if (type === "hotel")          return "hotel";
-  if (ACTIVITY_TYPES.has(type))  return "activity";
-  if (DINING_TYPES.has(type))    return "dining";
-  return "activity";
-}
+import {
+  CATEGORY_TOKEN,
+  extractHotels,
+  getTimelineCategory as getCategory,
+  sortByTime,
+  type HotelBar,
+  type TimelineCategory as Category,
+} from "./timeline-shared";
 
 const SEGMENT_ICON: Record<SegmentType, string> = {
   flight:               "✈",
@@ -43,15 +31,9 @@ const SEGMENT_ICON: Record<SegmentType, string> = {
 };
 
 // Pill and cell tints come from the four `--cat-*` design-system tokens
-// (see `globals.css`). The Timeline `Category` type uses the legacy key
-// `hotel` for the lodging category; map it to the `lodging` token name
-// at the boundary so the rest of the file stays unchanged.
-const CATEGORY_TOKEN: Record<Category, string> = {
-  transport: "transport",
-  hotel:     "lodging",
-  activity:  "activity",
-  dining:    "dining",
-};
+// (see `globals.css`). `CATEGORY_TOKEN` lives in `timeline-shared.ts`
+// so the mobile timeline picks up the same legacy-key → design-token
+// mapping without duplicating the table.
 
 function pillStyle(cat: Category): React.CSSProperties {
   // Solid saturated rail as background, white text. Matches the bundle's
@@ -75,41 +57,8 @@ function cellBgStyle(cat: Category): React.CSSProperties {
   };
 }
 
-// ── Data helpers ──────────────────────────────────────────────
-
-function sortByTime(segs: Segment[]): Segment[] {
-  return [...segs].sort((a, b) => {
-    if (a.startTime && b.startTime) return a.startTime.localeCompare(b.startTime);
-    if (a.startTime) return -1;
-    if (b.startTime) return 1;
-    return a.sortOrder - b.sortOrder;
-  });
-}
-
-interface HotelBar {
-  segment: Segment;
-  startDayIdx: number;
-  endDayIdx: number;
-}
-
-function extractHotels(days: TripDay[]): HotelBar[] {
-  const bars: HotelBar[] = [];
-  days.forEach((day, dayIdx) => {
-    day.segments.filter((s) => s.type === "hotel").forEach((s) => {
-      let endDayIdx = dayIdx;
-      if (s.endDate) {
-        const found = days.findIndex((d) => d.date === s.endDate);
-        // endDate is checkout day; bar covers up to the night before.
-        // If endDate is not in the trip range, fall back to a single-day bar
-        // rather than extending across the whole trip — that would overlap
-        // later hotels and scramble the grid.
-        if (found > 0) endDayIdx = found - 1;
-      }
-      bars.push({ segment: s, startDayIdx: dayIdx, endDayIdx });
-    });
-  });
-  return bars;
-}
+// `sortByTime` and `extractHotels` live in `timeline-shared.ts` so the
+// mobile timeline shares the same hotel-bar collection + ordering rules.
 
 // ── Sub-components ────────────────────────────────────────────
 
