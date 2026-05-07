@@ -3,6 +3,7 @@
 import type { TripDay, Segment } from "@travel-app/shared";
 import { MapPin, ArrowDown, Plane, Plus, Train } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
+import { MobileEditableCity } from "./mobile-editable-city";
 
 function fmtDayHeader(date: string, dayOfWeek: string) {
   const d = new Date(date + "T00:00:00");
@@ -49,6 +50,7 @@ export function MobileDaysList({
   onSelectSegment,
   onAddSegment,
   showCosts = true,
+  editableCityTripId,
 }: {
   days: readonly TripDay[];
   stickyHeaderTopClass?: string;
@@ -66,6 +68,12 @@ export function MobileDaysList({
    * also uses this list) and owned-trip rendering stay unchanged.
    */
   showCosts?: boolean;
+  /**
+   * When set, the per-day city in each sticky day header becomes a
+   * tap-to-edit button targeting `useUpdateDay(tripId)`. Omit for
+   * read-only viewers — the city renders as an inert label.
+   */
+  editableCityTripId?: string;
 }): React.JSX.Element {
   return (
     <div className="pb-10">
@@ -114,11 +122,20 @@ export function MobileDaysList({
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
-                  {day.city && (
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3" />
-                      {day.city}
-                    </span>
+                  {editableCityTripId ? (
+                    <MobileEditableCity
+                      tripId={editableCityTripId}
+                      date={day.date}
+                      city={day.city}
+                      variant="dayStrip"
+                    />
+                  ) : (
+                    day.city && (
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {day.city}
+                      </span>
+                    )
                   )}
                   {onAddSegment && (
                     <button
