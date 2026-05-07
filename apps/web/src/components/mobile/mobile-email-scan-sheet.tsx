@@ -6,6 +6,7 @@ import {
   useApplyParsedSegments,
   useDismissEmail,
   useGmailLabels,
+  usePendingEmails,
   useScanEmails,
   useTrips,
 } from "@travel-app/api-client";
@@ -21,6 +22,7 @@ import {
   Inbox,
   Loader2,
   Mail,
+  RefreshCw,
   Search,
   X,
 } from "lucide-react";
@@ -88,6 +90,17 @@ function defaultActionFor(status: SegmentMatchStatus | undefined): ApplyAction {
   return "create";
 }
 
+/**
+ * What to default `selected` to. Skip duplicates AND low-confidence
+ * segments — the user can opt them in if they want, but a half-confident
+ * parse silently overwriting their itinerary is the wrong default. This
+ * matches desktop's `defaultSelected` rule.
+ */
+function defaultSelectedFor(seg: ParsedSegment): boolean {
+  const status = seg.match?.status ?? "new";
+  return status !== "duplicate" && seg.confidence !== "low";
+}
+
 function dayShort(date: string) {
   return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
     weekday: "short",
@@ -111,12 +124,16 @@ function buildReviewItems(
         continue;
       }
       const tripId = seg.suggestedTripId ?? defaultTripId;
+      const action = defaultActionFor(seg.match?.status);
+      // Two reasons to start unselected: (a) duplicate / skip default,
+      // (b) low-confidence parse — same rule desktop uses.
+      const selected = action !== "skip" && defaultSelectedFor(seg);
       items.push({
         emailId: res.emailId,
         emailSubject: res.subject,
         segment: seg,
-        selected: defaultActionFor(seg.match?.status) !== "skip",
-        action: defaultActionFor(seg.match?.status),
+        selected,
+        action,
         tripId,
       });
     }
@@ -179,14 +196,22 @@ function ScanBody({
   const gmailGranted = isDemo || hasGmailLink;
 
   const { data: trips = [] } = useTrips();
-  // Don't fetch Gmail labels until we've confirmed the link — fetch
-  // would 401/403 and pollute the console. The desktop dialog gates
-  // the same way.
-  const { data: labels = [] } = useGmailLabels(gmailGranted);
+  // Don't fetch Gmail labels or pending results until we've confirmed
+  // the link — fetches would 401/403 and pollute the console. The
+  // desktop dialog gates the same way.
+  const { data: labels = [], error: labelsError } = useGmailLabels(gmailGranted);
+  // Pending-results restoration: if a previous scan left results that
+  // weren't applied (e.g. user closed the sheet mid-review), surface
+  // them on next open instead of forcing a re-scan. The hook is gated
+  // on `gmailGranted` so unlinked users skip the call.
+  const { data: pendingData } = usePendingEmails(gmailGranted);
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
 
+  // Initial step: needs-scope when unlinked, otherwise config (later
+  // bumped to review by the pending-results effect below if there's
+  // anything to restore).
   const [step, setStep] = useState<Step>(
     gmailGranted ? "config" : "needs-scope",
   );
@@ -195,6 +220,12 @@ function ScanBody({
   const [results, setResults] = useState<EmailScanResult[]>([]);
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
+  /**
+   * Inline banner shown above the review list when a scan returned
+   * partial results with a billing (402) or overload (503) error —
+   * surfaces what the user can still do without forcing a retry.
+   */
+  const [partialError, setPartialError] = useState<string | null>(null);
 
   // Default trip for items without a `suggestedTripId` — the per-trip
   // entry point uses the active trip; account-level falls back to the
@@ -209,8 +240,24 @@ function ScanBody({
     if (travel) setLabelId(travel.id);
   }, [labels, labelId]);
 
+  // Restore pending results from the cache when the sheet opens. Only
+  // happens once (gated on `step === "config"` to avoid clobbering a
+  // mid-flight scan or an in-progress review). If pending exists, jump
+  // straight to review.
+  useEffect(() => {
+    if (step !== "config") return;
+    const pending = pendingData?.results;
+    if (!pending || pending.length === 0) return;
+    const built = buildReviewItems(pending, tripId, defaultTripId);
+    if (built.length === 0) return;
+    setResults(pending);
+    setItems(built);
+    setStep("review");
+  }, [pendingData, step, tripId, defaultTripId]);
+
   const handleStartScan = async () => {
     setStep("scanning");
+    setPartialError(null);
     try {
       const response = await scanEmails.mutateAsync({
         labelFilter: labelId || undefined,
@@ -227,14 +274,65 @@ function ScanBody({
       // token was rejected — bounce back to the connect step so
       // they can re-link instead of seeing a generic error toast.
       // Mirrors the desktop dialog's mid-flight handling.
-      if (
-        err instanceof ApiError &&
-        err.status === 403 &&
-        (err.body as { code?: string } | null)?.code === "GMAIL_SCOPE_REQUIRED"
-      ) {
-        setStep("needs-scope");
-        return;
+      if (err instanceof ApiError) {
+        const body = err.body as
+          | {
+              code?: string;
+              error?: string;
+              emailsFound?: number;
+              results?: EmailScanResult[];
+            }
+          | null;
+
+        if (err.status === 403 && body?.code === "GMAIL_SCOPE_REQUIRED") {
+          setStep("needs-scope");
+          return;
+        }
+
+        // Partial-results path: the AI batch hit a billing (402) or
+        // temporary overload (503) before finishing. Show what got
+        // parsed plus an inline banner explaining what the user can
+        // still do without retrying. Mirrors the desktop dialog.
+        const isBilling = err.status === 402;
+        const isOverloaded =
+          err.status === 503 || body?.code === "ANTHROPIC_OVERLOADED";
+        const partial = body?.results;
+        if ((isBilling || isOverloaded) && partial && partial.length > 0) {
+          const built = buildReviewItems(partial, tripId, defaultTripId);
+          setResults(partial);
+          setItems(built);
+          setPartialError(
+            body?.error ??
+              (isOverloaded
+                ? "The AI service is temporarily overloaded. The segments below were parsed before the rest of the batch failed — you can apply them and try again later for the rest."
+                : "The AI service needs credits to finish parsing. The segments below got through; add credits at console.anthropic.com to retry the rest."),
+          );
+          setStep(built.length === 0 ? "done" : "review");
+          return;
+        }
+
+        // No partial results — surface a specific message instead of
+        // the generic "Request failed (402)" describeError emits.
+        if (isBilling) {
+          const found = body?.emailsFound
+            ? ` (${body.emailsFound} emails found)`
+            : "";
+          toast.error("AI service needs credits", {
+            description: `Found emails${found} but the AI service needs credits to parse them. Add credits at console.anthropic.com, then try again.`,
+          });
+          setStep("config");
+          return;
+        }
+        if (isOverloaded) {
+          toast.error("AI service overloaded", {
+            description:
+              "The AI service is temporarily busy. Please try scanning again in a few minutes.",
+          });
+          setStep("config");
+          return;
+        }
       }
+
       toast.error("Couldn't scan emails", { description: describeError(err) });
       setStep("config");
     }
@@ -289,20 +387,34 @@ function ScanBody({
       (it) => it.selected && it.action !== "skip" && it.tripId,
     );
     try {
+      let added = 0;
       if (toApply.length > 0) {
-        await applySegments.mutateAsync({
-          segments: toApply.map((it) => ({
-            ...it.segment,
-            tripId: it.tripId,
-            emailId: it.emailId,
+        const res = await applySegments.mutateAsync({
+          segments: toApply.map((it) => {
             // Filter above guarantees `it.action !== "skip"`. The
             // server schema's `action` enum is just create / merge /
             // replace, so narrow back to that union here — TS can't
             // infer the narrowing from the .filter() predicate.
-            action: it.action as "create" | "merge" | "replace",
-            existingSegmentId: it.segment.match?.existingSegmentId,
-          })),
+            const action = it.action as "create" | "merge" | "replace";
+            return {
+              ...it.segment,
+              tripId: it.tripId,
+              emailId: it.emailId,
+              action,
+              // The schema only expects existingSegmentId for merge /
+              // replace — sending it on `create` is harmless but noisy.
+              // Match desktop's exact shape.
+              existingSegmentId:
+                action === "merge" || action === "replace"
+                  ? it.segment.match?.existingSegmentId
+                  : undefined,
+            };
+          }),
         });
+        // Use the server's actual created + updated counts so the
+        // "Added N" line matches reality (e.g. a merge increments
+        // `updated`, not `created`). Desktop does the same.
+        added = res.created.length + (res.updated?.length ?? 0);
       }
       // Auto-dismiss emails whose every segment was skipped/deselected
       // — matches desktop. Reduces re-scan noise.
@@ -313,7 +425,7 @@ function ScanBody({
           dismissEmail.mutate(id);
         }
       }
-      setAppliedCount(toApply.length);
+      setAppliedCount(added);
       setStep("done");
     } catch (err) {
       toast.error("Couldn't apply segments", {
@@ -494,6 +606,35 @@ function ScanBody({
           )}
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-2">
+          {partialError && (
+            <div
+              className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
+              style={{
+                backgroundColor: "var(--status-warn-bg)",
+                color: "var(--status-warn-fg)",
+                borderColor: "var(--status-warn-rail)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{partialError}</p>
+            </div>
+          )}
+          {labelsError && (
+            <div
+              className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
+              style={{
+                backgroundColor: "var(--status-warn-bg)",
+                color: "var(--status-warn-fg)",
+                borderColor: "var(--status-warn-rail)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Couldn&apos;t load Gmail labels. You may need to sign out
+                and re-link Gmail.
+              </p>
+            </div>
+          )}
           {items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
               <Inbox className="h-7 w-7 text-muted-foreground" />
@@ -522,10 +663,19 @@ function ScanBody({
         <Footer>
           <button
             type="button"
-            onClick={onClose}
-            className="h-11 flex-1 rounded-full border bg-background text-sm font-medium"
+            onClick={() => {
+              // "Scan more" returns the user to the config step so
+              // they can change the label / re-parse toggle and run
+              // another pass without closing the sheet.
+              setItems([]);
+              setResults([]);
+              setPartialError(null);
+              setStep("config");
+            }}
+            className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full border bg-background text-sm font-medium"
           >
-            Cancel
+            <RefreshCw className="h-3.5 w-3.5" />
+            Scan more
           </button>
           <button
             type="button"
