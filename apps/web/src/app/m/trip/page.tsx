@@ -8,10 +8,12 @@ import type { Trip } from "@travel-app/shared";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  CalendarDays,
   CheckSquare,
   CloudOff,
   DollarSign,
   History,
+  LayoutGrid,
   LogOut,
   MoreVertical,
   Pencil,
@@ -30,7 +32,14 @@ import { MobileTodosSheet } from "@/components/mobile/mobile-todos-sheet";
 import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileHistorySheet } from "@/components/mobile/mobile-history-sheet";
 import { MobileEditTripSheet } from "@/components/mobile/mobile-edit-trip-sheet";
+import { MobileTimelineView } from "@/components/mobile/mobile-timeline-view";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
+
+type MobileView = "carousel" | "timeline";
+
+function parseView(v: string | null): MobileView {
+  return v === "timeline" ? "timeline" : "carousel";
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +70,8 @@ function MobileTripOverflowMenu({
   tripTitle,
   onOpenHistory,
   onOpenEdit,
+  onSwitchView,
+  view,
   showDelete,
   showEdit,
   leaveTripShareId,
@@ -69,6 +80,10 @@ function MobileTripOverflowMenu({
   tripTitle: string;
   onOpenHistory: () => void;
   onOpenEdit: () => void;
+  /** Flips the URL `?v=` between carousel + timeline. */
+  onSwitchView: () => void;
+  /** Current view, drives the switch label + icon. */
+  view: MobileView;
   /** Owner-only — contributors see the menu (for History) but not Delete. */
   showDelete: boolean;
   /** Owner + edit-contributor only. View-only contributors don't see Edit. */
@@ -140,6 +155,14 @@ function MobileTripOverflowMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onSwitchView}>
+          {view === "timeline" ? (
+            <LayoutGrid className="mr-2 h-4 w-4" />
+          ) : (
+            <CalendarDays className="mr-2 h-4 w-4" />
+          )}
+          {view === "timeline" ? "Switch to days" : "Switch to timeline"}
+        </DropdownMenuItem>
         {showEdit && (
           <DropdownMenuItem onClick={onOpenEdit}>
             <Pencil className="mr-2 h-4 w-4" />
@@ -186,6 +209,8 @@ function HeaderActions({
   onOpenShare,
   onOpenHistory,
   onOpenEdit,
+  onSwitchView,
+  view,
   showCosts,
   showTodos,
   showShare,
@@ -203,6 +228,8 @@ function HeaderActions({
   onOpenShare: () => void;
   onOpenHistory: () => void;
   onOpenEdit: () => void;
+  onSwitchView: () => void;
+  view: MobileView;
   /** When false (e.g. share with `showCosts: false`), hide the Costs pill. */
   showCosts: boolean;
   /** Same idea for the to-do pill. */
@@ -266,6 +293,8 @@ function HeaderActions({
         tripTitle={tripTitle}
         onOpenHistory={onOpenHistory}
         onOpenEdit={onOpenEdit}
+        onSwitchView={onSwitchView}
+        view={view}
         showDelete={showDeleteInOverflow}
         showEdit={showEditInOverflow}
         leaveTripShareId={leaveTripShareId}
@@ -298,7 +327,15 @@ function useTripSummary(trip: Trip) {
   return { usdTotal, todoSummary };
 }
 
-function MobileTripInner({ tripId }: { tripId: string }) {
+function MobileTripInner({
+  tripId,
+  view,
+  onSwitchView,
+}: {
+  tripId: string;
+  view: MobileView;
+  onSwitchView: () => void;
+}) {
   const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
   const online = useOnlineStatus();
   const homeHref = useDemoHref("/m");
@@ -395,11 +432,13 @@ function MobileTripInner({ tripId }: { tripId: string }) {
   const dateRange = fmtRange(trip.startDate, trip.endDate);
 
   return (
-    <MobileFrame>
+    <MobileFrame widenInLandscape={view === "timeline"}>
       <TripFrame
         trip={trip}
         dateRange={dateRange}
         homeHref={homeHref}
+        view={view}
+        onSwitchView={onSwitchView}
         costsOpen={costsOpen}
         todosOpen={todosOpen}
         shareOpen={shareOpen}
@@ -424,6 +463,8 @@ function TripFrame({
   trip,
   dateRange,
   homeHref,
+  view,
+  onSwitchView,
   costsOpen,
   todosOpen,
   shareOpen,
@@ -443,6 +484,8 @@ function TripFrame({
   trip: Trip;
   dateRange: string;
   homeHref: string;
+  view: MobileView;
+  onSwitchView: () => void;
   costsOpen: boolean;
   todosOpen: boolean;
   shareOpen: boolean;
@@ -490,6 +533,8 @@ function TripFrame({
               onOpenShare={onOpenShare}
               onOpenHistory={onOpenHistory}
               onOpenEdit={onOpenEdit}
+              onSwitchView={onSwitchView}
+              view={view}
               showCosts={permission.showCosts}
               showTodos={permission.showTodos}
               showShare={permission.isOwner}
@@ -500,11 +545,15 @@ function TripFrame({
           )
         }
       />
-      <MobileCarouselView
-        trip={trip}
-        showCosts={!permission.isLoading && permission.showCosts}
-        canEdit={!permission.isLoading && permission.canEdit}
-      />
+      {view === "timeline" ? (
+        <MobileTimelineView trip={trip} />
+      ) : (
+        <MobileCarouselView
+          trip={trip}
+          showCosts={!permission.isLoading && permission.showCosts}
+          canEdit={!permission.isLoading && permission.canEdit}
+        />
+      )}
       {/* Sheets are only mounted when the corresponding pill is allowed
           to open them — keeps the data off the page entirely for shares
           that asked to hide costs / todos. */}
@@ -551,8 +600,20 @@ function TripFrame({
 
 function MobileTripPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tripId = searchParams.get("id");
+  const view = parseView(searchParams.get("v"));
   const homeHref = useDemoHref("/m");
+
+  // Flips `?v=` between carousel + timeline. Uses `replace` so the swap
+  // doesn't add a back-nav step — feels more like a tab toggle than a
+  // separate page.
+  const onSwitchView = () => {
+    const next = view === "timeline" ? "carousel" : "timeline";
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("v", next);
+    router.replace(`/m/trip?${params.toString()}`);
+  };
 
   if (!tripId) {
     return (
@@ -569,7 +630,9 @@ function MobileTripPageInner() {
     );
   }
 
-  return <MobileTripInner tripId={tripId} />;
+  return (
+    <MobileTripInner tripId={tripId} view={view} onSwitchView={onSwitchView} />
+  );
 }
 
 export default function MobileTripPage(): React.JSX.Element {
