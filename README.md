@@ -293,12 +293,10 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 
 **Remaining mobile work:**
 
-- [ ] **Google Calendar sync** — push/unsync + calendar picker. The most common phone-day reach (people want their flights and hotels in their device calendar). Surface from the mobile trip-detail overflow menu mirroring the desktop button + dropdown
 - [ ] **Email scan** — Gmail scanner + Claude parser, plus the pending-segments review screen (new / duplicate / enrichment / conflict). The phone is a natural place to triage parsed confirmations on the go. Will need a mobile-shaped review UI — the desktop dialog has too many columns to fit
 - [ ] **Confirm-segment shortcuts** — auto-parsed segments wear a "Review" badge; mobile users can confirm them today by opening Edit and saving, but there's no green-check shortcut and no batch "Confirm all." Add an inline tap-to-confirm and an overflow-menu bulk action
 - [ ] **Segment reorder** — drag-to-reorder within a day. Desktop has it via the segment row; mobile needs a long-press-to-grab gesture or a dedicated reorder mode
 - [ ] **Full Map view** — mobile shows a small per-day map preview only. Add a full-screen map tab with all trip pins + KML export, mirroring the desktop `MapView`
-- [ ] **Timeline view** — Hipmunk/Gantt grid. Lower priority on mobile (the carousel + day list already cover the day-by-day shape that desktop's timeline competes with), but worth revisiting once the rest lands
 - [ ] **Suggest meals** dialog — the AI meal-suggestion flow that exists on desktop
 
 **Intentionally desktop-only on mobile:**
@@ -315,12 +313,13 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 - [x] **Per-trip unfurl previews** — `ShareSnapshotStore` writes a tiny title/dates snapshot to Redis on share creation; the public `/shared/[token]` page reads it on the Vercel Edge runtime in `generateMetadata` and renders a per-trip Open Graph card
 - [x] **Contributor edit flow** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` keeps an email index keyed on `sharedWithEmail` for fast lookup
 - [x] **Recipient self-leave** — a share recipient can remove themselves from a trip without waiting for the owner. Leave action lives on both the trip card (dashboard) and the trip detail page on desktop and mobile. Reuses the existing `DELETE /trips/:id/shares/:shareId` endpoint with the access gate relaxed: owners can revoke any share; non-owners can revoke a share row whose `sharedWithEmail` matches their authenticated email. Writes a `share.leave` audit entry (distinct from owner-initiated `share.revoke`) and pushes a notification to the *owner* ("X left your trip") rather than to the leaver. Anonymous link shares stay owner-only since there's no recipient identity to match
-- [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated (later)
 
 **Potential ideas for the future:**
 
+- [ ] **Google Calendar sync on mobile** — push/unsync + calendar picker, surfaced from the trip-detail overflow menu mirroring the desktop button + dropdown
+- [ ] **Mobile timeline view** — Hipmunk/Gantt grid on `/m`. The carousel + day list already cover the day-by-day shape that desktop's timeline competes with, so this is a "nice to have" once the higher-priority mobile work lands
+- [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
-- [ ] **Later** — FCM push notifications, OneNote polish
 
 ## License
 
