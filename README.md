@@ -291,6 +291,20 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 - [x] **Phase 4 — Authoring on mobile** — add, edit, and delete segments end-to-end on `/m`. A bottom-sheet form (`MobileSegmentFormSheet`) reuses the desktop `SegmentFormFields` component so the field set, type-specific behaviour, and validation stay identical across surfaces. Per-day "Add" buttons appear on the day-strip carousel and inside each day's section in the All view; the segment detail sheet exposes an "Edit" footer action that hands off to the form sheet (delete lives inside the form sheet's footer). All affordances are gated by `useTripPermission` — owners and shared-edit contributors see them, view-only contributors and public link viewers don't
 - [x] **Phase 5 — End-to-end planning on mobile** — trip creation, trip metadata editing, and per-day city editing all live on `/m`. `MobileCreateTripSheet` (title + date range, with overlap-error handling) is reachable from a "+" button in the trip-list header and from the empty-state CTA. `MobileEditTripSheet` (title / start / end / status pills) opens from the trip-detail overflow menu. `MobileEditableCity` is a tap-to-edit affordance shown next to each day's city in both the carousel's active-day header and the All view's per-day sticky headers. Combined with the auto-derive on segment add/edit (city flows from segment → day when sensible), a phone-only user can plan a trip end-to-end without bouncing to desktop
 
+**Remaining mobile work:**
+
+- [ ] **Google Calendar sync** — push/unsync + calendar picker. The most common phone-day reach (people want their flights and hotels in their device calendar). Surface from the mobile trip-detail overflow menu mirroring the desktop button + dropdown
+- [ ] **Email scan** — Gmail scanner + Claude parser, plus the pending-segments review screen (new / duplicate / enrichment / conflict). The phone is a natural place to triage parsed confirmations on the go. Will need a mobile-shaped review UI — the desktop dialog has too many columns to fit
+- [ ] **Confirm-segment shortcuts** — auto-parsed segments wear a "Review" badge; mobile users can confirm them today by opening Edit and saving, but there's no green-check shortcut and no batch "Confirm all." Add an inline tap-to-confirm and an overflow-menu bulk action
+- [ ] **Segment reorder** — drag-to-reorder within a day. Desktop has it via the segment row; mobile needs a long-press-to-grab gesture or a dedicated reorder mode
+- [ ] **Full Map view** — mobile shows a small per-day map preview only. Add a full-screen map tab with all trip pins + KML export, mirroring the desktop `MapView`
+- [ ] **Timeline view** — Hipmunk/Gantt grid. Lower priority on mobile (the carousel + day list already cover the day-by-day shape that desktop's timeline competes with), but worth revisiting once the rest lands
+- [ ] **Suggest meals** dialog — the AI meal-suggestion flow that exists on desktop
+
+**Intentionally desktop-only on mobile:**
+
+- **HTML / EML email import**, **XLSX trip import**, and **Markdown / OneNote / PDF / iCal export** — these are batch / file-handling operations where a phone is the wrong form factor (file pickers / downloads / pasting raw HTML are clunky on touch, and the resulting files generally end up shared via desktop anyway). Keep them under "Import" / "Export" on desktop only
+
 **Sharing:**
 
 A trip's owner can publish a read-only or contributor-edit link; recipients open it without signing in (view) or sign in to edit (contributor flow). Backed by a Redis-persisted share registry so links survive server restarts and Railway sleep cycles.
@@ -305,9 +319,8 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 
 **Potential ideas for the future:**
 
-- [ ] **Calendar sync + exports from mobile** — phone-day users can now plan a trip on `/m`, but Google Calendar push/unsync, the calendar picker, and the Markdown / OneNote / PDF / iCal exports are still desktop-only. Surface them from the mobile trip-detail overflow menu
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
-- [ ] **Later** — FCM push notifications, OneNote polish, mobile timeline view
+- [ ] **Later** — FCM push notifications, OneNote polish
 
 ## License
 
