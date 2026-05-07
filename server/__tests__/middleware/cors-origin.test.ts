@@ -1,4 +1,7 @@
-import { buildCorsOriginCheck } from "../../src/middleware/cors-origin";
+import {
+  buildCorsOriginCheck,
+  CorsOriginError,
+} from "../../src/middleware/cors-origin";
 
 function check(
   literals: string[],
@@ -55,8 +58,9 @@ describe("buildCorsOriginCheck", () => {
       "https://malicious.example",
     );
     expect(allowed).toBe(false);
-    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(CorsOriginError);
     expect(err?.message).toContain("https://malicious.example");
+    expect((err as CorsOriginError).origin).toBe("https://malicious.example");
   });
 
   it("rejects everything except no-origin when literals empty and no pattern", () => {

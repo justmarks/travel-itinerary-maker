@@ -18,7 +18,7 @@ import { createPushRoutes } from "./routes/push";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
-import { buildCorsOriginCheck } from "./middleware/cors-origin";
+import { buildCorsOriginCheck, CorsOriginError } from "./middleware/cors-origin";
 import type { ResolveOwnerStorage } from "./services/trip-access";
 import { config } from "./config/env";
 
@@ -281,7 +281,15 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
 
   // Error handler — catch any unhandled errors from route handlers. Logs
   // locally and forwards to Sentry (no-op when monitoring is disabled).
+  //
+  // CORS origin rejections are expected client-side errors (typically
+  // scanners forging the Origin header), not server failures. Respond 403
+  // and skip Sentry so they don't generate alerts.
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (err instanceof CorsOriginError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
     console.error(err);
     reportError(err, {
       path: req.path,
