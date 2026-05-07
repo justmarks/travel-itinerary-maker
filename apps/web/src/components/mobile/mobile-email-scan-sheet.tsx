@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  ApiError,
   useApplyParsedSegments,
   useDismissEmail,
   useGmailLabels,
@@ -14,6 +15,7 @@ import type {
   SegmentMatchStatus,
 } from "@travel-app/shared";
 import {
+  AlertCircle,
   Check,
   CheckCircle2,
   Inbox,
@@ -24,13 +26,32 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
+import { useAuth } from "@/lib/auth";
+import { useDemoMode } from "@/lib/demo";
+import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
 import { cn } from "@/lib/utils";
 import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 // ── Types ──────────────────────────────────────────────────
 
-type Step = "config" | "scanning" | "review" | "done";
+/**
+ * Steps in the scan flow:
+ * - `needs-scope`: user hasn't linked Gmail (or the refresh token was
+ *   revoked / rejected). Shown both on first open and after a 403
+ *   `GMAIL_SCOPE_REQUIRED` mid-flight. CTA bounces to the Gmail
+ *   OAuth client.
+ * - `config`: pick a label + decide on re-parse.
+ * - `scanning`: mutation in flight.
+ * - `review`: parsed segments to triage.
+ * - `done`: terminal state.
+ */
+type Step =
+  | "needs-scope"
+  | "config"
+  | "scanning"
+  | "review"
+  | "done";
 
 type ApplyAction = "create" | "merge" | "replace" | "skip";
 
@@ -147,13 +168,28 @@ function ScanBody({
   tripId?: string;
   onClose: () => void;
 }): React.JSX.Element {
+  const { hasGmailLink } = useAuth();
+  const isDemo = useDemoMode();
+  // Demo mode bypasses real Google APIs via MockApiClient, so treat
+  // every scope as granted there. For real users, gate the scan path
+  // on the Gmail OAuth client being linked — same logic the desktop
+  // EmailScanDialog uses. Pairs with the 403 GMAIL_SCOPE_REQUIRED
+  // bounce in `handleStartScan` for tokens that were revoked or
+  // rejected after first link.
+  const gmailGranted = isDemo || hasGmailLink;
+
   const { data: trips = [] } = useTrips();
-  const { data: labels = [] } = useGmailLabels(true);
+  // Don't fetch Gmail labels until we've confirmed the link — fetch
+  // would 401/403 and pollute the console. The desktop dialog gates
+  // the same way.
+  const { data: labels = [] } = useGmailLabels(gmailGranted);
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
 
-  const [step, setStep] = useState<Step>("config");
+  const [step, setStep] = useState<Step>(
+    gmailGranted ? "config" : "needs-scope",
+  );
   const [labelId, setLabelId] = useState<string | null>(null);
   const [forceRescan, setForceRescan] = useState(false);
   const [results, setResults] = useState<EmailScanResult[]>([]);
@@ -187,6 +223,18 @@ function ScanBody({
       // to a "done — no new emails" terminal state.
       setStep(built.length === 0 ? "done" : "review");
     } catch (err) {
+      // The user's Gmail link was revoked at Google or the refresh
+      // token was rejected — bounce back to the connect step so
+      // they can re-link instead of seeing a generic error toast.
+      // Mirrors the desktop dialog's mid-flight handling.
+      if (
+        err instanceof ApiError &&
+        err.status === 403 &&
+        (err.body as { code?: string } | null)?.code === "GMAIL_SCOPE_REQUIRED"
+      ) {
+        setStep("needs-scope");
+        return;
+      }
       toast.error("Couldn't scan emails", { description: describeError(err) });
       setStep("config");
     }
@@ -275,6 +323,77 @@ function ScanBody({
   };
 
   // ── Render per step ──
+
+  if (step === "needs-scope") {
+    const configured = isGmailLinkConfigured();
+    return (
+      <>
+        <Header title="Connect Gmail" onClose={onClose} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+          {configured ? (
+            <>
+              <Mail className="h-8 w-8 text-muted-foreground" />
+              <p className="text-base font-medium">Connect Gmail to scan</p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                Granting read-only Gmail access lets us find travel
+                confirmations and turn them into trip segments. You can
+                revoke this any time from your Google Account.
+              </p>
+            </>
+          ) : (
+            // Build is missing NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL.
+            // Bail before the click handler so the user sees a
+            // meaningful message instead of a silent no-op.
+            <>
+              <AlertCircle
+                className="h-8 w-8"
+                style={{ color: "var(--status-warn-fg)" }}
+              />
+              <p className="text-base font-medium">
+                Gmail scanning isn&apos;t configured
+              </p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                This build is missing the{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-[10px]">
+                  NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL
+                </code>{" "}
+                env var, so the Gmail OAuth flow can&apos;t start.
+              </p>
+            </>
+          )}
+        </div>
+        <Footer>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 flex-1 rounded-full border bg-background text-sm font-medium"
+          >
+            {configured ? "Not now" : "Close"}
+          </button>
+          {configured && (
+            <button
+              type="button"
+              onClick={() => {
+                // Send the user back to the same page they were on so
+                // re-opening the sheet after consent feels seamless.
+                // Gmail consent runs against a separate OAuth client
+                // (kept off the primary so the primary stays off
+                // CASA), so this is a fresh consent screen — not an
+                // incremental scope grant on the primary client.
+                const returnTo =
+                  window.location.pathname + window.location.search;
+                startGmailLink(returnTo);
+              }}
+              className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground"
+            >
+              <Mail className="h-4 w-4" />
+              Connect Gmail
+            </button>
+          )}
+        </Footer>
+      </>
+    );
+  }
 
   if (step === "scanning") {
     return (
