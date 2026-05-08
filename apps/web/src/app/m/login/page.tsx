@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { startGoogleSignIn } from "@/lib/oauth";
@@ -50,7 +51,9 @@ export default function MobileLoginPage(): React.JSX.Element {
     <MobileFrame>
       <div className="flex flex-1 flex-col px-6 pb-10 pt-16">
         <div className="flex flex-col items-center text-center">
-          <AppWordmark className="h-16" />
+          <Link href="/welcome" aria-label="itinly home">
+            <AppWordmark className="h-16" />
+          </Link>
           <p className="mt-3 text-sm text-muted-foreground">
             Your trips, in your pocket.
           </p>

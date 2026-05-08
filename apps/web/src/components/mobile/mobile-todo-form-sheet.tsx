@@ -8,7 +8,9 @@ import {
 } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
 import { Briefcase, MapPin, Search, Trash2, Utensils, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -105,7 +107,14 @@ export function MobileTodoFormSheet({
           category: category || undefined,
           details: details.trim() || undefined,
         },
-        { onSuccess: onClose },
+        {
+          onSuccess: onClose,
+          onError: (err) => {
+            toast.error("Couldn't add to-do", {
+              description: describeError(err),
+            });
+          },
+        },
       );
     } else if (isEdit) {
       updateTodo.mutate(
@@ -117,7 +126,14 @@ export function MobileTodoFormSheet({
           // `""` the same — see updateTodoSchema in shared/validators).
           details: details.trim() || null,
         },
-        { onSuccess: onClose },
+        {
+          onSuccess: onClose,
+          onError: (err) => {
+            toast.error("Couldn't save to-do", {
+              description: describeError(err),
+            });
+          },
+        },
       );
     }
   };
@@ -130,7 +146,14 @@ export function MobileTodoFormSheet({
       destructive: true,
     });
     if (!ok) return;
-    deleteTodo.mutate(target.id, { onSuccess: onClose });
+    deleteTodo.mutate(target.id, {
+      onSuccess: onClose,
+      onError: (err) => {
+        toast.error("Couldn't delete to-do", {
+          description: describeError(err),
+        });
+      },
+    });
   };
 
   return (

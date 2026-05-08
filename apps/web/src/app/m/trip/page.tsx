@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -125,9 +126,9 @@ function MobileTripOverflowMenu({
         router.push(homeHref);
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't delete trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -147,9 +148,9 @@ function MobileTripOverflowMenu({
         router.push(homeHref);
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't leave trip", {
+          description: describeError(err),
+        });
       },
     });
   };

@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RequireAuth } from "@/components/require-auth";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoMode } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -34,6 +35,7 @@ import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
 import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
 import { AppLogo } from "@/components/app-logo";
+import { DriveScopeBanner } from "@/components/drive-scope-banner";
 import {
   daysUntil,
   flagEmoji,
@@ -177,9 +179,9 @@ function MobileTripCardLeaveMenu({
         router.push("/m");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't leave trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -490,6 +492,9 @@ function MobileHomeContent(): React.JSX.Element {
         <MobileUserMenu onScanEmails={() => setScanOpen(true)} />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
+        <div className="pt-3">
+          <DriveScopeBanner variant="mobile" />
+        </div>
         <MobileTripList onCreateTrip={() => setCreateOpen(true)} />
       </div>
       <MobileCreateTripSheet

@@ -5,6 +5,7 @@ import { useTrips } from "@travel-app/api-client";
 import { TripCard } from "./trip-card";
 import { AppLogo } from "./app-logo";
 import { Button } from "@/components/ui/button";
+import { describeError } from "@/lib/api-error";
 
 export function TripList(): React.JSX.Element {
   const { data: trips, isLoading, error } = useTrips();
@@ -49,12 +50,10 @@ export function TripList(): React.JSX.Element {
   }
 
   if (error) {
-    const detail =
-      error instanceof Error ? error.message : "Unknown error";
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
         <p className="font-medium">Failed to load trips</p>
-        <p className="mt-1 text-xs opacity-75">{detail}</p>
+        <p className="mt-1 text-xs opacity-75">{describeError(error)}</p>
       </div>
     );
   }
