@@ -1839,7 +1839,13 @@ export class MockApiClient extends ApiClient {
     return Promise.resolve([
       { id: "INBOX", name: "INBOX", type: "system" },
       { id: "STARRED", name: "STARRED", type: "system" },
+      // Nested user labels — Gmail returns these as flat strings
+      // with "/" separators. The picker UI builds a tree from them
+      // and renders children indented under their parent.
       { id: "Label_1", name: "Travel", type: "user" },
+      { id: "Label_3", name: "Travel/Flights", type: "user" },
+      { id: "Label_4", name: "Travel/Hotels", type: "user" },
+      { id: "Label_5", name: "Travel/Hotels/Confirmed", type: "user" },
       { id: "Label_2", name: "Receipts", type: "user" },
     ]);
   }

@@ -30,6 +30,10 @@ import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
+import {
+  buildGmailLabelTree,
+  indentedLabel,
+} from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
 import { cn } from "@/lib/utils";
 import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
@@ -870,36 +874,36 @@ function ScanBody({
         </p>
 
         <div className="mt-4 space-y-1.5">
-          <p className="text-kicker font-medium text-muted-foreground">
+          <label
+            htmlFor="m-scan-label"
+            className="text-kicker font-medium text-muted-foreground"
+          >
             Gmail label
-          </p>
-          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
-            <LabelPill
-              active={labelId === null}
-              onClick={() => setLabelId(null)}
-              icon={<Inbox className="h-3 w-3" />}
-              label="All mail"
-            />
-            {[...labels]
-              // Gmail's API returns labels in roughly creation order
-              // (system labels first, then user labels). Sort A→Z so
-              // the chip strip stays scannable. Case-insensitive so
-              // "Travel" and "travel" sort together. Matches the
-              // desktop dialog's labels sort.
-              .sort((a, b) =>
-                a.name.localeCompare(b.name, undefined, {
-                  sensitivity: "base",
-                }),
-              )
-              .map((l) => (
-              <LabelPill
-                key={l.id}
-                active={labelId === l.id}
-                onClick={() => setLabelId(l.id)}
-                label={l.name}
-              />
+          </label>
+          {/* Native <select> so Android / iOS use their platform pickers
+              — the same call we made for the segment-type select. The
+              option list is a depth-tagged tree (parents above children,
+              non-breaking-space indent) so nested labels like
+              `Travel/Hotels` read as Hotels nested under Travel rather
+              than the full path repeated everywhere. */}
+          <select
+            id="m-scan-label"
+            value={labelId ?? ""}
+            onChange={(e) => setLabelId(e.target.value || null)}
+            className={cn(
+              "h-11 w-full appearance-none rounded-xl border border-input bg-background px-3 py-2 pr-9 text-sm shadow-xs",
+              "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+              "bg-[length:16px] bg-[right_0.75rem_center] bg-no-repeat",
+              "bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")]",
+            )}
+          >
+            <option value="">All mail (no label filter)</option>
+            {buildGmailLabelTree(labels).map((node) => (
+              <option key={node.label.id} value={node.label.id}>
+                {indentedLabel(node)}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
 
         <label className="mt-4 flex items-center gap-3 rounded-xl border bg-card p-3">
@@ -984,34 +988,6 @@ function Footer({ children }: { children: React.ReactNode }): React.JSX.Element 
     <div className="flex shrink-0 items-center gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
       {children}
     </div>
-  );
-}
-
-function LabelPill({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon?: React.ReactNode;
-  label: string;
-}): React.JSX.Element {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors",
-        active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-background text-muted-foreground",
-      )}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 
