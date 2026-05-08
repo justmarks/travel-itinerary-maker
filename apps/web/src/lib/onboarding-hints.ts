@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * flag (`itinly:hint:{key}`); writing the flag is permanent unless the
  * user clears site data.
  *
- * Two hints exist today:
+ * Three hints exist today:
  *   - `pwa-install`         — banner on the mobile shell that pushes
  *                              "Add to Home Screen" / install-as-app
  *                              the first time a user lands on /m.
@@ -16,6 +16,11 @@ import { useEffect, useState } from "react";
  *                              that offers to turn on push so the
  *                              owner gets pinged when recipients open
  *                              the trip.
+ *   - `intro-tour`          — multi-step welcome dialog shown the first
+ *                              time an authenticated user lands on the
+ *                              app on a given device. Walks through the
+ *                              core features (manage trips, build from
+ *                              email, share, install).
  *
  * Hints write the dismissal flag eagerly (once shown / acted on) — the
  * UX is "we surface this exactly once, regardless of what the user
@@ -24,7 +29,10 @@ import { useEffect, useState } from "react";
 
 const STORAGE_PREFIX = "itinly:hint:";
 
-export type OnboardingHintKey = "pwa-install" | "share-notifications";
+export type OnboardingHintKey =
+  | "pwa-install"
+  | "share-notifications"
+  | "intro-tour";
 
 function storageKey(key: OnboardingHintKey): string {
   return `${STORAGE_PREFIX}${key}`;
