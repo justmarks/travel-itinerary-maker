@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   useApplyParsedSegments,
+  useCreateTrip,
   useDismissEmail,
   useGmailLabels,
   usePendingEmails,
@@ -12,9 +13,11 @@ import {
 } from "@travel-app/api-client";
 import type {
   EmailScanResult,
+  NewTripProposal,
   ParsedSegment,
   SegmentMatchStatus,
 } from "@travel-app/shared";
+import { NEW_TRIP_PREFIX, proposeNewTrips } from "@travel-app/shared";
 import {
   AlertCircle,
   Check,
@@ -74,6 +77,12 @@ interface ReviewItem {
   /** Local UI state — selected to apply, with a chosen action + trip. */
   selected: boolean;
   action: ApplyAction;
+  /**
+   * Either a real existing trip id OR a new-trip-proposal sentinel
+   * (`__new__N`). Sentinels are swapped for real ids in `handleApply`
+   * after `useCreateTrip` resolves. Empty string means "unassigned —
+   * Apply will refuse to send this segment."
+   */
   tripId: string;
 }
 
@@ -136,11 +145,22 @@ function fmtTripRange(start: string, end: string): string {
   return `${fmt(s)} – ${fmt(e)}`;
 }
 
+/**
+ * Build the review-step state from a scan response. Returns both
+ * `items` and the `proposals` derived from items that didn't match
+ * an existing trip — each unassigned item is pre-bound to its
+ * proposal's sentinel id so the picker shows "Create Maui April
+ * 2026" as the default.
+ *
+ * `tripIdFilter` is set when the sheet was opened from a specific
+ * trip's overflow menu — segments outside that trip are dropped so
+ * the user only sees the relevant ones. In that mode, no proposals
+ * are generated (the user is targeting a known trip).
+ */
 function buildReviewItems(
   results: readonly EmailScanResult[],
   tripIdFilter: string | undefined,
-  defaultTripId: string,
-): ReviewItem[] {
+): { items: ReviewItem[]; proposals: NewTripProposal[] } {
   const items: ReviewItem[] = [];
   for (const res of results) {
     if (res.parseStatus !== "success") continue;
@@ -150,7 +170,10 @@ function buildReviewItems(
       if (tripIdFilter && seg.suggestedTripId && seg.suggestedTripId !== tripIdFilter) {
         continue;
       }
-      const tripId = seg.suggestedTripId ?? defaultTripId;
+      // Per-trip scans default unassigned items to the active trip;
+      // account-level scans leave them empty here and we fill them in
+      // below from the proposal clustering.
+      const tripId = seg.suggestedTripId ?? tripIdFilter ?? "";
       const action = defaultActionFor(seg.match?.status);
       // Two reasons to start unselected: (a) duplicate / skip default,
       // (b) low-confidence parse — same rule desktop uses.
@@ -165,7 +188,32 @@ function buildReviewItems(
       });
     }
   }
-  return items;
+
+  // Per-trip scans never propose new trips — the user is targeting
+  // a specific existing one, so unassigned segments either belong
+  // there or get skipped.
+  if (tripIdFilter) return { items, proposals: [] };
+
+  // Cluster items that still have no trip into proposed new trips,
+  // and bind each item to its proposal's sentinel id so the picker
+  // shows "Create <name>" as that item's default selection.
+  const unassigned = items
+    .map((it, idx) => ({ idx, it }))
+    .filter(({ it }) => !it.tripId);
+  const proposals = proposeNewTrips(
+    unassigned.map(({ idx, it }) => ({
+      key: String(idx),
+      segment: it.segment,
+    })),
+  );
+  for (const proposal of proposals) {
+    for (const key of proposal.segmentKeys) {
+      const idx = parseInt(key, 10);
+      if (Number.isNaN(idx)) continue;
+      items[idx].tripId = proposal.id;
+    }
+  }
+  return { items, proposals };
 }
 
 // ── Component ──────────────────────────────────────────────
@@ -243,6 +291,7 @@ function ScanBody({
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
+  const createTrip = useCreateTrip();
 
   // Initial step: needs-scope when we know the user isn't linked,
   // otherwise verifying — a brief loading screen while the labels +
@@ -256,6 +305,15 @@ function ScanBody({
   const [forceRescan, setForceRescan] = useState(false);
   const [results, setResults] = useState<EmailScanResult[]>([]);
   const [items, setItems] = useState<ReviewItem[]>([]);
+  /**
+   * New-trip proposals for this scan. Populated by `buildReviewItems`
+   * from the items that didn't auto-match an existing trip; each
+   * proposal carries a sentinel id (`__new__N`) that's used as the
+   * picker value until apply, when `useCreateTrip` resolves it to a
+   * real trip id. Empty when the sheet was opened from a specific
+   * trip (the user is targeting a known one).
+   */
+  const [proposals, setProposals] = useState<NewTripProposal[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
   // Tracks emails the user dismissed (deselected every segment, or
   // skipped them all) so the Done step can distinguish "did nothing"
@@ -267,11 +325,6 @@ function ScanBody({
    * surfaces what the user can still do without forcing a retry.
    */
   const [partialError, setPartialError] = useState<string | null>(null);
-
-  // Default trip for items without a `suggestedTripId` — the per-trip
-  // entry point uses the active trip; account-level falls back to the
-  // first available trip so the picker is never blank on first render.
-  const defaultTripId = tripId ?? trips[0]?.id ?? "";
 
   // When labels load, default to "Travel" if it exists (matches what
   // most people use for confirmations) — otherwise leave unfiltered.
@@ -313,10 +366,11 @@ function ScanBody({
     if (labelsLoading || pendingLoading) return;
     const pending = pendingData?.results;
     if (pending && pending.length > 0) {
-      const built = buildReviewItems(pending, tripId, defaultTripId);
-      if (built.length > 0) {
+      const built = buildReviewItems(pending, tripId);
+      if (built.items.length > 0) {
         setResults(pending);
-        setItems(built);
+        setItems(built.items);
+        setProposals(built.proposals);
         setStep("review");
         return;
       }
@@ -330,7 +384,6 @@ function ScanBody({
     pendingLoading,
     pendingData,
     tripId,
-    defaultTripId,
   ]);
 
   // Mid-flight bounce: if a query starts failing AFTER we already
@@ -360,12 +413,13 @@ function ScanBody({
         labelFilter: labelId || undefined,
         forceRescan: forceRescan || undefined,
       });
-      const built = buildReviewItems(response.results, tripId, defaultTripId);
+      const built = buildReviewItems(response.results, tripId);
       setResults(response.results);
-      setItems(built);
+      setItems(built.items);
+      setProposals(built.proposals);
       // Skip the review step entirely if nothing parsed — go straight
       // to a "done — no new emails" terminal state.
-      setStep(built.length === 0 ? "done" : "review");
+      setStep(built.items.length === 0 ? "done" : "review");
     } catch (err) {
       // The user's Gmail link was revoked at Google or the refresh
       // token was rejected — bounce back to the connect step so
@@ -395,16 +449,17 @@ function ScanBody({
           err.status === 503 || body?.code === "ANTHROPIC_OVERLOADED";
         const partial = body?.results;
         if ((isBilling || isOverloaded) && partial && partial.length > 0) {
-          const built = buildReviewItems(partial, tripId, defaultTripId);
+          const built = buildReviewItems(partial, tripId);
           setResults(partial);
-          setItems(built);
+          setItems(built.items);
+          setProposals(built.proposals);
           setPartialError(
             body?.error ??
               (isOverloaded
                 ? "The AI service is temporarily overloaded. The segments below were parsed before the rest of the batch failed — you can apply them and try again later for the rest."
                 : "The AI service needs credits to finish parsing. The segments below got through; add credits at console.anthropic.com to retry the rest."),
           );
-          setStep(built.length === 0 ? "done" : "review");
+          setStep(built.items.length === 0 ? "done" : "review");
           return;
         }
 
@@ -452,10 +507,13 @@ function ScanBody({
   }, [items, results]);
 
   const selectedCount = items.filter((it) => it.selected).length;
-  // Nothing to apply against if (a) the trip-list fetch failed, or (b)
-  // the user genuinely has zero trips on an account-level scan. The
-  // per-trip entry point side-steps this — `tripId` is always set.
-  const hasNoTripTargets = !tripId && trips.length === 0;
+  // Nothing to apply against if (a) the trip-list fetch failed AND
+  // there are no proposed new trips either, or (b) the user has no
+  // existing trips AND no parsed segments to seed a proposal from.
+  // The per-trip entry point side-steps this entirely — `tripId` is
+  // always set there.
+  const hasNoTripTargets =
+    !tripId && trips.length === 0 && proposals.length === 0;
   // Eligible-to-apply count — items that are selected, action !== skip,
   // AND have a non-empty tripId. This is what handleApply actually
   // sends to the server, so the Apply button label + disabled state
@@ -495,6 +553,48 @@ function ScanBody({
       (it) => it.selected && it.action !== "skip" && it.tripId,
     );
     try {
+      // Step 1: create any proposed new trips that the user kept
+      // selected. We do this BEFORE the apply call so each segment
+      // can be sent with a real trip id. Sequential because
+      // `useCreateTrip` rejects overlapping trips for the same user
+      // — running them in parallel would race the overlap check.
+      const sentinelToRealId = new Map<string, string>();
+      const usedSentinels = new Set(
+        toApply
+          .map((it) => it.tripId)
+          .filter((id) => id.startsWith(NEW_TRIP_PREFIX)),
+      );
+      for (const sentinel of usedSentinels) {
+        const proposal = proposals.find((p) => p.id === sentinel);
+        if (!proposal) continue;
+        // Expand the proposal's date range to cover all segments the
+        // user assigned to it — they may have moved a segment into
+        // this proposal whose date falls outside the auto-clustered
+        // range. Apply would otherwise fail because the trip's days
+        // wouldn't include the segment's date.
+        const assigned = toApply.filter((it) => it.tripId === sentinel);
+        const dates = assigned.flatMap((it) => [
+          it.segment.date,
+          it.segment.endDate ?? it.segment.date,
+        ]);
+        const startDate = dates.reduce(
+          (a, b) => (a < b ? a : b),
+          proposal.startDate,
+        );
+        const endDate = dates.reduce(
+          (a, b) => (a > b ? a : b),
+          proposal.endDate,
+        );
+        const created = await createTrip.mutateAsync({
+          title: proposal.title,
+          startDate,
+          endDate,
+        });
+        sentinelToRealId.set(sentinel, created.id);
+      }
+
+      // Step 2: apply the segments with sentinel ids swapped for real
+      // trip ids.
       let added = 0;
       if (toApply.length > 0) {
         const res = await applySegments.mutateAsync({
@@ -504,9 +604,11 @@ function ScanBody({
             // replace, so narrow back to that union here — TS can't
             // infer the narrowing from the .filter() predicate.
             const action = it.action as "create" | "merge" | "replace";
+            const tripIdResolved =
+              sentinelToRealId.get(it.tripId) ?? it.tripId;
             return {
               ...it.segment,
-              tripId: it.tripId,
+              tripId: tripIdResolved,
               emailId: it.emailId,
               action,
               // The schema only expects existingSegmentId for merge /
@@ -838,6 +940,7 @@ function ScanBody({
                     startDate: t.startDate,
                     endDate: t.endDate,
                   }))}
+                  proposals={proposals}
                   showTripPicker={!tripId}
                   onToggleSelected={() => toggleSelected(idx)}
                   onCycleAction={() => cycleAction(idx)}
@@ -1040,6 +1143,7 @@ function SummaryChip({
 function ReviewCard({
   item,
   trips,
+  proposals,
   showTripPicker,
   onToggleSelected,
   onCycleAction,
@@ -1047,6 +1151,13 @@ function ReviewCard({
 }: {
   item: ReviewItem;
   trips: { id: string; title: string; startDate: string; endDate: string }[];
+  /**
+   * Proposed-new-trip clusters surfaced as picker options. Each one
+   * has a sentinel `id` (`__new__N`) that the apply handler swaps for
+   * a real trip id after `useCreateTrip` resolves. Empty for per-trip
+   * scans (the user is targeting a specific existing trip).
+   */
+  proposals: NewTripProposal[];
   showTripPicker: boolean;
   onToggleSelected: () => void;
   onCycleAction: () => void;
@@ -1108,15 +1219,34 @@ function ReviewCard({
             onChange={(e) => onChangeTrip(e.target.value)}
             className="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
           >
-            {trips.length === 0 && <option value="">(no trips)</option>}
-            {trips.map((t) => (
-              <option key={t.id} value={t.id}>
-                {/* Suffix the date range so a phone-only user can
-                    distinguish two trips with similar names — e.g.
-                    "Tokyo Apr 2026" vs "Tokyo Sep 2026". */}
-                {t.title} ({fmtTripRange(t.startDate, t.endDate)})
-              </option>
-            ))}
+            {trips.length === 0 && proposals.length === 0 && (
+              <option value="">(no trips)</option>
+            )}
+            {/* Proposed new trips (rendered first as the more common
+                target on a fresh scan with no auto-matches). The
+                sentinel id is swapped for a real one in handleApply
+                via `useCreateTrip`. */}
+            {proposals.length > 0 && (
+              <optgroup label="Create new trip">
+                {proposals.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    + {p.title} ({fmtTripRange(p.startDate, p.endDate)})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {trips.length > 0 && (
+              <optgroup label="Existing trips">
+                {trips.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {/* Suffix the date range so a phone-only user can
+                        distinguish two trips with similar names — e.g.
+                        "Tokyo Apr 2026" vs "Tokyo Sep 2026". */}
+                    {t.title} ({fmtTripRange(t.startDate, t.endDate)})
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       )}
