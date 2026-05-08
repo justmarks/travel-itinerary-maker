@@ -195,7 +195,7 @@ function ScanBody({
   // rejected after first link.
   const gmailGranted = isDemo || hasGmailLink;
 
-  const { data: trips = [] } = useTrips();
+  const { data: trips = [], error: tripsError } = useTrips();
   // Don't fetch Gmail labels or pending results until we've confirmed
   // the link — fetches would 401/403 and pollute the console. The
   // desktop dialog gates the same way.
@@ -220,6 +220,10 @@ function ScanBody({
   const [results, setResults] = useState<EmailScanResult[]>([]);
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
+  // Tracks emails the user dismissed (deselected every segment, or
+  // skipped them all) so the Done step can distinguish "did nothing"
+  // from "skipped on purpose".
+  const [dismissedCount, setDismissedCount] = useState(0);
   /**
    * Inline banner shown above the review list when a scan returned
    * partial results with a billing (402) or overload (503) error —
@@ -376,6 +380,17 @@ function ScanBody({
   }, [items, results]);
 
   const selectedCount = items.filter((it) => it.selected).length;
+  // Nothing to apply against if (a) the trip-list fetch failed, or (b)
+  // the user genuinely has zero trips on an account-level scan. The
+  // per-trip entry point side-steps this — `tripId` is always set.
+  const hasNoTripTargets = !tripId && trips.length === 0;
+  // Eligible-to-apply count — items that are selected, action !== skip,
+  // AND have a non-empty tripId. This is what handleApply actually
+  // sends to the server, so the Apply button label + disabled state
+  // should track it (not raw selectedCount).
+  const applyableCount = items.filter(
+    (it) => it.selected && it.action !== "skip" && it.tripId,
+  ).length;
 
   const toggleSelected = (idx: number) => {
     setItems((prev) =>
@@ -438,15 +453,27 @@ function ScanBody({
         added = res.created.length + (res.updated?.length ?? 0);
       }
       // Auto-dismiss emails whose every segment was skipped/deselected
-      // — matches desktop. Reduces re-scan noise.
+      // — matches desktop. Reduces re-scan noise. Errors here are
+      // non-fatal (dismissals can be retried by re-scanning), but we
+      // still attach an `onError` so failures don't surface as
+      // unhandled-promise warnings in production logs. Counts so the
+      // done screen can distinguish "added 0 because all skipped"
+      // from "no new emails found at all".
       const appliedEmailIds = new Set(toApply.map((it) => it.emailId));
       const allEmailIds = new Set(results.map((r) => r.emailId));
+      let dismissedCount = 0;
       for (const id of allEmailIds) {
         if (!appliedEmailIds.has(id)) {
-          dismissEmail.mutate(id);
+          dismissedCount += 1;
+          dismissEmail.mutate(id, {
+            onError: (e) => {
+              console.warn("[email-scan] failed to dismiss email", id, e);
+            },
+          });
         }
       }
       setAppliedCount(added);
+      setDismissedCount(dismissedCount);
       setStep("done");
     } catch (err) {
       toast.error("Couldn't apply segments", {
@@ -573,6 +600,20 @@ function ScanBody({
                 badge on each one. Tap to confirm.
               </p>
             </>
+          ) : dismissedCount > 0 ? (
+            // User intentionally skipped everything — distinguish from
+            // "scan returned nothing" so the screen isn't misleading.
+            <>
+              <Inbox className="h-8 w-8 text-muted-foreground" />
+              <p className="text-sm font-medium">
+                Dismissed {dismissedCount} email
+                {dismissedCount === 1 ? "" : "s"}
+              </p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                Nothing was added. The dismissed emails won&apos;t show
+                up again on future scans.
+              </p>
+            </>
           ) : (
             <>
               <Inbox className="h-8 w-8 text-muted-foreground" />
@@ -627,6 +668,26 @@ function ScanBody({
           )}
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-2">
+          {hasNoTripTargets && (
+            // Account-level scan with zero trips (or trips fetch
+            // failed). Apply will silently no-op without this hint
+            // because every item's tripId is empty — surface why.
+            <div
+              className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
+              style={{
+                backgroundColor: "var(--status-info-bg)",
+                color: "var(--status-info-fg)",
+                borderColor: "var(--status-info-rail)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                {tripsError
+                  ? "Couldn't load your trips, so the parsed segments below can't be applied. Close and re-open this sheet, or check your connection."
+                  : "You don't have any trips yet. Create a trip first, then re-open this sheet to apply the parsed segments to it."}
+              </p>
+            </div>
+          )}
           {partialError && (
             <div
               className="mb-2 flex items-start gap-2 rounded-lg border p-2.5 text-xs"
@@ -710,13 +771,17 @@ function ScanBody({
           <button
             type="button"
             onClick={handleApply}
-            disabled={selectedCount === 0 || applySegments.isPending}
+            // Disable when nothing eligible to send (selected + non-skip
+            // + has trip target) — `applyableCount` reflects the same
+            // filter `handleApply` uses to build the request, so the
+            // button can't be tapped into a no-op call.
+            disabled={applyableCount === 0 || applySegments.isPending}
             className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
             {applySegments.isPending && (
               <Loader2 className="h-4 w-4 animate-spin" />
             )}
-            Apply {selectedCount > 0 ? selectedCount : ""}
+            Apply {applyableCount > 0 ? applyableCount : ""}
           </button>
         </Footer>
       </>
