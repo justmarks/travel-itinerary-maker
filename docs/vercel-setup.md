@@ -40,8 +40,12 @@ this whole class of issue evaporates when Vercel is the host.
 3. **Environment variables.** Set on **Production**, **Preview**, and
    **Development** unless noted. (Project Settings → Environment
    Variables.)
-   - `NEXT_PUBLIC_API_URL` — your Railway API base URL (e.g.
-     `https://travel-itinerary-maker.up.railway.app/api/v1`).
+   - `NEXT_PUBLIC_API_URL` — your Railway API base URL. **Use
+     different values per scope** so Vercel previews hit Railway's
+     preview env, not production:
+     - **Production:** `https://travel-itinerary-maker.up.railway.app/api/v1`
+     - **Preview:** `https://itinly-preview.up.railway.app/api/v1`
+     - **Development:** `http://localhost:3001/api/v1`
    - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — Google OAuth client ID.
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` — Google Maps API key.
    - `NEXT_PUBLIC_SITE_URL` — your Vercel deployment origin (e.g.
@@ -137,8 +141,27 @@ this was wired up.
 
 ## Updating the backend (Railway)
 
-CORS now supports both a literal list and a regex pattern so Vercel
-preview URLs work without re-listing every per-deploy hash:
+Railway runs **two long-lived environments** for this project:
+
+- **`production`** — deploys from `main`. Vercel production points
+  here.
+- **`preview`** — deploys from a dedicated `preview` branch you
+  fast-forward when you want to test full-stack changes. Vercel
+  preview deployments point here. Created once via Railway dashboard
+  → **+ New Environment → Duplicate Environment** with `production`
+  as the source, then set the duplicated service's **Settings →
+  Source → Deploy Branch** to `preview`.
+
+To push a feature branch into the preview env:
+
+```
+git push origin feature-branch:preview --force-with-lease
+```
+
+CORS supports both a literal list and a regex pattern so Vercel
+preview URLs work without re-listing every per-deploy hash. Set these
+on **both** Railway environments (the preview env clones values from
+prod when you duplicate, but verify after):
 
 - **`CORS_ORIGIN`** — comma-separated list of literal origins. Set to:
   ```
@@ -155,9 +178,26 @@ preview URLs work without re-listing every per-deploy hash:
   (`itinly-git-feat-foo-...`) match alongside per-deploy hash URLs
   (`itinly-7a3lt52rq-...`). An incoming `Origin` header is allowed if
   it matches any literal in `CORS_ORIGIN` OR this pattern.
-- Confirm `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` are
-  already set there (they're how the server writes the `share-snapshots`
-  hash that the edge reads).
+
+Per-environment variables you should **not** share between prod and
+preview:
+
+- **`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** — give
+  preview its own Upstash database so test share links and refresh
+  tokens don't pollute prod's `share-snapshots` and `tokens` hashes.
+  Both envs need these set; the values just shouldn't match.
+- **`SENTRY_DSN`** — optional, but using a separate Sentry project (or
+  unsetting it on preview) keeps test-driven errors out of the prod
+  alert stream.
+
+Variables that **should** match across envs:
+
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — preview OAuth still
+  relays through the prod origin (see "OAuth on preview deployments"
+  above), so the preview backend needs to recognise codes minted
+  against the prod redirect URI. Same client = same code exchange.
+- `ANTHROPIC_API_KEY`, `VAPID_*`, `TOKEN_ENCRYPTION_KEY` — fine to
+  share unless you specifically want to isolate quota / rotate keys.
 
 After saving these, restart the Railway service so the new env values
 take effect.
@@ -172,7 +212,21 @@ replaced by Vercel's native preview system.
 Each preview gets a unique URL (`<branch-slug>-<project>.vercel.app`
 plus an immutable per-deploy URL). Preview deployments use the
 **Preview** environment variables you set above, so make sure all six
-are populated for both Production and Preview.
+are populated for both Production and Preview — note that
+`NEXT_PUBLIC_API_URL` deliberately differs between scopes so previews
+hit Railway's `preview` env (see above) instead of prod.
+
+To test a full-stack PR (frontend changes that depend on unmerged
+server changes), push the same branch to Railway's `preview` env:
+
+```
+git push origin <feature-branch>:preview --force-with-lease
+```
+
+Railway redeploys `preview` from your branch; the existing Vercel
+preview will now hit the matching backend without any reconfiguration.
+Once the PR merges to `main`, prod redeploys; the `preview` branch can
+stay where it is until the next full-stack PR overwrites it.
 
 ## Verifying the unfurl
 
