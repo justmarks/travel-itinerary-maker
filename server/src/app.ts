@@ -19,6 +19,7 @@ import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
 import { buildCorsOriginCheck, CorsOriginError } from "./middleware/cors-origin";
+import { isInsufficientScopeError } from "./services/google-drive/drive-error";
 import type { ResolveOwnerStorage } from "./services/trip-access";
 import { config } from "./config/env";
 
@@ -288,6 +289,18 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof CorsOriginError) {
       res.status(403).json({ error: err.message });
+      return;
+    }
+    // Drive 403 / "insufficientPermissions" — the user signed in but
+    // unticked Drive on the consent screen, so any owner-side trip
+    // operation hits this. Surface a stable code the frontend can match
+    // to flip into the "Re-grant Drive" CTA. Skip Sentry: it's a
+    // user-state condition, not a server bug.
+    if (isInsufficientScopeError(err)) {
+      res.status(403).json({
+        error: "Drive access not granted",
+        code: "DRIVE_SCOPE_REQUIRED",
+      });
       return;
     }
     console.error(err);
