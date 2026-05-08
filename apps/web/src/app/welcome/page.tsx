@@ -9,6 +9,7 @@ import {
   ScanLine,
   ShieldCheck,
   Share2,
+  Smartphone,
   Sparkles,
 } from "lucide-react";
 import { AppLogo } from "@/components/app-logo";
@@ -306,33 +307,33 @@ function Features(): React.JSX.Element {
   const features = [
     {
       icon: ScanLine,
-      title: "AI email parsing",
+      title: "Scan & import from email",
       body:
-        "Claude reads PDFs, HTML, and plain-text confirmations from any airline, hotel chain, or booking site — not a brittle list of templates.",
+        "Connect Gmail and Claude reads flight, hotel, train, and reservation confirmations — PDFs, HTML, plain text — from any airline or booking site. New emails keep your trips updated automatically. No Gmail? Paste an email's HTML or upload an XLSX export and itinly parses it the same way.",
+    },
+    {
+      icon: CalendarDays,
+      title: "Calendar sync",
+      body:
+        "Push every segment to Google Calendar with the right time zone, so your phone shows the right times wherever you land. Re-syncing keeps the calendar in step as plans change.",
+    },
+    {
+      icon: Share2,
+      title: "Share — view or edit",
+      body:
+        "Send a private link to anyone — co-travelers, parents, the dog-sitter. View-only links need no sign-up; edit links let trusted travelers add segments and tick off to-dos with you.",
+    },
+    {
+      icon: Smartphone,
+      title: "Mobile app, works offline",
+      body:
+        "Install itinly to your home screen for a native-feeling app — no app store, no install size. Cached trips stay readable on the plane, in airport limbo, and across patchy hotel Wi-Fi.",
     },
     {
       icon: FolderLock,
       title: "Your Drive, your data",
       body:
         "Every trip is a JSON file in a single folder in your Google Drive. Cancel itinly anytime; your itineraries stay where you can read them.",
-    },
-    {
-      icon: CalendarDays,
-      title: "Calendar sync",
-      body:
-        "Push every segment to Google Calendar with the right time zone — your phone shows the right times wherever you land.",
-    },
-    {
-      icon: Share2,
-      title: "Share without sign-up",
-      body:
-        "Send a private link to anyone — co-travelers, parents, the dog-sitter. Recipients see the trip without creating an account.",
-    },
-    {
-      icon: Inbox,
-      title: "Manual import too",
-      body:
-        "Don't use Gmail? Paste an email's HTML or upload an XLSX export. itinly parses it the same way.",
     },
     {
       icon: Plane,
