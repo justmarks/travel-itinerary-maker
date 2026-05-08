@@ -14,7 +14,9 @@ import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import {
   AlertCircle,
+  CalendarCheck,
   CalendarDays,
+  CalendarPlus,
   CheckSquare,
   CloudOff,
   DollarSign,
@@ -41,6 +43,7 @@ import { MobileShareSheet } from "@/components/mobile/mobile-share-sheet";
 import { MobileHistorySheet } from "@/components/mobile/mobile-history-sheet";
 import { MobileEditTripSheet } from "@/components/mobile/mobile-edit-trip-sheet";
 import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
+import { MobileCalendarSyncSheet } from "@/components/mobile/mobile-calendar-sync-sheet";
 import { MobileReviewPendingSheet } from "@/components/mobile/mobile-review-pending-sheet";
 import { MobileTimelineView } from "@/components/mobile/mobile-timeline-view";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
@@ -81,11 +84,15 @@ function MobileTripOverflowMenu({
   onOpenHistory,
   onOpenEdit,
   onOpenScan,
+  onOpenCalendarSync,
   onSwitchView,
   view,
   showDelete,
   showEdit,
   showScan,
+  showCalendarSync,
+  calendarSynced,
+  calendarSyncedCount,
   leaveTripShareId,
 }: {
   tripId: string;
@@ -93,6 +100,7 @@ function MobileTripOverflowMenu({
   onOpenHistory: () => void;
   onOpenEdit: () => void;
   onOpenScan: () => void;
+  onOpenCalendarSync: () => void;
   /** Flips the URL `?v=` between carousel + timeline. */
   onSwitchView: () => void;
   /** Current view, drives the switch label + icon. */
@@ -103,6 +111,14 @@ function MobileTripOverflowMenu({
   showEdit: boolean;
   /** Owner + edit-contributor only. View-only / public viewers can't write. */
   showScan: boolean;
+  /** Owner + edit-contributor only — pushing events to a viewer's
+   *  Google Calendar mutates the trip (writes calendarEventId on each
+   *  segment) so view-only collaborators can't sync. */
+  showCalendarSync: boolean;
+  /** Drives the menu-item label between "Sync to Calendar" and
+   *  "Calendar synced (N)". */
+  calendarSynced: boolean;
+  calendarSyncedCount: number;
   /** When set, show "Leave trip" — recipient-only path that revokes the
    *  share row identified by this id. Mirrors the desktop `LeaveTripMenu`. */
   leaveTripShareId: string | null;
@@ -178,6 +194,21 @@ function MobileTripOverflowMenu({
           )}
           {view === "timeline" ? "Switch to days" : "Switch to timeline"}
         </DropdownMenuItem>
+        {showCalendarSync && (
+          <DropdownMenuItem onClick={onOpenCalendarSync}>
+            {calendarSynced ? (
+              <CalendarCheck
+                className="mr-2 h-4 w-4"
+                style={{ color: "var(--status-ok-fg)" }}
+              />
+            ) : (
+              <CalendarPlus className="mr-2 h-4 w-4" />
+            )}
+            {calendarSynced
+              ? `Calendar synced (${calendarSyncedCount})`
+              : "Sync to Calendar"}
+          </DropdownMenuItem>
+        )}
         {showScan && (
           <DropdownMenuItem onClick={onOpenScan}>
             <Mail className="mr-2 h-4 w-4" />
@@ -233,6 +264,7 @@ function HeaderActions({
   onOpenEdit,
   onOpenReview,
   onOpenScan,
+  onOpenCalendarSync,
   onSwitchView,
   view,
   showCosts,
@@ -241,7 +273,10 @@ function HeaderActions({
   showReview,
   showEditInOverflow,
   showScanInOverflow,
+  showCalendarSyncInOverflow,
   showDeleteInOverflow,
+  calendarSynced,
+  calendarSyncedCount,
   leaveTripShareId,
 }: {
   tripId: string;
@@ -258,6 +293,7 @@ function HeaderActions({
   onOpenEdit: () => void;
   onOpenReview: () => void;
   onOpenScan: () => void;
+  onOpenCalendarSync: () => void;
   onSwitchView: () => void;
   view: MobileView;
   /** When false (e.g. share with `showCosts: false`), hide the Costs pill. */
@@ -278,10 +314,18 @@ function HeaderActions({
    *  overflow menu. Parses go to the trip's owner Drive, which
    *  contributors can write to but viewers can't. */
   showScanInOverflow: boolean;
+  /** Owner + shared-edit only — exposes "Sync to Calendar" in the
+   *  overflow menu. Calendar push writes calendarEventId onto each
+   *  segment, so view-only collaborators can't trigger it. */
+  showCalendarSyncInOverflow: boolean;
   /** Owner-only — exposes the destructive "Delete trip" action inside the
    *  overflow menu. The menu itself is always shown so contributors can
    *  reach the History sheet. */
   showDeleteInOverflow: boolean;
+  /** Drives the calendar-sync menu-item label between "Sync to Calendar"
+   *  and "Calendar synced (N)". Sourced from segment `calendarEventId`s. */
+  calendarSynced: boolean;
+  calendarSyncedCount: number;
   /** Recipient-only — id of the share row that grants the current user
    *  access. When set, the overflow menu shows "Leave trip". */
   leaveTripShareId: string | null;
@@ -349,11 +393,15 @@ function HeaderActions({
         onOpenHistory={onOpenHistory}
         onOpenEdit={onOpenEdit}
         onOpenScan={onOpenScan}
+        onOpenCalendarSync={onOpenCalendarSync}
         onSwitchView={onSwitchView}
         view={view}
         showDelete={showDeleteInOverflow}
         showEdit={showEditInOverflow}
         showScan={showScanInOverflow}
+        showCalendarSync={showCalendarSyncInOverflow}
+        calendarSynced={calendarSynced}
+        calendarSyncedCount={calendarSyncedCount}
         leaveTripShareId={leaveTripShareId}
       />
     </div>
@@ -413,6 +461,7 @@ function MobileTripInner({
   const [editOpen, setEditOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [calendarSyncOpen, setCalendarSyncOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -529,6 +578,9 @@ function MobileTripInner({
         onCloseReview={() => setReviewOpen(false)}
         onOpenScan={() => setScanOpen(true)}
         onCloseScan={() => setScanOpen(false)}
+        onOpenCalendarSync={() => setCalendarSyncOpen(true)}
+        onCloseCalendarSync={() => setCalendarSyncOpen(false)}
+        calendarSyncOpen={calendarSyncOpen}
       />
     </MobileFrame>
   );
@@ -547,6 +599,7 @@ function TripFrame({
   editOpen,
   reviewOpen,
   scanOpen,
+  calendarSyncOpen,
   onOpenCosts,
   onCloseCosts,
   onOpenTodos,
@@ -561,6 +614,8 @@ function TripFrame({
   onCloseReview,
   onOpenScan,
   onCloseScan,
+  onOpenCalendarSync,
+  onCloseCalendarSync,
 }: {
   trip: Trip;
   dateRange: string;
@@ -574,6 +629,7 @@ function TripFrame({
   editOpen: boolean;
   reviewOpen: boolean;
   scanOpen: boolean;
+  calendarSyncOpen: boolean;
   onOpenCosts: () => void;
   onCloseCosts: () => void;
   onOpenTodos: () => void;
@@ -588,6 +644,8 @@ function TripFrame({
   onCloseReview: () => void;
   onOpenScan: () => void;
   onCloseScan: () => void;
+  onOpenCalendarSync: () => void;
+  onCloseCalendarSync: () => void;
 }): React.JSX.Element {
   const { usdTotal, todoSummary, pendingCount } = useTripSummary(trip);
   const confirmSegment = useConfirmSegment(trip.id);
@@ -612,6 +670,14 @@ function TripFrame({
     ? null
     : permission.sharedShareId ?? null;
 
+  // Mirrors the desktop `CalendarSyncButton` derivations — count any
+  // segment carrying a `calendarEventId` so the menu label flips to
+  // "Calendar synced (N)" once at least one event is on Google.
+  const calendarSyncedCount = trip.days
+    .flatMap((d) => d.segments)
+    .filter((s) => s.calendarEventId).length;
+  const calendarSynced = calendarSyncedCount > 0;
+
   return (
     <>
       <MobileHeader
@@ -634,6 +700,7 @@ function TripFrame({
               onOpenEdit={onOpenEdit}
               onOpenReview={onOpenReview}
               onOpenScan={onOpenScan}
+              onOpenCalendarSync={onOpenCalendarSync}
               onSwitchView={onSwitchView}
               view={view}
               showCosts={permission.showCosts}
@@ -642,7 +709,10 @@ function TripFrame({
               showReview={permission.canEdit}
               showEditInOverflow={permission.canEdit}
               showScanInOverflow={permission.canEdit}
+              showCalendarSyncInOverflow={permission.canEdit}
               showDeleteInOverflow={permission.isOwner}
+              calendarSynced={calendarSynced}
+              calendarSyncedCount={calendarSyncedCount}
               leaveTripShareId={leaveTripShareId}
             />
           )
@@ -715,6 +785,13 @@ function TripFrame({
           tripId={trip.id}
           open={scanOpen}
           onClose={onCloseScan}
+        />
+      )}
+      {permission.canEdit && (
+        <MobileCalendarSyncSheet
+          trip={trip}
+          open={calendarSyncOpen}
+          onClose={onCloseCalendarSync}
         />
       )}
       {permission.isOwner && (
