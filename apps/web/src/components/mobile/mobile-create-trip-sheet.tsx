@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, useCreateTrip } from "@travel-app/api-client";
 import { AlertCircle, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -56,6 +58,7 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [overlap, setOverlap] = useState<OverlapInfo[] | null>(null);
+  const endDateRef = useRef<HTMLInputElement>(null);
 
   // If the user picks a startDate before any endDate, default endDate
   // to the same day so a quick one-day trip can be created without
@@ -63,6 +66,26 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
   useEffect(() => {
     if (startDate && !endDate) setEndDate(startDate);
   }, [startDate, endDate]);
+
+  /**
+   * After a start date is chosen, hand off to the end picker
+   * automatically so the user gets a single fluid "tap start → pick →
+   * pick end → done" flow. `showPicker` is supported on every browser
+   * we target and is a no-op anywhere it isn't.
+   */
+  const openEndPicker = () => {
+    queueMicrotask(() => {
+      const el = endDateRef.current;
+      if (!el || typeof el.showPicker !== "function") return;
+      try {
+        el.showPicker();
+      } catch {
+        // showPicker can throw if the input isn't visible / focusable
+        // yet (e.g. sheet still animating). Silent fallback — the user
+        // can tap the end field themselves.
+      }
+    });
+  };
 
   const datesInOrder = !startDate || !endDate || startDate <= endDate;
   const canSubmit =
@@ -85,8 +108,12 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
             const body = err.body as { overlappingTrips?: OverlapInfo[] };
             if (body?.overlappingTrips) {
               setOverlap(body.overlappingTrips);
+              return;
             }
           }
+          toast.error("Couldn't create trip", {
+            description: describeError(err),
+          });
         },
       },
     );
@@ -148,8 +175,10 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
               type="date"
               value={startDate}
               onChange={(e) => {
-                setStartDate(e.target.value);
+                const next = e.target.value;
+                setStartDate(next);
                 setOverlap(null);
+                if (next) openEndPicker();
               }}
               className="h-11 w-full rounded-xl border bg-background px-3 text-base text-foreground outline-none focus:border-foreground"
             />
@@ -162,6 +191,7 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
               End
             </label>
             <input
+              ref={endDateRef}
               id="m-create-end"
               type="date"
               value={endDate}

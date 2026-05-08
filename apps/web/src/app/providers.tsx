@@ -13,6 +13,7 @@ import { initMonitoring } from "@/lib/monitoring";
 import { logPushDiagnostics } from "@/lib/push";
 import { createWebQueryClient } from "@/lib/query-client";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
+import { IntroTourDialog } from "@/components/intro-tour-dialog";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -125,6 +126,7 @@ export function Providers({
           <ConfirmDialogProvider>
             <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
             <ServiceWorkerRegister />
+            <IntroTourDialog />
           </ConfirmDialogProvider>
         </DemoProvider>
       </AuthProvider>

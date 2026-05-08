@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RequireAuth } from "@/components/require-auth";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoMode } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -32,6 +33,12 @@ import { useCachedTripIds } from "@/lib/use-cached-trips";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
+import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
+import {
+  MobileTripRowSkeleton,
+  StillLoadingHint,
+  useDelayedLoadingHint,
+} from "@/components/trip-card-skeleton";
 import { AppLogo } from "@/components/app-logo";
 import { DriveScopeBanner } from "@/components/drive-scope-banner";
 import {
@@ -177,9 +184,9 @@ function MobileTripCardLeaveMenu({
         router.push("/m");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't leave trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -393,13 +400,7 @@ function MobileTripList({
   }, [trips, today]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col gap-3 p-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-24 animate-pulse rounded-2xl border bg-muted" />
-        ))}
-      </div>
-    );
+    return <MobileTripListLoading />;
   }
 
   if (isError) {
@@ -469,8 +470,28 @@ function MobileTripList({
   );
 }
 
+/**
+ * Loading state for the mobile trip list — three card-shaped row
+ * skeletons in the same layout the real rows land in, plus a delayed
+ * "Still loading..." caption. Replaces the old plain-bg-muted blocks
+ * that read as "blank page" on first login when there's no React
+ * Query cache to fall back to.
+ */
+function MobileTripListLoading(): React.JSX.Element {
+  const showHint = useDelayedLoadingHint();
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3">
+      <MobileTripRowSkeleton />
+      <MobileTripRowSkeleton />
+      <MobileTripRowSkeleton />
+      <StillLoadingHint show={showHint} className="pt-2" />
+    </div>
+  );
+}
+
 function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
@@ -486,7 +507,7 @@ function MobileHomeContent(): React.JSX.Element {
         >
           <Plus className="h-5 w-5" />
         </button>
-        <MobileUserMenu />
+        <MobileUserMenu onScanEmails={() => setScanOpen(true)} />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
         <div className="pt-3">
@@ -497,6 +518,10 @@ function MobileHomeContent(): React.JSX.Element {
       <MobileCreateTripSheet
         open={createOpen}
         onClose={() => setCreateOpen(false)}
+      />
+      <MobileEmailScanSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
       />
     </MobileFrame>
   );

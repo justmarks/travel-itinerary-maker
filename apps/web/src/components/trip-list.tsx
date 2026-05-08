@@ -3,8 +3,14 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTrips } from "@travel-app/api-client";
 import { TripCard } from "./trip-card";
+import {
+  StillLoadingHint,
+  TripCardSkeleton,
+  useDelayedLoadingHint,
+} from "./trip-card-skeleton";
 import { AppLogo } from "./app-logo";
 import { Button } from "@/components/ui/button";
+import { describeError } from "@/lib/api-error";
 
 export function TripList(): React.JSX.Element {
   const { data: trips, isLoading, error } = useTrips();
@@ -36,25 +42,14 @@ export function TripList(): React.JSX.Element {
   }, [trips, showCompleted, isCompleted]);
 
   if (isLoading) {
-    return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-36 animate-pulse rounded-xl border bg-muted"
-          />
-        ))}
-      </div>
-    );
+    return <TripListLoading />;
   }
 
   if (error) {
-    const detail =
-      error instanceof Error ? error.message : "Unknown error";
     return (
       <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
         <p className="font-medium">Failed to load trips</p>
-        <p className="mt-1 text-xs opacity-75">{detail}</p>
+        <p className="mt-1 text-xs opacity-75">{describeError(error)}</p>
       </div>
     );
   }
@@ -102,9 +97,31 @@ export function TripList(): React.JSX.Element {
             {showCompleted
               ? `Hide completed trips (${completedCount})`
               : `Show completed trips (${completedCount})`}
+
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Loading state for the desktop trip list — three card-shaped
+ * skeletons in the same grid the real cards land in, plus a delayed
+ * "Still loading..." caption so a slow first-login fetch doesn't
+ * feel broken. Splits out from `TripList` so the hook only runs
+ * during the loading branch (fewer effects on the happy path).
+ */
+function TripListLoading(): React.JSX.Element {
+  const showHint = useDelayedLoadingHint();
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <TripCardSkeleton />
+        <TripCardSkeleton />
+        <TripCardSkeleton />
+      </div>
+      <StillLoadingHint show={showHint} />
     </div>
   );
 }

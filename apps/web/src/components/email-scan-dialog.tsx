@@ -44,7 +44,6 @@ import {
   AlertCircle,
   Check,
   X,
-  Tag,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -53,10 +52,16 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 import { useAuth } from "@/lib/auth";
+import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
+import {
+  buildGmailLabelTree,
+  indentedLabel,
+} from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
 
 // Each badge maps to a `--status-*` token trio. Pulling the colors
@@ -408,9 +413,9 @@ export function EmailScanDialog({
       setNewTripStart("");
       setNewTripEnd("");
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to create trip",
-      );
+      const message = describeError(err);
+      setErrorMessage(message);
+      toast.error("Couldn't create trip", { description: message });
     } finally {
       setCreatingTrip(false);
     }
@@ -470,21 +475,29 @@ export function EmailScanDialog({
       const unappliedWithTravel = results.filter(
         (r) => r.parsedSegments.length > 0 && !appliedEmailIds.has(r.emailId),
       );
-      // Only auto-dismiss emails where ALL their segments were deselected
+      // Only auto-dismiss emails where ALL their segments were deselected.
+      // A failure here isn't blocking — the segments still applied, the
+      // emails just stay in the pending list. Toast so the user knows
+      // the dismiss didn't take, but don't bounce them out of the success
+      // path.
       for (const r of unappliedWithTravel) {
         const anySelected = selections.some(
           (s) => s.emailId === r.emailId && s.selected,
         );
         if (!anySelected) {
-          await dismissEmail.mutateAsync(r.emailId);
+          try {
+            await dismissEmail.mutateAsync(r.emailId);
+          } catch (err) {
+            toast.error("Couldn't dismiss email", {
+              description: describeError(err),
+            });
+          }
         }
       }
 
       setStep("done");
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to apply segments",
-      );
+      setErrorMessage(describeError(err));
       setStep("error");
     }
   };
@@ -496,8 +509,22 @@ export function EmailScanDialog({
         .filter((r) => r.parsedSegments.length > 0)
         .map((r) => r.emailId),
     );
+    let failed = 0;
     for (const eid of pendingEmailIds) {
-      await dismissEmail.mutateAsync(eid);
+      try {
+        await dismissEmail.mutateAsync(eid);
+      } catch {
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      toast.error(
+        `Couldn't dismiss ${failed} email${failed === 1 ? "" : "s"}`,
+        {
+          description:
+            "They'll stay in the pending list — try again from Scan Emails.",
+        },
+      );
     }
     setOpen(false);
   };
@@ -628,56 +655,43 @@ export function EmailScanDialog({
           <>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label
+                  htmlFor="email-scan-label"
+                  className="text-sm font-medium"
+                >
                   Gmail Label (optional)
                 </label>
-                <div className="flex items-center gap-2">
-                  <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <Input
-                    value={selectedLabel}
-                    onChange={(e) => setSelectedLabel(e.target.value)}
-                    placeholder="e.g. Travel, Receipts"
-                    className="h-9"
-                  />
-                  {selectedLabel && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 shrink-0"
-                      onClick={() => setSelectedLabel("")}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                {labels && labels.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {[...labels]
-                      .sort((a, b) =>
-                        a.name.localeCompare(b.name, undefined, {
-                          sensitivity: "base",
-                        }),
-                      )
-                      .map((label) => (
-                      <button
-                        key={label.id}
-                        type="button"
-                        onClick={() => setSelectedLabel(label.name)}
-                        className={cn(
-                          "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
-                          selectedLabel === label.name
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                        )}
-                      >
-                        {label.name}
-                      </button>
+                {/* Dropdown tree — labels are flat with `/`-delimited
+                    paths, so we sort + tag-with-depth and render with
+                    a non-breaking-space indent so nested labels read
+                    as a tree. Replaces the freeform input + chip
+                    strip; the chip strip lost its purpose once we
+                    had a complete labels list anyway, and the input
+                    encouraged typos. The unique value-by-id approach
+                    matches what the mobile sheet does. */}
+                <Select
+                  value={selectedLabel || "__all__"}
+                  onValueChange={(v) =>
+                    setSelectedLabel(v === "__all__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger id="email-scan-label" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    <SelectItem value="__all__">
+                      All mail (no label filter)
+                    </SelectItem>
+                    {buildGmailLabelTree(labels ?? []).map((node) => (
+                      <SelectItem key={node.label.id} value={node.label.name}>
+                        {indentedLabel(node)}
+                      </SelectItem>
                     ))}
-                  </div>
-                )}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  Leave blank to search all mail for travel keywords.
+                  Leave on &ldquo;All mail&rdquo; to search every message for
+                  travel keywords.
                 </p>
               </div>
 

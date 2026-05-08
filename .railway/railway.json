@@ -4,7 +4,7 @@
     "builder": "RAILPACK",
     "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @travel-app/shared build && pnpm --filter @travel-app/server build",
     "watchPatterns": [
-      "/server/**"
+      "server/**"
     ]
   },
   "deploy": {

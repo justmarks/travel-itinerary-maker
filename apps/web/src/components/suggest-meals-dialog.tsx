@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Loader2, Sparkles, Sandwich, Utensils, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 
 export function SuggestMealsDialog({
@@ -64,19 +66,37 @@ export function SuggestMealsDialog({
   const handleAdd = async () => {
     if (selectedSuggestions.length === 0) return;
     setAdding(true);
+    let added = 0;
+    let failed = 0;
+    let lastError: unknown = null;
     try {
       // Create sequentially. With N≈5–15 the latency is fine and React
-      // Query gets a clean invalidation per write.
+      // Query gets a clean invalidation per write. Track per-row outcomes
+      // so a single network blip doesn't lose the whole batch — surviving
+      // adds stay in place and the user gets a count of what failed.
       for (const s of selectedSuggestions) {
-        await createTodo.mutateAsync({
-          text: s.text,
-          category: s.category,
-          details: s.details,
-        });
+        try {
+          await createTodo.mutateAsync({
+            text: s.text,
+            category: s.category,
+            details: s.details,
+          });
+          added++;
+        } catch (err) {
+          failed++;
+          lastError = err;
+        }
       }
-      onOpenChange(false);
-      // Reset for next open
-      setExcluded(new Set());
+      if (failed > 0) {
+        toast.error(
+          `Couldn't add ${failed} to-do${failed === 1 ? "" : "s"}`,
+          { description: describeError(lastError) },
+        );
+      }
+      if (added > 0) {
+        onOpenChange(false);
+        setExcluded(new Set());
+      }
     } finally {
       setAdding(false);
     }

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useTrip,
   useUpdateTrip,
@@ -79,9 +78,9 @@ import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
-import { useDemoHref, useDemoMode } from "@/lib/demo";
-import { useAuth } from "@/lib/auth";
-import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
+import { useDemoHref } from "@/lib/demo";
+import { describeError } from "@/lib/api-error";
+import { useCalendarSync } from "@/lib/use-calendar-sync";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
@@ -136,7 +135,16 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     if (!trimmed) return;
     setEditing(false);
     if (trimmed !== title) {
-      updateTrip.mutate({ title: trimmed });
+      updateTrip.mutate(
+        { title: trimmed },
+        {
+          onError: (err) => {
+            toast.error("Couldn't rename trip", {
+              description: describeError(err),
+            });
+          },
+        },
+      );
     }
   };
 
@@ -235,8 +243,12 @@ function EditableDates({
           const body = error.body as { overlappingTrips?: OverlapInfo[] };
           if (body.overlappingTrips) {
             setOverlapError(body.overlappingTrips);
+            return;
           }
         }
+        toast.error("Couldn't update trip dates", {
+          description: describeError(error),
+        });
       },
     });
   };
@@ -404,9 +416,9 @@ function TripActionsMenu({
         router.push("/");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't delete trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -572,9 +584,9 @@ function LeaveTripMenu({
         router.push("/");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't leave trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -630,7 +642,8 @@ function NeedsReviewBanner({
     >
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
-        <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
+        <strong>{reviewCount}</strong>{" "}
+        {reviewCount === 1 ? "segment" : "segments"} from email need review.
         Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
       </span>
       <Button
@@ -641,7 +654,15 @@ function NeedsReviewBanner({
           borderColor: "var(--status-warn-rail)",
           color: "var(--status-warn-fg)",
         }}
-        onClick={() => confirmAll.mutate()}
+        onClick={() =>
+          confirmAll.mutate(undefined, {
+            onError: (err) => {
+              toast.error("Couldn't confirm segments", {
+                description: describeError(err),
+              });
+            },
+          })
+        }
         disabled={confirmAll.isPending}
       >
         <Check className="mr-1.5 h-3.5 w-3.5" />
@@ -674,44 +695,34 @@ function CalendarSyncButton({
    */
   renderTrigger?: (args: CalendarSyncTriggerArgs) => React.ReactNode;
 }) {
-  const client = useApiClient();
-  const queryClient = useQueryClient();
-  const { hasScope } = useAuth();
-  const isDemo = useDemoMode();
-  // Demo mode runs against MockApiClient and never hits Google, so we
-  // skip the scope gate there. Real users without `calendar` granted
-  // see a "Connect Calendar" CTA instead of the full sync dialog.
-  const calendarGranted = isDemo || hasScope(CALENDAR_SCOPE);
-  const [syncing, setSyncing] = useState(false);
+  const {
+    calendarGranted,
+    isSynced,
+    syncedCount,
+    syncedCalendarName,
+    syncing,
+    calendars,
+    loadingCalendars,
+    loadCalendars,
+    requestCalendarScope,
+    sync,
+    refresh,
+    unsync,
+  } = useCalendarSync(trip);
   // "pick"   → choose-calendar dialog (not yet synced)
   // "info"   → synced-status dialog
   // "scope"  → "needs Calendar permission" CTA
   // null     → no dialog
   const [dialog, setDialog] = useState<"pick" | "info" | "scope" | null>(null);
-  const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
-  const [loadingCalendars, setLoadingCalendars] = useState(false);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
   // "confirm" = showing the remove-sync confirmation step
   const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
   const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
 
-  const isSynced = trip.days.flatMap((d) => d.segments).some((s) => s.calendarEventId);
-  const syncedCount = trip.days.flatMap((d) => d.segments).filter((s) => s.calendarEventId).length;
-  const syncedCalendarName = calendars?.find((c) => c.id === trip.calendarId)?.summary;
-
-  const loadCalendars = async () => {
-    setLoadingCalendars(true);
-    setCalendars(null);
-    try {
-      const cals = await client.listCalendars();
-      setCalendars(cals);
-      const primary = cals.find((c) => c.primary);
-      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
-    } catch {
-      setCalendars([]);
-    } finally {
-      setLoadingCalendars(false);
-    }
+  const refreshCalendarList = async () => {
+    const cals = await loadCalendars();
+    const primary = cals.find((c) => c.primary);
+    setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
   };
 
   const openDialog = () => {
@@ -723,67 +734,26 @@ function CalendarSyncButton({
       setRemoveStep(null);
       setDeleteChoice("delete");
       setDialog("info");
-      loadCalendars();
+      void refreshCalendarList();
     } else {
       setDialog("pick");
-      loadCalendars();
+      void refreshCalendarList();
     }
   };
 
   const handleSync = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.syncCalendar(trip.id, selectedCalendarId);
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      const total = result.created + result.updated;
-      if (result.failed > 0) {
-        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
-      } else {
-        toast.success(`${total} event${total !== 1 ? "s" : ""} synced to Google Calendar`);
-      }
-    } catch {
-      toast.error("Sync failed — check that Calendar access is granted.");
-    } finally {
-      setSyncing(false);
-    }
+    await sync(selectedCalendarId);
   };
 
   const handleRefresh = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.syncCalendar(trip.id, trip.calendarId);
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      const total = result.created + result.updated;
-      if (result.failed > 0) {
-        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
-      } else {
-        toast.success(`Calendar refreshed — ${total} event${total !== 1 ? "s" : ""} up to date`);
-      }
-    } catch {
-      toast.error("Refresh failed — check that Calendar access is granted.");
-    } finally {
-      setSyncing(false);
-    }
+    await refresh();
   };
 
   const handleRemove = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.unsyncCalendar(trip.id, { deleteEvents: deleteChoice === "delete" });
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      if (deleteChoice === "delete") {
-        toast.success(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
-      } else {
-        toast.success("Sync removed — calendar events kept");
-      }
-    } catch {
-      toast.error("Failed to remove sync.");
-    } finally {
-      setSyncing(false);
-    }
+    await unsync(deleteChoice === "delete");
   };
 
   return (
@@ -823,13 +793,7 @@ function CalendarSyncButton({
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Not now</Button>
-            <Button
-              onClick={() => {
-                const returnTo =
-                  window.location.pathname + window.location.search;
-                requestAdditionalScopes([CALENDAR_SCOPE], returnTo);
-              }}
-            >
+            <Button onClick={requestCalendarScope}>
               <CalendarPlus className="mr-2 h-3.5 w-3.5" />
               Connect Calendar
             </Button>
@@ -963,7 +927,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function TripDetailClient({ tripId }: { tripId: string }): React.JSX.Element | null {
-  const { data: trip, isLoading } = useTrip(tripId);
+  const { data: trip, isLoading, isError, error, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
@@ -1033,6 +997,10 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   }
 
   if (!trip) {
+    // Distinguish a real load failure from a missing-trip 404 so the
+    // user can retry instead of being told the trip doesn't exist.
+    const is404 = error instanceof ApiError && error.status === 404;
+    const showError = isError && !is404;
     return (
       <main className="min-h-screen p-8">
         <div className="mx-auto max-w-7xl">
@@ -1042,7 +1010,33 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               Back
             </Button>
           </Link>
-          <p className="mt-4 text-destructive">Trip not found.</p>
+          {showError ? (
+            <div
+              className="mt-4 flex items-start gap-3 rounded-lg border p-4 text-sm"
+              style={{
+                backgroundColor: "var(--status-danger-bg)",
+                color: "var(--status-danger-fg)",
+                borderColor: "var(--status-danger-rail)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium">Couldn&apos;t load this trip.</p>
+                <p className="mt-0.5 text-xs opacity-80">{describeError(error)}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetch()}
+                className="bg-card"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-4 text-destructive">Trip not found.</p>
+          )}
         </div>
       </main>
     );
@@ -1134,7 +1128,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               <button
                 type="button"
                 onClick={() =>
-                  updateTripStatus.mutate({ status: nextTripStatus(trip.status) })
+                  updateTripStatus.mutate(
+                    { status: nextTripStatus(trip.status) },
+                    {
+                      onError: (err) => {
+                        toast.error("Couldn't update status", {
+                          description: describeError(err),
+                        });
+                      },
+                    },
+                  )
                 }
                 disabled={updateTripStatus.isPending}
                 title={`Status: ${trip.status}. Click to advance.`}

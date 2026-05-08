@@ -68,6 +68,14 @@ jobs:
             git add apps/web/package.json
           fi
 
-          git commit -m "chore: bump version to $VERSION [skip ci]"
+          # `[skip ci]` skips the GitHub Actions CI workflow.
+          # `[skip railway]` is the explicit marker Railway respects to
+          # avoid redeploying for a no-op version bump that doesn't
+          # touch any runtime code. Belt-and-suspenders alongside
+          # railway.json's `watchPatterns: ["server/**"]` filter, since
+          # Railway's auto-deploy can be configured at the dashboard
+          # level too — the commit-message marker is the most reliable
+          # signal regardless of project settings.
+          git commit -m "chore: bump version to $VERSION [skip ci] [skip railway]"
           git tag "v$VERSION"
           git push && git push --tags

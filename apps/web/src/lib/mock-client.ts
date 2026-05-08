@@ -1113,8 +1113,11 @@ const SAMPLE_TRIPS: Trip[] = [
             confirmationCode: "BL-5598201",
             partySize: 3,
             cost: { amount: 210, currency: "EUR", details: "Comfort · 3 adults · silica mask + drink" },
-            source: "email_confirmed",
-            needsReview: false,
+            // Flagged so the demo showcases the review-pending pill
+            // and tap-to-confirm shortcuts. Imagine this segment was
+            // just auto-parsed from a Blue Lagoon confirmation email.
+            source: "email_auto",
+            needsReview: true,
             sortOrder: 2,
             url: "https://www.bluelagoon.com/",
           },
@@ -1836,18 +1839,85 @@ export class MockApiClient extends ApiClient {
     return Promise.resolve([
       { id: "INBOX", name: "INBOX", type: "system" },
       { id: "STARRED", name: "STARRED", type: "system" },
+      // Nested user labels — Gmail returns these as flat strings
+      // with "/" separators. The picker UI builds a tree from them
+      // and renders children indented under their parent.
       { id: "Label_1", name: "Travel", type: "user" },
+      { id: "Label_3", name: "Travel/Flights", type: "user" },
+      { id: "Label_4", name: "Travel/Hotels", type: "user" },
+      { id: "Label_5", name: "Travel/Hotels/Confirmed", type: "user" },
       { id: "Label_2", name: "Receipts", type: "user" },
     ]);
   }
 
   override scanEmails(
     _input?: EmailScanRequest,
-  ): Promise<{ results: never[]; message: string }> {
-    // In demo mode, pretend no new emails to process
+  ): Promise<{ results: EmailScanResult[]; message: string }> {
+    // In demo mode, return a couple of plausible parsed results so
+    // users can walk through the full mobile email-scan flow without
+    // hitting Gmail / Claude. Auto-matched to the static demo trips
+    // (demo-4 Iceland, demo-3 Disney cruise) by date so the trip
+    // selector renders pre-populated.
+    const now = new Date().toISOString();
     return Promise.resolve({
-      results: [],
-      message: "No new emails to process (demo mode)",
+      message: "2 emails parsed (demo mode)",
+      results: [
+        {
+          emailId: `demo-mail-${uid()}`,
+          subject: "Your Sky Lagoon booking is confirmed — Reykjavík",
+          from: "Sky Lagoon <noreply@skylagoon.is>",
+          receivedAt: now,
+          parseStatus: "success",
+          parsedSegments: [
+            {
+              type: "activity",
+              title: "Sky Lagoon — Pure Pass",
+              date: "2026-07-19",
+              startTime: "16:00",
+              endTime: "18:30",
+              venueName: "Sky Lagoon",
+              address: "Vesturvör 44, 200 Kópavogur",
+              city: "Reykjavík",
+              confirmationCode: "SL-DEMO-1183",
+              partySize: 3,
+              cost: { amount: 195, currency: "EUR", details: "Pure Pass · 3 adults" },
+              url: "https://www.skylagoon.com/",
+              confidence: "high",
+              suggestedTripId: "demo-4",
+              match: { status: "new" },
+            },
+          ],
+        },
+        {
+          emailId: `demo-mail-${uid()}`,
+          subject: "Restaurant reservation — Dill (Reykjavík)",
+          from: "Dill Restaurant <reservations@dillrestaurant.is>",
+          receivedAt: now,
+          parseStatus: "success",
+          parsedSegments: [
+            {
+              type: "restaurant_dinner",
+              title: "Dinner @ Dill",
+              date: "2026-07-19",
+              startTime: "19:30",
+              venueName: "Dill Restaurant",
+              address: "Laugavegur 59, 101 Reykjavík",
+              city: "Reykjavík",
+              partySize: 3,
+              creditCardHold: true,
+              phone: "+354 552 1522",
+              confirmationCode: "DILL-2026-DEMO",
+              cost: { amount: 48000, currency: "ISK", details: "Tasting menu · 3 guests" },
+              confidence: "high",
+              suggestedTripId: "demo-4",
+              // Day already has a Dill dinner segment in the demo data
+              // (seg-i5) — flag this as enrichment so the user sees a
+              // non-"new" classification badge in the review step.
+              match: { status: "duplicate", existingSegmentId: "seg-i5", existingTripId: "demo-4" },
+            },
+          ],
+        },
+      ],
     });
   }
 

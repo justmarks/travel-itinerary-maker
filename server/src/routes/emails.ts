@@ -663,6 +663,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         labelFilter,
         maxResults: effectiveMaxResults,
         newerThanDays: newerThanDays ?? 365,
+        logPrefix: scanPrefix,
       });
 
       console.log(
@@ -674,24 +675,43 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         );
       }
 
+      // Whether a prior `mapped` record still points at a live trip.
+      // If the trip was deleted, the segment that lived there is gone
+      // too — so the email should be re-parsed and surfaced as new.
+      // Without this check, scanning silently skips emails forever
+      // even though their target trip no longer exists, and the user
+      // has no way to recover them short of `forceRescan` (which
+      // historically refused too — see below).
+      const mappedTripStillExists = (prior: ProcessedEmail): boolean =>
+        prior.parseStatus === "mapped" &&
+        !!prior.tripId &&
+        tripsById.has(prior.tripId);
+
       // Filter which emails to (re)parse. Default policy:
-      //   - never seen before  → parse
-      //   - prior "failed"     → retry automatically (a previous code bug or
-      //                          transient error may have blocked it)
-      //   - prior "skipped"    → do NOT retry unless forceRescan is set
-      //   - prior "parsed"     → already have results, skip (pending)
-      //   - prior "mapped"     → already applied to a trip, skip
-      // When forceRescan=true, retry ALL prior statuses except "mapped"
-      // (already applied). Log skipped ones with the reason.
+      //   - never seen before                → parse
+      //   - prior "failed"                   → retry automatically (a previous
+      //                                        code bug or transient error may
+      //                                        have blocked it)
+      //   - prior "skipped"                  → do NOT retry unless forceRescan
+      //   - prior "parsed"                   → already have results, skip
+      //                                        (returned via `pendingResults`)
+      //   - prior "mapped" (live trip)       → already applied, skip
+      //   - prior "mapped" (trip deleted)    → re-parse (segment is gone)
+      // When forceRescan=true, retry ALL prior statuses including
+      // "mapped" — historically we refused but the only honest reason
+      // to ever skip a "mapped" email is "the segment is still in
+      // the trip," which is not what the user asked for when they
+      // explicitly toggled forceRescan.
       const newEmails = rawEmails.filter((e) => {
         const prior = processedMap.get(e.id);
         if (!prior) return true;
 
         if (forceRescan) {
-          if (prior.parseStatus === "mapped") {
-            console.log(`${scanPrefix} Skipped "${e.subject}" (already applied to a trip — not re-scanned even with forceRescan)`);
-            return false;
-          }
+          // The "mapped + live-trip" case is the only one where we
+          // could plausibly skip — but a forceRescan caller has
+          // explicitly opted into "redo everything," so honor that
+          // intent. The applied segment can be deduped at apply
+          // time via `match.status === "duplicate"`.
           console.log(`${scanPrefix} Retrying "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
           return true;
         }
@@ -700,6 +720,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         // code that caused it may have been fixed since.
         if (prior.parseStatus === "failed") {
           console.log(`${scanPrefix} Retrying "${e.subject}" (previously failed — retrying)`);
+          return true;
+        }
+
+        // Trip-deleted recovery: a prior `mapped` whose target trip
+        // no longer exists is treated like a brand-new email. The
+        // mapping is stale; the segment isn't anywhere.
+        if (prior.parseStatus === "mapped" && !mappedTripStillExists(prior)) {
+          console.log(`${scanPrefix} Re-parsing "${e.subject}" (was applied to trip ${prior.tripId ?? "?"}, but that trip no longer exists)`);
           return true;
         }
 
@@ -1359,16 +1387,45 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           debugEmailScan(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
         }
 
-        // Auto-fill city on days based on segment destinations
+        // Auto-fill city on days based on segment destinations.
+        // Priority: hotel (where you sleep) > in-destination events
+        // (activities, restaurants, shows, tours) > arrival cities of
+        // long-haul transport (flights, trains) > pickup locations of
+        // local transport (car rental, car service, other transport).
+        // A flight that lands at ONT and a car rental picked up at ONT
+        // shouldn't override a hotel in Palm Desert on the same day —
+        // the hotel is the authoritative signal for "where am I today".
+        // Cruise days are handled by applyCruisePortsToDayCities below.
+        const cityPriority: Record<Segment["type"], number> = {
+          hotel: 0,
+          activity: 1,
+          show: 1,
+          tour: 1,
+          restaurant_breakfast: 1,
+          restaurant_brunch: 1,
+          restaurant_lunch: 1,
+          restaurant_dinner: 1,
+          flight: 2,
+          train: 2,
+          car_rental: 3,
+          car_service: 3,
+          other_transport: 3,
+          cruise: 3,
+        };
         for (const day of trip.days) {
           if (day.city) continue;
+          let best: { city: string; priority: number; title: string } | null = null;
           for (const seg of day.segments) {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
-            if (segCity) {
-              day.city = segCity;
-              debugEmailScan(`    City: set ${day.date} → "${segCity}" (from "${seg.title}")`);
-              break;
+            if (!segCity) continue;
+            const priority = cityPriority[seg.type];
+            if (best === null || priority < best.priority) {
+              best = { city: segCity, priority, title: seg.title };
             }
+          }
+          if (best) {
+            day.city = best.city;
+            debugEmailScan(`    City: set ${day.date} → "${best.city}" (from "${best.title}")`);
           }
         }
         // Propagate city forward

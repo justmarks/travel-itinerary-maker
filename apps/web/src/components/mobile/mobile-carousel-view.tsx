@@ -56,6 +56,7 @@ export function MobileCarouselView({
   trip,
   showCosts = true,
   canEdit = false,
+  onConfirmSegment,
 }: {
   trip: Trip;
   /**
@@ -73,6 +74,13 @@ export function MobileCarouselView({
    * mutations they wouldn't be permitted to commit.
    */
   canEdit?: boolean;
+  /**
+   * Tap-to-confirm callback for `needsReview` segments. When set,
+   * each segment card's "Review" badge becomes a clickable shortcut
+   * to clear the flag — same hook (`useConfirmSegment`) the desktop
+   * green-check button uses. Omitted for read-only viewers.
+   */
+  onConfirmSegment?: (segment: Segment) => void;
 }): React.JSX.Element {
   const days = trip.days;
   // Index 0 = "All" overview; indices 1..days.length = individual days.
@@ -283,6 +291,7 @@ export function MobileCarouselView({
                 ? (date) => setFormTarget({ mode: "new", date })
                 : undefined
             }
+            onConfirmSegment={onConfirmSegment}
             showCosts={showCosts}
             editableCityTripId={canEdit ? trip.id : undefined}
           />
@@ -345,6 +354,7 @@ export function MobileCarouselView({
                       key={seg.id}
                       segment={seg}
                       onSelect={setSelectedSegment}
+                      onConfirm={onConfirmSegment}
                       showCosts={showCosts}
                     />
                   ))
@@ -369,6 +379,7 @@ export function MobileCarouselView({
           setSelectedSegment(null);
           setFormTarget({ mode: "edit", segment: seg, date });
         }}
+        onConfirm={onConfirmSegment}
       />
 
       <MobileSegmentFormSheet

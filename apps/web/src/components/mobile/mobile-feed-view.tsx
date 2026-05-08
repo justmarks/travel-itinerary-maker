@@ -49,6 +49,7 @@ export function MobileDaysList({
   stickyHeaderTopClass = "top-0",
   onSelectSegment,
   onAddSegment,
+  onConfirmSegment,
   showCosts = true,
   editableCityTripId,
 }: {
@@ -61,6 +62,11 @@ export function MobileDaysList({
    * `canEdit: false`).
    */
   onAddSegment?: (date: string) => void;
+  /**
+   * Tap-to-confirm callback forwarded to each `MobileSegmentCard`.
+   * Omit for read-only viewers — the Review badge stays inert.
+   */
+  onConfirmSegment?: (segment: Segment) => void;
   /**
    * Threaded down to `MobileSegmentCard`. When false, suppresses the
    * inline cost line — used by the contributor view of a shared trip
@@ -173,6 +179,7 @@ export function MobileDaysList({
                     key={seg.id}
                     segment={seg}
                     onSelect={onSelectSegment}
+                    onConfirm={onConfirmSegment}
                     showCosts={showCosts}
                   />
                 ))

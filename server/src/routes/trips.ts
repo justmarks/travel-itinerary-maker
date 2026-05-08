@@ -166,6 +166,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
   // ─── Trip CRUD ───────────────────────────────────────────
 
   router.get("/", async (req: Request, res: Response) => {
+    const listPrefix = `[trips ${req.userEmail ?? "anon"}]`;
     try {
       const storage = getStorage(req);
 
@@ -176,12 +177,15 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       // surface. The dashboard's banner gates on `hasScope(DRIVE_SCOPE)`
       // so the user gets a clear "re-grant Drive" prompt either way.
       let ownedTrips: Trip[] = [];
+      let listTripsMs = 0;
       try {
+        const t0 = Date.now();
         ownedTrips = await storage.listTrips();
+        listTripsMs = Date.now() - t0;
       } catch (err) {
         if (!isInsufficientScopeError(err)) throw err;
         console.warn(
-          `[trips] listTrips skipped for user ${req.userId ?? "(unknown)"} — Drive scope not granted; serving shared trips only.`,
+          `${listPrefix} listTrips skipped — Drive scope not granted; serving shared trips only.`,
         );
       }
       const ownedIds = new Set(ownedTrips.map((t) => t.id));
@@ -244,9 +248,20 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
           };
         });
 
+      // Lets us correlate cross-device staleness reports against
+      // Drive's eventual-consistency window for files.list. When a
+      // user creates a trip on device A and another device B does
+      // GET /trips shortly after, the lag between the POST log and
+      // the first GET that includes the new trip is the Drive
+      // indexing lag. Latency is the Drive call itself, not total
+      // request time, so the signal is isolated from share-fetch.
+      console.log(
+        `${listPrefix} GET /trips → owned=${ownedTrips.length}, shared=${sharedSummaries.length}, returned=${ownedSummaries.length + sharedSummaries.length}, listTripsMs=${listTripsMs}`,
+      );
+
       res.json([...ownedSummaries, ...sharedSummaries]);
     } catch (err) {
-      console.error("GET /trips error:", err);
+      console.error(`${listPrefix} GET /trips error:`, err);
       res.status(500).json({ error: "Failed to list trips" });
     }
   });
@@ -304,6 +319,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     };
 
     await storage.saveTrip(trip);
+    // Pair with the GET /trips log so the gap between creation and
+    // when other devices see the new trip in their refreshed list
+    // (Drive files.list eventual-consistency window) is greppable.
+    console.log(
+      `[trips ${req.userEmail ?? "anon"}] POST /trips → created "${trip.title}" (id=${trip.id}, dates=${trip.startDate}..${trip.endDate})`,
+    );
     res.status(201).json(trip);
   });
 

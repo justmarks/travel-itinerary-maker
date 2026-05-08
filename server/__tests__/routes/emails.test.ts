@@ -317,6 +317,61 @@ describe("Email Routes", () => {
       expect(res.body.message).toBe("No new emails to process");
     });
 
+    it("re-parses a previously-mapped email when its target trip was deleted", async () => {
+      // Create a trip, scan, apply the flight, dismiss the hotel.
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-06-25",
+          endDate: "2026-07-05",
+        });
+      const tripId = tripRes.body.id;
+
+      await request(app).post("/api/v1/emails/scan").send({});
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → NRT",
+              date: "2026-06-26",
+              confidence: "high",
+              tripId,
+              emailId: "msg-001",
+            },
+          ],
+        });
+      await request(app).post("/api/v1/emails/dismiss/msg-002");
+
+      // Sanity check: scan returns nothing while the trip is alive.
+      const cleanScan = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({});
+      expect(cleanScan.body.results).toHaveLength(0);
+
+      // The user deletes the trip — the segment they applied is gone
+      // along with it.
+      await request(app).delete(`/api/v1/trips/${tripId}`);
+
+      // Now the email's `mapped → tripId` record points at nothing.
+      // Re-scan: the email should come back as a fresh result so the
+      // user can apply it to a new trip rather than being silently
+      // skipped forever.
+      const recoveryScan = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({});
+      expect(recoveryScan.status).toBe(200);
+      const flightResult = recoveryScan.body.results.find(
+        (r: { emailId: string }) => r.emailId === "msg-001",
+      );
+      expect(flightResult).toBeDefined();
+      expect(flightResult.parseStatus).toBe("success");
+      expect(flightResult.parsedSegments).toHaveLength(1);
+      expect(flightResult.parsedSegments[0].type).toBe("flight");
+    });
+
     it("auto-matches segments to existing trips by date", async () => {
       // Create a trip covering the segment dates
       await request(app)
@@ -463,6 +518,71 @@ describe("Email Routes", () => {
         .send({ segments: [] });
 
       expect(res.status).toBe(400);
+    });
+
+    it("prefers a hotel city over a flight arrival or car-rental pickup when auto-filling day.city", async () => {
+      // User flies into ONT, picks up a rental car at ONT, and stays
+      // at a Palm Desert hotel — all on the same arrival day. The
+      // day's city should be Palm Desert (where they're sleeping),
+      // not Ontario (where they landed and grabbed the car).
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Coachella 2026",
+          startDate: "2026-04-10",
+          endDate: "2026-04-13",
+        });
+      const tripId = tripRes.body.id;
+
+      const res = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → ONT",
+              date: "2026-04-10",
+              departureCity: "Seattle",
+              arrivalCity: "Ontario",
+              arrivalAirport: "ONT",
+              confirmationCode: "FL123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-flight",
+            },
+            {
+              type: "car_rental",
+              title: "Hertz pickup",
+              date: "2026-04-10",
+              city: "Ontario",
+              venueName: "Hertz ONT",
+              confirmationCode: "CR123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-car",
+            },
+            {
+              type: "hotel",
+              title: "JW Marriott Desert Springs",
+              date: "2026-04-10",
+              city: "Palm Desert",
+              venueName: "JW Marriott Desert Springs",
+              confirmationCode: "HT123",
+              endDate: "2026-04-13",
+              confidence: "high",
+              tripId,
+              emailId: "msg-hotel",
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+
+      const tripCheck = await request(app).get(`/api/v1/trips/${tripId}`);
+      const apr10 = tripCheck.body.days.find(
+        (d: { date: string }) => d.date === "2026-04-10",
+      );
+      expect(apr10.city).toBe("Palm Desert");
     });
   });
 
