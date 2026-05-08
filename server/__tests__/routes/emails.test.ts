@@ -519,6 +519,71 @@ describe("Email Routes", () => {
 
       expect(res.status).toBe(400);
     });
+
+    it("prefers a hotel city over a flight arrival or car-rental pickup when auto-filling day.city", async () => {
+      // User flies into ONT, picks up a rental car at ONT, and stays
+      // at a Palm Desert hotel — all on the same arrival day. The
+      // day's city should be Palm Desert (where they're sleeping),
+      // not Ontario (where they landed and grabbed the car).
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Coachella 2026",
+          startDate: "2026-04-10",
+          endDate: "2026-04-13",
+        });
+      const tripId = tripRes.body.id;
+
+      const res = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → ONT",
+              date: "2026-04-10",
+              departureCity: "Seattle",
+              arrivalCity: "Ontario",
+              arrivalAirport: "ONT",
+              confirmationCode: "FL123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-flight",
+            },
+            {
+              type: "car_rental",
+              title: "Hertz pickup",
+              date: "2026-04-10",
+              city: "Ontario",
+              venueName: "Hertz ONT",
+              confirmationCode: "CR123",
+              confidence: "high",
+              tripId,
+              emailId: "msg-car",
+            },
+            {
+              type: "hotel",
+              title: "JW Marriott Desert Springs",
+              date: "2026-04-10",
+              city: "Palm Desert",
+              venueName: "JW Marriott Desert Springs",
+              confirmationCode: "HT123",
+              endDate: "2026-04-13",
+              confidence: "high",
+              tripId,
+              emailId: "msg-hotel",
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+
+      const tripCheck = await request(app).get(`/api/v1/trips/${tripId}`);
+      const apr10 = tripCheck.body.days.find(
+        (d: { date: string }) => d.date === "2026-04-10",
+      );
+      expect(apr10.city).toBe("Palm Desert");
+    });
   });
 
   describe("GET /api/v1/emails/processed", () => {

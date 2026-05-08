@@ -15,6 +15,14 @@ export interface GmailScanOptions {
   labelFilter?: string;
   maxResults?: number;
   newerThanDays?: number;
+  /**
+   * Optional log prefix (e.g. `[email-scan user@example.com]`) prepended to
+   * every internal log line — Gmail search, FOUND/SKIP per-email, fetch
+   * errors. Lets Railway logs from this scanner inline with the rest of
+   * the pipeline's `[email-scan ...]` lines instead of appearing as
+   * orphan, untagged entries.
+   */
+  logPrefix?: string;
 }
 
 // ─── Pure helpers (exported for unit testing) ──────────────────────────────
@@ -150,7 +158,8 @@ export class GmailScanner {
 
   /** Search for travel confirmation emails */
   async scanEmails(options: GmailScanOptions = {}): Promise<RawEmail[]> {
-    const { labelFilter, maxResults = 100, newerThanDays = 365 } = options;
+    const { labelFilter, maxResults = 100, newerThanDays = 365, logPrefix } = options;
+    const tag = logPrefix ? `${logPrefix} ` : "";
 
     const age = `newer_than:${newerThanDays}d`;
     const listParams: gmail_v1.Params$Resource$Users$Messages$List = {
@@ -165,14 +174,14 @@ export class GmailScanner {
       const labelId = await this.resolveLabelId(labelFilter);
       if (!labelId) {
         console.warn(
-          `Gmail scanner: label "${labelFilter}" not found in user's Gmail labels. Returning 0 emails.`,
+          `${tag}Gmail scanner: label "${labelFilter}" not found in user's Gmail labels. Returning 0 emails.`,
         );
         return [];
       }
       listParams.labelIds = [labelId];
       listParams.q = age; // still constrain by age, but no subject/sender filter
       debugEmailScan(
-        `Gmail search: labelIds=[${labelId}] (resolved from "${labelFilter}"), q="${age}"`,
+        `${tag}Gmail search: labelIds=[${labelId}] (resolved from "${labelFilter}"), q="${age}"`,
       );
     } else {
       // Exclude obvious non-travel receipts that crowd out real travel emails.
@@ -185,14 +194,14 @@ export class GmailScanner {
       const travelSenders =
         "from:(airlines OR airline OR flight OR hotel OR marriott OR hilton OR hyatt OR airbnb OR vrbo OR expedia OR booking.com OR kayak OR united OR delta OR american OR southwest OR alaska OR hawaiian OR jetblue OR frontier OR spirit OR lufthansa OR klm OR british-airways OR airfrance OR emirates OR qatar)";
       listParams.q = `(${subjectTerms} OR ${travelSenders}) ${excludes} ${age}`;
-      debugEmailScan(`Gmail search query: ${listParams.q}`);
+      debugEmailScan(`${tag}Gmail search query: ${listParams.q}`);
     }
 
     const listRes = await this.gmail.users.messages.list(listParams);
 
     const messageIds = listRes.data.messages || [];
     debugEmailScan(
-      `Gmail messages.list returned ${messageIds.length} message IDs` +
+      `${tag}Gmail messages.list returned ${messageIds.length} message IDs` +
         (listRes.data.resultSizeEstimate !== undefined
           ? ` (resultSizeEstimate=${listRes.data.resultSizeEstimate})`
           : ""),
@@ -202,23 +211,23 @@ export class GmailScanner {
 
     for (const msg of messageIds) {
       try {
-        const email = await this.fetchEmail(msg.id!);
+        const email = await this.fetchEmail(msg.id!, tag);
         if (email) emails.push(email);
       } catch (err) {
-        console.error(`Failed to fetch email ${msg.id}:`, err);
+        console.error(`${tag}Failed to fetch email ${msg.id}:`, err);
       }
     }
 
     // Log every email subject we pulled so skipped/missing ones are obvious.
     for (const e of emails) {
-      debugEmailScan(`  FOUND: "${e.subject}" from ${e.from} (${e.receivedAt})`);
+      debugEmailScan(`${tag}  FOUND: "${e.subject}" from ${e.from} (${e.receivedAt})`);
     }
 
     return emails;
   }
 
   /** Fetch and parse a single email message */
-  private async fetchEmail(messageId: string): Promise<RawEmail | null> {
+  private async fetchEmail(messageId: string, tag = ""): Promise<RawEmail | null> {
     const res = await this.gmail.users.messages.get({
       userId: "me",
       id: messageId,
@@ -227,7 +236,7 @@ export class GmailScanner {
 
     const msg = res.data;
     if (!msg.payload) {
-      debugEmailScan(`SKIP: email ${messageId} (no MIME payload)`);
+      debugEmailScan(`${tag}SKIP: email ${messageId} (no MIME payload)`);
       return null;
     }
 
@@ -242,7 +251,7 @@ export class GmailScanner {
     const bodyText = extractBody(msg.payload);
     if (!bodyText.trim()) {
       debugEmailScan(
-        `SKIP: "${subject}" from ${from} (empty body — no text/plain or text/html content)`,
+        `${tag}SKIP: "${subject}" from ${from} (empty body — no text/plain or text/html content)`,
       );
       return null;
     }
