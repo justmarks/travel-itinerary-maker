@@ -28,7 +28,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
-import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
