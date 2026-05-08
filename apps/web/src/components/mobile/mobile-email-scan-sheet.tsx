@@ -119,6 +119,23 @@ function dayShort(date: string) {
   });
 }
 
+/**
+ * Formats a trip's date range for the trip-picker dropdown:
+ * `"Mar 5 – Mar 12"` (same year) or `"Dec 28 2026 – Jan 3 2027"` when
+ * the range crosses calendar years. Compact enough to fit alongside
+ * a trip title even on narrow phone widths.
+ */
+function fmtTripRange(start: string, end: string): string {
+  const s = new Date(start + "T00:00:00");
+  const e = new Date(end + "T00:00:00");
+  const sameYear = s.getFullYear() === e.getFullYear();
+  const opts: Intl.DateTimeFormatOptions = sameYear
+    ? { month: "short", day: "numeric" }
+    : { month: "short", day: "numeric", year: "numeric" };
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", opts);
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
 function buildReviewItems(
   results: readonly EmailScanResult[],
   tripIdFilter: string | undefined,
@@ -815,7 +832,12 @@ function ScanBody({
                 <ReviewCard
                   key={`${item.emailId}-${idx}`}
                   item={item}
-                  trips={trips.map((t) => ({ id: t.id, title: t.title }))}
+                  trips={trips.map((t) => ({
+                    id: t.id,
+                    title: t.title,
+                    startDate: t.startDate,
+                    endDate: t.endDate,
+                  }))}
                   showTripPicker={!tripId}
                   onToggleSelected={() => toggleSelected(idx)}
                   onCycleAction={() => cycleAction(idx)}
@@ -1024,7 +1046,7 @@ function ReviewCard({
   onChangeTrip,
 }: {
   item: ReviewItem;
-  trips: { id: string; title: string }[];
+  trips: { id: string; title: string; startDate: string; endDate: string }[];
   showTripPicker: boolean;
   onToggleSelected: () => void;
   onCycleAction: () => void;
@@ -1089,7 +1111,10 @@ function ReviewCard({
             {trips.length === 0 && <option value="">(no trips)</option>}
             {trips.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.title}
+                {/* Suffix the date range so a phone-only user can
+                    distinguish two trips with similar names — e.g.
+                    "Tokyo Apr 2026" vs "Tokyo Sep 2026". */}
+                {t.title} ({fmtTripRange(t.startDate, t.endDate)})
               </option>
             ))}
           </select>

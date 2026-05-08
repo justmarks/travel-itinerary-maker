@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { simpleParser } from "mailparser";
 import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
 import type { ParsedSegment } from "@travel-app/shared";
+import { reportMessage } from "./monitoring";
 import { debugEmailScan } from "../utils/debug-log";
 
 // TODO: Support points/miles in SegmentCost (e.g. 40,000 hotel points, points + cash combos)
@@ -86,7 +87,10 @@ export class EmailParser {
 
   constructor(options: EmailParserOptions) {
     this.client = new Anthropic({ apiKey: options.apiKey });
-    this.model = options.model || "claude-sonnet-4-20250514";
+    // Default to the latest Sonnet 4 alias. Prior default was the
+    // pinned `claude-sonnet-4-20250514` which Anthropic flagged as
+    // deprecated (EOL 2026-06-15) in their response headers.
+    this.model = options.model || "claude-sonnet-4-6";
   }
 
   /**
@@ -304,22 +308,83 @@ export class EmailParser {
       ? `Email received date: unknown`
       : `Email received date: ${anchor.toISOString().slice(0, 10)} (year=${anchor.getUTCFullYear()})`;
 
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `${receivedLine}\nSubject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
-        },
-      ],
-    });
+    // `.withResponse()` lets us inspect the raw HTTP headers in
+    // addition to the parsed body. Anthropic ships model-deprecation
+    // warnings via response headers (`anthropic-deprecation-warning`
+    // and the standard HTTP `Warning` 299 family), and we want those
+    // to surface in Sentry rather than the Railway logs only.
+    const { data: response, response: raw } = await this.client.messages
+      .create({
+        model: this.model,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: "user",
+            content: `${receivedLine}\nSubject: ${email.subject}\nFrom: ${email.from}\n\n${email.body}`,
+          },
+        ],
+      })
+      .withResponse();
+
+    this.reportDeprecationIfPresent(raw.headers);
 
     const text =
       response.content[0].type === "text" ? response.content[0].text : "";
 
     return this.parseResponse(text);
+  }
+
+  /**
+   * Per-process dedupe so a deprecated model doesn't generate one
+   * Sentry event per parsed email — once Sentry has the message for
+   * a given (model, warning) pair, skip the rest until the server
+   * restarts or the warning text changes.
+   */
+  private static reportedDeprecations = new Set<string>();
+
+  /**
+   * Inspect Anthropic response headers for model-deprecation warnings.
+   * Anthropic emits these via the `anthropic-deprecation-warning`
+   * header, and may also use the standard HTTP `Warning: 299 …`
+   * format. Either one with the word "deprecat" gets a Sentry
+   * `warning`-level event with the model tagged, plus a console line
+   * so it's still visible in Railway logs.
+   */
+  private reportDeprecationIfPresent(headers: Headers): void {
+    const candidates = [
+      headers.get("anthropic-deprecation-warning"),
+      headers.get("warning"),
+      // Fallback for SDK or proxy variants — match anything with
+      // "deprecat" in any header that smells like a warning name.
+      ...Array.from(headers as unknown as Iterable<[string, string]>)
+        .filter(([k]) => /deprecat|warning/i.test(k))
+        .map(([, v]) => v),
+    ].filter((v): v is string => !!v);
+
+    for (const warning of candidates) {
+      if (!/deprecat/i.test(warning)) continue;
+      const key = `${this.model}|${warning}`;
+      if (EmailParser.reportedDeprecations.has(key)) continue;
+      EmailParser.reportedDeprecations.add(key);
+
+      // Always log so it's visible in Railway even when Sentry is off
+      // (dev / CI), and so operators see it during a live tail.
+      console.warn(
+        `[email-parser] Anthropic deprecation warning for model "${this.model}": ${warning}`,
+      );
+
+      reportMessage("anthropic-model-deprecated", {
+        level: "warning",
+        tags: {
+          "anthropic.model": this.model,
+        },
+        context: {
+          model: this.model,
+          warning,
+        },
+      });
+    }
   }
 
   /**
