@@ -663,6 +663,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         labelFilter,
         maxResults: effectiveMaxResults,
         newerThanDays: newerThanDays ?? 365,
+        logPrefix: scanPrefix,
       });
 
       console.log(
@@ -1386,16 +1387,45 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           debugEmailScan(`    + [${seg.type}] "${seg.title}" on ${seg.date} → ${segmentId}`);
         }
 
-        // Auto-fill city on days based on segment destinations
+        // Auto-fill city on days based on segment destinations.
+        // Priority: hotel (where you sleep) > in-destination events
+        // (activities, restaurants, shows, tours) > arrival cities of
+        // long-haul transport (flights, trains) > pickup locations of
+        // local transport (car rental, car service, other transport).
+        // A flight that lands at ONT and a car rental picked up at ONT
+        // shouldn't override a hotel in Palm Desert on the same day —
+        // the hotel is the authoritative signal for "where am I today".
+        // Cruise days are handled by applyCruisePortsToDayCities below.
+        const cityPriority: Record<Segment["type"], number> = {
+          hotel: 0,
+          activity: 1,
+          show: 1,
+          tour: 1,
+          restaurant_breakfast: 1,
+          restaurant_brunch: 1,
+          restaurant_lunch: 1,
+          restaurant_dinner: 1,
+          flight: 2,
+          train: 2,
+          car_rental: 3,
+          car_service: 3,
+          other_transport: 3,
+          cruise: 3,
+        };
         for (const day of trip.days) {
           if (day.city) continue;
+          let best: { city: string; priority: number; title: string } | null = null;
           for (const seg of day.segments) {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
-            if (segCity) {
-              day.city = segCity;
-              debugEmailScan(`    City: set ${day.date} → "${segCity}" (from "${seg.title}")`);
-              break;
+            if (!segCity) continue;
+            const priority = cityPriority[seg.type];
+            if (best === null || priority < best.priority) {
+              best = { city: segCity, priority, title: seg.title };
             }
+          }
+          if (best) {
+            day.city = best.city;
+            debugEmailScan(`    City: set ${day.date} → "${best.city}" (from "${best.title}")`);
           }
         }
         // Propagate city forward
