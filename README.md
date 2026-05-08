@@ -2,7 +2,7 @@
 
 Auto-generate structured travel itineraries from email confirmations. Sign in with Google, and your trip data lives in your own Google Drive — no third-party database, no monthly hosting costs.
 
-[![CI](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/travel-itinerary-maker/actions/workflows/ci.yml)
+[![CI](https://github.com/justmarks/itinly/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/itinly/actions/workflows/ci.yml)
 
 **Live app:** [itinly.app](https://itinly.app) · **Demo (no sign-in):** [itinly.app/?demo=true](https://itinly.app/?demo=true) · **Marketing:** [/welcome](https://itinly.app/welcome) · **Legal:** [/privacy](https://itinly.app/privacy) · [/terms](https://itinly.app/terms)
 
@@ -46,7 +46,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 ## Project Structure
 
 ```
-travel-itinerary-maker/
+itinly/
 ├── apps/
 │   └── web/                  # Next.js 15 frontend (App Router); mobile is the `/m` route as a PWA
 ├── packages/
@@ -77,8 +77,8 @@ travel-itinerary-maker/
 ### Setup
 
 ```bash
-git clone https://github.com/justmarks/travel-itinerary-maker.git
-cd travel-itinerary-maker
+git clone https://github.com/justmarks/itinly.git
+cd itinly
 pnpm install
 
 # Configure environment
@@ -156,7 +156,7 @@ Current coverage: **647 tests** across 40 test suites.
 | `PORT` | server | Express port (default: `3001`) |
 | `NODE_ENV` | server | `development` / `production` / `test` |
 | `CORS_ORIGIN` | server | Comma-separated list of allowed origins (default: `http://localhost:3000`) |
-| `CORS_ORIGIN_PATTERN` | server | Optional regex (as a string) for dynamic origins. A request is allowed if its `Origin` matches any literal in `CORS_ORIGIN` **or** this pattern. Used to accept Vercel per-deploy preview URLs without re-listing every hash. Example: `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`. Leave unset in dev. |
+| `CORS_ORIGIN_PATTERN` | server | Optional regex (as a string) for dynamic origins. A request is allowed if its `Origin` matches any literal in `CORS_ORIGIN` **or** this pattern. Used to accept Vercel per-deploy preview URLs without re-listing every hash. Example: `^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$`. Leave unset in dev. |
 | `GOOGLE_CLIENT_ID` | server | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | server | Google OAuth client secret |
 | `ANTHROPIC_API_KEY` | server | For Claude AI email parsing |
@@ -164,12 +164,12 @@ Current coverage: **647 tests** across 40 test suites.
 | `UPSTASH_REDIS_REST_TOKEN` | server **and** apps/web | Upstash Redis REST token (server-only on web — set as a non-public Vercel env var). |
 | `TOKEN_ENCRYPTION_KEY` | server | Hex-encoded 32-byte key (64 hex chars) for AES-256-GCM encryption of refresh tokens at rest. Generate with `openssl rand -hex 32`. Unset = plaintext storage (fine for dev/tests, not recommended in production). See `docs/redis-persistence.md` for the rotation story. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend URL (default: `http://localhost:3001/api/v1`) |
-| `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://travel-itinerary-maker.vercel.app`). |
+| `NEXT_PUBLIC_SITE_URL` | apps/web | Origin used by `metadataBase` for absolute OG image URLs. Set to the deployed origin (e.g. `https://itinly.vercel.app` or `https://itinly.app`). |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | apps/web | Google OAuth client ID for frontend |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
 | `NEXT_PUBLIC_PROD_ORIGIN` | apps/web | Production origin (e.g. `https://itinly.vercel.app`). Set in Vercel for both **Production and Preview**. Drives the OAuth preview-relay: previews send Google's `redirect_uri` here (the only value Google has registered) and are bounced back via `state.origin`. Leave unset locally. See [docs/vercel-setup.md](docs/vercel-setup.md#oauth-on-preview-deployments). |
-| `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` | apps/web | Anchored regex matching allowed preview origins for the OAuth relay. Set on **Production only** — that's where the relay validates the `state.origin` before bouncing the OAuth code. Mirrors the server's `CORS_ORIGIN_PATTERN`. Example: `^https://travel-itinerary-maker-[a-z0-9]+-justmarks-projects\.vercel\.app$`. |
+| `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` | apps/web | Anchored regex matching allowed preview origins for the OAuth relay. Set on **Production only** — that's where the relay validates the `state.origin` before bouncing the OAuth code. Mirrors the server's `CORS_ORIGIN_PATTERN`. Example: `^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$`. |
 
 ## API Overview
 

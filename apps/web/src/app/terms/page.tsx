@@ -83,7 +83,9 @@ export default function TermsPage(): React.JSX.Element {
                 myaccount.google.com/permissions
               </a>{" "}
               and delete your trip data by removing the{" "}
-              <code>TravelItineraryMaker</code> folder from your Drive.
+              <code>Itinly</code> folder from your Drive (or{" "}
+              <code>TravelItineraryMaker</code> on older accounts that have
+              not yet been renamed by the app).
             </p>
           </section>
 

@@ -15,7 +15,7 @@ A travel itinerary management app that parses trip data from emails and presents
 ## Repository Structure
 
 ```
-travel-itinerary-maker/
+itinly/
 ├── apps/
 │   └── web/                    # Next.js 15 frontend (React 19, TailwindCSS 4, ShadCN UI)
 ├── packages/

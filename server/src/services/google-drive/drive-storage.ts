@@ -2,7 +2,17 @@ import { google, type drive_v3 } from "googleapis";
 import { migrateTrip, type Trip, type UserSettings } from "@travel-app/shared";
 import type { StorageProvider } from "../storage";
 
-const APP_FOLDER_NAME = "TravelItineraryMaker";
+const APP_FOLDER_NAME = "Itinly";
+/**
+ * Folder names this app used in earlier releases. On first read for a
+ * given user, if the current-name folder doesn't exist but one of these
+ * legacy folders does, we rename it in-place (preserving file IDs and
+ * contents) instead of creating a fresh empty `APP_FOLDER_NAME` folder
+ * next to it. The `drive.file` scope means we can only see folders the
+ * app itself created, so this list mirrors the project's branding
+ * history.
+ */
+const LEGACY_APP_FOLDER_NAMES = ["TravelItineraryMaker"];
 const TRIPS_FOLDER_NAME = "trips";
 const SETTINGS_FILE_NAME = "settings.json";
 const PROCESSED_EMAILS_FILE_NAME = "processed-emails.json";
@@ -69,7 +79,49 @@ export class DriveStorage implements StorageProvider {
     return createRes.data.id!;
   }
 
+  /** Find a folder by name at the Drive root. */
+  private async findFolderAtRoot(name: string): Promise<string | null> {
+    const res = await this.drive.files.list({
+      q: `name='${name}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`,
+      fields: "files(id, name)",
+      spaces: "drive",
+    });
+    return res.data.files?.[0]?.id ?? null;
+  }
+
+  /**
+   * Resolve the app's root folder, migrating legacy-named folders in
+   * place. Lookup order:
+   *   1. Current name (`APP_FOLDER_NAME`) — return its ID.
+   *   2. Any legacy name (`LEGACY_APP_FOLDER_NAMES`) — rename it to the
+   *      current name and return the same ID. This keeps trip files,
+   *      settings, and processed-email state where they are; the user
+   *      just sees the folder name update in their Drive UI.
+   *   3. Neither exists — create a fresh `APP_FOLDER_NAME` folder.
+   *
+   * The rename is best-effort: if `files.update` fails (transient API
+   * error), we still return the legacy folder's ID so the request can
+   * proceed. The next request retries the rename.
+   */
   private async getAppFolderId(): Promise<string> {
+    const existing = await this.findFolderAtRoot(APP_FOLDER_NAME);
+    if (existing) return existing;
+
+    for (const legacyName of LEGACY_APP_FOLDER_NAMES) {
+      const legacyId = await this.findFolderAtRoot(legacyName);
+      if (!legacyId) continue;
+      try {
+        await this.drive.files.update({
+          fileId: legacyId,
+          requestBody: { name: APP_FOLDER_NAME },
+        });
+      } catch {
+        // Rename failed — fall through and return the legacy ID so the
+        // request still succeeds. The next call will retry the rename.
+      }
+      return legacyId;
+    }
+
     return this.getOrCreateFolder(APP_FOLDER_NAME);
   }
 

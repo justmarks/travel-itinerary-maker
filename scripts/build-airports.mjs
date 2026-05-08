@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO = process.argv[2] ?? "/home/user/travel-itinerary-maker";
+const REPO = process.argv[2] ?? "/home/user/itinly";
 const CSV = join(REPO, "airports.csv");
 const OUT = join(REPO, "packages/shared/src/utils/airports-data.ts");
 
