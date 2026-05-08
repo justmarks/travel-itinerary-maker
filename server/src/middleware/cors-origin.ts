@@ -11,7 +11,21 @@
  *   - the value matches the pattern (when configured).
  *
  * Returns the function shape that `cors({ origin })` expects.
+ *
+ * Rejections throw a `CorsOriginError` (rather than a plain `Error`) so the
+ * Express error handler can recognise this as a client-side problem and
+ * respond 403 without forwarding it to Sentry — scanners forging the
+ * `Origin` header would otherwise generate 500s and noisy alerts.
  */
+
+export class CorsOriginError extends Error {
+  readonly origin: string;
+  constructor(origin: string) {
+    super(`Origin ${origin} not allowed by CORS`);
+    this.name = "CorsOriginError";
+    this.origin = origin;
+  }
+}
 
 export type CorsOriginCheck = (
   origin: string | undefined,
@@ -26,6 +40,6 @@ export function buildCorsOriginCheck(
     if (!origin) return callback(null, true);
     if (literals.includes(origin)) return callback(null, true);
     if (pattern && pattern.test(origin)) return callback(null, true);
-    callback(new Error(`Origin ${origin} not allowed by CORS`));
+    callback(new CorsOriginError(origin));
   };
 }
