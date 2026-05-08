@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   useApplyParsedSegments,
@@ -325,6 +325,21 @@ function ScanBody({
    * surfaces what the user can still do without forcing a retry.
    */
   const [partialError, setPartialError] = useState<string | null>(null);
+  /**
+   * Ref-backed guard against double-tap on Apply. State alone isn't
+   * enough — React doesn't flush between two synchronous click
+   * events, so the second handler reads the stale `false` from the
+   * closure and runs a duplicate `useCreateTrip` → second trip
+   * created with the same segments applied. The ref is updated
+   * synchronously so the second tap bails out.
+   *
+   * `isApplying` (state, mirror of the ref) drives the button's
+   * disabled + spinner so the visual feedback covers both the trip-
+   * creation phase and the apply-segments phase. (`applySegments.isPending`
+   * alone misses the create-trip phase entirely.)
+   */
+  const applyingRef = useRef(false);
+  const [isApplying, setIsApplying] = useState(false);
 
   // When labels load, default to "Travel" if it exists (matches what
   // most people use for confirmations) — otherwise leave unfiltered.
@@ -549,6 +564,13 @@ function ScanBody({
   };
 
   const handleApply = async () => {
+    // Synchronous guard: a second tap that fires before React has
+    // re-rendered with the disabled button still calls handleApply.
+    // The ref intercepts those duplicate runs (state can't, since
+    // closures from earlier renders see the old value).
+    if (applyingRef.current) return;
+    applyingRef.current = true;
+    setIsApplying(true);
     const toApply = items.filter(
       (it) => it.selected && it.action !== "skip" && it.tripId,
     );
@@ -653,6 +675,12 @@ function ScanBody({
       toast.error("Couldn't apply segments", {
         description: describeError(err),
       });
+    } finally {
+      // Clear the guard whether we landed on Done or stayed on
+      // review after an error — either way the user might want to
+      // tap Apply again (e.g. retry after a transient failure).
+      applyingRef.current = false;
+      setIsApplying(false);
     }
   };
 
@@ -974,10 +1002,10 @@ function ScanBody({
             // + has trip target) — `applyableCount` reflects the same
             // filter `handleApply` uses to build the request, so the
             // button can't be tapped into a no-op call.
-            disabled={applyableCount === 0 || applySegments.isPending}
+            disabled={applyableCount === 0 || isApplying}
             className="inline-flex h-11 flex-[2] items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
-            {applySegments.isPending && (
+            {isApplying && (
               <Loader2 className="h-4 w-4 animate-spin" />
             )}
             Apply {applyableCount > 0 ? applyableCount : ""}
