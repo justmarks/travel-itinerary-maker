@@ -39,6 +39,11 @@ import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 /**
  * Steps in the scan flow:
+ * - `verifying`: short loading screen while we confirm the cached
+ *   `hasGmailLink` is still good — fires labels + pending queries
+ *   and transitions to config / review / needs-scope based on the
+ *   results. Without this step, a stale cache from a previously-
+ *   revoked Gmail link would briefly show config before the bounce.
  * - `needs-scope`: user hasn't linked Gmail (or the refresh token was
  *   revoked / rejected). Shown both on first open and after a 403
  *   `GMAIL_SCOPE_REQUIRED` mid-flight. CTA bounces to the Gmail
@@ -49,6 +54,7 @@ import { MobileBottomSheet } from "./mobile-bottom-sheet";
  * - `done`: terminal state.
  */
 type Step =
+  | "verifying"
   | "needs-scope"
   | "config"
   | "scanning"
@@ -199,21 +205,31 @@ function ScanBody({
   // Don't fetch Gmail labels or pending results until we've confirmed
   // the link — fetches would 401/403 and pollute the console. The
   // desktop dialog gates the same way.
-  const { data: labels = [], error: labelsError } = useGmailLabels(gmailGranted);
+  const {
+    data: labels = [],
+    error: labelsError,
+    isLoading: labelsLoading,
+  } = useGmailLabels(gmailGranted);
   // Pending-results restoration: if a previous scan left results that
   // weren't applied (e.g. user closed the sheet mid-review), surface
   // them on next open instead of forcing a re-scan. The hook is gated
   // on `gmailGranted` so unlinked users skip the call.
-  const { data: pendingData, error: pendingError } = usePendingEmails(gmailGranted);
+  const {
+    data: pendingData,
+    error: pendingError,
+    isLoading: pendingLoading,
+  } = usePendingEmails(gmailGranted);
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
 
-  // Initial step: needs-scope when unlinked, otherwise config (later
-  // bumped to review by the pending-results effect below if there's
-  // anything to restore).
+  // Initial step: needs-scope when we know the user isn't linked,
+  // otherwise verifying — a brief loading screen while the labels +
+  // pending queries confirm the cached `hasGmailLink` is still good.
+  // The transition effect below promotes to config / review (or
+  // bounces to needs-scope on 401/403) once the queries settle.
   const [step, setStep] = useState<Step>(
-    gmailGranted ? "config" : "needs-scope",
+    gmailGranted ? "verifying" : "needs-scope",
   );
   const [labelId, setLabelId] = useState<string | null>(null);
   const [forceRescan, setForceRescan] = useState(false);
@@ -244,28 +260,63 @@ function ScanBody({
     if (travel) setLabelId(travel.id);
   }, [labels, labelId]);
 
-  // Restore pending results from the cache when the sheet opens. Only
-  // happens once (gated on `step === "config"` to avoid clobbering a
-  // mid-flight scan or an in-progress review). If pending exists, jump
-  // straight to review.
+  // Promote `verifying` → real step once the labels + pending queries
+  // have settled. We need both because either one can reveal a stale
+  // Gmail link (auth error) — once they're both confirmed-good (or one
+  // returns useful data), we can safely show config or review. While
+  // either is still loading we stay on the spinner so the user never
+  // sees a config screen for a link the backend's about to reject.
+  //
+  // Restore pending results when the sheet promotes — if a previous
+  // scan left results that weren't applied (e.g. user closed mid-
+  // review), surface them on next open instead of forcing a re-scan.
   useEffect(() => {
-    if (step !== "config") return;
+    if (step !== "verifying") return;
+    const isAuthError = (e: unknown): boolean => {
+      if (!(e instanceof ApiError)) return false;
+      const body = e.body as { code?: string } | null;
+      return (
+        e.status === 401 ||
+        e.status === 403 ||
+        body?.code === "GMAIL_SCOPE_REQUIRED"
+      );
+    };
+    // Auth error wins immediately — bounce before showing anything.
+    if (isAuthError(labelsError) || isAuthError(pendingError)) {
+      setStep("needs-scope");
+      return;
+    }
+    // Wait for both queries to settle (either succeed or fail with a
+    // non-auth error). Without this, we'd promote to config the
+    // microsecond labels comes back even if pending is still in flight.
+    if (labelsLoading || pendingLoading) return;
     const pending = pendingData?.results;
-    if (!pending || pending.length === 0) return;
-    const built = buildReviewItems(pending, tripId, defaultTripId);
-    if (built.length === 0) return;
-    setResults(pending);
-    setItems(built);
-    setStep("review");
-  }, [pendingData, step, tripId, defaultTripId]);
+    if (pending && pending.length > 0) {
+      const built = buildReviewItems(pending, tripId, defaultTripId);
+      if (built.length > 0) {
+        setResults(pending);
+        setItems(built);
+        setStep("review");
+        return;
+      }
+    }
+    setStep("config");
+  }, [
+    step,
+    labelsError,
+    pendingError,
+    labelsLoading,
+    pendingLoading,
+    pendingData,
+    tripId,
+    defaultTripId,
+  ]);
 
-  // Stale-cache bounce: if `hasGmailLink` is true locally but the
-  // server rejects the labels or pending fetch (link revoked at
-  // Google, refresh token expired), drop the user back to the
-  // connect screen *before* they tap Start scan and hit the same
-  // wall. Without this, the cached state was strong enough to show
-  // them config first → confusing.
+  // Mid-flight bounce: if a query starts failing AFTER we already
+  // promoted past `verifying` (rare — usually a stale cache that
+  // refetches and now errors), still bounce. Same predicate.
   useEffect(() => {
+    if (step === "verifying" || step === "needs-scope") return;
     const isAuthError = (e: unknown): boolean => {
       if (!(e instanceof ApiError)) return false;
       const body = e.body as { code?: string } | null;
@@ -278,7 +329,7 @@ function ScanBody({
     if (isAuthError(labelsError) || isAuthError(pendingError)) {
       setStep("needs-scope");
     }
-  }, [labelsError, pendingError]);
+  }, [step, labelsError, pendingError]);
 
   const handleStartScan = async () => {
     setStep("scanning");
@@ -483,6 +534,25 @@ function ScanBody({
   };
 
   // ── Render per step ──
+
+  if (step === "verifying") {
+    // Brief spinner while we confirm the cached `hasGmailLink` is
+    // still good with the backend. Never shown for unlinked users
+    // (initial step is `needs-scope` for them) — only for the cached-
+    // linked path, where the alternative is a flash-of-config before
+    // a stale-token bounce.
+    return (
+      <>
+        <Header title="Scan emails" onClose={onClose} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+          <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            Checking Gmail connection…
+          </p>
+        </div>
+      </>
+    );
+  }
 
   if (step === "needs-scope") {
     const configured = isGmailLinkConfigured();
