@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { startGoogleSignIn } from "@/lib/oauth";
@@ -51,7 +52,13 @@ export default function LoginPage(): React.JSX.Element {
     <main className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-8 text-center">
         <div>
-          <AppWordmark className="mx-auto mb-3 h-16" />
+          <Link
+            href="/welcome"
+            aria-label="itinly home"
+            className="inline-block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <AppWordmark className="mx-auto mb-3 h-16" />
+          </Link>
           <p className="mt-2 text-sm text-muted-foreground">
             Sign in to manage your travel itineraries
           </p>
