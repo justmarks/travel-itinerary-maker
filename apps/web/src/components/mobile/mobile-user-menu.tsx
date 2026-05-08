@@ -16,9 +16,27 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { NotificationToggleMenu } from "@/components/notification-toggle";
-import { Download, LogIn, LogOut, Monitor, Share, User } from "lucide-react";
+import {
+  Download,
+  LogIn,
+  LogOut,
+  Mail,
+  Monitor,
+  Share,
+  User,
+} from "lucide-react";
 
-export function MobileUserMenu(): React.JSX.Element {
+export function MobileUserMenu({
+  onScanEmails,
+}: {
+  /**
+   * When provided, the menu shows a "Scan emails" item that fires
+   * this callback. Owner-side / parent decides where the sheet
+   * mounts (e.g. account-level scan from `/m`). Trip-scoped scans
+   * live in the trip-detail overflow instead.
+   */
+  onScanEmails?: () => void;
+} = {}): React.JSX.Element {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
@@ -111,6 +129,12 @@ export function MobileUserMenu(): React.JSX.Element {
             Tap the Share button in Safari, then choose &ldquo;Add to Home
             Screen&rdquo;.
           </p>
+        )}
+        {onScanEmails && (
+          <DropdownMenuItem onClick={onScanEmails}>
+            <Mail className="mr-2 h-4 w-4" />
+            Scan emails
+          </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleSwitchToDesktop}>
           <Monitor className="mr-2 h-4 w-4" />

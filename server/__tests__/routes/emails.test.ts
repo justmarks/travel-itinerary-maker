@@ -317,6 +317,61 @@ describe("Email Routes", () => {
       expect(res.body.message).toBe("No new emails to process");
     });
 
+    it("re-parses a previously-mapped email when its target trip was deleted", async () => {
+      // Create a trip, scan, apply the flight, dismiss the hotel.
+      const tripRes = await request(app)
+        .post("/api/v1/trips")
+        .send({
+          title: "Japan Trip",
+          startDate: "2026-06-25",
+          endDate: "2026-07-05",
+        });
+      const tripId = tripRes.body.id;
+
+      await request(app).post("/api/v1/emails/scan").send({});
+      await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "flight",
+              title: "SEA → NRT",
+              date: "2026-06-26",
+              confidence: "high",
+              tripId,
+              emailId: "msg-001",
+            },
+          ],
+        });
+      await request(app).post("/api/v1/emails/dismiss/msg-002");
+
+      // Sanity check: scan returns nothing while the trip is alive.
+      const cleanScan = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({});
+      expect(cleanScan.body.results).toHaveLength(0);
+
+      // The user deletes the trip — the segment they applied is gone
+      // along with it.
+      await request(app).delete(`/api/v1/trips/${tripId}`);
+
+      // Now the email's `mapped → tripId` record points at nothing.
+      // Re-scan: the email should come back as a fresh result so the
+      // user can apply it to a new trip rather than being silently
+      // skipped forever.
+      const recoveryScan = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({});
+      expect(recoveryScan.status).toBe(200);
+      const flightResult = recoveryScan.body.results.find(
+        (r: { emailId: string }) => r.emailId === "msg-001",
+      );
+      expect(flightResult).toBeDefined();
+      expect(flightResult.parseStatus).toBe("success");
+      expect(flightResult.parsedSegments).toHaveLength(1);
+      expect(flightResult.parsedSegments[0].type).toBe("flight");
+    });
+
     it("auto-matches segments to existing trips by date", async () => {
       // Create a trip covering the segment dates
       await request(app)
