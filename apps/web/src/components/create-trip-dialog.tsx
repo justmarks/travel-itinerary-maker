@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateTrip } from "@travel-app/api-client";
 import { ApiError } from "@travel-app/api-client";
@@ -36,6 +36,34 @@ export function CreateTripDialog({
   const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const createTrip = useCreateTrip();
   const isDemo = useDemoMode();
+  const endDateRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Hand off from the start picker to the end picker the moment a start
+   * date is chosen, so the user gets a single fluid "click start → pick
+   * date → pick date → done" flow instead of having to manually open the
+   * end input. `showPicker` is supported in every browser we target
+   * (Chrome 99+, Firefox 101+, Safari 16+) and is a no-op anywhere it
+   * isn't — the user falls back to clicking the end input themselves.
+   *
+   * Wrapped in a microtask so React has flushed the state update and the
+   * end input has rendered with its new `min` attribute before the
+   * picker opens; calling synchronously inside onChange occasionally
+   * showed the picker against stale DOM.
+   */
+  const openEndPicker = () => {
+    queueMicrotask(() => {
+      const el = endDateRef.current;
+      if (!el || typeof el.showPicker !== "function") return;
+      try {
+        el.showPicker();
+      } catch {
+        // showPicker throws if the input isn't visible / focusable yet
+        // (e.g. dialog still animating). The user can click the end
+        // field themselves; not worth surfacing.
+      }
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,17 +146,27 @@ export function CreateTripDialog({
                 type="date"
                 value={startDate}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
+                  const next = e.target.value;
+                  setStartDate(next);
                   setOverlapError(null);
+                  // Default the end date to the start so a one-day trip
+                  // can be created from a single picker if the user
+                  // dismisses the end picker without picking again.
+                  if (next && (!endDate || endDate < next)) {
+                    setEndDate(next);
+                  }
+                  if (next) openEndPicker();
                 }}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="endDate">End date</Label>
               <Input
+                ref={endDateRef}
                 id="endDate"
                 type="date"
                 value={endDate}
+                min={startDate || undefined}
                 onChange={(e) => {
                   setEndDate(e.target.value);
                   setOverlapError(null);
