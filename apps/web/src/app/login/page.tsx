@@ -12,14 +12,36 @@ import { AlertCircle, Info } from "lucide-react";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
+// True when the bundle was built without `NEXT_PUBLIC_API_URL` and the
+// browser is loading from somewhere other than localhost — i.e. this is
+// a deployed site running with the dev fallback baked in. The build-time
+// guard in `next.config.ts` blocks this on Vercel, so we only land here
+// on self-hosted / non-Vercel deploys, but the banner copy still needs
+// to point at the real cause instead of "no API server detected".
+function isBuildTimeApiMisconfig(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!/^https?:\/\/localhost(?::\d+)?(?:\/|$)/.test(API_BASE_URL)) return false;
+  const host = window.location.hostname;
+  return host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]";
+}
+
 export default function LoginPage(): React.JSX.Element {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
+  const [buildMisconfig, setBuildMisconfig] = useState(false);
 
-  // Check if the API server is reachable on mount
+  // Check if the API server is reachable on mount. Skip the probe entirely
+  // when the bundle is misconfigured — hitting localhost from a deployed
+  // origin always fails with ERR_CONNECTION_REFUSED, and surfacing that
+  // failure as "no API server detected" hides the actual cause.
   useEffect(() => {
+    if (isBuildTimeApiMisconfig()) {
+      setBuildMisconfig(true);
+      setApiAvailable(false);
+      return;
+    }
     const controller = new AbortController();
     fetch(`${API_BASE_URL.replace(/\/api\/v1$/, "")}/health`, {
       signal: controller.signal,
@@ -73,8 +95,21 @@ export default function LoginPage(): React.JSX.Element {
           <div className="flex items-start gap-3 rounded-md border border-border bg-muted/50 p-3 text-left text-sm text-muted-foreground">
             <Info className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              No API server detected. Sign-in requires a running backend.
-              You can still explore the app with demo data below.
+              {buildMisconfig ? (
+                <>
+                  This deployment is misconfigured: the build did not
+                  receive a <code>NEXT_PUBLIC_API_URL</code>, so the
+                  bundle is pointed at <code>http://localhost:3001</code>.
+                  Try the demo below, or contact the site owner to set
+                  the variable and redeploy.
+                </>
+              ) : (
+                <>
+                  No API server detected. Sign-in requires a running
+                  backend. You can still explore the app with demo data
+                  below.
+                </>
+              )}
             </span>
           </div>
         )}

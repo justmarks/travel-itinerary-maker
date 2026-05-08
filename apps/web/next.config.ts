@@ -2,6 +2,35 @@ import type { NextConfig } from "next";
 import path from "path";
 import pkg from "./package.json";
 
+// ── Build-time config guard ────────────────────────────────────
+//
+// `NEXT_PUBLIC_*` vars are inlined into the static client bundle at
+// build time. Every login / auth / API-client module reads
+// `process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1"`,
+// so a Vercel build that runs without the var set bakes the localhost
+// fallback into the chunks shipped to every browser — and the deployed
+// site silently fails its `/health` probe forever (ERR_CONNECTION_REFUSED)
+// because no real user has a backend on localhost.
+//
+// We hit this in production once; failing the build is the durable fix.
+// Scoped to `VERCEL_ENV` of `production` / `preview` so local `next dev`
+// and `next build` runs (where the localhost fallback is the right
+// default) keep working unchanged.
+const vercelEnv = process.env.VERCEL_ENV;
+if (
+  process.env.VERCEL === "1" &&
+  (vercelEnv === "production" || vercelEnv === "preview") &&
+  !process.env.NEXT_PUBLIC_API_URL
+) {
+  throw new Error(
+    `[itinly] NEXT_PUBLIC_API_URL is not set on this Vercel ${vercelEnv} build. ` +
+      `The client bundle would silently fall back to http://localhost:3001 and ` +
+      `every deployed page would fail its /health probe with ERR_CONNECTION_REFUSED. ` +
+      `Set the variable on Vercel → Settings → Environment Variables for the ` +
+      `${vercelEnv} scope and redeploy. See docs/vercel-setup.md.`,
+  );
+}
+
 // ── Security headers ────────────────────────────────────────────
 //
 // **CSP lives in `src/proxy.ts`**, not here. The CSP needs a
