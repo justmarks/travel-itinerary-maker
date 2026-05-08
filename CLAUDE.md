@@ -131,6 +131,29 @@ User-triggered actions — rename, delete, status cycle, todo check, segment add
 - **Show a toast on failure.** Wire `toast.error("Couldn't <verb>", { description: describeError(err) })` (Sonner) on every mutation call site. `describeError` lives in `apps/web/src/lib/api-error.ts` and pulls a useful message out of `ApiError` / `Error`. For success, only toast when the action wasn't visually obvious — e.g. a successful Calendar sync is worth a toast, but a successful checkbox tick isn't.
 - **Be tappable in rapid succession.** Don't disable buttons just because `isPending` is true; the optimistic update has already shown the result. The only time to disable is when the action is genuinely incompatible with the current state (e.g. Save while still validating). Check that toggling the same checkbox five times in a row works without the UI freezing.
 
+### Errors, toasts, banners, and logging
+
+The decision tree for "where should this error surface?" is:
+
+| Situation | Surface |
+|---|---|
+| User triggered the action and the failure is actionable (rename rejected, share-link revoke 403, calendar sync timed out) | **Sonner toast** — `toast.error("Couldn't <verb>", { description: describeError(err) })` from `@/lib/api-error` |
+| User-actionable failure that needs persistence (the toast would auto-dismiss before they could read / act on it) | **Inline banner** with `--status-warn` / `--status-danger` tokens, e.g. the partial-results banner in `MobileEmailScanSheet`'s review step |
+| The user's auth/scope state is stale (401, 403, `GMAIL_SCOPE_REQUIRED`) | **Step transition** — drop them on the relevant connect screen, don't toast. Toasts auto-dismiss; a stale-token user needs to land somewhere they can fix it |
+| Background side-effect failed (`dismissEmail.mutate(id)` in a fire-and-forget loop) — non-fatal, no UX | `console.warn(...)` via the mutation's `onError` so it shows up during local dev / Railway tail without yelling at the user |
+| Server-side parser / pipeline failure that operators need aggregated signal on | **Sentry** via `reportError(err, ctx)` (caught exception) or `reportMessage(name, { level, tags, context })` (soft failure / interesting outcome with no exception). Both live in `server/src/services/monitoring.ts` and are no-ops when Sentry isn't configured |
+| Auth probe that distinguishes "user revoked at Google" from "code error" so the API can return a custom 4xx and the client can branch | Throw a typed error with a `code` (e.g. `GMAIL_SCOPE_REQUIRED`); the route handler maps to a specific status |
+
+**Don't `console.error` in client code that isn't a debugging breadcrumb.** It writes to Sentry (when wired) and surfaces in browser dev consoles. If the failure is user-facing, toast it; if it isn't, prefer `console.warn` or silence.
+
+**Don't swallow errors.** If you `await mutateAsync` outside React Query's `onError` flow, wrap with `try/catch` and route via the table above — `await x.catch(() => undefined)` hides bugs that should be debuggable.
+
+**Don't show generic descriptions.** `describeError(err)` already extracts `error` from `ApiError.body` (validator issues + custom server messages) and falls back to `err.message`. If the description is still generic ("Request failed (402)"), branch on `err.status` / `err.body.code` and write a specific message — see the 402 / 503 / `ANTHROPIC_OVERLOADED` handling in `MobileEmailScanSheet.handleStartScan` for the pattern.
+
+**`console.warn` is for operators, not users.** Use it for: deprecated upstream APIs (model-deprecation warnings forwarded to Sentry already log here too), unrecoverable-but-non-fatal background failures (auto-dismiss email failed), and anything that future-you would want to grep Railway logs for. Add a tag prefix so they're greppable: `console.warn("[email-scan] ...")`. Don't use it for routine state — it's noise.
+
+**Sentry tagging conventions.** When emitting `reportMessage`, tag with searchable kebab-case keys grouped by domain: `email.outcome`, `email.source`, `anthropic.model`. Free-form context goes in `context`. Never put PII (email subjects, body, addresses) in either; hash via `hashSubject` if you need to group repeated failures from the same template.
+
 ### Brand palette
 
 Locked palette A (2026-05). Every color pairing has been verified to meet WCAG 2.1 AA — ≥4.5:1 for body text, ≥3:1 for non-text icon elements. When adding brand-colored UI, pick from this palette; do not introduce ad-hoc hex values.
