@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useTrip,
   useUpdateTrip,
@@ -79,10 +78,9 @@ import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
-import { useDemoHref, useDemoMode } from "@/lib/demo";
-import { useAuth } from "@/lib/auth";
+import { useDemoHref } from "@/lib/demo";
 import { describeError } from "@/lib/api-error";
-import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
+import { useCalendarSync } from "@/lib/use-calendar-sync";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
@@ -644,7 +642,8 @@ function NeedsReviewBanner({
     >
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
-        <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
+        <strong>{reviewCount}</strong>{" "}
+        {reviewCount === 1 ? "segment" : "segments"} from email need review.
         Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
       </span>
       <Button
@@ -696,44 +695,34 @@ function CalendarSyncButton({
    */
   renderTrigger?: (args: CalendarSyncTriggerArgs) => React.ReactNode;
 }) {
-  const client = useApiClient();
-  const queryClient = useQueryClient();
-  const { hasScope } = useAuth();
-  const isDemo = useDemoMode();
-  // Demo mode runs against MockApiClient and never hits Google, so we
-  // skip the scope gate there. Real users without `calendar` granted
-  // see a "Connect Calendar" CTA instead of the full sync dialog.
-  const calendarGranted = isDemo || hasScope(CALENDAR_SCOPE);
-  const [syncing, setSyncing] = useState(false);
+  const {
+    calendarGranted,
+    isSynced,
+    syncedCount,
+    syncedCalendarName,
+    syncing,
+    calendars,
+    loadingCalendars,
+    loadCalendars,
+    requestCalendarScope,
+    sync,
+    refresh,
+    unsync,
+  } = useCalendarSync(trip);
   // "pick"   → choose-calendar dialog (not yet synced)
   // "info"   → synced-status dialog
   // "scope"  → "needs Calendar permission" CTA
   // null     → no dialog
   const [dialog, setDialog] = useState<"pick" | "info" | "scope" | null>(null);
-  const [calendars, setCalendars] = useState<Array<{ id: string; summary: string; primary: boolean }> | null>(null);
-  const [loadingCalendars, setLoadingCalendars] = useState(false);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
   // "confirm" = showing the remove-sync confirmation step
   const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
   const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
 
-  const isSynced = trip.days.flatMap((d) => d.segments).some((s) => s.calendarEventId);
-  const syncedCount = trip.days.flatMap((d) => d.segments).filter((s) => s.calendarEventId).length;
-  const syncedCalendarName = calendars?.find((c) => c.id === trip.calendarId)?.summary;
-
-  const loadCalendars = async () => {
-    setLoadingCalendars(true);
-    setCalendars(null);
-    try {
-      const cals = await client.listCalendars();
-      setCalendars(cals);
-      const primary = cals.find((c) => c.primary);
-      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
-    } catch {
-      setCalendars([]);
-    } finally {
-      setLoadingCalendars(false);
-    }
+  const refreshCalendarList = async () => {
+    const cals = await loadCalendars();
+    const primary = cals.find((c) => c.primary);
+    setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
   };
 
   const openDialog = () => {
@@ -745,67 +734,26 @@ function CalendarSyncButton({
       setRemoveStep(null);
       setDeleteChoice("delete");
       setDialog("info");
-      loadCalendars();
+      void refreshCalendarList();
     } else {
       setDialog("pick");
-      loadCalendars();
+      void refreshCalendarList();
     }
   };
 
   const handleSync = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.syncCalendar(trip.id, selectedCalendarId);
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      const total = result.created + result.updated;
-      if (result.failed > 0) {
-        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
-      } else {
-        toast.success(`${total} event${total !== 1 ? "s" : ""} synced to Google Calendar`);
-      }
-    } catch {
-      toast.error("Sync failed — check that Calendar access is granted.");
-    } finally {
-      setSyncing(false);
-    }
+    await sync(selectedCalendarId);
   };
 
   const handleRefresh = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.syncCalendar(trip.id, trip.calendarId);
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      const total = result.created + result.updated;
-      if (result.failed > 0) {
-        toast.warning(`${total} event${total !== 1 ? "s" : ""} synced, ${result.failed} failed`);
-      } else {
-        toast.success(`Calendar refreshed — ${total} event${total !== 1 ? "s" : ""} up to date`);
-      }
-    } catch {
-      toast.error("Refresh failed — check that Calendar access is granted.");
-    } finally {
-      setSyncing(false);
-    }
+    await refresh();
   };
 
   const handleRemove = async () => {
     setDialog(null);
-    setSyncing(true);
-    try {
-      const result = await client.unsyncCalendar(trip.id, { deleteEvents: deleteChoice === "delete" });
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
-      if (deleteChoice === "delete") {
-        toast.success(`Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`);
-      } else {
-        toast.success("Sync removed — calendar events kept");
-      }
-    } catch {
-      toast.error("Failed to remove sync.");
-    } finally {
-      setSyncing(false);
-    }
+    await unsync(deleteChoice === "delete");
   };
 
   return (
@@ -845,13 +793,7 @@ function CalendarSyncButton({
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Not now</Button>
-            <Button
-              onClick={() => {
-                const returnTo =
-                  window.location.pathname + window.location.search;
-                requestAdditionalScopes([CALENDAR_SCOPE], returnTo);
-              }}
-            >
+            <Button onClick={requestCalendarScope}>
               <CalendarPlus className="mr-2 h-3.5 w-3.5" />
               Connect Calendar
             </Button>
