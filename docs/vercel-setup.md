@@ -180,25 +180,32 @@ prod when you duplicate, but verify after):
   (`itinly-7a3lt52rq-...`). An incoming `Origin` header is allowed if
   it matches any literal in `CORS_ORIGIN` OR this pattern.
 
-Per-environment variables you should **not** share between prod and
-preview:
-
-- **`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** — give
-  preview its own Upstash database so test share links and refresh
-  tokens don't pollute prod's `share-snapshots` and `tokens` hashes.
-  Both envs need these set; the values just shouldn't match.
-- **`SENTRY_DSN`** — optional, but using a separate Sentry project (or
-  unsetting it on preview) keeps test-driven errors out of the prod
-  alert stream.
-
 Variables that **should** match across envs:
 
+- **`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** — Upstash's
+  free tier is one database per account, so preview shares prod's
+  Redis. Trade-off: share-snapshots and refresh tokens written from
+  the preview env land in the same `share-snapshots` / `tokens`
+  hashes prod reads. In practice this is benign — share tokens are
+  random IDs (no collisions) and refresh tokens key on the user's
+  Google subject (preview overwriting prod just refreshes the same
+  user's token). The cost is that test data accumulates in prod's
+  Redis and counts against free-tier storage / daily commands. If
+  you ever upgrade Upstash, give preview its own database and move
+  these to the "should not share" list.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — preview OAuth still
   relays through the prod origin (see "OAuth on preview deployments"
   above), so the preview backend needs to recognise codes minted
   against the prod redirect URI. Same client = same code exchange.
 - `ANTHROPIC_API_KEY`, `VAPID_*`, `TOKEN_ENCRYPTION_KEY` — fine to
   share unless you specifically want to isolate quota / rotate keys.
+
+Per-environment variables you should **not** share between prod and
+preview:
+
+- **`SENTRY_DSN`** — optional, but using a separate Sentry project (or
+  unsetting it on preview) keeps test-driven errors out of the prod
+  alert stream.
 
 After saving these, restart the Railway service so the new env values
 take effect.
