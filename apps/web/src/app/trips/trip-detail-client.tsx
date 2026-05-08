@@ -642,7 +642,8 @@ function NeedsReviewBanner({
     >
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
-        <strong>{reviewCount}</strong> segment{reviewCount !== 1 ? "s" : ""} from email need review.
+        <strong>{reviewCount}</strong>{" "}
+        {reviewCount === 1 ? "segment" : "segments"} from email need review.
         Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
       </span>
       <Button
