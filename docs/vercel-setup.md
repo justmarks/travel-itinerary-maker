@@ -16,7 +16,7 @@ this whole class of issue evaporates when Vercel is the host.
 
 1. **Import the repo.**
    - Vercel dashboard → **Add New → Project** → select
-     `justmarks/travel-itinerary-maker`.
+     `justmarks/itinly`.
 
 2. **Project configuration.**
    - **Framework Preset:** `Next.js` (auto-detected).
@@ -41,12 +41,13 @@ this whole class of issue evaporates when Vercel is the host.
    **Development** unless noted. (Project Settings → Environment
    Variables.)
    - `NEXT_PUBLIC_API_URL` — your Railway API base URL (e.g.
-     `https://travel-itinerary-maker.up.railway.app/api/v1`).
+     `https://itinly.up.railway.app/api/v1`).
    - `NEXT_PUBLIC_GOOGLE_CLIENT_ID` — Google OAuth client ID.
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` — Google Maps API key.
    - `NEXT_PUBLIC_SITE_URL` — your Vercel deployment origin (e.g.
-     `https://travel-itinerary-maker.vercel.app` or your custom
-     domain). Used by `metadataBase` to absolutise OG image URLs.
+     `https://itinly.vercel.app` or your custom domain like
+     `https://itinly.app`). Used by `metadataBase` to absolutise OG
+     image URLs.
    - `NEXT_PUBLIC_PROD_ORIGIN` — your **production** Vercel origin
      (e.g. `https://project-yhbyn.vercel.app`). Set on **Production
      and Preview** with the same value. Drives the OAuth preview

@@ -58,13 +58,17 @@ function makeTripJson(overrides: Partial<Trip> = {}): Trip {
 
 /**
  * Set up the standard folder resolution mocks:
- * 1. getOrCreateFolder("TravelItineraryMaker") → APP_FOLDER_ID
+ * 1. findFolderAtRoot("Itinly") → APP_FOLDER_ID
  * 2. getOrCreateFolder("trips", APP_FOLDER_ID) → TRIPS_FOLDER_ID
+ *
+ * The legacy `TravelItineraryMaker` folder is absent in this default
+ * setup — tests that exercise the rename-on-migration path stub their
+ * own mocks. See the "legacy folder migration" describe block.
  */
 function setupFolderMocks() {
   mockFilesList.mockImplementation((params: { q: string }) => {
-    if (params.q.includes("TravelItineraryMaker")) {
-      return { data: { files: [{ id: APP_FOLDER_ID, name: "TravelItineraryMaker" }] } };
+    if (params.q.includes("'Itinly'")) {
+      return { data: { files: [{ id: APP_FOLDER_ID, name: "Itinly" }] } };
     }
     if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
       return { data: { files: [{ id: TRIPS_FOLDER_ID, name: "trips" }] } };
@@ -89,7 +93,7 @@ describe("DriveStorage", () => {
     it("returns empty array when no trip files exist", async () => {
       // Override to return trips folder, then no files in it
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -110,7 +114,7 @@ describe("DriveStorage", () => {
       const tripB = makeTripJson({ id: "trip-b", startDate: "2025-12-01" });
 
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -157,7 +161,7 @@ describe("DriveStorage", () => {
       const tripData = makeTripJson();
 
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -184,7 +188,7 @@ describe("DriveStorage", () => {
 
       // findFile returns null (no existing file)
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -212,7 +216,7 @@ describe("DriveStorage", () => {
       const trip = makeTripJson();
 
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -243,7 +247,7 @@ describe("DriveStorage", () => {
 
     it("deletes the file and returns true", async () => {
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("trips") && params.q.includes(APP_FOLDER_ID)) {
@@ -277,7 +281,7 @@ describe("DriveStorage", () => {
       };
 
       mockFilesList.mockImplementation((params: { q: string }) => {
-        if (params.q.includes("TravelItineraryMaker")) {
+        if (params.q.includes("'Itinly'")) {
           return { data: { files: [{ id: APP_FOLDER_ID }] } };
         }
         if (params.q.includes("settings.json") && params.q.includes(APP_FOLDER_ID)) {
@@ -302,20 +306,166 @@ describe("DriveStorage", () => {
   });
 
   describe("folder creation", () => {
-    it("creates app folder when it does not exist", async () => {
-      // No existing folders found
+    it("creates Itinly app folder when neither it nor a legacy folder exists", async () => {
+      // No existing folders found — first-time user.
       mockFilesList.mockReturnValue({ data: { files: [] } });
       mockFilesCreate.mockReturnValue({ data: { id: "new-folder-id" } });
 
       const trip = makeTripJson();
       await storage.saveTrip(trip);
 
-      // Should have created both TravelItineraryMaker and trips folders
+      // Should have created the Itinly app folder (and the trips
+      // subfolder) — but never the legacy TravelItineraryMaker name.
       expect(mockFilesCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           requestBody: expect.objectContaining({
-            name: "TravelItineraryMaker",
+            name: "Itinly",
             mimeType: "application/vnd.google-apps.folder",
+          }),
+        }),
+      );
+      expect(mockFilesCreate).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            name: "TravelItineraryMaker",
+          }),
+        }),
+      );
+    });
+  });
+
+  describe("legacy folder migration", () => {
+    const LEGACY_FOLDER_ID = "legacy-folder-789";
+
+    it("renames a TravelItineraryMaker folder to Itinly when no Itinly folder exists", async () => {
+      mockFilesList.mockImplementation((params: { q: string }) => {
+        // Itinly lookup → empty (not migrated yet).
+        if (params.q.includes("'Itinly'")) {
+          return { data: { files: [] } };
+        }
+        // Legacy lookup → existing folder.
+        if (params.q.includes("'TravelItineraryMaker'")) {
+          return {
+            data: {
+              files: [{ id: LEGACY_FOLDER_ID, name: "TravelItineraryMaker" }],
+            },
+          };
+        }
+        // trips subfolder lookup, scoped to the legacy folder ID since
+        // the migration preserves the same folder ID.
+        if (
+          params.q.includes("trips") &&
+          params.q.includes(LEGACY_FOLDER_ID)
+        ) {
+          return { data: { files: [{ id: TRIPS_FOLDER_ID, name: "trips" }] } };
+        }
+        return { data: { files: [] } };
+      });
+      mockFilesCreate.mockReturnValue({ data: { id: "new-trip-file-id" } });
+
+      const trip = makeTripJson();
+      await storage.saveTrip(trip);
+
+      // The legacy folder should have been renamed in place — same ID,
+      // new name. No new app folder should have been created.
+      expect(mockFilesUpdate).toHaveBeenCalledWith({
+        fileId: LEGACY_FOLDER_ID,
+        requestBody: { name: "Itinly" },
+      });
+      expect(mockFilesCreate).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            name: "Itinly",
+            mimeType: "application/vnd.google-apps.folder",
+          }),
+        }),
+      );
+
+      // The trip file should land inside the trips subfolder of the
+      // (now-renamed) legacy folder — confirming we kept the same ID.
+      expect(mockFilesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            name: "trip-1.json",
+            parents: [TRIPS_FOLDER_ID],
+          }),
+        }),
+      );
+    });
+
+    it("prefers an existing Itinly folder over a stray legacy folder", async () => {
+      // Both folders exist — a user manually created "Itinly" while a
+      // legacy "TravelItineraryMaker" still sits next to it. We use
+      // Itinly and leave the legacy folder alone.
+      mockFilesList.mockImplementation((params: { q: string }) => {
+        if (params.q.includes("'Itinly'")) {
+          return {
+            data: { files: [{ id: APP_FOLDER_ID, name: "Itinly" }] },
+          };
+        }
+        if (params.q.includes("'TravelItineraryMaker'")) {
+          return {
+            data: {
+              files: [{ id: LEGACY_FOLDER_ID, name: "TravelItineraryMaker" }],
+            },
+          };
+        }
+        if (
+          params.q.includes("trips") &&
+          params.q.includes(APP_FOLDER_ID)
+        ) {
+          return { data: { files: [{ id: TRIPS_FOLDER_ID, name: "trips" }] } };
+        }
+        return { data: { files: [] } };
+      });
+      mockFilesCreate.mockReturnValue({ data: { id: "new-trip-file-id" } });
+
+      const trip = makeTripJson();
+      await storage.saveTrip(trip);
+
+      // No rename — Itinly already existed. The legacy folder is
+      // ignored entirely (no list call beyond the initial Itinly hit).
+      expect(mockFilesUpdate).not.toHaveBeenCalledWith(
+        expect.objectContaining({ fileId: LEGACY_FOLDER_ID }),
+      );
+    });
+
+    it("falls back to the legacy folder ID if the rename API call fails", async () => {
+      // Legacy folder exists, Itinly does not, but files.update throws.
+      // The implementation should swallow the error and still return
+      // the legacy folder ID so the request succeeds. The next request
+      // will retry the rename.
+      mockFilesList.mockImplementation((params: { q: string }) => {
+        if (params.q.includes("'Itinly'")) {
+          return { data: { files: [] } };
+        }
+        if (params.q.includes("'TravelItineraryMaker'")) {
+          return {
+            data: {
+              files: [{ id: LEGACY_FOLDER_ID, name: "TravelItineraryMaker" }],
+            },
+          };
+        }
+        if (
+          params.q.includes("trips") &&
+          params.q.includes(LEGACY_FOLDER_ID)
+        ) {
+          return { data: { files: [{ id: TRIPS_FOLDER_ID, name: "trips" }] } };
+        }
+        return { data: { files: [] } };
+      });
+      mockFilesUpdate.mockRejectedValueOnce(new Error("transient API error"));
+      mockFilesCreate.mockReturnValue({ data: { id: "new-trip-file-id" } });
+
+      const trip = makeTripJson();
+      await expect(storage.saveTrip(trip)).resolves.not.toThrow();
+
+      // Trip still landed in the trips subfolder under the legacy ID.
+      expect(mockFilesCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            name: "trip-1.json",
+            parents: [TRIPS_FOLDER_ID],
           }),
         }),
       );

@@ -66,10 +66,12 @@ export default function PrivacyPage(): React.JSX.Element {
               <li>
                 <strong>Drive per-file access (drive.file)</strong> — used to
                 create and update files in a single app-managed folder
-                (&quot;TravelItineraryMaker&quot;) inside <em>your</em> Google
-                Drive. This scope only grants access to files the app itself
-                creates; it does <em>not</em> grant the Service access to any
-                other file in your Drive.
+                (&quot;Itinly&quot;, renamed from
+                &quot;TravelItineraryMaker&quot; for accounts created before
+                the rebrand) inside <em>your</em> Google Drive. This scope
+                only grants access to files the app itself creates; it does{" "}
+                <em>not</em> grant the Service access to any other file in
+                your Drive.
               </li>
               <li>
                 <strong>Google Calendar (calendar)</strong> — used only when
@@ -88,10 +90,12 @@ export default function PrivacyPage(): React.JSX.Element {
               <strong>Your trip data lives in your own Google Drive.</strong>{" "}
               Itineraries, segments, todo lists, settings, and the metadata
               we keep about which emails you have already imported are written
-              as JSON files inside the <code>TravelItineraryMaker</code> folder
-              in your Drive. We do not maintain a separate copy of your trip
-              data on our servers. If you delete that folder, your data is
-              gone from the Service.
+              as JSON files inside the <code>Itinly</code> folder in your
+              Drive (older accounts may still see this folder named{" "}
+              <code>TravelItineraryMaker</code> until the next sign-in, when
+              the app renames it in place). We do not maintain a separate
+              copy of your trip data on our servers. If you delete that
+              folder, your data is gone from the Service.
             </p>
             <p>
               <strong>Server-side data is limited to what is required to
@@ -203,9 +207,10 @@ export default function PrivacyPage(): React.JSX.Element {
               </li>
               <li>
                 <strong>Delete your data</strong> by deleting the{" "}
-                <code>TravelItineraryMaker</code> folder from your Google
-                Drive. This removes all itineraries, segments, todos, and
-                processed-email metadata.
+                <code>Itinly</code> folder from your Google Drive (or, on
+                older accounts, <code>TravelItineraryMaker</code> if it has
+                not yet been renamed by the app). This removes all
+                itineraries, segments, todos, and processed-email metadata.
               </li>
               <li>
                 <strong>Request server-side deletion</strong> of your

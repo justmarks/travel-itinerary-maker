@@ -111,8 +111,8 @@ const nextConfig: NextConfig = {
   // similar scanners flag it as info-level.
   poweredByHeader: false,
   // Cloudflare Pages serves the site at the project's root (or a custom
-  // domain), so we no longer need GitHub Pages' `/travel-itinerary-maker`
-  // basePath nor the static-export pipeline. The shared-trip routes
+  // domain), so we no longer need GitHub Pages' `/itinly` basePath nor
+  // the static-export pipeline. The shared-trip routes
   // (`app/shared/[token]/page.tsx`, `app/m/shared/[token]/page.tsx`)
   // run on the default Node serverless runtime — they SSR per-trip
   // unfurl metadata from Upstash and were on Edge until the bundle
