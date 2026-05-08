@@ -153,10 +153,19 @@ Railway runs **two long-lived environments** for this project:
   as the source, then set the duplicated service's **Settings →
   Source → Deploy Branch** to `preview`.
 
-To push a feature branch into the preview env:
+Seed the `preview` branch once (creates it on the remote from `main`,
+no force needed since the ref doesn't exist yet):
 
 ```
-git push origin feature-branch:preview --force-with-lease
+git push origin main:preview
+```
+
+After that, push any local branch into the preview env (substitute
+`<your-branch>` with the actual local branch name — e.g.
+`claude/foo-bar`):
+
+```
+git push origin <your-branch>:preview --force-with-lease
 ```
 
 CORS supports both a literal list and a regex pattern so Vercel
@@ -225,10 +234,11 @@ are populated for both Production and Preview — note that
 hit Railway's `preview` env (see above) instead of prod.
 
 To test a full-stack PR (frontend changes that depend on unmerged
-server changes), push the same branch to Railway's `preview` env:
+server changes), push the same branch to Railway's `preview` env
+(substitute your real local branch name for `<your-branch>`):
 
 ```
-git push origin <feature-branch>:preview --force-with-lease
+git push origin <your-branch>:preview --force-with-lease
 ```
 
 Railway redeploys `preview` from your branch; the existing Vercel
