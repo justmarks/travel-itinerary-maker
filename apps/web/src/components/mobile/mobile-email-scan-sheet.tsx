@@ -880,7 +880,18 @@ function ScanBody({
               icon={<Inbox className="h-3 w-3" />}
               label="All mail"
             />
-            {labels.map((l) => (
+            {[...labels]
+              // Gmail's API returns labels in roughly creation order
+              // (system labels first, then user labels). Sort A→Z so
+              // the chip strip stays scannable. Case-insensitive so
+              // "Travel" and "travel" sort together. Matches the
+              // desktop dialog's labels sort.
+              .sort((a, b) =>
+                a.name.localeCompare(b.name, undefined, {
+                  sensitivity: "base",
+                }),
+              )
+              .map((l) => (
               <LabelPill
                 key={l.id}
                 active={labelId === l.id}
