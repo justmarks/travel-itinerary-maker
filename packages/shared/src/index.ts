@@ -126,3 +126,8 @@ export {
   searchAirports,
 } from "./utils/airport-lookup";
 export type { AirportInfo } from "./utils/airport-lookup";
+export {
+  proposeNewTrips,
+  NEW_TRIP_PREFIX,
+} from "./utils/new-trip-proposals";
+export type { NewTripProposal } from "./utils/new-trip-proposals";

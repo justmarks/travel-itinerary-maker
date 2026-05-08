@@ -1,4 +1,5 @@
 const mockCreate = jest.fn();
+const mockReportMessage = jest.fn();
 
 jest.mock("@anthropic-ai/sdk", () => ({
   __esModule: true,
@@ -7,10 +8,30 @@ jest.mock("@anthropic-ai/sdk", () => ({
   })),
 }));
 
+jest.mock("../../src/services/monitoring", () => ({
+  reportMessage: (...args: unknown[]) => mockReportMessage(...args),
+  reportError: jest.fn(),
+}));
+
 import { EmailParser } from "../../src/services/email-parser";
 
-function aiResponse(text: string) {
-  return { content: [{ type: "text", text }] };
+/**
+ * Build a mocked Anthropic SDK return value that mirrors the real
+ * `APIPromise` shape — exposes `.withResponse()` so the parser can
+ * inspect response headers (used for deprecation-warning detection).
+ * Tests pass `headers` to exercise that path. The mock is shaped as
+ * a `mockReturnValueOnce` value (NOT `mockResolvedValueOnce`) because
+ * `client.messages.create(...)` returns an APIPromise synchronously,
+ * not a wrapped Promise.
+ */
+function aiResponse(text: string, headers: Record<string, string> = {}) {
+  return {
+    withResponse: () =>
+      Promise.resolve({
+        data: { content: [{ type: "text", text }] },
+        response: { headers: new Headers(headers) },
+      }),
+  };
 }
 
 describe("EmailParser.parseEmail", () => {
@@ -22,7 +43,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("returns empty result when Claude returns an empty array", async () => {
-    mockCreate.mockResolvedValueOnce(aiResponse("[]"));
+    mockCreate.mockReturnValueOnce(aiResponse("[]"));
     const result = await parser.parseEmail({
       subject: "Newsletter",
       from: "news@example.com",
@@ -34,7 +55,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("parses a valid flight segment", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -61,7 +82,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("normalizes 12-hour AM/PM time strings to 24-hour HH:MM", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -86,7 +107,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("normalizes midnight (12:00 AM) correctly", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -109,7 +130,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("normalizes noon (12:00 PM) correctly", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -132,7 +153,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("applies default hotel check-in (15:00) and check-out (11:00) times when absent", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -155,7 +176,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("does not override explicit hotel check-in/check-out times", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -180,7 +201,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("normalizes cost: strips currency symbols from string amounts", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -204,7 +225,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("defaults missing cost currency to USD", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -227,7 +248,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("drops invalid URLs so Zod validation still passes", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -251,7 +272,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("preserves valid https URLs", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -274,7 +295,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("counts segments that cannot pass validation even after patching", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           // Missing required `type` and `date` — unrecoverable
@@ -300,7 +321,7 @@ describe("EmailParser.parseEmail", () => {
       city: "London",
       confidence: "high",
     };
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(`\`\`\`json\n${JSON.stringify([segment])}\n\`\`\``),
     );
     const result = await parser.parseEmail({
@@ -313,7 +334,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("returns empty result when Claude response contains no JSON array", async () => {
-    mockCreate.mockResolvedValueOnce(aiResponse("No travel bookings found in this email."));
+    mockCreate.mockReturnValueOnce(aiResponse("No travel bookings found in this email."));
     const result = await parser.parseEmail({
       subject: "Newsletter",
       from: "news@example.com",
@@ -325,7 +346,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("includes receivedAt date in the message sent to Claude", async () => {
-    mockCreate.mockResolvedValueOnce(aiResponse("[]"));
+    mockCreate.mockReturnValueOnce(aiResponse("[]"));
     await parser.parseEmail({
       subject: "Flight",
       from: "airline@test.com",
@@ -338,7 +359,7 @@ describe("EmailParser.parseEmail", () => {
   });
 
   it("salvages a segment missing confidence by defaulting it to 'low'", async () => {
-    mockCreate.mockResolvedValueOnce(
+    mockCreate.mockReturnValueOnce(
       aiResponse(
         JSON.stringify([
           {
@@ -358,6 +379,109 @@ describe("EmailParser.parseEmail", () => {
     });
     expect(result.segments).toHaveLength(1);
     expect(result.segments[0].confidence).toBe("low");
+  });
+});
+
+describe("EmailParser deprecation-warning telemetry", () => {
+  let warnSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    // The deprecation reporter dedupes per-process via a static Set;
+    // clear it so each test starts from a clean slate.
+    (
+      EmailParser as unknown as { reportedDeprecations: Set<string> }
+    ).reportedDeprecations = new Set<string>();
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("forwards an `anthropic-deprecation-warning` header to Sentry", async () => {
+    mockCreate.mockReturnValueOnce(
+      aiResponse("[]", {
+        "anthropic-deprecation-warning":
+          "The model 'claude-sonnet-4-20250514' is deprecated and will reach end-of-life on June 15th, 2026",
+      }),
+    );
+    const parser = new EmailParser({
+      apiKey: "test-key",
+      model: "claude-sonnet-4-20250514",
+    });
+    await parser.parseEmail({ subject: "x", from: "x@y.com", body: "x" });
+
+    expect(mockReportMessage).toHaveBeenCalledWith(
+      "anthropic-model-deprecated",
+      expect.objectContaining({
+        level: "warning",
+        tags: { "anthropic.model": "claude-sonnet-4-20250514" },
+        context: expect.objectContaining({
+          model: "claude-sonnet-4-20250514",
+          warning: expect.stringContaining("deprecated"),
+        }),
+      }),
+    );
+  });
+
+  it("also catches the standard HTTP `Warning: 299 ...` header", async () => {
+    mockCreate.mockReturnValueOnce(
+      aiResponse("[]", {
+        warning:
+          '299 anthropic "model claude-sonnet-4-20250514 is deprecated"',
+      }),
+    );
+    const parser = new EmailParser({
+      apiKey: "test-key",
+      model: "claude-sonnet-4-20250514",
+    });
+    await parser.parseEmail({ subject: "x", from: "x@y.com", body: "x" });
+
+    expect(mockReportMessage).toHaveBeenCalledWith(
+      "anthropic-model-deprecated",
+      expect.objectContaining({ level: "warning" }),
+    );
+  });
+
+  it("dedupes — second parse with the same warning skips the second report", async () => {
+    mockCreate.mockReturnValueOnce(
+      aiResponse("[]", {
+        "anthropic-deprecation-warning":
+          "The model 'claude-sonnet-4-x' is deprecated",
+      }),
+    );
+    mockCreate.mockReturnValueOnce(
+      aiResponse("[]", {
+        "anthropic-deprecation-warning":
+          "The model 'claude-sonnet-4-x' is deprecated",
+      }),
+    );
+    const parser = new EmailParser({
+      apiKey: "test-key",
+      model: "claude-sonnet-4-x",
+    });
+    await parser.parseEmail({ subject: "x", from: "x@y.com", body: "x" });
+    await parser.parseEmail({ subject: "y", from: "y@y.com", body: "y" });
+    expect(mockReportMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when there is no deprecation warning header", async () => {
+    mockCreate.mockReturnValueOnce(aiResponse("[]"));
+    const parser = new EmailParser({ apiKey: "test-key" });
+    await parser.parseEmail({ subject: "x", from: "x@y.com", body: "x" });
+    expect(mockReportMessage).not.toHaveBeenCalled();
+  });
+
+  it("ignores a Warning header that doesn't mention deprecation", async () => {
+    mockCreate.mockReturnValueOnce(
+      aiResponse("[]", {
+        warning: '199 anthropic "rate limit approaching"',
+      }),
+    );
+    const parser = new EmailParser({ apiKey: "test-key" });
+    await parser.parseEmail({ subject: "x", from: "x@y.com", body: "x" });
+    expect(mockReportMessage).not.toHaveBeenCalled();
   });
 });
 
