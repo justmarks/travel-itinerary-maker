@@ -8,6 +8,7 @@ import {
 } from "@travel-app/api-client";
 import type { TripShare } from "@travel-app/shared";
 import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { Button } from "@/components/ui/button";
@@ -263,7 +264,7 @@ export function ShareTripDialog({
           // their selections.
         },
         onError: (err) => {
-          setError(err instanceof Error ? err.message : "Couldn't create share.");
+          setError(describeError(err));
         },
       },
     );
@@ -477,8 +478,7 @@ export function ShareTripDialog({
                       onSuccess: () => toast.success("Share link revoked"),
                       onError: (err) =>
                         toast.error("Couldn't revoke share link", {
-                          description:
-                            err instanceof Error ? err.message : undefined,
+                          description: describeError(err),
                         }),
                     });
                   }}

@@ -3,6 +3,8 @@
 import { useState, useCallback } from "react";
 import { useCreateSegment } from "@travel-app/api-client";
 import type { SegmentType } from "@travel-app/shared";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
@@ -106,6 +108,11 @@ export function AddSegmentDialog({
         onSuccess: () => {
           setOpen(false);
           reset();
+        },
+        onError: (err) => {
+          toast.error("Couldn't add segment", {
+            description: describeError(err),
+          });
         },
       },
     );

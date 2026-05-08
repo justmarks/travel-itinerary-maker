@@ -8,6 +8,8 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
@@ -399,7 +401,15 @@ function SegmentRow({
                 className="h-7 w-7 hover:opacity-80"
                 style={{ color: "var(--status-ok-fg)" }}
                 title="Confirm"
-                onClick={() => confirmSegment.mutate(segment.id)}
+                onClick={() =>
+                  confirmSegment.mutate(segment.id, {
+                    onError: (err) => {
+                      toast.error("Couldn't confirm segment", {
+                        description: describeError(err),
+                      });
+                    },
+                  })
+                }
                 disabled={confirmSegment.isPending}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -425,7 +435,14 @@ function SegmentRow({
                   confirmText: "Delete",
                   destructive: true,
                 });
-                if (ok) deleteSegment.mutate(segment.id);
+                if (ok)
+                  deleteSegment.mutate(segment.id, {
+                    onError: (err) => {
+                      toast.error("Couldn't delete segment", {
+                        description: describeError(err),
+                      });
+                    },
+                  });
               }}
               disabled={deleteSegment.isPending}
             >
@@ -461,7 +478,16 @@ function EditableCity({
   const save = () => {
     setEditing(false);
     if (value !== city) {
-      updateDay.mutate({ date, city: value });
+      updateDay.mutate(
+        { date, city: value },
+        {
+          onError: (err) => {
+            toast.error("Couldn't update city", {
+              description: describeError(err),
+            });
+          },
+        },
+      );
     }
   };
 
