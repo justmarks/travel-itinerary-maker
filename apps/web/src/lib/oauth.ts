@@ -72,6 +72,17 @@ export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 /** Scope required to push trip events to Google Calendar. */
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 
+/**
+ * Per-file Drive scope. The app's storage layer reads/writes trips into
+ * a hidden app folder in the user's Drive; without this the user can
+ * sign in but every owner-side trip operation fails. We request it as
+ * part of the initial consent screen, but Google lets users untick
+ * individual scopes — a user who unticks Drive lands "signed-in-but-
+ * broken", which the dashboard detects via `hasScope(DRIVE_SCOPE)` and
+ * recovers from by calling `requestAdditionalScopes([DRIVE_SCOPE], …)`.
+ */
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
 /** Parses Google's space-separated `scope` response into an array. */
 export function parseScopeString(scope: string | null | undefined): string[] {
   if (!scope) return [];
