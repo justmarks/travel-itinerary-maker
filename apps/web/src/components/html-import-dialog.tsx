@@ -12,7 +12,6 @@ import {
   useApplyParsedSegments,
   useTrips,
   useCreateTrip,
-  ApiError,
 } from "@travel-app/api-client";
 import {
   Dialog,
@@ -47,6 +46,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { reportError } from "@/lib/monitoring";
+import { describeError } from "@/lib/api-error";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 
@@ -282,12 +282,7 @@ export function HtmlImportDialog({
     } catch (err) {
       console.error("HTML import failed:", err);
       reportError(err, { context: "html-import:import" });
-      if (err instanceof ApiError) {
-        const body = err.body as { error?: string; code?: string };
-        setErrorMessage(body.error || `Import failed (${err.status})`);
-      } else {
-        setErrorMessage(err instanceof Error ? err.message : "Import failed");
-      }
+      setErrorMessage(describeError(err));
       setStep("error");
     }
   }, [content, format, subject, fromAddress, receivedAt, tripId, importMutation]);
@@ -401,9 +396,7 @@ export function HtmlImportDialog({
       setNewTripStart("");
       setNewTripEnd("");
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to create trip",
-      );
+      setErrorMessage(describeError(err));
     } finally {
       setCreatingTrip(false);
     }
@@ -462,7 +455,7 @@ export function HtmlImportDialog({
     } catch (err) {
       console.error("Apply failed:", err);
       reportError(err, { context: "html-import:apply" });
-      setErrorMessage(err instanceof Error ? err.message : "Apply failed");
+      setErrorMessage(describeError(err));
       setStep("error");
     }
   }, [selections, applyMutation]);

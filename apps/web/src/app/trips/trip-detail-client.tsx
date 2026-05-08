@@ -81,6 +81,7 @@ import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref, useDemoMode } from "@/lib/demo";
 import { useAuth } from "@/lib/auth";
+import { describeError } from "@/lib/api-error";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
@@ -136,7 +137,16 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     if (!trimmed) return;
     setEditing(false);
     if (trimmed !== title) {
-      updateTrip.mutate({ title: trimmed });
+      updateTrip.mutate(
+        { title: trimmed },
+        {
+          onError: (err) => {
+            toast.error("Couldn't rename trip", {
+              description: describeError(err),
+            });
+          },
+        },
+      );
     }
   };
 
@@ -235,8 +245,12 @@ function EditableDates({
           const body = error.body as { overlappingTrips?: OverlapInfo[] };
           if (body.overlappingTrips) {
             setOverlapError(body.overlappingTrips);
+            return;
           }
         }
+        toast.error("Couldn't update trip dates", {
+          description: describeError(error),
+        });
       },
     });
   };
@@ -404,9 +418,9 @@ function TripActionsMenu({
         router.push("/");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't delete trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -572,9 +586,9 @@ function LeaveTripMenu({
         router.push("/");
       },
       onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
+        toast.error("Couldn't leave trip", {
+          description: describeError(err),
+        });
       },
     });
   };
@@ -641,7 +655,15 @@ function NeedsReviewBanner({
           borderColor: "var(--status-warn-rail)",
           color: "var(--status-warn-fg)",
         }}
-        onClick={() => confirmAll.mutate()}
+        onClick={() =>
+          confirmAll.mutate(undefined, {
+            onError: (err) => {
+              toast.error("Couldn't confirm segments", {
+                description: describeError(err),
+              });
+            },
+          })
+        }
         disabled={confirmAll.isPending}
       >
         <Check className="mr-1.5 h-3.5 w-3.5" />
@@ -963,7 +985,7 @@ const TAB_LABELS: Record<Tab, string> = {
 };
 
 export default function TripDetailClient({ tripId }: { tripId: string }): React.JSX.Element | null {
-  const { data: trip, isLoading } = useTrip(tripId);
+  const { data: trip, isLoading, isError, error, refetch } = useTrip(tripId);
   const homeHref = useDemoHref("/");
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
@@ -1033,6 +1055,10 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   }
 
   if (!trip) {
+    // Distinguish a real load failure from a missing-trip 404 so the
+    // user can retry instead of being told the trip doesn't exist.
+    const is404 = error instanceof ApiError && error.status === 404;
+    const showError = isError && !is404;
     return (
       <main className="min-h-screen p-8">
         <div className="mx-auto max-w-7xl">
@@ -1042,7 +1068,33 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               Back
             </Button>
           </Link>
-          <p className="mt-4 text-destructive">Trip not found.</p>
+          {showError ? (
+            <div
+              className="mt-4 flex items-start gap-3 rounded-lg border p-4 text-sm"
+              style={{
+                backgroundColor: "var(--status-danger-bg)",
+                color: "var(--status-danger-fg)",
+                borderColor: "var(--status-danger-rail)",
+              }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium">Couldn&apos;t load this trip.</p>
+                <p className="mt-0.5 text-xs opacity-80">{describeError(error)}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetch()}
+                className="bg-card"
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-4 text-destructive">Trip not found.</p>
+          )}
         </div>
       </main>
     );
@@ -1134,7 +1186,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               <button
                 type="button"
                 onClick={() =>
-                  updateTripStatus.mutate({ status: nextTripStatus(trip.status) })
+                  updateTripStatus.mutate(
+                    { status: nextTripStatus(trip.status) },
+                    {
+                      onError: (err) => {
+                        toast.error("Couldn't update status", {
+                          description: describeError(err),
+                        });
+                      },
+                    },
+                  )
                 }
                 disabled={updateTripStatus.isPending}
                 title={`Status: ${trip.status}. Click to advance.`}

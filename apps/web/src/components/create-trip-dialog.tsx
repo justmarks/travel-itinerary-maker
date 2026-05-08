@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateTrip } from "@travel-app/api-client";
 import { ApiError } from "@travel-app/api-client";
+import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import {
   Dialog,
@@ -88,8 +90,12 @@ export function CreateTripDialog({
             const body = error.body as { overlappingTrips?: OverlapInfo[] };
             if (body.overlappingTrips) {
               setOverlapError(body.overlappingTrips);
+              return;
             }
           }
+          toast.error("Couldn't create trip", {
+            description: describeError(error),
+          });
         },
       },
     );

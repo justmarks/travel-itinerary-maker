@@ -13,7 +13,9 @@ import {
   Utensils,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { describeError } from "@/lib/api-error";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import {
   MobileTodoFormSheet,
@@ -97,10 +99,19 @@ function TodoRow({
         type="button"
         onClick={(e) => {
           e.stopPropagation();
-          updateTodo.mutate({
-            todoId: todo.id,
-            isCompleted: !todo.isCompleted,
-          });
+          updateTodo.mutate(
+            {
+              todoId: todo.id,
+              isCompleted: !todo.isCompleted,
+            },
+            {
+              onError: (err) => {
+                toast.error("Couldn't update to-do", {
+                  description: describeError(err),
+                });
+              },
+            },
+          );
         }}
         disabled={updateTodo.isPending}
         aria-label={todo.isCompleted ? "Mark incomplete" : "Mark complete"}
