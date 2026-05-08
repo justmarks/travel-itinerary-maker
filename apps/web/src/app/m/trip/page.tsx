@@ -19,6 +19,7 @@ import {
   Pencil,
   Share2,
   Trash2,
+  Users,
 } from "lucide-react";
 import { RequireAuth } from "@/components/require-auth";
 import { describeError } from "@/lib/api-error";
@@ -546,6 +547,17 @@ function TripFrame({
           )
         }
       />
+      {!permission.isLoading && permission.sharedFromEmail && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-border/60 bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
+          <Users className="h-3 w-3 shrink-0" />
+          <span className="truncate">
+            Shared by {permission.sharedFromEmail}
+          </span>
+          <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wider opacity-70">
+            {permission.isReadOnly ? "view" : "edit"}
+          </span>
+        </div>
+      )}
       {view === "timeline" ? (
         <MobileTimelineView trip={trip} />
       ) : (
