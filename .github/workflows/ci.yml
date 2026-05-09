@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, preview]
   push:
-    branches: [main]
+    branches: [main, preview]
 
 # Silence DEP0040 from transitive uri-js (ajv@6 via ESLint). require('punycode')
 # resolves to Node's deprecated built-in regardless of any node_modules entry,
