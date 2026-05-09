@@ -237,7 +237,9 @@ function CreateRuleDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate}>Auto-share</Button>
+          <Button onClick={handleCreate} disabled={createRule.isPending}>
+            {createRule.isPending ? "Creating…" : "Auto-share"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -290,14 +292,19 @@ function DeleteRuleDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:flex-col">
-          <Button variant="outline" onClick={() => handle(false)}>
-            Keep existing shares
+          <Button
+            variant="outline"
+            onClick={() => handle(false)}
+            disabled={deleteRule.isPending}
+          >
+            {deleteRule.isPending ? "Removing…" : "Keep existing shares"}
           </Button>
           <Button
             variant="destructive"
             onClick={() => handle(true)}
+            disabled={deleteRule.isPending}
           >
-            Also revoke from existing trips
+            {deleteRule.isPending ? "Removing…" : "Also revoke from existing trips"}
           </Button>
         </DialogFooter>
       </DialogContent>

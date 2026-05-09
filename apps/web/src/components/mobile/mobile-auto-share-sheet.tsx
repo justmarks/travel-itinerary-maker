@@ -167,9 +167,10 @@ function CreateForm({
       <button
         type="button"
         onClick={handleCreate}
-        className="block w-full rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background active:bg-foreground/90"
+        disabled={createRule.isPending}
+        className="block w-full rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background active:bg-foreground/90 disabled:opacity-50"
       >
-        Auto-share
+        {createRule.isPending ? "Creating…" : "Auto-share"}
       </button>
     </div>
   );
@@ -266,21 +267,24 @@ function DeleteRulePanel({
       <button
         type="button"
         onClick={() => handle(false)}
-        className="block w-full rounded-full border bg-background px-4 py-3 text-sm font-medium active:bg-muted/40"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full border bg-background px-4 py-3 text-sm font-medium active:bg-muted/40 disabled:opacity-50"
       >
-        Keep existing shares
+        {deleteRule.isPending ? "Removing…" : "Keep existing shares"}
       </button>
       <button
         type="button"
         onClick={() => handle(true)}
-        className="block w-full rounded-full bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground active:opacity-90"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground active:opacity-90 disabled:opacity-50"
       >
-        Also revoke from existing trips
+        {deleteRule.isPending ? "Removing…" : "Also revoke from existing trips"}
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="block w-full rounded-full px-4 py-2 text-sm text-muted-foreground"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full px-4 py-2 text-sm text-muted-foreground disabled:opacity-50"
       >
         Cancel
       </button>
