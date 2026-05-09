@@ -118,7 +118,10 @@ export function IntroTourDialog(): React.JSX.Element | null {
           <>
             Send a read-only link to anyone — partners, family, kids. They
             get a phone-friendly view of the itinerary, no sign-in needed,
-            and updates flow through in real time.
+            and updates flow through in real time. Add an{" "}
+            <span className="font-medium">auto-share rule</span> for someone
+            who should always see your trips, and every existing and future
+            trip is shared with them automatically.
           </>
         ),
       },
