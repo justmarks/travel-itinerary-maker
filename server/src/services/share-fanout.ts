@@ -5,9 +5,11 @@ import {
   type SharePermission,
   type Trip,
   type TripShare,
+  type TripShareRule,
 } from "@travel-app/shared";
 import { generateShareToken } from "../utils/share-token";
 import { recordHistory } from "./trip-history";
+import type { StorageProvider } from "./storage";
 import type { ShareRegistry } from "./share-registry";
 import type { ShareSnapshotStore } from "./share-snapshot-store";
 import type { NotificationSender } from "./notification-sender";
@@ -126,4 +128,52 @@ export function applyShareToTrip(
   }
 
   return share;
+}
+
+/**
+ * On trip creation, iterate the owner's auto-share rules and spawn one
+ * `TripShare` per rule whose recipient isn't already on the trip. The
+ * trip is mutated in place and saved by the caller; rules with a
+ * recipient that already has a share are skipped (e.g. via XLSX
+ * import that pre-seeded shares — currently rare, but defensive).
+ *
+ * Notifications fire one push per spawned share. The "one per rule
+ * application" collapse only applies to the rule-create backfill path
+ * — a single new trip with N rules legitimately notifies N different
+ * recipients (one each), so per-share pushes are correct here.
+ */
+export async function applyShareRulesToNewTrip(
+  trip: Trip,
+  storage: Pick<StorageProvider, "listShareRules">,
+  deps: ApplyShareDeps,
+): Promise<{ rules: TripShareRule[]; spawned: number }> {
+  const ownerUserId = deps.req.userId;
+  if (!ownerUserId) return { rules: [], spawned: 0 };
+  const rules = (await storage.listShareRules()).filter(
+    (r) => r.ownerUserId === ownerUserId,
+  );
+  let spawned = 0;
+  for (const rule of rules) {
+    const recipient = rule.sharedWithEmail.toLowerCase();
+    const dup = trip.shares.some(
+      (s) => s.sharedWithEmail?.toLowerCase() === recipient,
+    );
+    if (dup) continue;
+    applyShareToTrip(
+      trip,
+      {
+        sharedWithEmail: recipient,
+        permission: rule.permission,
+        showCosts: rule.showCosts,
+        showTodos: rule.showTodos,
+        originRuleId: rule.id,
+      },
+      {
+        ...deps,
+        historySummary: `Auto-shared with ${recipient} via rule (${rule.permission})`,
+      },
+    );
+    spawned += 1;
+  }
+  return { rules, spawned };
 }

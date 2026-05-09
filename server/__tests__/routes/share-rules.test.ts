@@ -381,6 +381,63 @@ describe("share-rules routes", () => {
     });
   });
 
+  describe("trip-create fan-out", () => {
+    it("spawns a share on a new trip when a rule exists", async () => {
+      const created = await request(app)
+        .post("/share-rules")
+        .send({
+          sharedWithEmail: RECIPIENT_EMAIL,
+          permission: "edit",
+          showCosts: false,
+          showTodos: true,
+        });
+      expect(created.status).toBe(201);
+
+      const trip = await createTrip(app, "After-rule trip", ["2027-04-01", "2027-04-03"]);
+      const fresh = await fetchTrip(app, trip.id);
+      expect(fresh.shares).toHaveLength(1);
+      expect(fresh.shares[0].sharedWithEmail).toBe(RECIPIENT_EMAIL);
+      expect(fresh.shares[0].permission).toBe("edit");
+      expect(fresh.shares[0].showCosts).toBe(false);
+      expect(fresh.shares[0].originRuleId).toBe(created.body.rule.id);
+    });
+
+    it("re-spawns on a new trip even after the recipient left an earlier one", async () => {
+      const created = await request(app)
+        .post("/share-rules")
+        .send({
+          sharedWithEmail: RECIPIENT_EMAIL,
+          permission: "view",
+          showCosts: true,
+          showTodos: true,
+        });
+      const ruleId = created.body.rule.id;
+
+      const t1 = await createTrip(app, "Trip 1", ["2027-05-01", "2027-05-03"]);
+      const t1After = await fetchTrip(app, t1.id);
+      const spawned = t1After.shares.find((s) => s.originRuleId === ruleId);
+      expect(spawned).toBeDefined();
+
+      // Simulate recipient leaving t1 by deleting the share via the
+      // owner endpoint (close enough for this assertion — both paths
+      // remove the share).
+      const del = await request(app).delete(
+        `/trips/${t1.id}/shares/${spawned!.id}`,
+      );
+      expect(del.status).toBe(204);
+
+      const t2 = await createTrip(app, "Trip 2", ["2027-06-01", "2027-06-03"]);
+      const t2After = await fetchTrip(app, t2.id);
+      expect(t2After.shares.find((s) => s.originRuleId === ruleId)).toBeDefined();
+    });
+
+    it("creates no shares when there are no rules", async () => {
+      const trip = await createTrip(app, "No-rule trip", ["2027-07-01", "2027-07-03"]);
+      const fresh = await fetchTrip(app, trip.id);
+      expect(fresh.shares).toHaveLength(0);
+    });
+  });
+
   describe("DELETE /share-rules/:ruleId", () => {
     it("400 when cascade query param is missing", async () => {
       const created = await request(app)

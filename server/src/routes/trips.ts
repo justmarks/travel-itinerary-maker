@@ -47,7 +47,7 @@ import {
   segmentLabel,
   summariseSegmentChanges,
 } from "../services/trip-history";
-import { applyShareToTrip } from "../services/share-fanout";
+import { applyShareToTrip, applyShareRulesToNewTrip } from "../services/share-fanout";
 import { isInsufficientScopeError } from "../services/google-drive/drive-error";
 
 export interface TripRoutesOptions {
@@ -319,11 +319,23 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     };
 
     await storage.saveTrip(trip);
+
+    // Auto-share fan-out: if the owner has rules, spawn a TripShare on
+    // this new trip for each. We re-save once after the loop rather
+    // than per-share to keep Drive writes bounded.
+    const { spawned } = await applyShareRulesToNewTrip(trip, storage, {
+      req,
+      shareRegistry,
+      shareSnapshotStore,
+      notificationSender,
+    });
+    if (spawned > 0) await storage.saveTrip(trip);
+
     // Pair with the GET /trips log so the gap between creation and
     // when other devices see the new trip in their refreshed list
     // (Drive files.list eventual-consistency window) is greppable.
     console.log(
-      `[trips ${req.userEmail ?? "anon"}] POST /trips → created "${trip.title}" (id=${trip.id}, dates=${trip.startDate}..${trip.endDate})`,
+      `[trips ${req.userEmail ?? "anon"}] POST /trips → created "${trip.title}" (id=${trip.id}, dates=${trip.startDate}..${trip.endDate}, autoShares=${spawned})`,
     );
     res.status(201).json(trip);
   });
@@ -503,6 +515,16 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     }
 
     await storage.saveTrip(trip);
+
+    // Auto-share fan-out for XLSX imports — same hook as POST /trips.
+    const { spawned: autoShareSpawned } = await applyShareRulesToNewTrip(trip, storage, {
+      req,
+      shareRegistry,
+      shareSnapshotStore,
+      notificationSender,
+    });
+    if (autoShareSpawned > 0) await storage.saveTrip(trip);
+
     res.status(201).json({
       trip,
       warnings: parsedBook.warnings,
