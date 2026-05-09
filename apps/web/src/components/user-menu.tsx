@@ -78,12 +78,7 @@ export function UserMenu(): React.JSX.Element | null {
           <Smartphone className="mr-2 h-4 w-4" />
           Use mobile site
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            setAutoShareOpen(true);
-          }}
-        >
+        <DropdownMenuItem onClick={() => setAutoShareOpen(true)}>
           <Repeat className="mr-2 h-4 w-4" />
           Auto-share&hellip;
         </DropdownMenuItem>
