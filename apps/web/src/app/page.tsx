@@ -7,7 +7,6 @@ import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { XlsxImportDialog } from "@/components/xlsx-import-dialog";
 import { TripList } from "@/components/trip-list";
-import { AutoShareRulesPanel } from "@/components/auto-share-rules-panel";
 import { DriveScopeBanner } from "@/components/drive-scope-banner";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
@@ -111,7 +110,6 @@ export default function Home(): React.JSX.Element {
             </div>
           </div>
           <DriveScopeBanner variant="desktop" />
-          <AutoShareRulesPanel />
           <TripList />
         </div>
       </main>

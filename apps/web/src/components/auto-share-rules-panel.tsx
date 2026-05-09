@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, Pencil, Plus, Repeat, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { describeError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 
@@ -357,8 +357,14 @@ function RuleRow({
   );
 }
 
-export function AutoShareRulesPanel(): React.JSX.Element | null {
-  const { data: rules, isLoading } = useShareRules();
+export function AutoShareRulesDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): React.JSX.Element {
+  const { data: rules } = useShareRules();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleting, setDeleting] = useState<TripShareRule | null>(null);
 
@@ -367,36 +373,32 @@ export function AutoShareRulesPanel(): React.JSX.Element | null {
     [rules],
   );
 
-  // Hide entirely until we know whether there are rules — avoids flash of
-  // empty state for the common "no rules" case.
-  if (isLoading) return null;
-
   return (
-    <section className="rounded-xl border bg-card p-4">
-      <header className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Repeat className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">Auto-share with people</h2>
-        </div>
-        <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add
-        </Button>
-      </header>
-      {sortedRules.length === 0 ? (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Auto-share every trip (existing and future) with someone in one tap.
-        </p>
-      ) : (
-        <ul className="mt-3 space-y-2">
-          {sortedRules.map((rule) => (
-            <RuleRow key={rule.id} rule={rule} onDelete={setDeleting} />
-          ))}
-        </ul>
-      )}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Auto-share</DialogTitle>
+          <DialogDescription>
+            Auto-share every trip (existing and future) with someone.
+          </DialogDescription>
+        </DialogHeader>
 
-      <CreateRuleDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <DeleteRuleDialog rule={deleting} onClose={() => setDeleting(null)} />
-    </section>
+        {sortedRules.length > 0 && (
+          <ul className="space-y-2">
+            {sortedRules.map((rule) => (
+              <RuleRow key={rule.id} rule={rule} onDelete={setDeleting} />
+            ))}
+          </ul>
+        )}
+
+        <Button variant="outline" onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Add auto-share
+        </Button>
+
+        <CreateRuleDialog open={createOpen} onOpenChange={setCreateOpen} />
+        <DeleteRuleDialog rule={deleting} onClose={() => setDeleting(null)} />
+      </DialogContent>
+    </Dialog>
   );
 }

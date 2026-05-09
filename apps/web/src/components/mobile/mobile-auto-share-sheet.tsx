@@ -299,15 +299,10 @@ export function MobileAutoShareSheet({
   );
 
   return (
-    <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Auto-share with people">
+    <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Auto-share">
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
-          <p className="text-kicker font-semibold text-muted-foreground">
-            Auto-share
-          </p>
-          <h2 className="mt-0.5 text-lg font-semibold leading-snug">
-            With people
-          </h2>
+          <h2 className="text-lg font-semibold leading-snug">Auto-share</h2>
         </div>
         <button
           type="button"
@@ -326,7 +321,7 @@ export function MobileAutoShareSheet({
           <>
             {sortedRules.length === 0 ? (
               <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                Auto-share every trip (existing and future) with someone in one tap.
+                Auto-share every trip (existing and future) with someone.
               </p>
             ) : (
               <ul className="space-y-2">
