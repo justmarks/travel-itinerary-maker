@@ -141,6 +141,17 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {share.originRuleId && (
+          <p
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            style={{
+              background: "var(--status-info-bg)",
+              color: "var(--status-info-fg)",
+            }}
+          >
+            Via auto-share rule
+          </p>
+        )}
         {activityLabel && (
           <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
         )}
