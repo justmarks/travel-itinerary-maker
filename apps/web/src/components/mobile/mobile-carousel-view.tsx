@@ -170,7 +170,7 @@ export function MobileCarouselView({
       segmentCount += d.segments.length;
     }
     // Slash-split + bookend-excluded so a SEA → "Tokyo / Kyoto" → SEA
-    // itinerary surfaces just "Tokyo / Kyoto" without the home airport.
+    // itinerary surfaces just "Tokyo · Kyoto" without the home airport.
     const cities = tripDestinationCities(trip);
     return { cities, segmentCount };
   }, [days, trip]);
@@ -192,7 +192,7 @@ export function MobileCarouselView({
         {tripStats.cities.length > 0 && (
           <p className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">{tripStats.cities.join(" / ")}</span>
+            <span className="truncate">{tripStats.cities.join(" · ")}</span>
           </p>
         )}
       </div>
