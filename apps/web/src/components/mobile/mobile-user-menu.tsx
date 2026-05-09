@@ -22,12 +22,14 @@ import {
   LogOut,
   Mail,
   Monitor,
+  Repeat,
   Share,
   User,
 } from "lucide-react";
 
 export function MobileUserMenu({
   onScanEmails,
+  onAutoShare,
 }: {
   /**
    * When provided, the menu shows a "Scan emails" item that fires
@@ -36,6 +38,13 @@ export function MobileUserMenu({
    * live in the trip-detail overflow instead.
    */
   onScanEmails?: () => void;
+  /**
+   * Opens the auto-share rules sheet. Wired from `/m/page.tsx`. Without
+   * the callback the entry doesn't render — keeps trip-detail menus
+   * (which inherit MobileUserMenu) from showing it where it doesn't
+   * apply.
+   */
+  onAutoShare?: () => void;
 } = {}): React.JSX.Element {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
@@ -134,6 +143,12 @@ export function MobileUserMenu({
           <DropdownMenuItem onClick={onScanEmails}>
             <Mail className="mr-2 h-4 w-4" />
             Scan emails
+          </DropdownMenuItem>
+        )}
+        {onAutoShare && (
+          <DropdownMenuItem onClick={onAutoShare}>
+            <Repeat className="mr-2 h-4 w-4" />
+            Auto-share with people
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleSwitchToDesktop}>

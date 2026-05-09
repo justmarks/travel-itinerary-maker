@@ -34,6 +34,7 @@ import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
 import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
+import { MobileAutoShareSheet } from "@/components/mobile/mobile-auto-share-sheet";
 import {
   MobileTripRowSkeleton,
   StillLoadingHint,
@@ -498,6 +499,7 @@ function MobileTripListLoading(): React.JSX.Element {
 function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [autoShareOpen, setAutoShareOpen] = useState(false);
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
@@ -513,7 +515,10 @@ function MobileHomeContent(): React.JSX.Element {
         >
           <Plus className="h-5 w-5" />
         </button>
-        <MobileUserMenu onScanEmails={() => setScanOpen(true)} />
+        <MobileUserMenu
+          onScanEmails={() => setScanOpen(true)}
+          onAutoShare={() => setAutoShareOpen(true)}
+        />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
         <div className="pt-3">
@@ -528,6 +533,10 @@ function MobileHomeContent(): React.JSX.Element {
       <MobileEmailScanSheet
         open={scanOpen}
         onClose={() => setScanOpen(false)}
+      />
+      <MobileAutoShareSheet
+        open={autoShareOpen}
+        onClose={() => setAutoShareOpen(false)}
       />
     </MobileFrame>
   );
