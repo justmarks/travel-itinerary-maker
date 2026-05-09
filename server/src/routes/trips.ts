@@ -28,7 +28,6 @@ import type { ShareSnapshotStore } from "../services/share-snapshot-store";
 import type { NotificationSender } from "../services/notification-sender";
 import type { ShareActivityTracker, ShareActivityKind } from "../services/share-activity-tracker";
 import { recordShareActivity } from "../services/share-activity";
-import { generateShareToken } from "../utils/share-token";
 import {
   resolveTripAccess,
   listSharedTrips,
@@ -48,6 +47,7 @@ import {
   segmentLabel,
   summariseSegmentChanges,
 } from "../services/trip-history";
+import { applyShareToTrip } from "../services/share-fanout";
 import { isInsufficientScopeError } from "../services/google-drive/drive-error";
 
 export interface TripRoutesOptions {
@@ -1233,79 +1233,13 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         return;
       }
 
-      const share = {
-        id: generateId(),
-        shareToken: generateShareToken(),
-        sharedWithEmail: parsed.data.sharedWithEmail,
-        permission: parsed.data.permission,
-        showCosts: parsed.data.showCosts,
-        showTodos: parsed.data.showTodos,
-        createdAt: new Date().toISOString(),
-      };
-
-      trip.shares.push(share);
-      trip.updatedAt = new Date().toISOString();
-      const shareTarget = share.sharedWithEmail ?? "anyone with the link";
-      recordHistory(
-        trip,
+      const share = applyShareToTrip(trip, parsed.data, {
         req,
-        "share.create",
-        `Shared trip with ${shareTarget} (${share.permission})`,
-        { entityId: share.id },
-      );
+        shareRegistry,
+        shareSnapshotStore,
+        notificationSender,
+      });
       await storage.saveTrip(trip);
-
-      // Register share token in the share registry for public access
-      // and (if `sharedWithEmail` is set) for the recipient's contributor
-      // trip list.
-      if (shareRegistry && req.userId) {
-        shareRegistry.register({
-          shareToken: share.shareToken,
-          tripId: trip.id,
-          ownerUserId: req.userId,
-          ownerEmail: req.userEmail,
-          sharedWithEmail: share.sharedWithEmail,
-          permission: share.permission,
-          showCosts: share.showCosts,
-          showTodos: share.showTodos,
-        });
-      }
-
-      // Persist a display-only snapshot for the unfurl preview. The Edge
-      // runtime reads this in `generateMetadata` to render the trip's
-      // title and date range without calling back to the API.
-      if (shareSnapshotStore) {
-        shareSnapshotStore.set(share.shareToken, {
-          title: trip.title,
-          startDate: trip.startDate,
-          endDate: trip.endDate,
-          dayCount: trip.days.length,
-        });
-      }
-
-      // Notify the recipient on every device they've registered. Fires
-      // only when the share targets a specific email — anonymous "anyone
-      // with the link" shares have no recipient to push to. Failure
-      // (transient network, dead subscription) must not break share
-      // creation, so we fire-and-forget and log inside the sender.
-      if (notificationSender && share.sharedWithEmail) {
-        const senderName = req.userEmail ?? "Someone";
-        const url = `/shared/${share.shareToken}`;
-        notificationSender
-          .sendToEmail(share.sharedWithEmail, {
-            title: `${senderName} shared a trip with you`,
-            body: `${trip.title} (${formatTripDateRange(trip.startDate, trip.endDate)})`,
-            url,
-            tag: `share:${share.shareToken}`,
-            data: { kind: "share-invite", shareToken: share.shareToken, tripId: trip.id },
-          })
-          .catch((err) =>
-            console.warn(
-              "[trips] share-invite push failed:",
-              err instanceof Error ? err.message : err,
-            ),
-          );
-      }
 
       res.status(201).json(share);
     },
