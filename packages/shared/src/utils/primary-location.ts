@@ -360,3 +360,30 @@ export function primaryLocationFor(trip: Pick<Trip, "days">): PrimaryLocation | 
     kind: "city",
   };
 }
+
+/**
+ * Ordered, deduped list of destination cities for a trip — the home
+ * bookend (the city the traveller departs from on day 1 and returns to
+ * on the last day) is excluded so a SEA → Tokyo / Kyoto → SEA itinerary
+ * surfaces "Tokyo / Kyoto" rather than "Seattle / Tokyo / Kyoto / Seattle".
+ *
+ * Transfer-day strings encoded with a slash ("Paris / Rome") are split
+ * into per-city entries. Cities are deduped on their normalised key so
+ * "Reykjavík" and "Reykjavik" collapse, with the first display form
+ * encountered preserved (keeping the user's casing/diacritics).
+ *
+ * Returns `[]` for trips with no usable city data and for local-only
+ * trips where every day is the home city — callers can hide the row
+ * entirely in that case.
+ */
+export function tripDestinationCities(trip: Pick<Trip, "days">): string[] {
+  const bookendKeys = findBookendKeys(trip);
+  const seen = new Map<string, string>();
+  for (const day of trip.days) {
+    for (const { key, display } of normalizeCities(day.city)) {
+      if (bookendKeys.has(key)) continue;
+      if (!seen.has(key)) seen.set(key, display);
+    }
+  }
+  return Array.from(seen.values());
+}

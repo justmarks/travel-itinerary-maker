@@ -9,6 +9,10 @@ import {
 } from "react";
 import type { Trip, Segment } from "@travel-app/shared";
 import {
+  formatTripDateRange,
+  tripDestinationCities,
+} from "@travel-app/shared";
+import {
   ChevronLeft,
   ChevronRight,
   LayoutList,
@@ -161,27 +165,34 @@ export function MobileCarouselView({
   }, []);
 
   const tripStats = useMemo(() => {
-    const cities = new Set<string>();
     let segmentCount = 0;
     for (const d of days) {
-      if (d.city) cities.add(d.city);
       segmentCount += d.segments.length;
     }
-    return { cities: Array.from(cities), segmentCount };
-  }, [days]);
+    // Slash-split + bookend-excluded so a SEA → "Tokyo / Kyoto" → SEA
+    // itinerary surfaces just "Tokyo / Kyoto" without the home airport.
+    const cities = tripDestinationCities(trip);
+    return { cities, segmentCount };
+  }, [days, trip]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Trip header — title + cities. Costs/Todos pills live in the top
-          MobileHeader so they don't crowd the cities row on narrow screens. */}
+      {/* Trip header — title + dates on one row, cities below. Costs/Todos
+          pills live in the top MobileHeader so they don't crowd the cities
+          row on narrow screens. */}
       <div className="shrink-0 border-b bg-background px-3 pb-2 pt-2.5">
-        <h1 className="truncate text-base font-bold leading-tight">
-          {trip.title}
-        </h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="min-w-0 flex-1 truncate text-base font-bold leading-tight">
+            {trip.title}
+          </h1>
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
+            {formatTripDateRange(trip.startDate, trip.endDate)}
+          </span>
+        </div>
         {tripStats.cities.length > 0 && (
           <p className="mt-0.5 inline-flex max-w-full items-center gap-1 text-[11px] text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">{tripStats.cities.join(" · ")}</span>
+            <span className="truncate">{tripStats.cities.join(" / ")}</span>
           </p>
         )}
       </div>
