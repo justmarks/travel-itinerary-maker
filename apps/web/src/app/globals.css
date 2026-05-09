@@ -30,6 +30,17 @@
 @custom-variant can-hover (@media (hover: hover));
 
 /*
+ * Mouse-primary devices vs. touch-primary devices. `pointer-fine:` matches
+ * laptops, desktops, and any context with a precise pointer (mouse,
+ * trackpad). It does NOT match iPads, iPhones, or Android touchscreens —
+ * those report `pointer: coarse`. Use it when an affordance is meant for
+ * "this is a desktop preview" (e.g. capping the mobile shell at 430px so
+ * developers see a phone-sized frame on their monitor) but should drop on
+ * actual tablets / phones, which want to fill the viewport.
+ */
+@custom-variant pointer-fine (@media (pointer: fine));
+
+/*
  * Switch Tailwind v4's `dark:` variant from the default `prefers-color-scheme`
  * media query to a class-based strategy. Pairs with next-themes (configured
  * with attribute="class" in providers.tsx), which toggles a `.dark` class on

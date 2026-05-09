@@ -6,14 +6,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 export const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
 
 /**
- * Anything strictly below Tailwind's `md` breakpoint (768px) gets the mobile
- * shell. Tablets — iPad mini portrait (768), iPad regular (820+), iPad Pro
- * (1024+) — and desktops all land on the desktop shell, which is tuned via
- * `md:` / `lg:` Tailwind classes for tablet sizes. Phones in landscape
- * (≥640px on most modern phones) also land on desktop; that's a deliberate
- * trade for not maintaining a third tablet shell.
+ * Anything strictly below Tailwind's `lg` breakpoint (1024px) gets the
+ * mobile shell. That includes iPad mini portrait (768), iPad regular
+ * portrait (820), iPad Pro 11" portrait (834), and large phones in
+ * landscape — all of them render the desktop shell as a single thin
+ * column because the trip list (`sm:grid-cols-2 lg:grid-cols-3`) and
+ * the trip-detail itinerary (`grid-cols-1 lg:grid-cols-[1fr_280px]`)
+ * only unlock their dense layouts at `lg`. iPad landscape (≥1024) and
+ * iPad Pro 12.9" portrait (1024) stay on desktop where the layouts
+ * have room to breathe. We tried sending tablets to desktop in
+ * 580fd2a (May 2026) on the theory that `md:` classes would carry
+ * the experience; in practice the chrome (max-w-5xl + p-8) felt
+ * empty and the body-content columns stayed at 1.
  */
-const MOBILE_BREAKPOINT_PX = 767;
+const MOBILE_BREAKPOINT_PX = 1023;
 
 /** Persist "prefer the desktop site" so future visits to / skip the redirect. */
 export function setDesktopOverride(): void {

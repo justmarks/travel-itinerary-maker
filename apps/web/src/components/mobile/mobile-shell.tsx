@@ -9,14 +9,20 @@ import { cn } from "@/lib/utils";
 import { PwaInstallHint } from "./pwa-install-hint";
 
 /**
- * Constrains the mobile prototype to a phone-sized frame on desktop while
- * letting it fill the viewport on actual phones. Pixel 10 XL is ~430px wide
- * in CSS pixels, so we cap the frame at 430px and centre it.
+ * Constrains the mobile prototype to a phone-sized frame when previewed on
+ * a desktop (mouse-primary, fine-pointer) browser, while letting it fill
+ * the viewport on actual touch devices. Pixel 10 XL is ~430px wide in CSS
+ * pixels, so we cap the frame at 430px and centre it.
+ *
+ * The cap is gated on `(pointer: fine)` so it kicks in for desktop preview
+ * (laptops, mice) but NOT for iPads or large phones in landscape. Without
+ * this gate, an iPad redirected to /m sees a 430px column flanked by empty
+ * space — the "single thin column" bug we hit on iPad portrait (820/834).
  *
  * `widenInLandscape` opts a specific page out of the 430px cap when the
  * device is rotated to landscape — the timeline view turns this on so a
  * rotated phone can use the full viewport for its Gantt grid. Carousel
- * (and everything else) keeps the existing 430px feel.
+ * (and everything else) keeps the existing 430px feel on desktop preview.
  */
 export function MobileFrame({
   children,
@@ -32,12 +38,20 @@ export function MobileFrame({
     <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950">
       <div
         className={cn(
-          "relative mx-auto flex min-h-screen max-w-[430px] flex-col overflow-hidden bg-background shadow-xl md:my-4 md:min-h-[calc(100vh-2rem)] md:rounded-3xl md:border",
-          // In landscape, drop the desktop-preview chrome (rounded card,
-          // border, top/bottom margin) since a rotated phone uses the
-          // full viewport and the framing reads as wasted space.
+          // Base: fill the viewport on a real touch device. The phone-frame
+          // chrome (430px cap, rounded card, border, top/bottom margin,
+          // shadow) is gated on `pointer-fine` so it ONLY kicks in on
+          // mouse-primary devices (the desktop preview experience). iPads
+          // and large phones in landscape — touch-primary — see the
+          // mobile shell fill the viewport instead of getting framed as a
+          // 430px column with empty space on either side.
+          "relative mx-auto flex min-h-screen flex-col overflow-hidden bg-background",
+          "pointer-fine:max-w-[430px] pointer-fine:shadow-xl pointer-fine:md:my-4 pointer-fine:md:min-h-[calc(100vh-2rem)] pointer-fine:md:rounded-3xl pointer-fine:md:border",
+          // In landscape on a phone-sized device, drop the desktop-preview
+          // chrome since a rotated phone uses the full viewport and the
+          // framing reads as wasted space.
           widenInLandscape &&
-            "landscape:max-w-none landscape:shadow-none md:landscape:my-0 md:landscape:rounded-none md:landscape:border-0 md:landscape:min-h-screen",
+            "pointer-fine:landscape:max-w-none pointer-fine:landscape:shadow-none pointer-fine:md:landscape:my-0 pointer-fine:md:landscape:rounded-none pointer-fine:md:landscape:border-0 pointer-fine:md:landscape:min-h-screen",
           className,
         )}
       >
