@@ -110,7 +110,7 @@ export function MobileUserMenu({
             }}
           >
             <Download className="mr-2 h-4 w-4" />
-            Add to Home Screen
+            Install App
           </DropdownMenuItem>
         )}
         {!canInstall && iosInstallable && (
@@ -121,7 +121,7 @@ export function MobileUserMenu({
             }}
           >
             <Share className="mr-2 h-4 w-4" />
-            Add to Home Screen
+            Install App
           </DropdownMenuItem>
         )}
         {showIosHint && iosInstallable && (

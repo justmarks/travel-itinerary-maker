@@ -291,11 +291,13 @@ export function MobileTimelineView({
 
   // Mobile-tuned column widths. Tuned so a 390px portrait phone fits
   // exactly 3 day columns and an 800px landscape phone fits 6 columns.
-  // Fixed widths (not `minmax(...,1fr)`) so the grid doesn't balloon
-  // when a pill's intrinsic content is wider than the column — that
-  // would defeat `truncate` and force horizontal scroll inside what
-  // should be a snug grid. The wrapper's `overflow-auto` handles the
-  // scroll when there are more days than fit.
+  // In portrait the day track is a fixed 7rem so the grid stays snug and
+  // pill content `truncate`s rather than ballooning a column. In
+  // landscape the variable is overridden to `minmax(7rem, 1fr)` so the
+  // grid stretches edge-to-edge of the rotated viewport — when there
+  // are few days the columns expand instead of leaving the right half
+  // of the screen empty. The wrapper's `overflow-auto` still scrolls
+  // when the 7rem floor × N is wider than the viewport.
   //
   //   Portrait 390px: 3rem label + 3 × 7rem cols = 384px < 390 ✓
   //   Landscape 800px: 5rem label + 6 × 7rem cols = 752px < 800 ✓
@@ -314,7 +316,7 @@ export function MobileTimelineView({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden landscape:[--m-timeline-label-col:5rem]">
+    <div className="flex flex-1 flex-col overflow-hidden landscape:[--m-timeline-label-col:5rem] landscape:[--m-timeline-day-min:minmax(7rem,1fr)]">
       {/* Mode toolbar */}
       <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-background px-3 py-2">
         <p className="text-kicker font-semibold text-muted-foreground">
