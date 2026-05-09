@@ -4,7 +4,7 @@
  */
 
 import { DriveStorage } from "../../src/services/google-drive/drive-storage";
-import type { Trip, UserSettings } from "@travel-app/shared";
+import type { Trip, TripShareRule, UserSettings } from "@travel-app/shared";
 
 // ─── Mock setup ──────────────────────────────────────────
 
@@ -302,6 +302,143 @@ describe("DriveStorage", () => {
     it("returns empty array when no file exists", async () => {
       const emails = await storage.getProcessedEmails();
       expect(emails).toEqual([]);
+    });
+  });
+
+  describe("share rules", () => {
+    const SHARE_RULES_FILE_ID = "share-rules-file-789";
+
+    function makeRule(overrides: Partial<TripShareRule> = {}): TripShareRule {
+      return {
+        id: "rule-1",
+        ownerUserId: "owner-1",
+        ownerEmail: "owner@example.com",
+        sharedWithEmail: "guest@example.com",
+        permission: "view",
+        showCosts: true,
+        showTodos: true,
+        createdAt: "2026-05-09T10:00:00.000Z",
+        updatedAt: "2026-05-09T10:00:00.000Z",
+        ...overrides,
+      };
+    }
+
+    /**
+     * Mocks `share-rules.json` reads against an in-memory `rules` array
+     * the test owns, so each test can assert on what was written without
+     * coupling to writeJsonFile's create-vs-update branching.
+     */
+    function setupRulesFileMocks(initial: TripShareRule[] | null) {
+      const state = { rules: initial };
+      mockFilesList.mockImplementation((params: { q: string }) => {
+        if (params.q.includes("'Itinly'")) {
+          return { data: { files: [{ id: APP_FOLDER_ID }] } };
+        }
+        if (
+          params.q.includes("share-rules.json") &&
+          params.q.includes(APP_FOLDER_ID)
+        ) {
+          return {
+            data: {
+              files: state.rules ? [{ id: SHARE_RULES_FILE_ID }] : [],
+            },
+          };
+        }
+        return { data: { files: [] } };
+      });
+      mockFilesGet.mockImplementation((params: { fileId: string }) => {
+        if (params.fileId === SHARE_RULES_FILE_ID) {
+          return { data: JSON.stringify(state.rules ?? []) };
+        }
+        return { data: "{}" };
+      });
+      mockFilesUpdate.mockImplementation((params: { fileId: string; media: { body: string } }) => {
+        if (params.fileId === SHARE_RULES_FILE_ID) {
+          state.rules = JSON.parse(params.media.body);
+        }
+        return { data: { id: params.fileId } };
+      });
+      mockFilesCreate.mockImplementation((params: { media: { body: string } }) => {
+        state.rules = JSON.parse(params.media.body);
+        return { data: { id: SHARE_RULES_FILE_ID } };
+      });
+      return state;
+    }
+
+    describe("listShareRules", () => {
+      it("returns empty array when share-rules.json doesn't exist", async () => {
+        // Default folder mocks already return no share-rules file.
+        const rules = await storage.listShareRules();
+        expect(rules).toEqual([]);
+        // No write — listing a missing file should be read-only.
+        expect(mockFilesUpdate).not.toHaveBeenCalled();
+        expect(mockFilesCreate).not.toHaveBeenCalled();
+      });
+
+      it("returns rules read from share-rules.json", async () => {
+        setupRulesFileMocks([makeRule(), makeRule({ id: "rule-2", sharedWithEmail: "other@example.com" })]);
+        const rules = await storage.listShareRules();
+        expect(rules.map((r) => r.id)).toEqual(["rule-1", "rule-2"]);
+      });
+    });
+
+    describe("getShareRule", () => {
+      it("returns null when the rule isn't in the file", async () => {
+        setupRulesFileMocks([makeRule()]);
+        expect(await storage.getShareRule("missing")).toBeNull();
+      });
+
+      it("returns the matching rule", async () => {
+        setupRulesFileMocks([makeRule(), makeRule({ id: "rule-2", sharedWithEmail: "other@example.com" })]);
+        const rule = await storage.getShareRule("rule-2");
+        expect(rule?.sharedWithEmail).toBe("other@example.com");
+      });
+    });
+
+    describe("saveShareRule", () => {
+      it("creates share-rules.json with one rule when none exists", async () => {
+        const state = setupRulesFileMocks(null);
+        await storage.saveShareRule(makeRule());
+        expect(state.rules).toEqual([makeRule()]);
+        expect(mockFilesCreate).toHaveBeenCalled();
+      });
+
+      it("appends to an existing share-rules.json", async () => {
+        const state = setupRulesFileMocks([makeRule()]);
+        await storage.saveShareRule(
+          makeRule({ id: "rule-2", sharedWithEmail: "second@example.com" }),
+        );
+        expect(state.rules?.map((r) => r.id)).toEqual(["rule-1", "rule-2"]);
+        expect(mockFilesUpdate).toHaveBeenCalled();
+      });
+
+      it("replaces an existing rule with the same id (no duplicates)", async () => {
+        const state = setupRulesFileMocks([makeRule({ permission: "view" })]);
+        await storage.saveShareRule(makeRule({ permission: "edit" }));
+        expect(state.rules).toHaveLength(1);
+        expect(state.rules?.[0].permission).toBe("edit");
+      });
+    });
+
+    describe("deleteShareRule", () => {
+      it("returns false and writes nothing when the rule is absent", async () => {
+        setupRulesFileMocks([makeRule()]);
+        const removed = await storage.deleteShareRule("missing");
+        expect(removed).toBe(false);
+        // No write happened — file untouched.
+        expect(mockFilesUpdate).not.toHaveBeenCalled();
+        expect(mockFilesCreate).not.toHaveBeenCalled();
+      });
+
+      it("removes the rule and persists the trimmed array", async () => {
+        const state = setupRulesFileMocks([
+          makeRule({ id: "rule-1" }),
+          makeRule({ id: "rule-2", sharedWithEmail: "other@example.com" }),
+        ]);
+        const removed = await storage.deleteShareRule("rule-1");
+        expect(removed).toBe(true);
+        expect(state.rules?.map((r) => r.id)).toEqual(["rule-2"]);
+      });
     });
   });
 
