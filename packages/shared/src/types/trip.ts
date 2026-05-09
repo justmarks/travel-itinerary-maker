@@ -147,6 +147,44 @@ export interface TripShare {
    * mutate by definition.
    */
   lastEditedAt?: string;
+  /**
+   * Set when this share was spawned by an auto-share rule (see
+   * `TripShareRule`). Lets the owner cascade-revoke spawned shares on
+   * rule deletion, and lets rule edits cascade permission/visibility
+   * changes onto the shares they created. Absent on shares the owner
+   * created directly.
+   */
+  originRuleId?: string;
+}
+
+/**
+ * Owner-scoped rule that auto-shares every trip the owner has (and every
+ * trip they create in future) with a given recipient. On creation, the
+ * server fans out a `TripShare` row for each existing trip; on trip
+ * create, the trip-creation handler iterates active rules and spawns one
+ * `TripShare` per recipient. Each spawned share carries `originRuleId`
+ * so cascade-revoke and cascade-update can find them.
+ *
+ * Unique on `(ownerUserId, sharedWithEmail)` — one rule per recipient
+ * per owner.
+ */
+export interface TripShareRule {
+  id: string;
+  /** Owner of the rule. Per-owner storage uses this to scope listings. */
+  ownerUserId: string;
+  /** Owner's email at creation time, for display in audit log / Sentry. */
+  ownerEmail?: string;
+  /**
+   * Lower-cased email of the recipient. Required (no anonymous-link
+   * rules — a forever-share with the world doesn't make sense).
+   * Matches `TripShare.sharedWithEmail`.
+   */
+  sharedWithEmail: string;
+  permission: SharePermission;
+  showCosts: boolean;
+  showTodos: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

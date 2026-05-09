@@ -9,7 +9,10 @@ import {
   createTodoSchema,
   updateTodoSchema,
   tripShareSchema,
+  tripShareRuleSchema,
   createShareSchema,
+  createShareRuleSchema,
+  updateShareRuleSchema,
   segmentCostSchema,
   tripSchema,
   userSettingsSchema,
@@ -537,6 +540,125 @@ describe("tripSchema (full trip validation)", () => {
       updatedAt: "2025-08-18T21:08:00.000Z",
     });
     expect(result.success).toBe(true);
+  });
+});
+
+describe("tripShareSchema", () => {
+  const baseShare = {
+    id: "share-1",
+    shareToken: "tok-abc",
+    sharedWithEmail: "guest@example.com",
+    permission: "view" as const,
+    showCosts: true,
+    showTodos: true,
+    createdAt: "2026-05-09T12:00:00.000Z",
+  };
+
+  it("accepts a share without originRuleId (back-compat)", () => {
+    expect(tripShareSchema.safeParse(baseShare).success).toBe(true);
+  });
+
+  it("accepts a share with originRuleId", () => {
+    expect(
+      tripShareSchema.safeParse({ ...baseShare, originRuleId: "rule-1" }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an empty originRuleId", () => {
+    expect(
+      tripShareSchema.safeParse({ ...baseShare, originRuleId: "" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("tripShareRuleSchema", () => {
+  const baseRule = {
+    id: "rule-1",
+    ownerUserId: "user-owner",
+    ownerEmail: "owner@example.com",
+    sharedWithEmail: "guest@example.com",
+    permission: "view" as const,
+    showCosts: true,
+    showTodos: true,
+    createdAt: "2026-05-09T12:00:00.000Z",
+    updatedAt: "2026-05-09T12:00:00.000Z",
+  };
+
+  it("validates a complete rule", () => {
+    expect(tripShareRuleSchema.safeParse(baseRule).success).toBe(true);
+  });
+
+  it("allows ownerEmail to be omitted", () => {
+    const { ownerEmail: _ownerEmail, ...rest } = baseRule;
+    expect(tripShareRuleSchema.safeParse(rest).success).toBe(true);
+  });
+
+  it("rejects a missing sharedWithEmail", () => {
+    const { sharedWithEmail: _sharedWithEmail, ...rest } = baseRule;
+    expect(tripShareRuleSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("rejects an invalid recipient email", () => {
+    expect(
+      tripShareRuleSchema.safeParse({ ...baseRule, sharedWithEmail: "not-an-email" })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe("createShareRuleSchema", () => {
+  it("accepts a valid create payload", () => {
+    expect(
+      createShareRuleSchema.safeParse({
+        sharedWithEmail: "guest@example.com",
+        permission: "edit",
+        showCosts: false,
+        showTodos: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an unknown permission", () => {
+    expect(
+      createShareRuleSchema.safeParse({
+        sharedWithEmail: "guest@example.com",
+        permission: "admin",
+        showCosts: true,
+        showTodos: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects when showCosts is missing", () => {
+    expect(
+      createShareRuleSchema.safeParse({
+        sharedWithEmail: "guest@example.com",
+        permission: "view",
+        showTodos: true,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("updateShareRuleSchema", () => {
+  it("accepts a single-field update", () => {
+    expect(updateShareRuleSchema.safeParse({ permission: "edit" }).success).toBe(true);
+    expect(updateShareRuleSchema.safeParse({ showCosts: false }).success).toBe(true);
+    expect(updateShareRuleSchema.safeParse({ showTodos: false }).success).toBe(true);
+  });
+
+  it("accepts a multi-field update", () => {
+    expect(
+      updateShareRuleSchema.safeParse({
+        permission: "edit",
+        showCosts: false,
+        showTodos: false,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects an empty update", () => {
+    expect(updateShareRuleSchema.safeParse({}).success).toBe(false);
   });
 });
 
