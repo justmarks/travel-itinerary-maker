@@ -14,6 +14,15 @@ import type { ShareSnapshotStore } from "../services/share-snapshot-store";
 import type { NotificationSender } from "../services/notification-sender";
 import { applyShareToTrip } from "../services/share-fanout";
 import { recordHistory } from "../services/trip-history";
+import { mapWithConcurrency } from "../utils/concurrency";
+
+/**
+ * Concurrent saveTrip / cascade-revoke calls in the rule routes. Bounded
+ * to keep us under Drive's per-user quota when the user has many trips
+ * (a 30-trip rule fan-out at concurrency 6 finishes in ~5 round-trips
+ * instead of 30 sequential ones).
+ */
+const FANOUT_CONCURRENCY = 6;
 
 export interface ShareRuleRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -102,45 +111,47 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     await storage.saveShareRule(rule);
 
     // Backfill across existing trips. Conflict policy: "upgrade only if
-    // stricter" — never downgrade a recipient's existing access.
+    // stricter" — never downgrade a recipient's existing access. Each
+    // trip is an independent file write, so the fan-out runs in
+    // parallel (bounded) — N sequential ~300ms writes becomes
+    // ~ceil(N/FANOUT_CONCURRENCY) round-trips.
     const trips = await storage.listTrips();
-    let spawned = 0;
-    let upgraded = 0;
-    for (const trip of trips) {
+    type Outcome = "spawned" | "upgraded" | "skipped";
+    const outcomes = await mapWithConcurrency<Trip, Outcome>(trips, FANOUT_CONCURRENCY, async (trip) => {
       const existingShare = trip.shares.find(
         (s) => s.sharedWithEmail?.toLowerCase() === recipient,
       );
       if (existingShare) {
-        if (isStricter(rule.permission, existingShare.permission)) {
-          existingShare.permission = rule.permission;
-          existingShare.showCosts = rule.showCosts;
-          existingShare.showTodos = rule.showTodos;
-          existingShare.originRuleId = rule.id;
-          trip.updatedAt = now;
-          recordHistory(
-            trip,
-            req,
-            "share.create",
-            `Auto-share rule upgraded ${recipient} to ${rule.permission}`,
-            { entityId: existingShare.id },
-          );
-          if (shareRegistry) {
-            shareRegistry.register({
-              shareToken: existingShare.shareToken,
-              tripId: trip.id,
-              ownerUserId,
-              ownerEmail: req.userEmail,
-              sharedWithEmail: existingShare.sharedWithEmail,
-              permission: existingShare.permission,
-              showCosts: existingShare.showCosts,
-              showTodos: existingShare.showTodos,
-            });
-          }
-          await storage.saveTrip(trip);
-          upgraded += 1;
+        if (!isStricter(rule.permission, existingShare.permission)) {
+          // Equal or weaker permission → leave existing share untouched.
+          return "skipped";
         }
-        // Equal or weaker permission → leave existing share untouched.
-        continue;
+        existingShare.permission = rule.permission;
+        existingShare.showCosts = rule.showCosts;
+        existingShare.showTodos = rule.showTodos;
+        existingShare.originRuleId = rule.id;
+        trip.updatedAt = now;
+        recordHistory(
+          trip,
+          req,
+          "share.create",
+          `Auto-share rule upgraded ${recipient} to ${rule.permission}`,
+          { entityId: existingShare.id },
+        );
+        if (shareRegistry) {
+          shareRegistry.register({
+            shareToken: existingShare.shareToken,
+            tripId: trip.id,
+            ownerUserId,
+            ownerEmail: req.userEmail,
+            sharedWithEmail: existingShare.sharedWithEmail,
+            permission: existingShare.permission,
+            showCosts: existingShare.showCosts,
+            showTodos: existingShare.showTodos,
+          });
+        }
+        await storage.saveTrip(trip);
+        return "upgraded";
       }
 
       applyShareToTrip(
@@ -163,8 +174,10 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
         },
       );
       await storage.saveTrip(trip);
-      spawned += 1;
-    }
+      return "spawned";
+    });
+    const spawned = outcomes.filter((o) => o === "spawned").length;
+    const upgraded = outcomes.filter((o) => o === "upgraded").length;
 
     // One consolidated push for the rule application — not N per-share
     // pushes (would spam the recipient on the first rule activation
@@ -225,12 +238,11 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     // Cascade to existing spawned shares: every TripShare with
     // originRuleId === rule.id picks up the new permission / flags.
     // Manual shares for the same recipient (no originRuleId) are not
-    // touched.
+    // touched. Per-trip writes run in parallel (bounded).
     const trips = await storage.listTrips();
-    let updated = 0;
-    for (const trip of trips) {
+    const updateOutcomes = await mapWithConcurrency<Trip, boolean>(trips, FANOUT_CONCURRENCY, async (trip) => {
       const share = trip.shares.find((s) => s.originRuleId === rule.id);
-      if (!share) continue;
+      if (!share) return false;
       share.permission = rule.permission;
       share.showCosts = rule.showCosts;
       share.showTodos = rule.showTodos;
@@ -255,8 +267,9 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
         });
       }
       await storage.saveTrip(trip);
-      updated += 1;
-    }
+      return true;
+    });
+    const updated = updateOutcomes.filter(Boolean).length;
 
     if (notificationSender && updated > 0) {
       const senderName = req.userEmail ?? "Someone";
@@ -308,24 +321,25 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     if (cascade) {
       const trips = await storage.listTrips();
       const now = new Date().toISOString();
-      for (const trip of trips) {
+      const revokeOutcomes = await mapWithConcurrency<Trip, boolean>(trips, FANOUT_CONCURRENCY, async (trip) => {
         const idx = trip.shares.findIndex((s) => s.originRuleId === rule.id);
-        if (idx < 0) continue;
+        if (idx < 0) return false;
         const share = trip.shares[idx] as TripShare;
         trip.shares.splice(idx, 1);
         trip.updatedAt = now;
         if (shareRegistry) shareRegistry.remove(share.shareToken);
         if (shareSnapshotStore) shareSnapshotStore.delete(share.shareToken);
         recordHistory(
-          trip as Trip,
+          trip,
           req,
           "share.revoke",
           `Cascade-revoked from auto-share rule deletion (${rule.sharedWithEmail})`,
           { entityId: share.id },
         );
         await storage.saveTrip(trip);
-        revoked += 1;
-      }
+        return true;
+      });
+      revoked = revokeOutcomes.filter(Boolean).length;
     }
 
     await storage.deleteShareRule(rule.id);

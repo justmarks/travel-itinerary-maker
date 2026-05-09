@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useShareRules,
   useCreateShareRule,
@@ -79,9 +79,15 @@ function ToggleRow({
   );
 }
 
-function CreateForm({ onDone }: { onDone: () => void }) {
+function CreateForm({
+  onDone,
+  initialEmail,
+}: {
+  onDone: () => void;
+  initialEmail?: string;
+}) {
   const createRule = useCreateShareRule();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [permission, setPermission] = useState<TripShareRule["permission"]>("view");
   const [showCosts, setShowCosts] = useState(false);
   const [showTodos, setShowTodos] = useState(false);
@@ -161,9 +167,10 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       <button
         type="button"
         onClick={handleCreate}
-        className="block w-full rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background active:bg-foreground/90"
+        disabled={createRule.isPending}
+        className="block w-full rounded-full bg-foreground px-4 py-3 text-sm font-semibold text-background active:bg-foreground/90 disabled:opacity-50"
       >
-        Auto-share
+        {createRule.isPending ? "Creating…" : "Auto-share"}
       </button>
     </div>
   );
@@ -260,21 +267,24 @@ function DeleteRulePanel({
       <button
         type="button"
         onClick={() => handle(false)}
-        className="block w-full rounded-full border bg-background px-4 py-3 text-sm font-medium active:bg-muted/40"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full border bg-background px-4 py-3 text-sm font-medium active:bg-muted/40 disabled:opacity-50"
       >
-        Keep existing shares
+        {deleteRule.isPending ? "Removing…" : "Keep existing shares"}
       </button>
       <button
         type="button"
         onClick={() => handle(true)}
-        className="block w-full rounded-full bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground active:opacity-90"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full bg-destructive px-4 py-3 text-sm font-semibold text-destructive-foreground active:opacity-90 disabled:opacity-50"
       >
-        Also revoke from existing trips
+        {deleteRule.isPending ? "Removing…" : "Also revoke from existing trips"}
       </button>
       <button
         type="button"
         onClick={onCancel}
-        className="block w-full rounded-full px-4 py-2 text-sm text-muted-foreground"
+        disabled={deleteRule.isPending}
+        className="block w-full rounded-full px-4 py-2 text-sm text-muted-foreground disabled:opacity-50"
       >
         Cancel
       </button>
@@ -285,13 +295,26 @@ function DeleteRulePanel({
 export function MobileAutoShareSheet({
   open,
   onClose,
+  initialEmail,
 }: {
   open: boolean;
   onClose: () => void;
+  /**
+   * When set, the create form auto-expands with this email pre-filled.
+   * Used by the mobile Share sheet's "Set up auto-share" CTA so the
+   * user doesn't have to retype the recipient.
+   */
+  initialEmail?: string;
 }): React.JSX.Element | null {
   const { data: rules = [] } = useShareRules();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleting, setDeleting] = useState<TripShareRule | null>(null);
+
+  useEffect(() => {
+    if (open && initialEmail) {
+      setCreateOpen(true);
+    }
+  }, [open, initialEmail]);
 
   const sortedRules = useMemo(
     () => [...rules].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -332,7 +355,10 @@ export function MobileAutoShareSheet({
             )}
 
             {createOpen ? (
-              <CreateForm onDone={() => setCreateOpen(false)} />
+              <CreateForm
+                onDone={() => setCreateOpen(false)}
+                initialEmail={initialEmail}
+              />
             ) : (
               <button
                 type="button"

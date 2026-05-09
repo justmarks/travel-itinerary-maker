@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useShareRules,
   useCreateShareRule,
@@ -97,16 +97,26 @@ function ToggleRow({
 function CreateRuleDialog({
   open,
   onOpenChange,
+  initialEmail,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialEmail?: string;
 }) {
   const createRule = useCreateShareRule();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [permission, setPermission] = useState<TripShareRule["permission"]>("view");
   const [showCosts, setShowCosts] = useState(false);
   const [showTodos, setShowTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pick up a fresh `initialEmail` whenever the dialog re-opens (the user may
+  // open Auto-share from the Share dialog with a different recipient typed).
+  useEffect(() => {
+    if (open && initialEmail !== undefined) {
+      setEmail(initialEmail);
+    }
+  }, [open, initialEmail]);
 
   const trimmed = email.trim();
   const emailValid = EMAIL_RE.test(trimmed);
@@ -227,7 +237,9 @@ function CreateRuleDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleCreate}>Auto-share</Button>
+          <Button onClick={handleCreate} disabled={createRule.isPending}>
+            {createRule.isPending ? "Creating…" : "Auto-share"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -280,14 +292,19 @@ function DeleteRuleDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:flex-col">
-          <Button variant="outline" onClick={() => handle(false)}>
-            Keep existing shares
+          <Button
+            variant="outline"
+            onClick={() => handle(false)}
+            disabled={deleteRule.isPending}
+          >
+            {deleteRule.isPending ? "Removing…" : "Keep existing shares"}
           </Button>
           <Button
             variant="destructive"
             onClick={() => handle(true)}
+            disabled={deleteRule.isPending}
           >
-            Also revoke from existing trips
+            {deleteRule.isPending ? "Removing…" : "Also revoke from existing trips"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -360,13 +377,30 @@ function RuleRow({
 export function AutoShareRulesDialog({
   open,
   onOpenChange,
+  initialEmail,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * When set, the inner CreateRuleDialog auto-opens with this email
+   * pre-filled. Used by the Share dialog's "Set up auto-share" CTA so
+   * the user doesn't have to retype the recipient.
+   */
+  initialEmail?: string;
 }): React.JSX.Element {
   const { data: rules } = useShareRules();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleting, setDeleting] = useState<TripShareRule | null>(null);
+
+  // Auto-open the create form with the pre-filled email whenever the
+  // outer dialog opens with an initialEmail. Only fires on transitions
+  // into open so a manual "Add" click after dismissing the create form
+  // still gets a blank form.
+  useEffect(() => {
+    if (open && initialEmail) {
+      setCreateOpen(true);
+    }
+  }, [open, initialEmail]);
 
   const sortedRules = useMemo(
     () => [...(rules ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
@@ -396,7 +430,11 @@ export function AutoShareRulesDialog({
           Add auto-share
         </Button>
 
-        <CreateRuleDialog open={createOpen} onOpenChange={setCreateOpen} />
+        <CreateRuleDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          initialEmail={initialEmail}
+        />
         <DeleteRuleDialog rule={deleting} onClose={() => setDeleting(null)} />
       </DialogContent>
     </Dialog>
