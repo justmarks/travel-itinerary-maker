@@ -296,6 +296,7 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 - [x] **Phase 7 polish — picker + naming UX** — Gmail label picker becomes a dropdown tree on both surfaces (mobile native `<select>`, desktop ShadCN `Select`) with hierarchical indent for nested labels (`Travel/Hotels/Confirmed` reads as a tree). Trip-picker dropdown shows `Title (date range)` so phone-only users can distinguish two trips with similar names
 - [x] **Phase 7 polish — new-trip proposals** — when an account-level scan parses segments that don't match any existing trip, cluster them by date proximity (gap > 14 days = separate trip; hotels / cruises bridge the gap via `endDate`) and propose one new trip per cluster. Default name `<Most-common destination> <Month> <Year>` ("Maui April 2026") with a fall-back to "Trip <Month> <Year>" when no city is detectable. Picker shows proposals under a "Create new trip" optgroup; on apply, `useCreateTrip` runs first (sequential, with date-range expansion to cover any manually-rebucketed segment) and the sentinel ids swap for real trip ids before `applyParsedSegments`. Shared util `proposeNewTrips` in `@travel-app/shared` so the same clustering can be reused on desktop later
 - [x] **Phase 7 polish — server-side deprecation watch** — Anthropic returns model-deprecation warnings via response headers (`anthropic-deprecation-warning` and the standard `Warning: 299 ...`). The parser now surfaces those to Sentry as `warning`-level events with the model tagged, deduped per-process so a deprecated model doesn't generate one event per parsed email. Default model bumped from `claude-sonnet-4-20250514` (the one Anthropic flagged) to `claude-sonnet-4-6`
+- [x] **Phase 8 — Google Calendar sync on mobile** — `MobileCalendarSyncSheet` reachable from the trip-detail overflow menu mirrors the desktop dropdown's four states (connect-Calendar prompt, calendar picker, synced-info with refresh / remove, and a delete-from-Google vs unlink choice). Shares the `useCalendarSync` hook with desktop so toast copy and behavior stay identical, and the menu label flips to "Calendar synced (N)" once any segment carries a `calendarEventId`
 
 **Remaining mobile work:**
 
@@ -315,7 +316,6 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 
 **Potential ideas for the future:**
 
-- [ ] **Google Calendar sync on mobile** — push/unsync + calendar picker, surfaced from the trip-detail overflow menu mirroring the desktop button + dropdown
 - [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
 
