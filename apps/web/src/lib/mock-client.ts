@@ -15,6 +15,7 @@ import type {
   Segment,
   Todo,
   TripShare,
+  TripShareRule,
   TripDay,
   CreateTripInput,
   UpdateTripInput,
@@ -22,6 +23,8 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  CreateShareRuleInput,
+  UpdateShareRuleInput,
   GmailLabel,
   EmailScanResult,
   EmailScanRequest,
@@ -1311,6 +1314,7 @@ const SAMPLE_TRIPS: Trip[] = [
 
 export class MockApiClient extends ApiClient {
   private trips: Map<string, Trip>;
+  private shareRules: Map<string, TripShareRule> = new Map();
 
   constructor() {
     super(""); // no real base URL needed
@@ -1384,6 +1388,21 @@ export class MockApiClient extends ApiClient {
       updatedAt: now(),
       schemaVersion: CURRENT_TRIP_SCHEMA_VERSION,
     };
+    // Apply auto-share rules to the new demo trip so the demo of "create
+    // a trip with a rule active" matches production behaviour.
+    for (const rule of this.shareRules.values()) {
+      const shareToken = `demo:${id}:${rule.permission}:${rule.showCosts ? "1" : "0"}:${rule.showTodos ? "1" : "0"}:${uid()}`;
+      trip.shares.push({
+        id: `share-${uid()}`,
+        shareToken,
+        sharedWithEmail: rule.sharedWithEmail,
+        permission: rule.permission,
+        showCosts: rule.showCosts,
+        showTodos: rule.showTodos,
+        createdAt: now(),
+        originRuleId: rule.id,
+      });
+    }
     this.trips.set(id, trip);
     return Promise.resolve(structuredClone(trip));
   }
@@ -1744,6 +1763,122 @@ export class MockApiClient extends ApiClient {
     }
     trip.shares = trip.shares.filter((s) => s.id !== shareId);
     return Promise.resolve();
+  }
+
+  // ─── Auto-Share Rules ──────────────────────────────────
+
+  override listShareRules(): Promise<TripShareRule[]> {
+    return Promise.resolve(
+      [...this.shareRules.values()]
+        .map((r) => structuredClone(r))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    );
+  }
+
+  override createShareRule(
+    input: CreateShareRuleInput,
+  ): Promise<{ rule: TripShareRule; spawnedShareCount: number; upgradedShareCount: number }> {
+    const recipient = input.sharedWithEmail.toLowerCase();
+    const existing = [...this.shareRules.values()].find(
+      (r) => r.sharedWithEmail.toLowerCase() === recipient,
+    );
+    if (existing) {
+      return Promise.reject(new Error("A rule already exists for this recipient"));
+    }
+    const ruleId = `rule-${uid()}`;
+    const timestamp = now();
+    const rule: TripShareRule = {
+      id: ruleId,
+      ownerUserId: "demo-owner",
+      ownerEmail: "demo@example.com",
+      sharedWithEmail: recipient,
+      permission: input.permission,
+      showCosts: input.showCosts,
+      showTodos: input.showTodos,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    this.shareRules.set(ruleId, rule);
+
+    let spawned = 0;
+    let upgraded = 0;
+    for (const trip of this.trips.values()) {
+      const ownTrip = !SHARED_DEMO_OVERRIDES[trip.id];
+      if (!ownTrip) continue;
+      const dup = trip.shares.find(
+        (s) => s.sharedWithEmail?.toLowerCase() === recipient,
+      );
+      if (dup) {
+        if (input.permission === "edit" && dup.permission === "view") {
+          dup.permission = "edit";
+          dup.showCosts = input.showCosts;
+          dup.showTodos = input.showTodos;
+          dup.originRuleId = ruleId;
+          upgraded += 1;
+        }
+        continue;
+      }
+      const shareToken = `demo:${trip.id}:${input.permission}:${input.showCosts ? "1" : "0"}:${input.showTodos ? "1" : "0"}:${uid()}`;
+      trip.shares.push({
+        id: `share-${uid()}`,
+        shareToken,
+        sharedWithEmail: recipient,
+        permission: input.permission,
+        showCosts: input.showCosts,
+        showTodos: input.showTodos,
+        createdAt: timestamp,
+        originRuleId: ruleId,
+      });
+      spawned += 1;
+    }
+
+    return Promise.resolve({
+      rule: structuredClone(rule),
+      spawnedShareCount: spawned,
+      upgradedShareCount: upgraded,
+    });
+  }
+
+  override updateShareRule(
+    ruleId: string,
+    input: UpdateShareRuleInput,
+  ): Promise<{ rule: TripShareRule; updatedShareCount: number }> {
+    const rule = this.shareRules.get(ruleId);
+    if (!rule) return Promise.reject(new Error("Rule not found"));
+    if (input.permission !== undefined) rule.permission = input.permission;
+    if (input.showCosts !== undefined) rule.showCosts = input.showCosts;
+    if (input.showTodos !== undefined) rule.showTodos = input.showTodos;
+    rule.updatedAt = now();
+
+    let updated = 0;
+    for (const trip of this.trips.values()) {
+      const share = trip.shares.find((s) => s.originRuleId === ruleId);
+      if (!share) continue;
+      share.permission = rule.permission;
+      share.showCosts = rule.showCosts;
+      share.showTodos = rule.showTodos;
+      updated += 1;
+    }
+
+    return Promise.resolve({ rule: structuredClone(rule), updatedShareCount: updated });
+  }
+
+  override deleteShareRule(
+    ruleId: string,
+    opts: { cascade: boolean },
+  ): Promise<{ revokedShareCount: number }> {
+    const rule = this.shareRules.get(ruleId);
+    if (!rule) return Promise.reject(new Error("Rule not found"));
+    let revoked = 0;
+    if (opts.cascade) {
+      for (const trip of this.trips.values()) {
+        const before = trip.shares.length;
+        trip.shares = trip.shares.filter((s) => s.originRuleId !== ruleId);
+        revoked += before - trip.shares.length;
+      }
+    }
+    this.shareRules.delete(ruleId);
+    return Promise.resolve({ revokedShareCount: revoked });
   }
 
   // ─── Shared (public) ────────────────────────────────────
