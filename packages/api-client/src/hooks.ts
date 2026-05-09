@@ -9,12 +9,15 @@ import type {
   Segment,
   Todo,
   TripShare,
+  TripShareRule,
   CreateTripInput,
   UpdateTripInput,
   CreateSegmentInput,
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  CreateShareRuleInput,
+  UpdateShareRuleInput,
   PushSubscriptionInput,
   EmailScanResult,
   GmailLabel,
@@ -41,6 +44,7 @@ export const queryKeys = {
   costs: (tripId: string) => ["trips", tripId, "costs"] as const,
   todos: (tripId: string) => ["trips", tripId, "todos"] as const,
   shares: (tripId: string) => ["trips", tripId, "shares"] as const,
+  shareRules: ["share-rules"] as const,
   shared: (token: string) => ["shared", token] as const,
   gmailLabels: ["gmail", "labels"] as const,
   processedEmails: ["emails", "processed"] as const,
@@ -650,6 +654,93 @@ export function useDeleteShare(tripId: string) {
       // still resolving (the caller is counted until onSettled finishes).
       if (queryClient.isMutating({ mutationKey }) === 1) {
         queryClient.invalidateQueries({ queryKey: queryKeys.shares(tripId) });
+      }
+    },
+  });
+}
+
+// ─── Auto-Share Rule Queries & Mutations ──────────────────
+
+export function useShareRules() {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.shareRules,
+    queryFn: () => client.listShareRules(),
+  });
+}
+
+export function useCreateShareRule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateShareRuleInput) => client.createShareRule(input),
+    onSuccess: () => {
+      // Spawned shares mean every trip's `shares` list may have changed
+      // (and the trip-list summary too if it surfaces share counts).
+      queryClient.invalidateQueries({ queryKey: queryKeys.shareRules });
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips });
+      queryClient.invalidateQueries({ queryKey: ["trips"], exact: false });
+    },
+  });
+}
+
+export function useUpdateShareRule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ruleId, input }: { ruleId: string; input: UpdateShareRuleInput }) =>
+      client.updateShareRule(ruleId, input),
+    onMutate: async ({ ruleId, input }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.shareRules });
+      const previous = queryClient.getQueryData<TripShareRule[]>(queryKeys.shareRules);
+      if (previous) {
+        queryClient.setQueryData<TripShareRule[]>(
+          queryKeys.shareRules,
+          previous.map((r) => (r.id === ruleId ? { ...r, ...input } : r)),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(queryKeys.shareRules, ctx.previous);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.shareRules });
+      // Cascaded edits change permission/showCosts/showTodos on N shares.
+      queryClient.invalidateQueries({ queryKey: ["trips"], exact: false });
+    },
+  });
+}
+
+export function useDeleteShareRule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ruleId, cascade }: { ruleId: string; cascade: boolean }) =>
+      client.deleteShareRule(ruleId, { cascade }),
+    onMutate: async ({ ruleId }) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.shareRules });
+      const previous = queryClient.getQueryData<TripShareRule[]>(queryKeys.shareRules);
+      if (previous) {
+        queryClient.setQueryData<TripShareRule[]>(
+          queryKeys.shareRules,
+          previous.filter((r) => r.id !== ruleId),
+        );
+      }
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(queryKeys.shareRules, ctx.previous);
+      }
+    },
+    onSettled: (_data, _err, vars) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.shareRules });
+      // Cascade=true revokes shares server-side; refresh trips to drop them.
+      if (vars.cascade) {
+        queryClient.invalidateQueries({ queryKey: ["trips"], exact: false });
       }
     },
   });

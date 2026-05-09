@@ -60,13 +60,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-function fmtRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
 function fmtUsdCompact(n: number): string {
   if (n >= 10000) return `$${(n / 1000).toFixed(1)}k`;
   return `$${Math.round(n).toLocaleString()}`;
@@ -81,15 +74,16 @@ function fmtUsdCompact(n: number): string {
 function MobileTripOverflowMenu({
   tripId,
   tripTitle,
+  usdTotal,
+  onOpenCosts,
   onOpenHistory,
   onOpenEdit,
-  onOpenScan,
   onOpenCalendarSync,
   onSwitchView,
   view,
   showDelete,
+  showCosts,
   showEdit,
-  showScan,
   showCalendarSync,
   calendarSynced,
   calendarSyncedCount,
@@ -97,9 +91,11 @@ function MobileTripOverflowMenu({
 }: {
   tripId: string;
   tripTitle: string;
+  /** Sum of USD-denominated segment costs, or null when none are USD. */
+  usdTotal: number | null;
+  onOpenCosts: () => void;
   onOpenHistory: () => void;
   onOpenEdit: () => void;
-  onOpenScan: () => void;
   onOpenCalendarSync: () => void;
   /** Flips the URL `?v=` between carousel + timeline. */
   onSwitchView: () => void;
@@ -107,10 +103,11 @@ function MobileTripOverflowMenu({
   view: MobileView;
   /** Owner-only — contributors see the menu (for History) but not Delete. */
   showDelete: boolean;
+  /** Owner + share-with-costs only. Drives whether the Costs item is
+   *  rendered (and the costs sheet is mounted at all). */
+  showCosts: boolean;
   /** Owner + edit-contributor only. View-only contributors don't see Edit. */
   showEdit: boolean;
-  /** Owner + edit-contributor only. View-only / public viewers can't write. */
-  showScan: boolean;
   /** Owner + edit-contributor only — pushing events to a viewer's
    *  Google Calendar mutates the trip (writes calendarEventId on each
    *  segment) so view-only collaborators can't sync. */
@@ -194,6 +191,12 @@ function MobileTripOverflowMenu({
           )}
           {view === "timeline" ? "Switch to days" : "Switch to timeline"}
         </DropdownMenuItem>
+        {showCosts && (
+          <DropdownMenuItem onClick={onOpenCosts}>
+            <DollarSign className="mr-2 h-4 w-4" />
+            {usdTotal !== null ? `Costs · ${fmtUsdCompact(usdTotal)}` : "Costs"}
+          </DropdownMenuItem>
+        )}
         {showCalendarSync && (
           <DropdownMenuItem onClick={onOpenCalendarSync}>
             {calendarSynced ? (
@@ -207,12 +210,6 @@ function MobileTripOverflowMenu({
             {calendarSynced
               ? `Calendar synced (${calendarSyncedCount})`
               : "Sync to Calendar"}
-          </DropdownMenuItem>
-        )}
-        {showScan && (
-          <DropdownMenuItem onClick={onOpenScan}>
-            <Mail className="mr-2 h-4 w-4" />
-            Scan emails
           </DropdownMenuItem>
         )}
         {showEdit && (
@@ -271,8 +268,8 @@ function HeaderActions({
   showTodos,
   showShare,
   showReview,
+  showScan,
   showEditInOverflow,
-  showScanInOverflow,
   showCalendarSyncInOverflow,
   showDeleteInOverflow,
   calendarSynced,
@@ -296,7 +293,8 @@ function HeaderActions({
   onOpenCalendarSync: () => void;
   onSwitchView: () => void;
   view: MobileView;
-  /** When false (e.g. share with `showCosts: false`), hide the Costs pill. */
+  /** When false (e.g. share with `showCosts: false`), hide the Costs item
+   *  inside the overflow menu and skip mounting the costs sheet. */
   showCosts: boolean;
   /** Same idea for the to-do pill. */
   showTodos: boolean;
@@ -307,13 +305,13 @@ function HeaderActions({
    *  public viewers see segments' inert "Review" badge but no
    *  affordance to clear them. */
   showReview: boolean;
+  /** Owner + shared-edit only — surfaces the email-scan launch as a
+   *  visible icon button. Parses go to the trip's owner Drive, which
+   *  contributors can write to but viewers can't. */
+  showScan: boolean;
   /** Owner + shared-edit only — exposes the "Edit trip" affordance in
    *  the overflow menu. View-only contributors don't see it. */
   showEditInOverflow: boolean;
-  /** Owner + shared-edit only — exposes "Scan emails" in the
-   *  overflow menu. Parses go to the trip's owner Drive, which
-   *  contributors can write to but viewers can't. */
-  showScanInOverflow: boolean;
   /** Owner + shared-edit only — exposes "Sync to Calendar" in the
    *  overflow menu. Calendar push writes calendarEventId onto each
    *  segment, so view-only collaborators can't trigger it. */
@@ -331,7 +329,7 @@ function HeaderActions({
   leaveTripShareId: string | null;
 }): React.JSX.Element {
   // The avatar lives on /m only — the trip-detail header was getting
-  // squeezed by Costs + Todos + Share + Avatar all crowding the title.
+  // squeezed by Todos + Scan + Share + Avatar all crowding the title.
   // Tap back-arrow → home to reach the user menu.
   const todoLabel =
     todoTotal === 0 ? "To-do" : todoRemaining === 0 ? "✓" : todoRemaining;
@@ -353,19 +351,6 @@ function HeaderActions({
           <span className="tabular-nums">{pendingCount}</span>
         </button>
       )}
-      {showCosts && (
-        <button
-          type="button"
-          onClick={onOpenCosts}
-          className="inline-flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-[11px] font-semibold text-foreground active:bg-muted/70"
-          aria-label="Open costs"
-        >
-          <DollarSign className="h-3.5 w-3.5" />
-          <span className="tabular-nums">
-            {usdTotal !== null ? fmtUsdCompact(usdTotal) : "Costs"}
-          </span>
-        </button>
-      )}
       {showTodos && (
         <button
           type="button"
@@ -375,6 +360,16 @@ function HeaderActions({
         >
           <CheckSquare className="h-3.5 w-3.5" />
           <span className="tabular-nums">{todoLabel}</span>
+        </button>
+      )}
+      {showScan && (
+        <button
+          type="button"
+          onClick={onOpenScan}
+          aria-label="Scan emails"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-foreground/80 hover:bg-muted active:bg-muted/80"
+        >
+          <Mail className="h-4 w-4" />
         </button>
       )}
       {showShare && (
@@ -390,15 +385,16 @@ function HeaderActions({
       <MobileTripOverflowMenu
         tripId={tripId}
         tripTitle={tripTitle}
+        usdTotal={usdTotal}
+        onOpenCosts={onOpenCosts}
         onOpenHistory={onOpenHistory}
         onOpenEdit={onOpenEdit}
-        onOpenScan={onOpenScan}
         onOpenCalendarSync={onOpenCalendarSync}
         onSwitchView={onSwitchView}
         view={view}
         showDelete={showDeleteInOverflow}
+        showCosts={showCosts}
         showEdit={showEditInOverflow}
-        showScan={showScanInOverflow}
         showCalendarSync={showCalendarSyncInOverflow}
         calendarSynced={calendarSynced}
         calendarSyncedCount={calendarSyncedCount}
@@ -547,13 +543,10 @@ function MobileTripInner({
     );
   }
 
-  const dateRange = fmtRange(trip.startDate, trip.endDate);
-
   return (
     <MobileFrame widenInLandscape={view === "timeline"}>
       <TripFrame
         trip={trip}
-        dateRange={dateRange}
         homeHref={homeHref}
         view={view}
         onSwitchView={onSwitchView}
@@ -588,7 +581,6 @@ function MobileTripInner({
 
 function TripFrame({
   trip,
-  dateRange,
   homeHref,
   view,
   onSwitchView,
@@ -618,7 +610,6 @@ function TripFrame({
   onCloseCalendarSync,
 }: {
   trip: Trip;
-  dateRange: string;
   homeHref: string;
   view: MobileView;
   onSwitchView: () => void;
@@ -680,9 +671,10 @@ function TripFrame({
 
   return (
     <>
+      {/* No title/subtitle on the trip-detail header — the carousel /
+          timeline view renders its own larger title block immediately
+          below, so duplicating it here just creates a double row. */}
       <MobileHeader
-        title={trip.title}
-        subtitle={`${dateRange} · ${trip.days.length} days`}
         backHref={homeHref}
         right={
           permission.isLoading ? null : (
@@ -707,8 +699,8 @@ function TripFrame({
               showTodos={permission.showTodos}
               showShare={permission.isOwner}
               showReview={permission.canEdit}
+              showScan={permission.canEdit}
               showEditInOverflow={permission.canEdit}
-              showScanInOverflow={permission.canEdit}
               showCalendarSyncInOverflow={permission.canEdit}
               showDeleteInOverflow={permission.isOwner}
               calendarSynced={calendarSynced}

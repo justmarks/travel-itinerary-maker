@@ -1,5 +1,10 @@
 import { google, type drive_v3 } from "googleapis";
-import { migrateTrip, type Trip, type UserSettings } from "@travel-app/shared";
+import {
+  migrateTrip,
+  type Trip,
+  type TripShareRule,
+  type UserSettings,
+} from "@travel-app/shared";
 import type { StorageProvider } from "../storage";
 
 const APP_FOLDER_NAME = "Itinly";
@@ -272,5 +277,27 @@ export class DriveStorage implements StorageProvider {
       appFolderId,
       emails,
     );
+  }
+
+  // ─── Share Rules ────────────────────────────────────────
+  // Drive persistence is not yet wired up — rules are owner-scoped and
+  // the only storage path that exercises them today is InMemoryStorage
+  // (dev + tests). Throwing keeps the interface honest until a
+  // share-rules.json file lands alongside settings.json.
+
+  async listShareRules(): Promise<TripShareRule[]> {
+    throw new Error("DriveStorage.listShareRules not implemented");
+  }
+
+  async getShareRule(_ruleId: string): Promise<TripShareRule | null> {
+    throw new Error("DriveStorage.getShareRule not implemented");
+  }
+
+  async saveShareRule(_rule: TripShareRule): Promise<void> {
+    throw new Error("DriveStorage.saveShareRule not implemented");
+  }
+
+  async deleteShareRule(_ruleId: string): Promise<boolean> {
+    throw new Error("DriveStorage.deleteShareRule not implemented");
   }
 }

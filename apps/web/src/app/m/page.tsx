@@ -34,6 +34,7 @@ import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
 import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
+import { MobileAutoShareSheet } from "@/components/mobile/mobile-auto-share-sheet";
 import {
   MobileTripRowSkeleton,
   StillLoadingHint,
@@ -128,12 +129,18 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       {countdownLabel && (
-        <span className="absolute right-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm">
+        <span className="absolute left-2 top-2 z-10 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm">
           {countdownLabel}
         </span>
       )}
       {trip.sharedFromEmail && (
-        <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm">
+        // Shared-with-you marker. Stacks below the countdown when both
+        // are present so the top-left corner doesn't get crowded — and
+        // the top-right corner stays clear for the leave menu.
+        <span
+          className="absolute left-2 z-10 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-medium text-zinc-900 shadow-sm backdrop-blur-sm"
+          style={{ top: countdownLabel ? "2.25rem" : "0.5rem" }}
+        >
           <Users className="h-3 w-3" />
           {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
         </span>
@@ -492,6 +499,7 @@ function MobileTripListLoading(): React.JSX.Element {
 function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
+  const [autoShareOpen, setAutoShareOpen] = useState(false);
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
@@ -507,7 +515,10 @@ function MobileHomeContent(): React.JSX.Element {
         >
           <Plus className="h-5 w-5" />
         </button>
-        <MobileUserMenu onScanEmails={() => setScanOpen(true)} />
+        <MobileUserMenu
+          onScanEmails={() => setScanOpen(true)}
+          onAutoShare={() => setAutoShareOpen(true)}
+        />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
         <div className="pt-3">
@@ -522,6 +533,10 @@ function MobileHomeContent(): React.JSX.Element {
       <MobileEmailScanSheet
         open={scanOpen}
         onClose={() => setScanOpen(false)}
+      />
+      <MobileAutoShareSheet
+        open={autoShareOpen}
+        onClose={() => setAutoShareOpen(false)}
       />
     </MobileFrame>
   );

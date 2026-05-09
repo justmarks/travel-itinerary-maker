@@ -14,14 +14,31 @@ import { cn } from "@/lib/utils";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
+// See `app/login/page.tsx` for the rationale — when the bundle was
+// built without `NEXT_PUBLIC_API_URL` and the browser is on a non-
+// localhost origin, the health probe is doomed to ERR_CONNECTION_REFUSED
+// and the generic "no API server" copy hides the real cause.
+function isBuildTimeApiMisconfig(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!/^https?:\/\/localhost(?::\d+)?(?:\/|$)/.test(API_BASE_URL)) return false;
+  const host = window.location.hostname;
+  return host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]";
+}
+
 export default function MobileLoginPage(): React.JSX.Element {
   const { isAuthenticated, isLoading } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
   const [loginError, setLoginError] = useState<string | null>(null);
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
+  const [buildMisconfig, setBuildMisconfig] = useState(false);
 
   useEffect(() => {
+    if (isBuildTimeApiMisconfig()) {
+      setBuildMisconfig(true);
+      setApiAvailable(false);
+      return;
+    }
     const controller = new AbortController();
     fetch(`${API_BASE_URL.replace(/\/api\/v1$/, "")}/health`, {
       signal: controller.signal,
@@ -70,8 +87,9 @@ export default function MobileLoginPage(): React.JSX.Element {
             <div className="flex items-start gap-3 rounded-xl border bg-muted/50 p-3 text-left text-sm text-muted-foreground">
               <Info className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                No API server detected. Sign-in needs a backend — try demo
-                mode below.
+                {buildMisconfig
+                  ? "This deployment is misconfigured: the build didn't receive NEXT_PUBLIC_API_URL, so the bundle points at http://localhost. Try demo mode below, or ask the site owner to fix it."
+                  : "No API server detected. Sign-in needs a backend — try demo mode below."}
               </span>
             </div>
           )}

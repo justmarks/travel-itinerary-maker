@@ -319,9 +319,9 @@ function Features(): React.JSX.Element {
     },
     {
       icon: Share2,
-      title: "Share — view or edit",
+      title: "Share — view, edit, or auto-share",
       body:
-        "Send a private link to anyone — co-travelers, parents, the dog-sitter. View-only links need no sign-up; edit links let trusted travelers add segments and tick off to-dos with you.",
+        "Send a private link to anyone — co-travelers, parents, the dog-sitter. View-only links need no sign-up; edit links let trusted travelers add segments and tick off to-dos with you. Setup Auto-share rules for all existing and future trips.",
     },
     {
       icon: Smartphone,

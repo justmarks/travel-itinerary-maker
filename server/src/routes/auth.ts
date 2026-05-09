@@ -168,6 +168,9 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         // their share links start working again. Fire-and-forget so the
         // login response isn't gated on a Drive scan.
         if (shareRegistry) {
+          // Match the request-log shape used by `[trips <email>] <ACTION>
+          // → ...` so a Railway tail can be filtered by user.
+          const tag = `[auth ${userInfo.data.email || "anon"}]`;
           rebuildRegistryForUser(
             userInfo.data.id,
             shareRegistry,
@@ -176,13 +179,13 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
             .then((result) => {
               if (result && result.registered > 0) {
                 console.log(
-                  `[auth] pre-warmed registry: ${result.registered} share(s) re-registered for user ${userInfo.data.id}`,
+                  `${tag} pre-warm-registry → registered=${result.registered}`,
                 );
               }
             })
             .catch((err) => {
               console.warn(
-                `[auth] registry pre-warm failed for ${userInfo.data.id}:`,
+                `${tag} pre-warm-registry failed:`,
                 err instanceof Error ? err.message : err,
               );
             });

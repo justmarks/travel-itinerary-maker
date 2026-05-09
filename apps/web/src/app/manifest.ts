@@ -19,7 +19,11 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/m",
     scope: "/",
     display: "standalone",
-    orientation: "portrait",
+    // Let the installed PWA rotate with the device. The mobile shell is
+    // tuned for portrait but we don't want to forbid landscape — phones in
+    // a car mount, tablets, and accessibility setups all benefit from
+    // following the OS rotation.
+    orientation: "any",
     background_color: "#F8F9FA",
     // Primary navy from palette A — drives the Android task-switcher card,
     // desktop PWA titlebar, and iOS Safari URL-bar tint. Keep in sync with

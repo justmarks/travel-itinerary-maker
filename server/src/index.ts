@@ -37,6 +37,23 @@ async function bootstrap(): Promise<void> {
     console.log(`Server running on http://localhost:${config.port}`);
     console.log(`Environment: ${config.nodeEnv}`);
     console.log(`Storage: ${isProduction ? "Google Drive" : "In-Memory"}`);
+    // Railway injects these on every deploy. Log them once at boot so a
+    // deployment UUID in Railway's log UI can be mapped back to a
+    // human-readable preview URL / branch / commit without digging
+    // through the deploy details panel. All four are unset locally, so
+    // the block is silently skipped in dev.
+    const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+    const railwayBranch = process.env.RAILWAY_GIT_BRANCH;
+    const railwayCommit = process.env.RAILWAY_GIT_COMMIT_SHA;
+    const railwayEnv = process.env.RAILWAY_ENVIRONMENT_NAME;
+    if (railwayDomain || railwayBranch || railwayCommit || railwayEnv) {
+      const parts: string[] = [];
+      if (railwayDomain) parts.push(`url=https://${railwayDomain}`);
+      if (railwayEnv) parts.push(`env=${railwayEnv}`);
+      if (railwayBranch) parts.push(`branch=${railwayBranch}`);
+      if (railwayCommit) parts.push(`commit=${railwayCommit.slice(0, 7)}`);
+      console.log(`Railway: ${parts.join(" ")}`);
+    }
     if (config.redis.url && config.redis.token) {
       console.log("Persistence: Upstash Redis (token store + share registry)");
     } else {

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createTripRoutes } from "./routes/trips";
 import { createSharedRoutes } from "./routes/shared";
+import { createShareRuleRoutes } from "./routes/share-rules";
 import { createAuthRoutes } from "./routes/auth";
 import { createEmailRoutes } from "./routes/emails";
 import { createCalendarRoutes } from "./routes/calendar";
@@ -265,6 +266,23 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     shareRegistry,
     tokenStore,
   }));
+
+  // Auto-share rule routes — owner-scoped, requires auth in drive mode.
+  if (mode === "drive") {
+    app.use("/api/v1/share-rules", requireAuth, createShareRuleRoutes({
+      resolveStorage,
+      shareRegistry,
+      shareSnapshotStore,
+      notificationSender,
+    }));
+  } else {
+    app.use("/api/v1/share-rules", createShareRuleRoutes({
+      resolveStorage,
+      shareRegistry,
+      shareSnapshotStore,
+      notificationSender,
+    }));
+  }
 
   // Push subscription routes — auth-required in drive mode for the
   // subscribe/unsubscribe endpoints; the public /push/config endpoint

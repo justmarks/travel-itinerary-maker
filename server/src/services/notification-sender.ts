@@ -57,12 +57,16 @@ export class NotificationSender {
    * number of devices reached (0 on no-op).
    */
   async sendToEmail(email: string | undefined, payload: NotificationPayload): Promise<number> {
+    // Match the request-log shape used by `[trips <email>] <ACTION> → ...`
+    // so a Railway tail can be filtered by recipient just as easily as
+    // by trip-list caller.
+    const tag = `[push ${email ?? "anon"}]`;
     if (!email) {
-      console.log(`[push] skip — no recipient email (title: ${payload.title})`);
+      console.log(`${tag} skip → reason=no-recipient-email, title="${payload.title}"`);
       return 0;
     }
     if (!this.configured) {
-      console.log(`[push] skip — VAPID not configured (would notify ${email}: ${payload.title})`);
+      console.log(`${tag} skip → reason=vapid-not-configured, title="${payload.title}"`);
       return 0;
     }
     const entries = this.store.listForEmail(email);
@@ -72,7 +76,7 @@ export class NotificationSender {
       // they registered has since been pruned (410 Gone). Surface it so
       // operators don't have to wonder why the timestamp updated but
       // the push never arrived.
-      console.log(`[push] skip — no subscriptions for ${email} (title: ${payload.title})`);
+      console.log(`${tag} skip → reason=no-subscriptions, title="${payload.title}"`);
       return 0;
     }
     return this.sendMany(entries.map((e) => e.subscription), payload);
@@ -80,13 +84,14 @@ export class NotificationSender {
 
   /** Same as `sendToEmail` but keyed by userId. */
   async sendToUser(userId: string, payload: NotificationPayload): Promise<number> {
+    const tag = `[push user:${userId}]`;
     if (!this.configured) {
-      console.log(`[push] skip — VAPID not configured (would notify user ${userId}: ${payload.title})`);
+      console.log(`${tag} skip → reason=vapid-not-configured, title="${payload.title}"`);
       return 0;
     }
     const entries = this.store.listForUser(userId);
     if (entries.length === 0) {
-      console.log(`[push] skip — no subscriptions for user ${userId} (title: ${payload.title})`);
+      console.log(`${tag} skip → reason=no-subscriptions, title="${payload.title}"`);
       return 0;
     }
     return this.sendMany(entries.map((e) => e.subscription), payload);

@@ -144,7 +144,48 @@ export const tripShareSchema = z.object({
   // tracking existed still parse cleanly.
   lastViewedAt: z.string().datetime().optional(),
   lastEditedAt: z.string().datetime().optional(),
+  // Set when this share was spawned by an auto-share rule. Optional so
+  // shares persisted before rules existed still parse cleanly.
+  originRuleId: z.string().min(1).optional(),
 });
+
+export const tripShareRuleSchema = z.object({
+  id: z.string().min(1),
+  ownerUserId: z.string().min(1),
+  ownerEmail: z.string().email().optional(),
+  sharedWithEmail: z.string().email(),
+  permission: z.enum(SHARE_PERMISSIONS),
+  showCosts: z.boolean(),
+  showTodos: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+/** Schema for creating a new auto-share rule. */
+export const createShareRuleSchema = z.object({
+  sharedWithEmail: z.string().email(),
+  permission: z.enum(SHARE_PERMISSIONS),
+  showCosts: z.boolean(),
+  showTodos: z.boolean(),
+});
+
+/**
+ * Schema for editing an auto-share rule. All fields optional — the owner
+ * may toggle just one of them. Edits cascade to existing spawned shares.
+ */
+export const updateShareRuleSchema = z
+  .object({
+    permission: z.enum(SHARE_PERMISSIONS).optional(),
+    showCosts: z.boolean().optional(),
+    showTodos: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.permission !== undefined ||
+      data.showCosts !== undefined ||
+      data.showTodos !== undefined,
+    { message: "At least one of permission, showCosts, showTodos must be provided" },
+  );
 
 export const TRIP_HISTORY_KINDS = [
   "trip.update",
@@ -472,6 +513,8 @@ export type UpdateSegmentInput = z.infer<typeof updateSegmentSchema>;
 export type CreateTodoInput = z.infer<typeof createTodoSchema>;
 export type UpdateTodoInput = z.infer<typeof updateTodoSchema>;
 export type CreateShareInput = z.infer<typeof createShareSchema>;
+export type CreateShareRuleInput = z.infer<typeof createShareRuleSchema>;
+export type UpdateShareRuleInput = z.infer<typeof updateShareRuleSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
 export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;

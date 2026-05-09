@@ -7,6 +7,7 @@ export type {
   CruisePortOfCall,
   Todo,
   TripShare,
+  TripShareRule,
   TripStatus,
   SegmentType,
   SegmentSource,
@@ -35,6 +36,7 @@ export {
   tripDaySchema,
   todoSchema,
   tripShareSchema,
+  tripShareRuleSchema,
   segmentCostSchema,
   cruisePortOfCallSchema,
   createTripSchema,
@@ -44,6 +46,8 @@ export {
   createTodoSchema,
   updateTodoSchema,
   createShareSchema,
+  createShareRuleSchema,
+  updateShareRuleSchema,
   userSettingsSchema,
   pushSubscriptionSchema,
   parsedSegmentSchema,
@@ -73,6 +77,8 @@ export type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  CreateShareRuleInput,
+  UpdateShareRuleInput,
   PushSubscriptionInput,
   EmailScanRequest,
   HtmlImportRequest,
@@ -117,7 +123,10 @@ export {
 export type { MealSuggestion } from "./utils/meal-suggester";
 export { tripToIcal } from "./utils/ical-generator";
 export { getCityTimezone, preloadCityTimezone } from "./utils/city-timezone";
-export { primaryLocationFor } from "./utils/primary-location";
+export {
+  primaryLocationFor,
+  tripDestinationCities,
+} from "./utils/primary-location";
 export type { PrimaryLocation } from "./utils/primary-location";
 export {
   lookupAirport,

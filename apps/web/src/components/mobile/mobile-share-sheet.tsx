@@ -176,6 +176,17 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {share.originRuleId && (
+          <p
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-kicker"
+            style={{
+              background: "var(--status-info-bg)",
+              color: "var(--status-info-fg)",
+            }}
+          >
+            Via auto-share rule
+          </p>
+        )}
         {activityLabel && (
           <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
         )}
@@ -236,6 +247,10 @@ export function MobileShareSheet({
 
   const [permission, setPermission] = useState<TripShare["permission"]>("view");
   const [email, setEmail] = useState("");
+  // For view-only shares the email is optional, so the field stays
+  // collapsed behind a "+ Add recipient" affordance until the user
+  // opts in. Edit shares always show the input (Gmail required).
+  const [emailExpanded, setEmailExpanded] = useState(false);
   const [showCosts, setShowCosts] = useState(false);
   const [showTodos, setShowTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -245,6 +260,7 @@ export function MobileShareSheet({
     if (!open) return;
     setPermission("view");
     setEmail("");
+    setEmailExpanded(false);
     setShowCosts(false);
     setShowTodos(false);
     setError(null);
@@ -366,13 +382,15 @@ export function MobileShareSheet({
           />
         </div>
 
-        {permission === "edit" && (
+        {permission === "edit" || emailExpanded ? (
           <div className="mt-4 space-y-1">
             <label
               htmlFor="share-email"
               className="text-kicker font-medium text-muted-foreground"
             >
-              Contributor&apos;s Gmail
+              {permission === "edit"
+                ? "Contributor's Gmail"
+                : "Recipient's Gmail (optional)"}
             </label>
             <input
               id="share-email"
@@ -383,7 +401,20 @@ export function MobileShareSheet({
               autoComplete="email"
               className="h-11 w-full rounded-xl border bg-background px-3 text-base text-foreground outline-none focus:border-foreground"
             />
+            {permission === "view" && (
+              <p className="text-xs text-muted-foreground">
+                The trip will appear on their trips page when they sign in.
+              </p>
+            )}
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEmailExpanded(true)}
+            className="mt-3 inline-flex text-xs text-muted-foreground underline-offset-2 active:underline"
+          >
+            + Add recipient (optional)
+          </button>
         )}
 
         <div className="mt-4 divide-y rounded-xl border">

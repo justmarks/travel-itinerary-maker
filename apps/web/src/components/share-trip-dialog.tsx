@@ -141,6 +141,17 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {share.originRuleId && (
+          <p
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            style={{
+              background: "var(--status-info-bg)",
+              color: "var(--status-info-fg)",
+            }}
+          >
+            Via auto-share rule
+          </p>
+        )}
         {activityLabel && (
           <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
         )}
@@ -389,13 +400,15 @@ export function ShareTripDialog({
               />
             </div>
 
-            {/* Email input — required for edit; optional label for view */}
+            {/* Email input — required for edit; optional for view (when
+                provided, the trip appears on the recipient's trips page
+                after they sign in). */}
             {permission === "edit" || email ? (
               <div className="space-y-1">
                 <Label htmlFor="share-email" className="text-xs">
                   {permission === "edit"
                     ? "Contributor's Gmail address"
-                    : "Recipient (optional, just for your records)"}
+                    : "Recipient's Gmail (optional)"}
                 </Label>
                 <Input
                   id="share-email"
@@ -405,6 +418,11 @@ export function ShareTripDialog({
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
                 />
+                {permission === "view" && (
+                  <p className="text-xs text-muted-foreground">
+                    The trip will appear on their trips page when they sign in.
+                  </p>
+                )}
               </div>
             ) : (
               <button
@@ -412,7 +430,7 @@ export function ShareTripDialog({
                 onClick={() => setEmail(" ")}
                 className="self-start text-xs text-muted-foreground underline-offset-2 hover:underline"
               >
-                + Add recipient label (optional)
+                + Add recipient (optional)
               </button>
             )}
 
