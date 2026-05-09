@@ -492,7 +492,7 @@ export function MobileShareSheet({
             setAutoShareEmail(trimmedEmail || "");
             onClose();
           }}
-          className="flex w-full items-start gap-2.5 rounded-xl border px-3 py-3 text-left active:opacity-90"
+          className="mt-5 flex w-full items-start gap-2.5 rounded-xl border px-3 py-3 text-left active:opacity-90"
           style={{
             background: "var(--status-info-bg)",
             borderColor: "var(--status-info-rail)",
