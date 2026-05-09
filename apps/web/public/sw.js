@@ -29,11 +29,12 @@
  * caches get evicted on activate.
  */
 
-// Bumped to v6 to evict opaque Wikimedia image responses cached
-// before `<img crossOrigin="anonymous">` landed — without eviction
-// existing users would keep getting the COEP-blocked opaque entries
-// served from cache on every visit until they hard-refreshed.
-const SW_VERSION = "v6";
+// Bumped to v7 to evict the cache-first `/manifest.webmanifest` entry
+// captured before the orientation: portrait → any switch landed.
+// Without eviction, the SW kept serving the stale manifest to Chrome's
+// PWA-update probe, so installed PWAs never picked up the new
+// orientation and stayed locked to portrait.
+const SW_VERSION = "v7";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
@@ -184,8 +185,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Other same-origin GETs (icons, manifest, fonts) — cache-first.
-  if (req.destination === "image" || req.destination === "font" || url.pathname === "/manifest.webmanifest") {
+  // Web manifest — network-first with cache fallback. Cache-first traps
+  // installed PWAs on a stale manifest forever (e.g. an old `orientation`
+  // value), because Chrome's update probe asks the SW and the SW happily
+  // serves the cached copy. Fetching fresh keeps manifest-driven config
+  // (orientation, name, icons) in lockstep with the live deploy, while
+  // the cache fallback preserves offline boots.
+  if (url.pathname === "/manifest.webmanifest") {
+    event.respondWith(networkFirst(req, RUNTIME_CACHE));
+    return;
+  }
+
+  // Other same-origin GETs (icons, fonts) — cache-first.
+  if (req.destination === "image" || req.destination === "font") {
     event.respondWith(cacheFirst(req, RUNTIME_CACHE));
   }
 });
