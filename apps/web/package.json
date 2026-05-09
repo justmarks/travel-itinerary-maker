@@ -1,6 +1,6 @@
 {
   "name": "@travel-app/web",
-  "version": "0.81.2",
+  "version": "0.81.3",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
