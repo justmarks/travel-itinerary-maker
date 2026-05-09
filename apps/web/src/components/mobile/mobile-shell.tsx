@@ -81,7 +81,12 @@ export function MobileHeader({
   backHref,
   right,
 }: {
-  title: string;
+  /**
+   * Header label. Optional — the trip-detail page omits it because the
+   * carousel/timeline view renders its own larger title block, and a
+   * second compact one in the sticky header reads as duplicate chrome.
+   */
+  title?: string;
   subtitle?: string;
   backHref?: string;
   right?: ReactNode;
@@ -99,7 +104,9 @@ export function MobileHeader({
         <ArrowLeft className="h-5 w-5" />
       </Link>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold leading-tight">{title}</p>
+        {title && (
+          <p className="truncate text-sm font-semibold leading-tight">{title}</p>
+        )}
         {subtitle && (
           <p className="truncate text-xs leading-tight text-muted-foreground">
             {subtitle}
