@@ -6,6 +6,12 @@ import {
   type UserSettings,
 } from "@travel-app/shared";
 import type { StorageProvider } from "../storage";
+import { mapWithConcurrency } from "../../utils/concurrency";
+
+/** Concurrent Drive reads in `listTrips`. ~6 stays well under the
+ * per-user request quota even when route handlers chain follow-up
+ * writes per trip. */
+const LIST_TRIPS_CONCURRENCY = 6;
 
 const APP_FOLDER_NAME = "Itinly";
 /**
@@ -204,14 +210,16 @@ export class DriveStorage implements StorageProvider {
       spaces: "drive",
     });
 
-    const trips: Trip[] = [];
-    for (const file of res.data.files || []) {
-      // Trips saved before schema versioning existed don't have
-      // schemaVersion yet — migrateTrip fills it in at read time so the
-      // rest of the app can rely on the field being present.
+    // Trips saved before schema versioning existed don't have
+    // schemaVersion yet — migrateTrip fills it in at read time so the
+    // rest of the app can rely on the field being present. Reads run in
+    // parallel (bounded) — N sequential 300ms round-trips becomes
+    // ceil(N/6) round-trips, the dominant cost at high N.
+    const files = res.data.files || [];
+    const trips = await mapWithConcurrency(files, LIST_TRIPS_CONCURRENCY, async (file) => {
       const raw = await this.readJsonFile<unknown>(file.id!);
-      trips.push(migrateTrip(raw));
-    }
+      return migrateTrip(raw);
+    });
 
     return trips.sort(
       (a, b) =>
