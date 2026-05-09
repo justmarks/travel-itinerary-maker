@@ -21,6 +21,7 @@ const LEGACY_APP_FOLDER_NAMES = ["TravelItineraryMaker"];
 const TRIPS_FOLDER_NAME = "trips";
 const SETTINGS_FILE_NAME = "settings.json";
 const PROCESSED_EMAILS_FILE_NAME = "processed-emails.json";
+const SHARE_RULES_FILE_NAME = "share-rules.json";
 
 export interface ProcessedEmail {
   gmailMessageId: string;
@@ -280,24 +281,41 @@ export class DriveStorage implements StorageProvider {
   }
 
   // ─── Share Rules ────────────────────────────────────────
-  // Drive persistence is not yet wired up — rules are owner-scoped and
-  // the only storage path that exercises them today is InMemoryStorage
-  // (dev + tests). Throwing keeps the interface honest until a
-  // share-rules.json file lands alongside settings.json.
+  // Persisted as a single JSON array in `share-rules.json` alongside
+  // settings.json. Rules are low-cardinality (a handful per user) and
+  // always read/written together, so a single-file layout is the right
+  // granularity — no per-rule file like trips.
 
   async listShareRules(): Promise<TripShareRule[]> {
-    throw new Error("DriveStorage.listShareRules not implemented");
+    const appFolderId = await this.getAppFolderId();
+    const fileId = await this.findFile(SHARE_RULES_FILE_NAME, appFolderId);
+    if (!fileId) return [];
+    return this.readJsonFile<TripShareRule[]>(fileId);
   }
 
-  async getShareRule(_ruleId: string): Promise<TripShareRule | null> {
-    throw new Error("DriveStorage.getShareRule not implemented");
+  async getShareRule(ruleId: string): Promise<TripShareRule | null> {
+    const rules = await this.listShareRules();
+    return rules.find((r) => r.id === ruleId) ?? null;
   }
 
-  async saveShareRule(_rule: TripShareRule): Promise<void> {
-    throw new Error("DriveStorage.saveShareRule not implemented");
+  async saveShareRule(rule: TripShareRule): Promise<void> {
+    const appFolderId = await this.getAppFolderId();
+    const rules = await this.listShareRules();
+    const idx = rules.findIndex((r) => r.id === rule.id);
+    if (idx >= 0) {
+      rules[idx] = rule;
+    } else {
+      rules.push(rule);
+    }
+    await this.writeJsonFile(SHARE_RULES_FILE_NAME, appFolderId, rules);
   }
 
-  async deleteShareRule(_ruleId: string): Promise<boolean> {
-    throw new Error("DriveStorage.deleteShareRule not implemented");
+  async deleteShareRule(ruleId: string): Promise<boolean> {
+    const appFolderId = await this.getAppFolderId();
+    const rules = await this.listShareRules();
+    const next = rules.filter((r) => r.id !== ruleId);
+    if (next.length === rules.length) return false;
+    await this.writeJsonFile(SHARE_RULES_FILE_NAME, appFolderId, next);
+    return true;
   }
 }
