@@ -16,7 +16,12 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const MIGRATIONS_FOLDER = path.resolve(__dirname, "../../drizzle");
 
 async function resetSchema(client: Client): Promise<void> {
+  // Drop both `public` (where user tables live) and `drizzle` (where
+  // `__drizzle_migrations` lives). Without dropping `drizzle`, the
+  // migration journal persists across tests and Drizzle short-circuits
+  // re-application as already-done — leaving `public` empty.
   await client.query("DROP SCHEMA IF EXISTS public CASCADE");
+  await client.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
   await client.query("CREATE SCHEMA public");
   await client.query("GRANT ALL ON SCHEMA public TO public");
 }
