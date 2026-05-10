@@ -126,7 +126,7 @@ export function AddSegmentDialog({
           Add
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader className="shrink-0">
           <DialogTitle>Add segment</DialogTitle>
           <DialogDescription>
@@ -137,7 +137,10 @@ export function AddSegmentDialog({
             so the action buttons stay visible on short viewports while the
             form fields scroll. `min-h-0` is required on the form + body so
             the inner overflow-y-auto can size against the dialog's
-            `max-h-[85vh]` cap. */}
+            `max-h` cap. The cap uses `dvh` (dynamic viewport height) so
+            iPad landscape and iOS Safari with the bottom toolbar visible
+            both get the actual usable height — `vh` extends behind the
+            toolbar on iOS and clipped the lower form fields. */}
         <form
           onSubmit={handleSubmit}
           // Enter anywhere inside this form (other than a textarea, where
@@ -172,6 +175,16 @@ export function AddSegmentDialog({
               onChange={handleChange}
               idPrefix="add"
               autoFocusTitle
+            />
+            {/* Bottom-fade scroll indicator. `sticky` keeps it pinned to
+                the bottom of the visible scroll area on iPad landscape
+                so the user can see Cost / Currency / Details live below
+                URL — iOS Safari hides scrollbars, so without this the
+                form looked like it ended at URL. `-mt-6` overlaps the
+                last content row so the fade reads as "more below". */}
+            <div
+              aria-hidden
+              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
             />
           </div>
 

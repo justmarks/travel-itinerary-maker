@@ -241,7 +241,7 @@ export function EditSegmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader className="shrink-0">
           <DialogTitle>Edit segment</DialogTitle>
           <DialogDescription>
@@ -276,6 +276,12 @@ export function EditSegmentDialog({
               form={form}
               onChange={handleChange}
               idPrefix="edit"
+            />
+            {/* Bottom-fade scroll indicator —
+                see add-segment-dialog.tsx for the rationale. */}
+            <div
+              aria-hidden
+              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
             />
           </div>
 
