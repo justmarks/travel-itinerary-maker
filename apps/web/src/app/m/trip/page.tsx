@@ -4,6 +4,7 @@ import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ApiError,
   useConfirmSegment,
   useDeleteShare,
   useDeleteTrip,
@@ -447,7 +448,7 @@ function MobileTripInner({
   view: MobileView;
   onSwitchView: () => void;
 }) {
-  const { data: trip, isLoading, isError, refetch } = useTrip(tripId);
+  const { data: trip, isLoading, isError, error, refetch } = useTrip(tripId);
   const online = useOnlineStatus();
   const homeHref = useDemoHref("/m");
   const [costsOpen, setCostsOpen] = useState(false);
@@ -476,51 +477,56 @@ function MobileTripInner({
     );
   }
 
-  if (isError) {
-    // Distinguish "device offline + this trip was never cached" from a
-    // generic fetch failure so the message matches the actual problem.
-    // Retry stays available either way — coming back online turns the
-    // offline branch into a real load.
-    const offline = !online;
-    return (
-      <MobileFrame>
-        <MobileHeader
-          title={offline ? "Not available offline" : "Couldn't load trip"}
-          backHref={homeHref}
-          right={<MobileUserMenu />}
-        />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          {offline ? (
-            <CloudOff className="h-8 w-8" style={{ color: "var(--status-warn-fg)" }} />
-          ) : (
-            <AlertCircle className="h-8 w-8 text-destructive" />
-          )}
-          <p className="text-sm text-muted-foreground">
-            {offline
-              ? "This trip hasn't been loaded on this device yet. Open it once while online and it'll be available offline next time."
-              : "Something went wrong. Check your connection and try again."}
-          </p>
-          <div className="flex gap-2">
-            <Link
-              href={homeHref}
-              className="rounded-full border bg-background px-4 py-2 text-sm font-medium"
-            >
-              Back to trips
-            </Link>
-            <button
-              type="button"
-              onClick={() => refetch()}
-              className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </MobileFrame>
-    );
-  }
-
   if (!trip) {
+    // Distinguish a real 404 ("trip not found") from a transient fetch
+    // failure so the user gets a Retry instead of being told the trip
+    // doesn't exist. We only land in the error branch when there's
+    // nothing cached to fall back on — a failed background refetch with
+    // a previously-loaded `trip` keeps showing the cached content (this
+    // is what fixes the "open the app on Android, see an error screen,
+    // then content appears a few seconds later" flicker after the device
+    // wakes from sleep with a stale auth token).
+    const is404 = error instanceof ApiError && error.status === 404;
+    if (isError && !is404) {
+      const offline = !online;
+      return (
+        <MobileFrame>
+          <MobileHeader
+            title={offline ? "Not available offline" : "Couldn't load trip"}
+            backHref={homeHref}
+            right={<MobileUserMenu />}
+          />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+            {offline ? (
+              <CloudOff className="h-8 w-8" style={{ color: "var(--status-warn-fg)" }} />
+            ) : (
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            )}
+            <p className="text-sm text-muted-foreground">
+              {offline
+                ? "This trip hasn't been loaded on this device yet. Open it once while online and it'll be available offline next time."
+                : "Something went wrong. Check your connection and try again."}
+            </p>
+            <div className="flex gap-2">
+              <Link
+                href={homeHref}
+                className="rounded-full border bg-background px-4 py-2 text-sm font-medium"
+              >
+                Back to trips
+              </Link>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </MobileFrame>
+      );
+    }
+
     return (
       <MobileFrame>
         <MobileHeader
