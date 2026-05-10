@@ -17,3 +17,9 @@ ios/
 # Source data for scripts/build-airports.mjs — large; the generated
 # packages/shared/src/utils/airports-data.ts is the committed artifact.
 airports.csv
+
+# Per-contributor latency baselines from `pnpm bench:routes[:postgres]`.
+# Auto-preferred over the committed `docs/perf-baselines*.json` when
+# present so each contributor's numbers are calibrated to their own
+# machine / DB location. See `server/scripts/bench-routes.ts`.
+docs/perf-baselines*.local.json

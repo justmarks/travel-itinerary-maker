@@ -11,14 +11,28 @@
  *     cd server && pnpm bench:routes:postgres        # postgres check (requires DATABASE_URL)
  *     cd server && pnpm bench:routes:postgres -- --update
  *
- * Each backend has its own baseline file:
- *   docs/perf-baselines.json           — InMemoryStorage
- *   docs/perf-baselines-postgres.json  — SupabaseStorage
+ * Baselines:
+ *   docs/perf-baselines.json                         — InMemoryStorage (committed)
+ *   docs/perf-baselines-postgres.json                — SupabaseStorage (committed)
+ *   docs/perf-baselines.local.json                   — your machine's in-memory (gitignored)
+ *   docs/perf-baselines-postgres.local.json          — your machine's Postgres (gitignored)
+ *
+ * Local-baseline workflow: contributors running against their own
+ * Neon / Supabase / hardware will get different absolute numbers than
+ * the committed baseline. Calibrate once with `--update --local` and
+ * subsequent runs auto-prefer the `.local.json` file (no `git restore`
+ * dance required). Switch back to the committed reference with
+ * `--use-committed`.
+ *
+ *     pnpm bench:routes:postgres -- --update --local
+ *     pnpm bench:routes:postgres                  # checks against .local
+ *     pnpm bench:routes:postgres -- --use-committed  # checks against committed
  *
  * Numbers are floor-y (single Node process, supertest's
  * fresh-connection-per-request overhead included). The point isn't
- * absolute numbers — it's a *fair* harness applied identically across
- * phases so we can spot regressions when storage implementations change.
+ * absolute numbers — it's a *fair* harness applied identically on the
+ * same machine so we can spot regressions when storage implementations
+ * change.
  *
  * Not wired into PR CI yet — shared runners are too noisy for tight
  * budgets. Will move into a nightly job once the harness is stable.
@@ -42,12 +56,31 @@ import { createDbClient, type DbClient } from "../src/db/client";
 import type { StorageProvider } from "../src/services/storage";
 
 const POSTGRES = process.argv.includes("--postgres");
-const BASELINES_PATH = path.resolve(
+const USE_LOCAL = process.argv.includes("--local");
+const USE_COMMITTED = process.argv.includes("--use-committed");
+const COMMITTED_BASELINES_PATH = path.resolve(
   __dirname,
   POSTGRES
     ? "../../docs/perf-baselines-postgres.json"
     : "../../docs/perf-baselines.json",
 );
+const LOCAL_BASELINES_PATH = path.resolve(
+  __dirname,
+  POSTGRES
+    ? "../../docs/perf-baselines-postgres.local.json"
+    : "../../docs/perf-baselines.local.json",
+);
+/**
+ * Pick the baseline file to use. `--use-committed` forces the
+ * committed file; otherwise prefer `.local.json` when it exists
+ * (transparent calibration per-contributor) and fall back to the
+ * committed reference. `--update --local` always writes to `.local`.
+ */
+const BASELINES_PATH = USE_COMMITTED
+  ? COMMITTED_BASELINES_PATH
+  : USE_LOCAL || fs.existsSync(LOCAL_BASELINES_PATH)
+    ? LOCAL_BASELINES_PATH
+    : COMMITTED_BASELINES_PATH;
 const MIGRATIONS_FOLDER = path.resolve(__dirname, "../drizzle");
 const BENCH_USER_ID = "bench-user";
 const ITERATIONS = parseInt(process.env.BENCH_ITERATIONS ?? "50", 10);
@@ -332,8 +365,13 @@ async function main() {
   const app = await createApp({ mode: "memory", storage, disableRedis: true });
 
   const backendLabel = POSTGRES ? "SupabaseStorage" : "InMemoryStorage";
+  const baselineLabel = BASELINES_PATH.endsWith(".local.json")
+    ? "local (gitignored)"
+    : "committed";
   console.log(
-    `Backend: ${backendLabel}\nRunning ${SCENARIOS.length} scenarios × ${ITERATIONS} iterations (warmup ${WARMUP})...\n`,
+    `Backend:  ${backendLabel}\n` +
+      `Baseline: ${path.relative(process.cwd(), BASELINES_PATH)} (${baselineLabel})\n` +
+      `Running ${SCENARIOS.length} scenarios × ${ITERATIONS} iterations (warmup ${WARMUP})...\n`,
   );
 
   const samples: Sample[] = [];
