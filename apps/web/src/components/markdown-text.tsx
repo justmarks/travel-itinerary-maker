@@ -28,7 +28,7 @@ export function MarkdownText({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary underline underline-offset-2 hover:opacity-80"
+              className="text-primary underline underline-offset-2 [overflow-wrap:anywhere] hover:opacity-80"
               onClick={(e) => e.stopPropagation()}
             >
               {children}
