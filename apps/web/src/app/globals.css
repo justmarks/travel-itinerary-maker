@@ -126,3 +126,26 @@
 .timeline-grid > * {
   min-width: 0;
 }
+
+/* iOS Safari (especially on iPad) renders <input type="time"|"date"|
+ * "datetime-local"> with native widget chrome that ignores our `border
+ * border-input` and `w-full` styling — the field shows up borderless and
+ * sized to its native intrinsic width (with the AM/PM picker), so
+ * side-by-side time inputs in a `grid-cols-2` look like they bleed into
+ * each other instead of matching the boxed text inputs above and below.
+ * Disabling -webkit-appearance lets our component styles win, and the
+ * pseudo-element rule keeps the AM/PM segment left-aligned inside the box
+ * rather than centering it and clipping at narrow cell widths. */
+input[type="time"],
+input[type="date"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="time"]::-webkit-date-and-time-value,
+input[type="date"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.25rem;
+}
