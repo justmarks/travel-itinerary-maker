@@ -260,7 +260,9 @@ export function MobileShareSheet({
   const [showTodos, setShowTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form on (re)open so each pull-up starts fresh.
+  // Reset form on (re)open so each pull-up starts fresh. `autoShareEmail`
+  // is cleared too so a stale value can't leak in if the user closes the
+  // share sheet without touching the auto-share child sheet.
   useEffect(() => {
     if (!open) return;
     setPermission("view");
@@ -269,6 +271,7 @@ export function MobileShareSheet({
     setShowCosts(false);
     setShowTodos(false);
     setError(null);
+    setAutoShareEmail(null);
   }, [open]);
 
   const trimmedEmail = email.trim();
@@ -345,6 +348,7 @@ export function MobileShareSheet({
   };
 
   return (
+    <>
     <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Share trip">
       {/* Header */}
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
@@ -488,7 +492,7 @@ export function MobileShareSheet({
             setAutoShareEmail(trimmedEmail || "");
             onClose();
           }}
-          className="flex w-full items-start gap-2.5 rounded-xl border px-3 py-3 text-left active:opacity-90"
+          className="mt-5 flex w-full items-start gap-2.5 rounded-xl border px-3 py-3 text-left active:opacity-90"
           style={{
             background: "var(--status-info-bg)",
             borderColor: "var(--status-info-rail)",
@@ -531,11 +535,17 @@ export function MobileShareSheet({
           {createShare.isPending ? "Creating…" : "Share link"}
         </button>
       </div>
-      <MobileAutoShareSheet
-        open={autoShareEmail !== null}
-        onClose={() => setAutoShareEmail(null)}
-        initialEmail={autoShareEmail ?? undefined}
-      />
     </MobileBottomSheet>
+    {/* Sibling, not child: when `onClose` flips this share sheet's
+        `open` to false, MobileBottomSheet returns null and unmounts
+        its children. Rendering the auto-share sheet outside that tree
+        lets the ad-tap "close-and-open" handoff actually mount the
+        target sheet. */}
+    <MobileAutoShareSheet
+      open={autoShareEmail !== null}
+      onClose={() => setAutoShareEmail(null)}
+      initialEmail={autoShareEmail ?? undefined}
+    />
+    </>
   );
 }

@@ -48,8 +48,12 @@ import {
   gradientFor,
   useCityImage,
 } from "@/lib/trip-card-visuals";
-
-type TripBucket = "current" | "upcoming" | "past";
+import {
+  BUCKET_LABEL,
+  groupTripsByBucket,
+  todayLocalISO,
+  type TripBucket,
+} from "@/lib/trip-buckets";
 
 function fmtRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -59,31 +63,6 @@ function fmtRange(start: string, end: string) {
   return `${fmt(start)} – ${fmt(end)}, ${yr}`;
 }
 
-/**
- * Returns the local-date YYYY-MM-DD string. Compared against the trip's
- * `startDate` / `endDate` (also YYYY-MM-DD) to bucket into now / upcoming /
- * past. Avoids timezone surprises by using the user's local calendar day
- * rather than UTC.
- */
-function todayLocalISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function bucketTrip(trip: TripSummary, today: string): TripBucket {
-  if (trip.endDate < today) return "past";
-  if (trip.startDate > today) return "upcoming";
-  return "current";
-}
-
-const BUCKET_LABEL: Record<TripBucket, string> = {
-  current: "Now",
-  upcoming: "Upcoming",
-  past: "Past",
-};
 
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
@@ -387,24 +366,10 @@ function MobileTripList({
   const today = useMemo(() => todayLocalISO(), []);
   const hrefSuffix = isDemo ? "&demo=true" : "";
 
-  const buckets = useMemo(() => {
-    const empty = { current: [] as TripSummary[], upcoming: [] as TripSummary[], past: [] as TripSummary[] };
-    if (!trips) return empty;
-    const grouped: Record<TripBucket, TripSummary[]> = {
-      current: [],
-      upcoming: [],
-      past: [],
-    };
-    for (const trip of trips) {
-      grouped[bucketTrip(trip, today)].push(trip);
-    }
-    // Now: by start ascending. Upcoming: by start ascending (next first).
-    // Past: by start descending (most recent first).
-    grouped.current.sort((a, b) => a.startDate.localeCompare(b.startDate));
-    grouped.upcoming.sort((a, b) => a.startDate.localeCompare(b.startDate));
-    grouped.past.sort((a, b) => b.startDate.localeCompare(a.startDate));
-    return grouped;
-  }, [trips, today]);
+  const buckets = useMemo(
+    () => groupTripsByBucket(trips ?? [], today),
+    [trips, today],
+  );
 
   if (isLoading) {
     return <MobileTripListLoading />;

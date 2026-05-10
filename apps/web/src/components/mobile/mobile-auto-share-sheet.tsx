@@ -344,7 +344,7 @@ export function MobileAutoShareSheet({
           <>
             {sortedRules.length === 0 ? (
               <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                Auto-share every trip (existing and future) with someone.
+                Auto-share every trip (existing and future).
               </p>
             ) : (
               <ul className="space-y-2">

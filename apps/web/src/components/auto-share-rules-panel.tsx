@@ -174,7 +174,7 @@ function CreateRuleDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Auto-share with someone</DialogTitle>
+          <DialogTitle>Auto-share</DialogTitle>
           <DialogDescription>
             Every trip you have, plus every trip you create from now on, will
             be shared with this person.
@@ -413,7 +413,7 @@ export function AutoShareRulesDialog({
         <DialogHeader>
           <DialogTitle>Auto-share</DialogTitle>
           <DialogDescription>
-            Auto-share every trip (existing and future) with someone.
+            Auto-share every trip (existing and future).
           </DialogDescription>
         </DialogHeader>
 

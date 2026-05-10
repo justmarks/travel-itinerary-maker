@@ -630,10 +630,20 @@ export function useDeleteShare(tripId: string) {
     // moment the user taps "revoke", even when the network round-trip is
     // slow. On error we restore the prior list and the caller can surface
     // a toast.
+    //
+    // Recipient self-leave path: the same DELETE endpoint is used by an
+    // edit/view recipient leaving a trip from their own list. In that
+    // case the trip should disappear from `useTrips()` immediately —
+    // detect by matching `sharedShareId` on any TripSummary and snapshot
+    // for rollback so the UI doesn't half-disappear if the network fails.
     onMutate: async (shareId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.shares(tripId) });
+      await queryClient.cancelQueries({ queryKey: queryKeys.trips });
       const previous = queryClient.getQueryData<TripShare[]>(
         queryKeys.shares(tripId),
+      );
+      const previousTrips = queryClient.getQueryData<TripSummary[]>(
+        queryKeys.trips,
       );
       if (previous) {
         queryClient.setQueryData<TripShare[]>(
@@ -641,11 +651,20 @@ export function useDeleteShare(tripId: string) {
           previous.filter((s) => s.id !== shareId),
         );
       }
-      return { previous };
+      if (previousTrips?.some((t) => t.sharedShareId === shareId)) {
+        queryClient.setQueryData<TripSummary[]>(
+          queryKeys.trips,
+          previousTrips.filter((t) => t.sharedShareId !== shareId),
+        );
+      }
+      return { previous, previousTrips };
     },
     onError: (_err, _shareId, ctx) => {
       if (ctx?.previous) {
         queryClient.setQueryData(queryKeys.shares(tripId), ctx.previous);
+      }
+      if (ctx?.previousTrips) {
+        queryClient.setQueryData(queryKeys.trips, ctx.previousTrips);
       }
     },
     onSettled: () => {
@@ -654,6 +673,7 @@ export function useDeleteShare(tripId: string) {
       // still resolving (the caller is counted until onSettled finishes).
       if (queryClient.isMutating({ mutationKey }) === 1) {
         queryClient.invalidateQueries({ queryKey: queryKeys.shares(tripId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.trips });
       }
     },
   });
