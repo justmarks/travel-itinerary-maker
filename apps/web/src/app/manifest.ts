@@ -4,13 +4,26 @@ import type { MetadataRoute } from "next";
  * Web app manifest. Lets the site be added to a phone's home screen
  * with the brand icon (treasure-map with destination pin) instead of a
  * generic screenshot.
+ *
+ * The name is suffixed on Vercel preview deployments so a preview
+ * install doesn't get confused with the production app on the same
+ * device — both can sit on the home screen labelled "itinly preview"
+ * vs "itinly". `VERCEL_ENV` is set per-deploy by Vercel (`production`,
+ * `preview`, or `development`) and is available at build time since
+ * this manifest is force-static.
  */
 export const dynamic = "force-static";
 
 export default function manifest(): MetadataRoute.Manifest {
+  const isPreview = process.env.VERCEL_ENV === "preview";
+  const name = isPreview ? "itinly preview" : "itinly";
+  // Home-screen launchers truncate around 12 chars — keep short_name
+  // tight so the suffix doesn't get clipped mid-word on Android.
+  const shortName = isPreview ? "itinly·prev" : "itinly";
+
   return {
-    name: "itinly",
-    short_name: "itinly",
+    name,
+    short_name: shortName,
     description:
       "Your flight, hotel, and reservation emails, automatically organized into a day-by-day trip plan.",
     // Land installed users in the mobile shell — that's the experience
