@@ -227,11 +227,24 @@ export function runStorageProviderContract(harness: ContractHarness): void {
     });
 
     it("saves and lists rules sorted by createdAt", async () => {
+      // Distinct recipients so the persisted layer's
+      // (owner, recipient) uniqueness invariant doesn't reject the
+      // second insert. Earlier versions of this test reused the
+      // default recipient — an InMemoryStorage hole that the
+      // SupabaseStorage Postgres unique index correctly catches.
       await storage.saveShareRule(
-        makeRule({ id: "rule-b", createdAt: "2026-05-09T11:00:00.000Z" }),
+        makeRule({
+          id: "rule-b",
+          sharedWithEmail: "guest-b@example.com",
+          createdAt: "2026-05-09T11:00:00.000Z",
+        }),
       );
       await storage.saveShareRule(
-        makeRule({ id: "rule-a", createdAt: "2026-05-09T10:00:00.000Z" }),
+        makeRule({
+          id: "rule-a",
+          sharedWithEmail: "guest-a@example.com",
+          createdAt: "2026-05-09T10:00:00.000Z",
+        }),
       );
       const rules = await storage.listShareRules();
       expect(rules.map((r) => r.id)).toEqual(["rule-a", "rule-b"]);
