@@ -1,23 +1,254 @@
 /**
- * Drizzle schema. Phase 0 ships only a scaffold table to prove the
- * generate / apply / smoke pipeline works end-to-end. Phase 1 replaces
- * `phase0Scaffold` with the real domain tables (trips, segments, todos,
- * share_rules, trip_shares, processed_emails, connections, etc.).
+ * Drizzle schema for itinly's domain tables. Phase 1 of the
+ * Drive→Supabase migration replaces the phase 0 scaffold with the real
+ * shape: enough normalization to enable cross-trip queries in future
+ * phases (e.g. "all flights in the next month"), but pragmatic about
+ * not pre-splitting tables we never read independently.
  *
- * Why a scaffold table at all: drizzle-kit needs a non-empty schema to
- * generate a migration, and the migration smoke test needs at least
- * one user-defined table to assert against. Once phase 1 ships real
- * tables, this file's contents disappear and the scaffold migration
- * stays in the migrations folder as historical record (Drizzle replays
- * migrations in order regardless of whether the table still exists in
- * the current schema).
+ * Normalized into their own tables:
+ *   trips, segments, todos, trip_history, share_rules,
+ *   processed_emails, user_settings
+ *
+ * Kept inline on `trips` as jsonb (small, only read with the parent):
+ *   day_cities — `{ "YYYY-MM-DD": "City" }` map for per-day city overrides
+ *   shares     — `TripShare[]` per-trip share tokens. Phase 2 moves
+ *                these to a centralised `trip_shares` table when sharing
+ *                state leaves Redis.
+ *
+ * Phase 1 omits (deferred to phase 2 or 3):
+ *   trip_shares, push_subscriptions, share_activity — phase 2 (off Redis)
+ *   connections, user_tokens — phase 3 (Supabase Auth)
  */
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  pgTable,
+  text,
+  date,
+  integer,
+  boolean,
+  jsonb,
+  timestamp,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
-export const phase0Scaffold = pgTable("_phase0_scaffold", {
-  id: text("id").primaryKey(),
-  note: text("note"),
-  capturedAt: timestamp("captured_at", { withTimezone: true })
+// `trips` carries everything queried in the list view (so `listTrips`
+// can stay a single scalar SELECT) plus two small jsonb blobs for
+// data we never read independently of the trip.
+export const trips = pgTable(
+  "trips",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    status: text("status").notNull(),
+    calendarId: text("calendar_id"),
+    schemaVersion: integer("schema_version").notNull().default(2),
+    // date → city map. Empty/missing keys fall back to a derivation
+    // (last-known city, segment city, etc.) the storage layer applies
+    // on read. Keeping this as a small jsonb avoids a `trip_days`
+    // table whose only stateful column would be `city`.
+    dayCities: jsonb("day_cities")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    // `TripShare[]` — per-trip share tokens. Phase 2 moves to a real
+    // `trip_shares` table; for phase 1 we preserve the existing shape
+    // so SupabaseStorage can be wired in without touching Redis state.
+    shares: jsonb("shares")
+      .$type<unknown[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Composite index that backs `listTrips` (user_id filter, start_date
+    // sort). Postgres can scan this backward for DESC ordering so we
+    // don't need a separate DESC index.
+    index("trips_user_start_date_idx").on(t.userId, t.startDate),
+  ],
+);
+
+// `segments` is normalized because phase 2+ will run cross-trip queries
+// ("all flights with departure in the next 7 days", trip-list cards
+// showing the next upcoming segment, etc.). Common scalar fields are
+// columns; variant-specific shape (airline, flightNumber, hotel
+// breakfast flag, cruise ports of call, …) sits in `data` jsonb. Saves
+// having 30+ mostly-NULL columns.
+export const segments = pgTable(
+  "segments",
+  {
+    id: text("id").primaryKey(),
+    tripId: text("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    dayDate: date("day_date").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    startTime: text("start_time"), // HH:MM wall-clock local; see CLAUDE.md
+    endTime: text("end_time"),
+    endDate: date("end_date"), // multi-day: hotel check-out, car drop-off
+    city: text("city"),
+    source: text("source").notNull(),
+    sourceEmailId: text("source_email_id"),
+    needsReview: boolean("needs_review").notNull().default(false),
+    calendarEventId: text("calendar_event_id"),
+    data: jsonb("data")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Loads "the segments on this day" — the order we hand back to the
+    // UI in `TripDay.segments`. Also serves the timeline view, which
+    // walks segments across a trip in date order.
+    index("segments_trip_day_order_idx").on(t.tripId, t.dayDate, t.sortOrder),
+  ],
+);
+
+export const todos = pgTable(
+  "todos",
+  {
+    id: text("id").primaryKey(),
+    tripId: text("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    isCompleted: boolean("is_completed").notNull().default(false),
+    category: text("category"),
+    details: text("details"),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("todos_trip_order_idx").on(t.tripId, t.sortOrder)],
+);
+
+// Append-only audit log. The storage layer trims to the most recent
+// 500 entries per trip on write (matching the in-memory cap noted in
+// `Trip.history`'s comment). Kind is the discriminator on
+// `TripHistoryKind`; details / entityId are display-only.
+export const tripHistory = pgTable(
+  "trip_history",
+  {
+    id: text("id").primaryKey(),
+    tripId: text("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    ts: timestamp("ts", { withTimezone: true }).notNull(),
+    actorEmail: text("actor_email").notNull(),
+    actorName: text("actor_name"),
+    kind: text("kind").notNull(),
+    summary: text("summary").notNull(),
+    details: text("details"),
+    entityId: text("entity_id"),
+  },
+  (t) => [
+    // Display always reads newest-first; backward scan on this index.
+    index("trip_history_trip_ts_idx").on(t.tripId, t.ts),
+  ],
+);
+
+// Owner-scoped auto-share rules. One row = "every trip I have/create
+// should be shared with X with these settings". `TripShare` rows (in
+// `trips.shares` for phase 1) spawned by a rule carry an
+// `originRuleId` referencing this table — that's the cascade key for
+// rule-edit / rule-delete in the route handlers.
+export const shareRules = pgTable(
+  "share_rules",
+  {
+    id: text("id").primaryKey(),
+    ownerUserId: text("owner_user_id").notNull(),
+    ownerEmail: text("owner_email"),
+    sharedWithEmail: text("shared_with_email").notNull(),
+    permission: text("permission").notNull(),
+    showCosts: boolean("show_costs").notNull().default(true),
+    showTodos: boolean("show_todos").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("share_rules_owner_created_idx").on(t.ownerUserId, t.createdAt),
+    // One rule per (owner, recipient) — matches the type-level comment.
+    uniqueIndex("share_rules_owner_recipient_uniq").on(
+      t.ownerUserId,
+      t.sharedWithEmail,
+    ),
+  ],
+);
+
+// Email-scan history. Schema is future-proofed for phase 4
+// (`provider` + `account_email` columns) so multi-mailbox /
+// Microsoft Graph users don't need a migration when they land.
+// `raw` holds the full provider message JSON so the parser can be
+// re-run offline as it improves — chosen over "normalized fields only"
+// during phase 1 planning specifically for reparseability.
+export const processedEmails = pgTable(
+  "processed_emails",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull().default("google"),
+    accountEmail: text("account_email").notNull().default(""),
+    messageId: text("message_id").notNull(),
+    threadId: text("thread_id"),
+    subject: text("subject"),
+    fromAddress: text("from_address"),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    parsedType: text("parsed_type"),
+    segmentId: text("segment_id"),
+    tripId: text("trip_id").references(() => trips.id, {
+      onDelete: "set null",
+    }),
+    parseStatus: text("parse_status").notNull(),
+    parseError: text("parse_error"),
+    parsedResult: jsonb("parsed_result").$type<unknown>(),
+    raw: jsonb("raw").$type<unknown>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // De-dup key across providers / accounts. Two Gmail accounts can
+    // legitimately surface the same `messageId` (provider-scoped),
+    // hence the composite uniqueness.
+    uniqueIndex("processed_emails_msg_uniq").on(
+      t.userId,
+      t.provider,
+      t.accountEmail,
+      t.messageId,
+    ),
+    index("processed_emails_user_created_idx").on(t.userId, t.createdAt),
+  ],
+);
+
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey(),
+  gmailLabelFilter: text("gmail_label_filter"),
+  emailScanIntervalMinutes: integer("email_scan_interval_minutes")
+    .notNull()
+    .default(1440),
+  notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
