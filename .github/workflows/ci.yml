@@ -37,3 +37,57 @@ jobs:
 
       - name: Type check
         run: pnpm turbo run build
+
+  # Integration tests run against a real Postgres so phase 1+ can plug
+  # `SupabaseStorage` into the same `StorageProvider` contract suite the
+  # in-memory tests already pass. Plain Postgres (not `supabase start`)
+  # because we use Supabase as vanilla Postgres — no auth schema, no
+  # PostgREST, no RLS — and the service container is ~10× faster to
+  # boot than the full Supabase stack.
+  test-integration:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: itinly_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter @travel-app/shared build
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then exit 0; fi
+            sleep 1
+          done
+          echo "Postgres did not become ready"
+          exit 1
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/itinly_test
+        run: pnpm --filter @travel-app/server test:integration

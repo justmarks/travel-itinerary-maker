@@ -1,0 +1,49 @@
+{
+  "capturedAt": "2026-05-10T18:42:04.037Z",
+  "iterations": 50,
+  "storageBackend": "InMemoryStorage",
+  "nodeVersion": "v22.22.2",
+  "notes": "Captured during phase 0 of the Drive→Supabase migration. InMemoryStorage floor: not directly comparable to Postgres-backed numbers; the harness is what's identical across phases. Re-run with `pnpm bench:routes -- --update` after intentional perf changes.",
+  "routes": {
+    "POST /api/v1/trips": {
+      "p50ms": 2.3612429999998312,
+      "p95ms": 3.306395000000066
+    },
+    "GET /api/v1/trips": {
+      "p50ms": 2.4558250000000044,
+      "p95ms": 5.026734000000033
+    },
+    "GET /api/v1/trips/:tripId": {
+      "p50ms": 1.4474970000001122,
+      "p95ms": 1.597258000000238
+    },
+    "PUT /api/v1/trips/:tripId": {
+      "p50ms": 3.1812850000001163,
+      "p95ms": 3.5962460000000647
+    },
+    "GET /api/v1/trips/:tripId/days": {
+      "p50ms": 1.4162660000001779,
+      "p95ms": 1.743058000000019
+    },
+    "POST /api/v1/trips/:tripId/segments": {
+      "p50ms": 1.5990700000002107,
+      "p95ms": 1.7630830000002788
+    },
+    "PUT /api/v1/trips/:tripId/segments/:segmentId": {
+      "p50ms": 1.5925779999997758,
+      "p95ms": 1.8075760000001537
+    },
+    "DELETE /api/v1/trips/:tripId/segments/:segmentId": {
+      "p50ms": 1.2840139999998428,
+      "p95ms": 3.0999579999997877
+    },
+    "GET /api/v1/trips/:tripId/costs": {
+      "p50ms": 1.4288000000005923,
+      "p95ms": 2.145391000000018
+    },
+    "DELETE /api/v1/trips/:tripId": {
+      "p50ms": 1.2033330000003843,
+      "p95ms": 2.3803790000001754
+    }
+  }
+}
