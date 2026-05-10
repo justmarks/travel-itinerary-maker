@@ -5,7 +5,6 @@ import { requireAuth } from "../middleware/auth";
 import { createAuthRateLimiter } from "../middleware/rate-limit";
 import type { TokenStore } from "../services/token-store";
 import type { ShareRegistry } from "../services/share-registry";
-import { rebuildRegistryForUser } from "../services/registry-rebuild";
 
 export interface AuthRoutesOptions {
   tokenStore?: TokenStore;
@@ -162,34 +161,12 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
           grantedScopes,
         );
 
-        // Pre-warm the share registry: walk this user's trips and
-        // re-register every share entry. After a server restart the
-        // registry is empty, but as soon as any owner logs back in
-        // their share links start working again. Fire-and-forget so the
-        // login response isn't gated on a Drive scan.
-        if (shareRegistry) {
-          // Match the request-log shape used by `[trips <email>] <ACTION>
-          // → ...` so a Railway tail can be filtered by user.
-          const tag = `[auth ${userInfo.data.email || "anon"}]`;
-          rebuildRegistryForUser(
-            userInfo.data.id,
-            shareRegistry,
-            tokenStore,
-          )
-            .then((result) => {
-              if (result && result.registered > 0) {
-                console.log(
-                  `${tag} pre-warm-registry → registered=${result.registered}`,
-                );
-              }
-            })
-            .catch((err) => {
-              console.warn(
-                `${tag} pre-warm-registry failed:`,
-                err instanceof Error ? err.message : err,
-              );
-            });
-        }
+        // Phase 2: ShareRegistry persists durably to Postgres
+        // (`trip_shares` table), so the prior "rebuild on login by
+        // scanning Drive" pre-warm is no longer needed. The registry
+        // hydrates from Postgres at server startup; per-login
+        // rescanning Drive is just wasted quota and latency once the
+        // durable backing exists.
       }
 
       // Surface any existing Gmail link on the response so the frontend
