@@ -26,6 +26,9 @@ const EXPECTED_TABLES = [
   "share_rules",
   "processed_emails",
   "user_settings",
+  // Phase 2:
+  "trip_shares",
+  "push_subscriptions",
 ];
 
 async function resetSchema(client: Client): Promise<void> {
@@ -193,5 +196,45 @@ describe("drizzle migrations", () => {
          VALUES ('e2', 'u1', 'msg-1', 'parsed')`,
       ),
     ).rejects.toThrow(/processed_emails_msg_uniq|duplicate key/);
+  });
+
+  it("trip_shares cascade-delete with their parent trip", async () => {
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO trips (id, user_id, title, start_date, end_date, status)
+       VALUES ('t1', 'u1', 'Test', '2026-06-01', '2026-06-03', 'planning')`,
+    );
+    await client.query(
+      `INSERT INTO trip_shares
+         (share_token, trip_id, owner_user_id, permission)
+       VALUES ('tok-1', 't1', 'u1', 'view')`,
+    );
+
+    await client.query("DELETE FROM trips WHERE id='t1'");
+
+    const res = await client.query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM trip_shares WHERE trip_id='t1'",
+    );
+    expect(res.rows[0].count).toBe("0");
+  });
+
+  it("push_subscriptions de-dup by endpoint", async () => {
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO push_subscriptions
+         (endpoint, user_id, email, p256dh, auth)
+       VALUES ('https://push/abc', 'u1', 'u1@example.com', 'k1', 'a1')`,
+    );
+    await expect(
+      client.query(
+        `INSERT INTO push_subscriptions
+           (endpoint, user_id, email, p256dh, auth)
+         VALUES ('https://push/abc', 'u2', 'u2@example.com', 'k2', 'a2')`,
+      ),
+    ).rejects.toThrow(/push_subscriptions_pkey|duplicate key/);
   });
 });
