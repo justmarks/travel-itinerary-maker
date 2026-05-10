@@ -179,7 +179,10 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // tokens across restarts.
   const shareRegistry = new ShareRegistry(dbClient ?? null);
   const shareSnapshotStore = new ShareSnapshotStore(redisStore);
-  const pushStore = new PushSubscriptionStore(redisStore);
+  // Phase 2: PushSubscriptionStore now persists to Postgres via
+  // dbClient when available. Same Redis-fallback caveat as
+  // ShareRegistry — production needs DATABASE_URL set.
+  const pushStore = new PushSubscriptionStore(dbClient ?? null);
   const notificationSender =
     notificationSenderOverride ?? new NotificationSender(pushStore);
   const shareActivityTracker = new ShareActivityTracker();
