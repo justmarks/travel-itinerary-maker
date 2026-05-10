@@ -173,7 +173,11 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // Unset key = plaintext storage (legacy behaviour, fine for dev/test).
   const encryptionKey = loadEncryptionKey();
   const tokenStore = new TokenStore(redisStore, encryptionKey);
-  const shareRegistry = new ShareRegistry(redisStore);
+  // Phase 2: ShareRegistry now persists to Postgres via dbClient when
+  // available. Without Postgres it's in-memory only — fine for dev /
+  // tests, but production needs `DATABASE_URL` set to keep share
+  // tokens across restarts.
+  const shareRegistry = new ShareRegistry(dbClient ?? null);
   const shareSnapshotStore = new ShareSnapshotStore(redisStore);
   const pushStore = new PushSubscriptionStore(redisStore);
   const notificationSender =
