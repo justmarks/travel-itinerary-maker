@@ -6,7 +6,14 @@ import {
   useUpdateTodo,
   useCreateTodo,
 } from "@travel-app/api-client";
-import { CheckSquare2, Square, Plus, X, Sparkles } from "lucide-react";
+import {
+  CheckSquare2,
+  ChevronDown,
+  Square,
+  Plus,
+  X,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
@@ -75,13 +82,17 @@ export function TripTodos({
   const [newCategory, setNewCategory] = useState<string>("");
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  // Completed group is hidden by default — checked-off items shouldn't
+  // crowd the active list. Mirrors the mobile sheet's behavior.
+  const [completedExpanded, setCompletedExpanded] = useState(false);
 
-  // Completed items sink to the bottom; otherwise preserve sortOrder.
-  const sorted = [...todos].sort(
-    (a, b) =>
-      Number(a.isCompleted) - Number(b.isCompleted) || a.sortOrder - b.sortOrder,
-  );
-  const completedCount = sorted.filter((t) => t.isCompleted).length;
+  const activeTodos = [...todos]
+    .filter((t) => !t.isCompleted)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const completedTodos = [...todos]
+    .filter((t) => t.isCompleted)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+  const completedCount = completedTodos.length;
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,14 +115,105 @@ export function TripTodos({
     setShowAdd(false);
   };
 
+  const renderTodoRow = (todo: Todo) => (
+    <li key={todo.id}>
+      <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
+        <button
+          onClick={() => {
+            if (readOnly) return;
+            updateTodo.mutate(
+              {
+                todoId: todo.id,
+                isCompleted: !todo.isCompleted,
+              },
+              {
+                onError: (err) => {
+                  toast.error("Couldn't update to-do", {
+                    description: describeError(err),
+                  });
+                },
+              },
+            );
+          }}
+          disabled={readOnly}
+          className={cn(
+            "mt-0.5 shrink-0",
+            readOnly && "cursor-default",
+          )}
+          title={
+            readOnly
+              ? undefined
+              : todo.isCompleted
+                ? "Mark incomplete"
+                : "Mark complete"
+          }
+        >
+          {todo.isCompleted ? (
+            <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <Square className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => {
+              if (readOnly) return;
+              setEditingTodoId(todo.id);
+            }}
+            disabled={readOnly}
+            className={cn(
+              "w-full text-left",
+              readOnly && "cursor-default",
+            )}
+            title={readOnly ? undefined : "Edit"}
+          >
+            <div
+              className={cn(
+                "leading-snug",
+                todo.isCompleted && "text-muted-foreground line-through",
+              )}
+            >
+              {todo.text}
+            </div>
+          </button>
+          {todo.details && (
+            <MarkdownText className="mt-0.5 text-xs text-muted-foreground">
+              {todo.details}
+            </MarkdownText>
+          )}
+        </div>
+        {todo.category &&
+          (readOnly ? (
+            <span
+              className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+              style={todoCategoryStyle(todo.category)}
+            >
+              {todo.category}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditingTodoId(todo.id)}
+              className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
+              style={todoCategoryStyle(todo.category)}
+              title="Edit"
+            >
+              {todo.category}
+            </button>
+          ))}
+      </div>
+    </li>
+  );
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-semibold">To-do</h2>
         <div className="flex items-center gap-2">
-          {sorted.length > 0 && (
+          {todos.length > 0 && (
             <span className="text-sm text-muted-foreground">
-              {completedCount}/{sorted.length}
+              {completedCount}/{todos.length}
             </span>
           )}
           {showSuggestButton && days && !readOnly && (
@@ -184,107 +286,49 @@ export function TripTodos({
         </form>
       )}
 
-      {sorted.length === 0 && !showAdd ? (
+      {todos.length === 0 && !showAdd ? (
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-6 text-center">
           <AppLogo className="h-8 w-8 opacity-60" />
           <p className="text-sm text-muted-foreground">No tasks yet.</p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-0.5">
-          {sorted.map((todo) => (
-            <li key={todo.id}>
-              <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
-                <button
-                  onClick={() => {
-                    if (readOnly) return;
-                    updateTodo.mutate(
-                      {
-                        todoId: todo.id,
-                        isCompleted: !todo.isCompleted,
-                      },
-                      {
-                        onError: (err) => {
-                          toast.error("Couldn't update to-do", {
-                            description: describeError(err),
-                          });
-                        },
-                      },
-                    );
-                  }}
-                  disabled={readOnly}
+        <>
+          {activeTodos.length > 0 && (
+            <ul className="flex flex-col gap-0.5">
+              {activeTodos.map(renderTodoRow)}
+            </ul>
+          )}
+          {completedTodos.length > 0 && (
+            <div className={cn(activeTodos.length > 0 && "mt-3")}>
+              <button
+                type="button"
+                onClick={() => setCompletedExpanded((v) => !v)}
+                aria-expanded={completedExpanded}
+                className="flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs text-muted-foreground hover:bg-muted/50"
+              >
+                <ChevronDown
                   className={cn(
-                    "mt-0.5 shrink-0",
-                    readOnly && "cursor-default",
+                    "h-3.5 w-3.5 transition-transform",
+                    completedExpanded && "rotate-180",
                   )}
-                  title={
-                    readOnly
-                      ? undefined
-                      : todo.isCompleted
-                        ? "Mark incomplete"
-                        : "Mark complete"
-                  }
-                >
-                  {todo.isCompleted ? (
-                    <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <Square className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (readOnly) return;
-                      setEditingTodoId(todo.id);
-                    }}
-                    disabled={readOnly}
-                    className={cn(
-                      "w-full text-left",
-                      readOnly && "cursor-default",
-                    )}
-                    title={readOnly ? undefined : "Edit"}
-                  >
-                    <div
-                      className={cn(
-                        "leading-snug",
-                        todo.isCompleted && "text-muted-foreground line-through",
-                      )}
-                    >
-                      {todo.text}
-                    </div>
-                  </button>
-                  {todo.details && (
-                    <MarkdownText className="mt-0.5 text-xs text-muted-foreground">
-                      {todo.details}
-                    </MarkdownText>
-                  )}
-                </div>
-                {todo.category &&
-                  (readOnly ? (
-                    <span
-                      className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-                      style={todoCategoryStyle(todo.category)}
-                    >
-                      {todo.category}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEditingTodoId(todo.id)}
-                      className="mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
-                      style={todoCategoryStyle(todo.category)}
-                      title="Edit"
-                    >
-                      {todo.category}
-                    </button>
-                  ))}
-              </div>
-            </li>
-          ))}
-        </ul>
+                  aria-hidden
+                />
+                <span className="font-medium">Completed</span>
+                <span className="text-muted-foreground/70">
+                  {completedTodos.length}
+                </span>
+              </button>
+              {completedExpanded && (
+                <ul className="mt-0.5 flex flex-col gap-0.5">
+                  {completedTodos.map(renderTodoRow)}
+                </ul>
+              )}
+            </div>
+          )}
+        </>
       )}
 
-      {sorted.map((todo) => (
+      {todos.map((todo) => (
         <EditTodoDialog
           key={todo.id}
           tripId={tripId}
@@ -300,7 +344,7 @@ export function TripTodos({
         <SuggestMealsDialog
           tripId={tripId}
           days={days}
-          todos={sorted}
+          todos={todos}
           open={suggestOpen}
           onOpenChange={setSuggestOpen}
         />

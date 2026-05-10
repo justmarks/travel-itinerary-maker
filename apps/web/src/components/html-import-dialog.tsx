@@ -470,7 +470,7 @@ export function HtmlImportDialog({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="flex max-h-[85vh] w-[50vw] max-w-[50vw] flex-col overflow-hidden sm:max-w-[50vw]">
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[50vw] max-w-[50vw] flex-col overflow-hidden sm:max-w-[50vw]">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileCode2 className="h-5 w-5" />

@@ -323,6 +323,10 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 
 - [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
+- [ ] **Send to itinly (mobile share target)** — register the PWA as an OS share target so a confirmation email or booking page can be shared from any app (Mail, Gmail, Safari, …) straight into the parser, bypassing the Gmail-scan ceremony for one-off bookings and unblocking non-Gmail mailboxes on the go
+- [ ] **Scheduled / auto email import** — opt-in background Gmail scan (e.g. nightly) that parses new confirmations and drops segments into the right trip with `needsReview: true`, so the inbox stays in sync without the user having to remember to run a scan
+- [ ] **Places to go** — per-trip list of points-of-interest (shops, museums, viewpoints, neighbourhoods) that aren't tied to a date or time and aren't a todo. Pinnable on the Map tab, groupable by city, and a candidate source for later "schedule this" actions that promote a place into a real segment
+- [ ] **Trip overview page** — at-a-glance summary tab: hero image, dates, destinations + flag row, total spend by category, segment counts by type, open todos, pending-review count, share status, and a compact "what's next" card. Becomes the default landing tab on a trip in place of jumping straight to day 1
 
 ## License
 

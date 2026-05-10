@@ -42,14 +42,17 @@ export class InMemoryStorage implements StorageProvider {
   private shareRules: Map<string, TripShareRule> = new Map();
 
   async listTrips(): Promise<Trip[]> {
-    return Array.from(this.trips.values()).sort(
-      (a, b) =>
-        new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
-    );
+    return Array.from(this.trips.values())
+      .map((t) => structuredClone(t))
+      .sort(
+        (a, b) =>
+          new Date(b.startDate).getTime() - new Date(a.startDate).getTime(),
+      );
   }
 
   async getTrip(tripId: string): Promise<Trip | null> {
-    return this.trips.get(tripId) ?? null;
+    const trip = this.trips.get(tripId);
+    return trip ? structuredClone(trip) : null;
   }
 
   async saveTrip(trip: Trip): Promise<void> {

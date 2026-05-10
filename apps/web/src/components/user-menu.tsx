@@ -89,9 +89,12 @@ export function UserMenu(): React.JSX.Element | null {
           Sign out
         </DropdownMenuItem>
         {process.env.NEXT_PUBLIC_APP_VERSION && (
-          <div className="mt-1 border-t border-border px-2 py-1 text-[10px] text-muted-foreground/60">
-            v{process.env.NEXT_PUBLIC_APP_VERSION}
-          </div>
+          <Link
+            href="/release-notes"
+            className="mt-1 block border-t border-border px-2 py-1 text-[10px] text-muted-foreground/60 hover:text-foreground"
+          >
+            v{process.env.NEXT_PUBLIC_APP_VERSION} — release notes
+          </Link>
         )}
       </DropdownMenuContent>
       <AutoShareRulesDialog open={autoShareOpen} onOpenChange={setAutoShareOpen} />

@@ -11,13 +11,27 @@
  *
  * Flow (production / localhost):
  *   1. User clicks "Sign in" → `startGoogleSignIn(returnTo)`
- *   2. We stash a CSRF token + the post-login `returnTo` in
- *      sessionStorage, encode `{ csrf, origin }` into the OAuth `state`
- *      param, and full-page-redirect to Google.
+ *   2. We stash a CSRF token + the post-login `returnTo` in a short-
+ *      lived `SameSite=Lax; Secure` cookie (with a sessionStorage dual-
+ *      write as a fallback for in-flight sign-ins from the previous
+ *      deploy), encode `{ csrf, origin }` into the OAuth `state` param,
+ *      and full-page-redirect to Google.
  *   3. Google bounces back to `/auth/callback?code=...&state=...`
- *   4. The callback page validates state.csrf against sessionStorage,
- *      calls our `login()` (which POSTs the code to the backend), and
- *      routes the user to `returnTo`.
+ *   4. The callback page validates state.csrf against the cookie (or
+ *      sessionStorage if the cookie is missing), calls our `login()`
+ *      (which POSTs the code to the backend), and routes the user to
+ *      `returnTo`.
+ *
+ * Why cookies and not sessionStorage alone: on Android, the OAuth round-
+ * trip frequently crosses surfaces — e.g. sign-in starts in the installed
+ * PWA, Google's consent screen opens in a Chrome Custom Tab, and the
+ * redirect back lands in either the PWA or main Chrome. sessionStorage
+ * is per-tab/per-process, so the CSRF written on the start surface is
+ * invisible on the callback surface and every Android sign-in fails with
+ * "state mismatch". Cookies share a jar across PWA + Chrome on Android
+ * (and across tabs everywhere else), so the round-trip works regardless
+ * of which surface the callback lands in. Desktop never crossed surfaces
+ * in the first place — that's why this only manifested on mobile.
  *
  * Flow (Vercel preview deployments):
  *   Google won't accept per-deploy preview URLs as redirect URIs (no
@@ -91,6 +105,51 @@ export function parseScopeString(scope: string | null | undefined): string[] {
 
 const CSRF_KEY = "oauth_csrf";
 const RETURN_TO_KEY = "oauth_return_to";
+
+/**
+ * Cookies are scoped Path=/ so they're readable from `/login` (where the
+ * sign-in starts) AND `/auth/callback` (where it ends). Path=/auth/callback
+ * would be tighter, but the bytes don't matter and a uniform path makes
+ * the clear-cookie call symmetric. Max-Age=600 (10 min) covers a slow
+ * sign-in without leaving stale CSRF tokens around if the user abandons.
+ */
+const COOKIE_MAX_AGE_SECONDS = 10 * 60;
+
+function setStateCookie(name: string, value: string): void {
+  const isHttps = window.location.protocol === "https:";
+  // `Secure` is required by browsers when SameSite=Lax cookies are set
+  // from JS in many contexts; on http://localhost we have to skip it
+  // (Secure cookies can't be set on insecure origins) so dev still works.
+  const parts = [
+    `${name}=${encodeURIComponent(value)}`,
+    "Path=/",
+    `Max-Age=${COOKIE_MAX_AGE_SECONDS}`,
+    "SameSite=Lax",
+  ];
+  if (isHttps) parts.push("Secure");
+  document.cookie = parts.join("; ");
+}
+
+function readStateCookie(name: string): string | null {
+  // Match `name=...` at the start of the cookie string OR after a `; `.
+  // The value runs until the next `;` or end-of-string.
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${escaped}=([^;]*)`),
+  );
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function clearStateCookie(name: string): void {
+  // Path must match the one used at creation, otherwise the browser
+  // treats it as a different cookie and the original survives.
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
 
 /**
  * Tags an OAuth round-trip with which client/flow it belongs to so the
@@ -219,6 +278,12 @@ interface BuildAuthUrlOptions {
 
 function buildAuthUrl(opts: BuildAuthUrlOptions): string {
   const csrf = crypto.randomUUID();
+  // Cookies are the source of truth (they cross the PWA / Chrome
+  // Custom Tab boundary on Android — see the file-level comment).
+  // sessionStorage is dual-written so any sign-in started against the
+  // previous deploy still completes through this build's callback.
+  setStateCookie(CSRF_KEY, csrf);
+  setStateCookie(RETURN_TO_KEY, opts.returnTo);
   sessionStorage.setItem(CSRF_KEY, csrf);
   sessionStorage.setItem(RETURN_TO_KEY, opts.returnTo);
 
@@ -345,8 +410,18 @@ export interface ConsumedOAuthState {
 }
 
 export function consumeOAuthState(): ConsumedOAuthState {
-  const expectedCsrf = sessionStorage.getItem(CSRF_KEY);
-  const returnTo = sessionStorage.getItem(RETURN_TO_KEY) ?? "/";
+  // Cookie wins (it survives the PWA / Custom Tab handoff on Android);
+  // sessionStorage is a fallback for any sign-in started against the
+  // previous deploy that didn't write a cookie. Either source proves
+  // the round-trip started in this browser, which is all CSRF needs.
+  const expectedCsrf =
+    readStateCookie(CSRF_KEY) ?? sessionStorage.getItem(CSRF_KEY);
+  const returnTo =
+    readStateCookie(RETURN_TO_KEY) ??
+    sessionStorage.getItem(RETURN_TO_KEY) ??
+    "/";
+  clearStateCookie(CSRF_KEY);
+  clearStateCookie(RETURN_TO_KEY);
   sessionStorage.removeItem(CSRF_KEY);
   sessionStorage.removeItem(RETURN_TO_KEY);
   return { expectedCsrf, returnTo };

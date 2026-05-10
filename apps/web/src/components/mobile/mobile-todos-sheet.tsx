@@ -6,6 +6,8 @@ import { useUpdateTodo } from "@travel-app/api-client";
 import {
   Briefcase,
   Check,
+  CheckCircle2,
+  ChevronDown,
   ChevronRight,
   MapPin,
   Plus,
@@ -16,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/api-error";
+import { MarkdownText } from "@/components/markdown-text";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import {
   MobileTodoFormSheet,
@@ -59,26 +62,31 @@ const CATEGORY_META: Record<
 
 function groupByCategory(
   todos: readonly Todo[],
-): Record<TodoCategory | "uncategorized", Todo[]> {
-  const groups: Record<TodoCategory | "uncategorized", Todo[]> = {
+): {
+  active: Record<TodoCategory | "uncategorized", Todo[]>;
+  completed: Todo[];
+} {
+  const active: Record<TodoCategory | "uncategorized", Todo[]> = {
     meals: [],
     activities: [],
     research: [],
     logistics: [],
     uncategorized: [],
   };
+  const completed: Todo[] = [];
   for (const todo of todos) {
+    if (todo.isCompleted) {
+      completed.push(todo);
+      continue;
+    }
     const key = todo.category ?? "uncategorized";
-    groups[key].push(todo);
+    active[key].push(todo);
   }
-  for (const key of Object.keys(groups) as (keyof typeof groups)[]) {
-    groups[key].sort(
-      (a, b) =>
-        Number(a.isCompleted) - Number(b.isCompleted) ||
-        a.sortOrder - b.sortOrder,
-    );
+  for (const key of Object.keys(active) as (keyof typeof active)[]) {
+    active[key].sort((a, b) => a.sortOrder - b.sortOrder);
   }
-  return groups;
+  completed.sort((a, b) => a.sortOrder - b.sortOrder);
+  return { active, completed };
 }
 
 function TodoRow({
@@ -147,14 +155,21 @@ function TodoRow({
             {todo.text}
           </span>
           {todo.details && (
-            <span
+            // Mirrors the desktop sidebar (`trip-todos.tsx`) so markdown
+            // links / bare URLs render as clickable text instead of raw
+            // `[label](url)` syntax. `line-clamp-1` keeps the details to a
+            // single row inside this dense list — `truncate` only works
+            // on text-bearing elements, but MarkdownText wraps content in
+            // a `<div>` + `<p>`, so we use line-clamp which respects
+            // nested elements.
+            <MarkdownText
               className={cn(
-                "mt-0.5 block truncate text-xs leading-snug text-muted-foreground",
+                "mt-0.5 line-clamp-1 text-xs leading-snug text-muted-foreground",
                 todo.isCompleted && "line-through",
               )}
             >
               {todo.details}
-            </span>
+            </MarkdownText>
           )}
         </span>
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
@@ -174,13 +189,24 @@ export function MobileTodosSheet({
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
-  const groups = useMemo(() => groupByCategory(todos), [todos]);
+  const { active: groups, completed: completedTodos } = useMemo(
+    () => groupByCategory(todos),
+    [todos],
+  );
   const [editTarget, setEditTarget] = useState<TodoFormTarget>(null);
+  // Completed group stays collapsed by default — the whole point is that
+  // checked-off items shouldn't crowd the active list. The user can
+  // expand to undo a check, edit, or just review.
+  const [completedExpanded, setCompletedExpanded] = useState(false);
 
   // If the parent closes the sheet while the form is open, close the form
-  // too so we don't leave a stale dialog mounted.
+  // too so we don't leave a stale dialog mounted. Also collapse the
+  // Completed section so it's minimized again next time the sheet opens.
   useEffect(() => {
-    if (!open) setEditTarget(null);
+    if (!open) {
+      setEditTarget(null);
+      setCompletedExpanded(false);
+    }
   }, [open]);
 
   // Keep the in-flight form target in sync with the latest data — if the
@@ -251,36 +277,74 @@ export function MobileTodosSheet({
               </button>
             </div>
           ) : (
-            CATEGORY_ORDER.map((key) => {
-              const items = groups[key];
-              if (items.length === 0) return null;
-              const meta = CATEGORY_META[key];
-              const Icon = meta.icon;
-              const groupCompleted = items.filter((t) => t.isCompleted).length;
-              return (
-                <section key={key} className="mt-3 first:mt-1">
-                  <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
-                    <Icon className={cn("h-3.5 w-3.5", meta.accent)} />
+            <>
+              {CATEGORY_ORDER.map((key) => {
+                const items = groups[key];
+                if (items.length === 0) return null;
+                const meta = CATEGORY_META[key];
+                const Icon = meta.icon;
+                return (
+                  <section key={key} className="mt-3 first:mt-1">
+                    <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
+                      <Icon className={cn("h-3.5 w-3.5", meta.accent)} />
+                      <span className="text-kicker font-semibold text-muted-foreground">
+                        {meta.label}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground/70">
+                        {items.length}
+                      </span>
+                    </div>
+                    <ul className="flex flex-col">
+                      {items.map((todo) => (
+                        <TodoRow
+                          key={todo.id}
+                          todo={todo}
+                          tripId={tripId}
+                          onOpenDetails={setEditTarget}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+              {completedTodos.length > 0 && (
+                <section className="mt-3 first:mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setCompletedExpanded((v) => !v)}
+                    aria-expanded={completedExpanded}
+                    className="flex w-full items-center gap-2 rounded-md px-2 pb-1.5 pt-1 text-left active:bg-muted/40"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
                     <span className="text-kicker font-semibold text-muted-foreground">
-                      {meta.label}
+                      Completed
                     </span>
                     <span className="text-[11px] text-muted-foreground/70">
-                      {groupCompleted}/{items.length}
+                      {completedTodos.length}
                     </span>
-                  </div>
-                  <ul className="flex flex-col">
-                    {items.map((todo) => (
-                      <TodoRow
-                        key={todo.id}
-                        todo={todo}
-                        tripId={tripId}
-                        onOpenDetails={setEditTarget}
-                      />
-                    ))}
-                  </ul>
+                    <ChevronDown
+                      className={cn(
+                        "ml-auto h-4 w-4 text-muted-foreground transition-transform",
+                        completedExpanded && "rotate-180",
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                  {completedExpanded && (
+                    <ul className="flex flex-col">
+                      {completedTodos.map((todo) => (
+                        <TodoRow
+                          key={todo.id}
+                          todo={todo}
+                          tripId={tripId}
+                          onOpenDetails={setEditTarget}
+                        />
+                      ))}
+                    </ul>
+                  )}
                 </section>
-              );
-            })
+              )}
+            </>
           )}
         </div>
       </MobileBottomSheet>
