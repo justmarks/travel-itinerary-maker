@@ -11,6 +11,9 @@
     "test:watch": "jest --watch",
     "test:integration": "jest --config jest.integration.config.ts",
     "bench:routes": "ts-node --transpile-only scripts/bench-routes.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -20,6 +23,8 @@
     "@upstash/redis": "^1.37.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.5.0",
@@ -44,6 +49,7 @@
     "@types/pg": "^8.11.10",
     "@types/supertest": "^7.2.0",
     "@types/web-push": "^3.6.4",
+    "drizzle-kit": "^0.31.10",
     "jest": "^29.7.0",
     "supertest": "^7.1.0",
     "ts-jest": "^29.3.0",
