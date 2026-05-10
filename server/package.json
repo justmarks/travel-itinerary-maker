@@ -11,6 +11,7 @@
     "test:watch": "jest --watch",
     "test:integration": "jest --config jest.integration.config.ts",
     "bench:routes": "ts-node --transpile-only scripts/bench-routes.ts",
+    "bench:routes:postgres": "ts-node --transpile-only scripts/bench-routes.ts --postgres",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

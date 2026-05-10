@@ -1,33 +1,51 @@
 /**
  * Latency baseline harness — captures p50/p95 for the top routes against
- * `InMemoryStorage` so future phases (Postgres, Supabase) can be compared
- * against a stable floor.
+ * a chosen `StorageProvider` so phases can be compared against a stable
+ * floor.
  *
- *     cd server && pnpm bench:routes              # check vs committed baseline
- *     cd server && pnpm bench:routes -- --update  # rewrite the baseline
+ * Default backend is `InMemoryStorage`. Pass `--postgres` to bench
+ * `SupabaseStorage` against a real Postgres at `DATABASE_URL`.
  *
- * The baseline file lives at `docs/perf-baselines.json` at the repo root.
- * Numbers are intentionally floor-y (in-memory storage, single Node
- * process, supertest's fresh-connection-per-request overhead included).
- * The point isn't absolute numbers — it's a *fair* harness applied
- * identically across phases so we can spot regressions when storage
- * implementations change.
+ *     cd server && pnpm bench:routes                 # in-memory check
+ *     cd server && pnpm bench:routes -- --update     # rewrite in-memory baseline
+ *     cd server && pnpm bench:routes:postgres        # postgres check (requires DATABASE_URL)
+ *     cd server && pnpm bench:routes:postgres -- --update
+ *
+ * Each backend has its own baseline file:
+ *   docs/perf-baselines.json           — InMemoryStorage
+ *   docs/perf-baselines-postgres.json  — SupabaseStorage
+ *
+ * Numbers are floor-y (single Node process, supertest's
+ * fresh-connection-per-request overhead included). The point isn't
+ * absolute numbers — it's a *fair* harness applied identically across
+ * phases so we can spot regressions when storage implementations change.
  *
  * Not wired into PR CI yet — shared runners are too noisy for tight
- * budgets. Will move into a nightly job once the harness is stable and
- * we have a Postgres-backed baseline to compare against.
+ * budgets. Will move into a nightly job once the harness is stable.
  */
 import fs from "fs";
 import path from "path";
 import request from "supertest";
 import type express from "express";
+import { Client } from "pg";
+import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createApp } from "../src/app";
 import { InMemoryStorage } from "../src/services/storage";
+import { SupabaseStorage } from "../src/services/supabase-storage";
+import { createDbClient, type DbClient } from "../src/db/client";
+import type { StorageProvider } from "../src/services/storage";
 
+const POSTGRES = process.argv.includes("--postgres");
 const BASELINES_PATH = path.resolve(
   __dirname,
-  "../../docs/perf-baselines.json",
+  POSTGRES
+    ? "../../docs/perf-baselines-postgres.json"
+    : "../../docs/perf-baselines.json",
 );
+const MIGRATIONS_FOLDER = path.resolve(__dirname, "../drizzle");
+const BENCH_USER_ID = "bench-user";
 const ITERATIONS = parseInt(process.env.BENCH_ITERATIONS ?? "50", 10);
 const WARMUP = parseInt(process.env.BENCH_WARMUP ?? "5", 10);
 // 1.5 = a measured route can be 50% slower than baseline before failing.
@@ -246,14 +264,72 @@ interface BaselinesFile {
   routes: Record<string, { p50ms: number; p95ms: number }>;
 }
 
+async function setupPostgresStorage(): Promise<{
+  storage: StorageProvider;
+  cleanup: () => Promise<void>;
+}> {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL is required for --postgres mode. " +
+        "Set it to a running Postgres (e.g. `postgres://postgres:postgres@localhost:5432/postgres`).",
+    );
+  }
+
+  // Wipe + migrate once at start so the bench's "create unique trip
+  // per iteration" pattern doesn't collide with leftover rows from a
+  // previous run.
+  const setup = new Client({ connectionString: databaseUrl });
+  await setup.connect();
+  try {
+    await setup.query("DROP SCHEMA IF EXISTS public CASCADE");
+    await setup.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await setup.query("CREATE SCHEMA public");
+    await setup.query("GRANT ALL ON SCHEMA public TO public");
+    await migrate(drizzle(setup), { migrationsFolder: MIGRATIONS_FOLDER });
+  } finally {
+    await setup.end();
+  }
+
+  const dbClient: DbClient = createDbClient(databaseUrl);
+  // TRUNCATE to a clean per-bench-run state. (Migration left tables
+  // empty, but TRUNCATE is cheap and keeps the entry point uniform if
+  // someone reruns without the schema reset above.)
+  await dbClient.db.execute(sql`
+    TRUNCATE TABLE
+      trips, segments, todos, trip_history,
+      share_rules, processed_emails, user_settings
+    RESTART IDENTITY CASCADE
+  `);
+
+  const storage = new SupabaseStorage({
+    db: dbClient.db,
+    userId: BENCH_USER_ID,
+  });
+  return {
+    storage,
+    cleanup: () => dbClient.close(),
+  };
+}
+
 async function main() {
   const update = process.argv.includes("--update");
 
-  const storage = new InMemoryStorage();
+  let storage: StorageProvider;
+  let cleanup: (() => Promise<void>) | undefined;
+  if (POSTGRES) {
+    const setup = await setupPostgresStorage();
+    storage = setup.storage;
+    cleanup = setup.cleanup;
+  } else {
+    storage = new InMemoryStorage();
+  }
+
   const app = await createApp({ mode: "memory", storage, disableRedis: true });
 
+  const backendLabel = POSTGRES ? "SupabaseStorage" : "InMemoryStorage";
   console.log(
-    `Running ${SCENARIOS.length} scenarios × ${ITERATIONS} iterations (warmup ${WARMUP})...\n`,
+    `Backend: ${backendLabel}\nRunning ${SCENARIOS.length} scenarios × ${ITERATIONS} iterations (warmup ${WARMUP})...\n`,
   );
 
   const samples: Sample[] = [];
@@ -270,19 +346,26 @@ async function main() {
     const file: BaselinesFile = {
       capturedAt: new Date().toISOString(),
       iterations: ITERATIONS,
-      storageBackend: "InMemoryStorage",
+      storageBackend: backendLabel,
       nodeVersion: process.version,
-      notes:
-        "Captured during phase 0 of the Drive→Supabase migration. " +
-        "InMemoryStorage floor: not directly comparable to Postgres-backed " +
-        "numbers; the harness is what's identical across phases. Re-run " +
-        "with `pnpm bench:routes -- --update` after intentional perf changes.",
+      notes: POSTGRES
+        ? "Captured against SupabaseStorage + Drizzle + node-postgres against " +
+          "DATABASE_URL. Numbers reflect a single Node process talking to a " +
+          "single Postgres connection — local Postgres is closer to the floor " +
+          "than a real production setup with network round-trips. Use this " +
+          "as a same-machine regression check for the SupabaseStorage path " +
+          "specifically; do not directly compare against the in-memory baseline."
+        : "Captured against InMemoryStorage. The harness is identical across " +
+          "phases so we can spot regressions when storage implementations change. " +
+          "Compare like-for-like (in-memory vs in-memory). For SupabaseStorage " +
+          "perf, use docs/perf-baselines-postgres.json.",
       routes: Object.fromEntries(
         samples.map((s) => [s.route, { p50ms: s.p50ms, p95ms: s.p95ms }]),
       ),
     };
     fs.writeFileSync(BASELINES_PATH, JSON.stringify(file, null, 2) + "\n");
     console.log(`\n✓ Wrote ${BASELINES_PATH}`);
+    if (cleanup) await cleanup();
     return;
   }
 
@@ -321,6 +404,8 @@ async function main() {
   console.log(
     `\n${samples.length} scenarios · ${regressions} regression(s) · ${unknown} new`,
   );
+  if (cleanup) await cleanup();
+
   if (regressions > 0) {
     console.error(
       `\n✗ ${regressions} route(s) regressed beyond ${REGRESSION_RATIO}× threshold.`,
