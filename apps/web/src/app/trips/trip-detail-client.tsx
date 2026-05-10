@@ -1202,15 +1202,27 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         </div>
 
         {/* Scrolling tab content — only this region scrolls so the
-            header stays put. Print mode unwraps both shell and this
-            container (see print: overrides above) so a multi-page
-            itinerary still flows naturally onto paper. */}
-        <div className="-mx-1 flex-1 min-h-0 overflow-y-auto px-1 print:overflow-visible">
+            header stays put. On the itinerary tab at lg+ we hand off
+            scrolling to the two columns inside so the day list and
+            sidebar can scroll independently; below lg the columns
+            stack and the outer container provides one unified scroll.
+            Print mode unwraps both shell and this container (see
+            print: overrides above) so a multi-page itinerary still
+            flows naturally onto paper. */}
+        <div
+          className={cn(
+            "-mx-1 flex-1 min-h-0 overflow-y-auto px-1 print:overflow-visible",
+            activeTab === "itinerary" && "lg:overflow-hidden",
+          )}
+        >
 
         {/* Tab content */}
         {activeTab === "itinerary" && (
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_280px]">
-            <div ref={itineraryDaysRef} className="flex flex-col gap-8">
+          <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div
+              ref={itineraryDaysRef}
+              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pr-2 print:overflow-visible"
+            >
               {trip.days.map((day) => (
                 <ItineraryDay
                   key={day.date}
@@ -1221,8 +1233,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 />
               ))}
             </div>
-            <div className="flex flex-col gap-6">
-              {showTodos && (
+            {showTodos && (
+              <div className="flex min-w-0 flex-col gap-6 lg:overflow-y-auto lg:pb-2 print:overflow-visible">
                 <div className="rounded-xl border p-5">
                   <TripTodos
                     tripId={trip.id}
@@ -1230,13 +1242,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                     readOnly={isReadOnly}
                   />
                 </div>
-              )}
-              {showCosts && (
-                <div className="rounded-xl border p-5">
-                  <TripCosts tripId={trip.id} />
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
