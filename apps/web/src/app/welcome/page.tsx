@@ -443,6 +443,9 @@ function Footer(): React.JSX.Element {
           <span className="text-xs text-muted-foreground">© 2026</span>
         </div>
         <div className="flex items-center gap-6 text-sm text-muted-foreground">
+          <Link href="/release-notes" className="hover:text-foreground">
+            Release notes
+          </Link>
           <Link href="/privacy" className="hover:text-foreground">
             Privacy
           </Link>
