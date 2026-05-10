@@ -1,4 +1,4 @@
-import type { TripSummary } from "@travel-app/shared";
+import type { TripSummary } from "@travel-app/api-client";
 
 export type TripBucket = "current" | "upcoming" | "past";
 
