@@ -89,7 +89,7 @@ function Hero(): React.JSX.Element {
         <div className="lg:col-span-7">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
             <Sparkles className="h-3 w-3 text-[var(--brand)]" />
-            For complicated international family trips
+            Built from your inbox, not by hand
           </span>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
             Your travel emails,
