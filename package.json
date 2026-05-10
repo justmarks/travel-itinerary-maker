@@ -1,6 +1,6 @@
 {
   "name": "itinly",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Auto-generate travel itineraries from email confirmations",
   "scripts": {
