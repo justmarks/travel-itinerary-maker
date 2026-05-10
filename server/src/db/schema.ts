@@ -252,3 +252,72 @@ export const userSettings = pgTable("user_settings", {
     .notNull()
     .defaultNow(),
 });
+
+// Phase 2: durable replacement for the in-memory ShareRegistry's
+// Redis-backed hash. One row per share token issued. Maps the token
+// to the underlying trip + owner so the public `/shared/:token` route
+// can resolve which user's storage holds the trip, and indexes by
+// `shared_with_email` so the contributor flow can list "every trip
+// shared with me" in one query.
+//
+// Distinct from `trips.shares` jsonb (added in phase 1) which is the
+// trip-side view — same data, different access pattern. Kept in sync
+// by `applyShareToTrip` on writes; future cleanup may unify these.
+//
+// Cascade-delete with the trip mirrors the Phase 1 segments / todos
+// FK behaviour — removing a trip removes its share tokens
+// automatically.
+export const tripShares = pgTable(
+  "trip_shares",
+  {
+    shareToken: text("share_token").primaryKey(),
+    tripId: text("trip_id")
+      .notNull()
+      .references(() => trips.id, { onDelete: "cascade" }),
+    ownerUserId: text("owner_user_id").notNull(),
+    ownerEmail: text("owner_email"),
+    // Always lower-cased on insert. Indexed because lookupByEmail
+    // fires on every authed `listTrips` call to find contributor-side
+    // trips.
+    sharedWithEmail: text("shared_with_email"),
+    permission: text("permission").notNull(), // 'view' | 'edit'
+    showCosts: boolean("show_costs").notNull().default(true),
+    showTodos: boolean("show_todos").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("trip_shares_email_idx").on(t.sharedWithEmail),
+    index("trip_shares_trip_idx").on(t.tripId),
+  ],
+);
+
+// Phase 2: durable replacement for PushSubscriptionStore's Redis hash.
+// One row per (browser, user) push endpoint — same browser registering
+// twice upserts on `endpoint` (the PK) rather than creating duplicates.
+// `last_used_at` is reserved for a future inactivity-expiry policy
+// (open decision in the migration plan); phase 2 doesn't read or
+// update it yet.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: text("user_id").notNull(),
+    // Always lower-cased on insert. Indexed because the share-creation
+    // flow looks up "every device the invited recipient is signed in
+    // on" by email.
+    email: text("email").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("push_subscriptions_user_idx").on(t.userId),
+    index("push_subscriptions_email_idx").on(t.email),
+  ],
+);

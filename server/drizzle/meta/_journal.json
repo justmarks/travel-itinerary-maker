@@ -8,6 +8,13 @@
       "when": 1778445368905,
       "tag": "0000_flippant_mongu",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778455452390,
+      "tag": "0001_mighty_satana",
+      "breakpoints": true
     }
   ]
 }
