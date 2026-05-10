@@ -1,49 +1,49 @@
 {
-  "capturedAt": "2026-05-10T18:37:35.387Z",
+  "capturedAt": "2026-05-10T18:42:04.037Z",
   "iterations": 50,
   "storageBackend": "InMemoryStorage",
   "nodeVersion": "v22.22.2",
   "notes": "Captured during phase 0 of the Drive→Supabase migration. InMemoryStorage floor: not directly comparable to Postgres-backed numbers; the harness is what's identical across phases. Re-run with `pnpm bench:routes -- --update` after intentional perf changes.",
   "routes": {
     "POST /api/v1/trips": {
-      "p50ms": 2.1315600000002632,
-      "p95ms": 3.251492999999755
+      "p50ms": 2.3612429999998312,
+      "p95ms": 3.306395000000066
     },
     "GET /api/v1/trips": {
-      "p50ms": 2.0784529999996266,
-      "p95ms": 2.741012999999839
+      "p50ms": 2.4558250000000044,
+      "p95ms": 5.026734000000033
     },
     "GET /api/v1/trips/:tripId": {
-      "p50ms": 1.3891020000000935,
-      "p95ms": 1.5224130000001423
+      "p50ms": 1.4474970000001122,
+      "p95ms": 1.597258000000238
     },
     "PUT /api/v1/trips/:tripId": {
-      "p50ms": 1.6539189999998598,
-      "p95ms": 1.9371169999999438
+      "p50ms": 3.1812850000001163,
+      "p95ms": 3.5962460000000647
     },
     "GET /api/v1/trips/:tripId/days": {
-      "p50ms": 1.3625620000002527,
-      "p95ms": 1.5710619999999835
+      "p50ms": 1.4162660000001779,
+      "p95ms": 1.743058000000019
     },
     "POST /api/v1/trips/:tripId/segments": {
-      "p50ms": 1.6736949999999524,
-      "p95ms": 1.9919650000001639
+      "p50ms": 1.5990700000002107,
+      "p95ms": 1.7630830000002788
     },
     "PUT /api/v1/trips/:tripId/segments/:segmentId": {
-      "p50ms": 1.5356509999996888,
-      "p95ms": 1.8923540000000685
+      "p50ms": 1.5925779999997758,
+      "p95ms": 1.8075760000001537
     },
     "DELETE /api/v1/trips/:tripId/segments/:segmentId": {
-      "p50ms": 1.1905940000006012,
-      "p95ms": 1.438919999999598
+      "p50ms": 1.2840139999998428,
+      "p95ms": 3.0999579999997877
     },
     "GET /api/v1/trips/:tripId/costs": {
-      "p50ms": 1.23584800000026,
-      "p95ms": 1.4923709999993662
+      "p50ms": 1.4288000000005923,
+      "p95ms": 2.145391000000018
     },
     "DELETE /api/v1/trips/:tripId": {
-      "p50ms": 1.1119820000003529,
-      "p95ms": 1.3197819999995772
+      "p50ms": 1.2033330000003843,
+      "p95ms": 2.3803790000001754
     }
   }
 }
