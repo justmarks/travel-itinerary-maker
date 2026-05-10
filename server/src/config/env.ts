@@ -87,28 +87,37 @@ export const config = {
    * StorageProvider per-user requests resolve to.
    *
    *   STORAGE_BACKEND
-   *     `drive` (default) — every user reads/writes their own Drive
-   *       folder, except those listed in STORAGE_POSTGRES_USERS who
-   *       are routed to Postgres for dogfooding.
+   *     `drive` — every user reads/writes their own Drive folder,
+   *       except those listed in STORAGE_POSTGRES_USERS who are routed
+   *       to Postgres for dogfooding. The production default.
    *     `postgres` — every user is on Postgres. Requires DATABASE_URL.
    *     `memory` — dev/test only.
+   *     unset — `index.ts` defaults to `drive` in production
+   *       (NODE_ENV=production) and `memory` in dev. Set explicitly to
+   *       opt into a different mode for local dev (e.g. `drive` for
+   *       testing the per-user dogfood list against Neon).
    *
    *   STORAGE_POSTGRES_USERS
    *     Comma-separated list of user IDs (Google `sub` strings)
-   *     that should use Postgres even when the global mode is `drive`.
-   *     Empty list means nobody overrides. Only consulted when
-   *     STORAGE_BACKEND=drive AND DATABASE_URL is set.
+   *     that should use Postgres even when the resolved backend is
+   *     `drive`. Empty list means nobody overrides. Only consulted
+   *     when backend is `drive` AND DATABASE_URL is set.
    *
    *   DATABASE_URL
    *     Postgres connection string. Required when storage involves
    *     Postgres (mode=postgres OR a non-empty postgresUsers list).
    */
   storage: {
-    backend: (process.env.STORAGE_BACKEND === "postgres" ||
-    process.env.STORAGE_BACKEND === "memory" ||
-    process.env.STORAGE_BACKEND === "drive"
-      ? process.env.STORAGE_BACKEND
-      : "drive") as "drive" | "postgres" | "memory",
+    // `undefined` when unset so `index.ts` can apply the env-aware
+    // default (drive in prod, memory in dev). Don't substitute a
+    // default here — it would shadow the "is this explicitly set?"
+    // check and break local dev's ability to opt into drive mode.
+    backend:
+      process.env.STORAGE_BACKEND === "postgres" ||
+      process.env.STORAGE_BACKEND === "memory" ||
+      process.env.STORAGE_BACKEND === "drive"
+        ? (process.env.STORAGE_BACKEND as "drive" | "postgres" | "memory")
+        : undefined,
     postgresUsers: process.env.STORAGE_POSTGRES_USERS || "",
     databaseUrl: process.env.DATABASE_URL || "",
   },

@@ -32,20 +32,27 @@ const isProduction = config.nodeEnv === "production";
 // Redis (hydrate becomes a no-op).
 async function bootstrap(): Promise<void> {
   // Phase 1 dogfooding flag — comma-separated user IDs that should
-  // use Postgres even when STORAGE_BACKEND=drive. Empty list means
-  // nobody overrides.
+  // use Postgres even when the resolved backend is `drive`. Empty list
+  // means nobody overrides.
   const postgresUserIds = new Set(
     config.storage.postgresUsers
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean),
   );
+  // Resolve the active backend. Explicit STORAGE_BACKEND wins.
+  // Unset falls back to `drive` in production and `memory` in dev,
+  // matching the historical defaults — but an explicit
+  // `STORAGE_BACKEND=drive` now opts into drive mode for local dev too,
+  // which is needed to manually test the dogfood list against Neon.
+  const backend: "drive" | "postgres" | "memory" =
+    config.storage.backend ?? (isProduction ? "drive" : "memory");
+
   // Boot a DB client when storage involves Postgres (mode=postgres OR
   // a non-empty user override list). One client per process; we reuse
   // its pool across requests.
   let dbClient: DbClient | undefined;
-  const needsDb =
-    config.storage.backend === "postgres" || postgresUserIds.size > 0;
+  const needsDb = backend === "postgres" || postgresUserIds.size > 0;
   if (needsDb) {
     if (!config.storage.databaseUrl) {
       throw new Error(
@@ -57,9 +64,9 @@ async function bootstrap(): Promise<void> {
   }
 
   let app: express.Express;
-  if (config.storage.backend === "postgres") {
+  if (backend === "postgres") {
     app = await createApp({ mode: "postgres", dbClient });
-  } else if (isProduction) {
+  } else if (backend === "drive") {
     app = await createApp({
       mode: "drive",
       dbClient,
@@ -72,14 +79,16 @@ async function bootstrap(): Promise<void> {
   app.listen(config.port, () => {
     console.log(`Server running on http://localhost:${config.port}`);
     console.log(`Environment: ${config.nodeEnv}`);
-    if (config.storage.backend === "postgres") {
+    if (backend === "postgres") {
       console.log("Storage: Supabase Postgres (every user)");
-    } else if (postgresUserIds.size > 0) {
+    } else if (backend === "drive" && postgresUserIds.size > 0) {
       console.log(
         `Storage: Google Drive (default), Postgres for ${postgresUserIds.size} user(s)`,
       );
+    } else if (backend === "drive") {
+      console.log("Storage: Google Drive");
     } else {
-      console.log(`Storage: ${isProduction ? "Google Drive" : "In-Memory"}`);
+      console.log("Storage: In-Memory");
     }
     // Railway injects these on every deploy. Log them once at boot so a
     // deployment UUID in Railway's log UI can be mapped back to a
