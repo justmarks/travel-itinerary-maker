@@ -375,7 +375,12 @@ function MobileTripList({
     return <MobileTripListLoading />;
   }
 
-  if (isError) {
+  // Only surface the error UI when we have nothing cached to show. A
+  // failed background refetch (e.g. the device just woke from sleep with
+  // a stale auth token) shouldn't blow away the trips list — RQ keeps
+  // the previous successful `data`, and the next retry will silently
+  // refresh it.
+  if (isError && !trips) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
         <AlertCircle className="h-8 w-8 text-destructive" />
