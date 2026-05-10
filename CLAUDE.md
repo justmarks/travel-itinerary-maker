@@ -12,6 +12,12 @@ A travel itinerary management app that parses trip data from emails and presents
 
 ---
 
+## Active migration plans
+
+- [`docs/backend-migration-plan.md`](docs/backend-migration-plan.md) — Multi-phase plan to migrate from Google Drive storage + Google-only auth to Supabase Postgres + Supabase Auth + pluggable email/calendar connectors (Gmail, Microsoft Graph). Includes phased rollout, per-phase test deliverables, rollback strategy, and a list of decisions still needed before kickoff. Read this before doing any work on storage, auth, sharing, email scan, or calendar sync — those subsystems all change shape under this plan.
+
+---
+
 ## Repository Structure
 
 ```
