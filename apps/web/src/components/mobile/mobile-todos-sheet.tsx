@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/api-error";
+import { MarkdownText } from "@/components/markdown-text";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import {
   MobileTodoFormSheet,
@@ -147,14 +148,21 @@ function TodoRow({
             {todo.text}
           </span>
           {todo.details && (
-            <span
+            // Mirrors the desktop sidebar (`trip-todos.tsx`) so markdown
+            // links / bare URLs render as clickable text instead of raw
+            // `[label](url)` syntax. `line-clamp-1` keeps the details to a
+            // single row inside this dense list — `truncate` only works
+            // on text-bearing elements, but MarkdownText wraps content in
+            // a `<div>` + `<p>`, so we use line-clamp which respects
+            // nested elements.
+            <MarkdownText
               className={cn(
-                "mt-0.5 block truncate text-xs leading-snug text-muted-foreground",
+                "mt-0.5 line-clamp-1 text-xs leading-snug text-muted-foreground",
                 todo.isCompleted && "line-through",
               )}
             >
               {todo.details}
-            </span>
+            </MarkdownText>
           )}
         </span>
         <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" />
