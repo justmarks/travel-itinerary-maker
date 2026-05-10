@@ -1,0 +1,49 @@
+{
+  "capturedAt": "2026-05-10T20:53:50.830Z",
+  "iterations": 50,
+  "storageBackend": "SupabaseStorage",
+  "nodeVersion": "v22.22.2",
+  "notes": "Captured against SupabaseStorage + Drizzle + node-postgres against DATABASE_URL. Numbers reflect a single Node process talking to a single Postgres connection — local Postgres is closer to the floor than a real production setup with network round-trips. Use this as a same-machine regression check for the SupabaseStorage path specifically; do not directly compare against the in-memory baseline.",
+  "routes": {
+    "POST /api/v1/trips": {
+      "p50ms": 10.832518000000164,
+      "p95ms": 14.017855999999938
+    },
+    "GET /api/v1/trips": {
+      "p50ms": 5.640338000000156,
+      "p95ms": 8.220781999999872
+    },
+    "GET /api/v1/trips/:tripId": {
+      "p50ms": 3.8371689999994487,
+      "p95ms": 5.838383000000249
+    },
+    "PUT /api/v1/trips/:tripId": {
+      "p50ms": 15.096086000000469,
+      "p95ms": 20.874690999999984
+    },
+    "GET /api/v1/trips/:tripId/days": {
+      "p50ms": 3.2776919999996608,
+      "p95ms": 4.083937999999762
+    },
+    "POST /api/v1/trips/:tripId/segments": {
+      "p50ms": 8.565241000000242,
+      "p95ms": 11.224435999998605
+    },
+    "PUT /api/v1/trips/:tripId/segments/:segmentId": {
+      "p50ms": 8.587115000000267,
+      "p95ms": 10.743760999999722
+    },
+    "DELETE /api/v1/trips/:tripId/segments/:segmentId": {
+      "p50ms": 7.021335999999792,
+      "p95ms": 9.618627999998353
+    },
+    "GET /api/v1/trips/:tripId/costs": {
+      "p50ms": 3.329987999999503,
+      "p95ms": 4.884790000000066
+    },
+    "DELETE /api/v1/trips/:tripId": {
+      "p50ms": 6.072532999998657,
+      "p95ms": 7.453416999998808
+    }
+  }
+}

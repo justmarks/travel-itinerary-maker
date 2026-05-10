@@ -10,6 +10,7 @@
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
+    "preDeployCommand": "node server/dist/db/migrate.js",
     "startCommand": "node server/dist/index.js",
     "sleepApplication": false,
     "useLegacyStacker": false,

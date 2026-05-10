@@ -22,19 +22,38 @@ import { reportError } from "./services/monitoring";
 import { buildCorsOriginCheck, CorsOriginError } from "./middleware/cors-origin";
 import { isInsufficientScopeError } from "./services/google-drive/drive-error";
 import type { ResolveOwnerStorage } from "./services/trip-access";
+import type { DbClient } from "./db/client";
+import { SupabaseStorage } from "./services/supabase-storage";
 import { config } from "./config/env";
 
 export interface AppOptions {
   /**
    * Storage mode:
    * - "memory": Use a shared in-memory storage (dev/test)
-   * - "drive": Use per-user Google Drive storage (production)
+   * - "drive": Use per-user Google Drive storage (production today).
+   *   Users in `postgresUserIds` are routed to `SupabaseStorage`
+   *   instead — this is the phase 1 dogfooding flag.
+   * - "postgres": Use Supabase Postgres for every authenticated user.
+   *   Future state once dogfooding is done.
    */
-  mode: "memory" | "drive";
+  mode: "memory" | "drive" | "postgres";
   /**
    * Required when mode is "memory". The shared storage instance.
    */
   storage?: StorageProvider;
+  /**
+   * Required when storage involves Postgres
+   * (`mode: "postgres"`, or `mode: "drive"` with a non-empty
+   * `postgresUserIds` set). Process-singleton DB client; the app
+   * uses it to construct per-user `SupabaseStorage` instances.
+   */
+  dbClient?: DbClient;
+  /**
+   * In `mode: "drive"`, the set of user IDs to route to Postgres
+   * instead of Drive. Empty / undefined means "every user stays on
+   * Drive". Ignored in other modes.
+   */
+  postgresUserIds?: Set<string>;
   /**
    * Test override: skip Redis even if env vars are set. Lets tests run
    * deterministically without a live Redis instance.
@@ -74,6 +93,8 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   const {
     mode,
     storage,
+    dbClient,
+    postgresUserIds,
     disableRedis,
     redisStore: redisStoreOverride,
     resolveOwnerStorage: resolveOwnerStorageOverride,
@@ -166,45 +187,94 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     pushStore.hydrate(),
   ]);
 
-  // Build the storage resolver based on mode
+  // Authenticated modes are `drive` and `postgres` — both attach
+  // `req.userId` via the auth middleware before route handlers run.
+  // Memory mode skips auth and uses a shared singleton storage.
+  const requiresAuth = mode === "drive" || mode === "postgres";
+
+  // Validate cross-option requirements that the type system can't
+  // catch on its own.
+  if (mode === "postgres" && !dbClient) {
+    throw new Error("AppOptions.dbClient is required when mode is 'postgres'");
+  }
+  if (
+    mode === "drive" &&
+    postgresUserIds &&
+    postgresUserIds.size > 0 &&
+    !dbClient
+  ) {
+    throw new Error(
+      "AppOptions.dbClient is required when postgresUserIds is non-empty",
+    );
+  }
+  if (mode === "memory" && !storage) {
+    throw new Error("InMemoryStorage instance required for memory mode");
+  }
+
+  // Build the per-request resolver. In drive mode users in
+  // `postgresUserIds` are routed to Postgres; everyone else stays on
+  // Drive. Phase 1's per-user dogfooding lives in this branch.
   let resolveStorage: StorageResolver | StorageProvider;
 
   if (mode === "drive") {
-    // Production: create per-request DriveStorage from authenticated user's token
     resolveStorage = (req) => {
+      if (req.userId && postgresUserIds?.has(req.userId) && dbClient) {
+        return new SupabaseStorage({ db: dbClient.db, userId: req.userId });
+      }
       if (!req.accessToken) {
-        throw new Error("No access token on request — requireAuth middleware missing?");
+        throw new Error(
+          "No access token on request — requireAuth middleware missing?",
+        );
       }
       return new DriveStorage({ accessToken: req.accessToken });
     };
+  } else if (mode === "postgres") {
+    resolveStorage = (req) => {
+      if (!req.userId) {
+        throw new Error(
+          "No userId on request — requireAuth middleware missing?",
+        );
+      }
+      // Non-null assertion ok: the early-validation block above
+      // throws when dbClient is missing in postgres mode.
+      return new SupabaseStorage({ db: dbClient!.db, userId: req.userId });
+    };
   } else {
-    // Development/test: use shared in-memory storage
-    if (!storage) {
-      throw new Error("InMemoryStorage instance required for memory mode");
-    }
-    resolveStorage = storage;
+    // memory mode — `storage` non-null asserted via early validation.
+    resolveStorage = storage!;
   }
 
-  // Owner-storage resolver for the contributor flow. Used by trip routes
-  // to load a shared trip from the *owner's* Drive on behalf of a
-  // contributor. In drive mode we wire it through tokenStore + Drive;
-  // in memory mode tests can supply their own resolver to simulate
-  // cross-user access. Returns null when the owner's auth has expired.
+  // Owner-storage resolver for the contributor flow. Used by trip
+  // routes to load a shared trip from the *owner's* storage on behalf
+  // of a contributor. The resolver picks the same backend the owner
+  // would normally use:
+  //
+  // - postgres mode: every owner uses SupabaseStorage scoped to their
+  //   userId, regardless of the requesting contributor.
+  // - drive mode: owners on the postgresUserIds list use
+  //   SupabaseStorage; others use their stored Drive token via
+  //   tokenStore. Returns null when the owner's auth has expired.
+  // - memory mode: tests inject their own resolver. Without one, the
+  //   contributor flow is a no-op and resolveTripAccess returns 404.
   const resolveOwnerStorage: ResolveOwnerStorage =
     resolveOwnerStorageOverride ??
-    (mode === "drive"
+    (mode === "postgres"
       ? async (ownerUserId: string) => {
-          const accessToken = await tokenStore.getAccessToken(ownerUserId);
-          if (!accessToken) return null;
-          return new DriveStorage({ accessToken });
+          return new SupabaseStorage({ db: dbClient!.db, userId: ownerUserId });
         }
-      : async () => {
-          // Memory mode without an explicit override: contributor flow is
-          // a no-op. The shared path in resolveTripAccess simply returns
-          // 404, matching the existing behaviour where memory-mode dev
-          // trips all live in one storage anyway.
-          return null;
-        });
+      : mode === "drive"
+        ? async (ownerUserId: string) => {
+            if (postgresUserIds?.has(ownerUserId) && dbClient) {
+              return new SupabaseStorage({
+                db: dbClient.db,
+                userId: ownerUserId,
+              });
+            }
+            const accessToken = await tokenStore.getAccessToken(ownerUserId);
+            if (!accessToken) return null;
+            return new DriveStorage({ accessToken });
+          }
+        : async () => null);
 
   // Health check
   app.get("/health", (_req, res) => {
@@ -216,8 +286,9 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // for the user's trips — recovers from server restarts without Redis.
   app.use("/api/v1/auth", createAuthRoutes({ tokenStore, shareRegistry }));
 
-  // Trip routes — require auth in drive mode
-  if (mode === "drive") {
+  // Trip routes — require auth in any mode that has a real notion of
+  // user identity (drive, postgres). Memory mode is anonymous.
+  if (requiresAuth) {
     app.use("/api/v1/trips", requireAuth, createTripRoutes({
       resolveStorage,
       shareRegistry,
@@ -242,7 +313,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // by the same TokenStore so they can mint a Gmail-client access
   // token from the user's stored refresh token. Memory-mode tests
   // skip both guards.
-  if (mode === "drive") {
+  if (requiresAuth) {
     app.use("/api/v1/emails", requireAuth, createEmailRoutes({
       resolveStorage,
       tokenStore,
@@ -254,7 +325,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   }
 
   // Calendar sync routes — always require auth (needs Calendar access token)
-  if (mode === "drive") {
+  if (requiresAuth) {
     app.use("/api/v1/trips", requireAuth, createCalendarRoutes({ resolveStorage }));
   } else {
     app.use("/api/v1/trips", createCalendarRoutes({ resolveStorage }));
@@ -267,8 +338,9 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     tokenStore,
   }));
 
-  // Auto-share rule routes — owner-scoped, requires auth in drive mode.
-  if (mode === "drive") {
+  // Auto-share rule routes — owner-scoped, requires auth in drive /
+  // postgres modes. Memory mode skips auth.
+  if (requiresAuth) {
     app.use("/api/v1/share-rules", requireAuth, createShareRuleRoutes({
       resolveStorage,
       shareRegistry,
@@ -284,10 +356,11 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     }));
   }
 
-  // Push subscription routes — auth-required in drive mode for the
-  // subscribe/unsubscribe endpoints; the public /push/config endpoint
-  // is served from the same router and handles its own no-auth case.
-  if (mode === "drive") {
+  // Push subscription routes — auth-required in drive / postgres modes
+  // for the subscribe/unsubscribe endpoints; the public /push/config
+  // endpoint is served from the same router and handles its own no-auth
+  // case.
+  if (requiresAuth) {
     app.use("/api/v1/push", requireAuth, createPushRoutes({ store: pushStore }));
   } else {
     app.use("/api/v1/push", createPushRoutes({ store: pushStore }));
