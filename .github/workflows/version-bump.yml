@@ -76,13 +76,14 @@ jobs:
           fi
 
           # `[skip ci]` skips the GitHub Actions CI workflow.
-          # `[skip railway]` is the explicit marker Railway respects to
-          # avoid redeploying for a no-op version bump that doesn't
-          # touch any runtime code. Belt-and-suspenders alongside
-          # railway.json's `watchPatterns: ["server/**"]` filter, since
-          # Railway's auto-deploy can be configured at the dashboard
-          # level too — the commit-message marker is the most reliable
-          # signal regardless of project settings.
-          git commit -m "chore: bump version to $VERSION [skip ci] [skip railway]"
+          # `[skip-deploy]` is Railway's documented marker for skipping
+          # an auto-deploy on this commit — the previous `[skip railway]`
+          # phrase looked sensible but is not actually one Railway
+          # honours, so every bump commit was redeploying despite the
+          # marker. Belt-and-suspenders alongside `railway.json`'s
+          # `watchPatterns: ["server/**"]`, which on its own should
+          # already exclude package-only commits once the project has
+          # Config-as-Code enabled and pointed at the file.
+          git commit -m "chore: bump version to $VERSION [skip ci] [skip-deploy]"
           git tag "v$VERSION"
           git push && git push --tags
