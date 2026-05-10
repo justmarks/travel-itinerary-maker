@@ -57,12 +57,14 @@ this whole class of issue evaporates when Vercel is the host.
      and Preview** with the same value. Drives the OAuth preview
      relay (see below).
    - `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` — anchored regex matching
-     allowed preview origins, e.g.
-     `^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$`.
-     The character class includes `-` so branch-alias URLs
-     (`itinly-git-feat-foo-...`) match alongside per-deploy hash URLs
-     (`itinly-7a3lt52rq-...`). Set on **Production only** — that's
-     where the relay runs.
+     allowed preview origins. Include the per-deploy Vercel hostname
+     pattern AND any stable preview alias (see "Stable preview alias"
+     below). Example:
+     `^(https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app|https://preview\.itinly\.app)$`.
+     The character class on the per-deploy pattern includes `-` so
+     branch-alias URLs (`itinly-git-feat-foo-...`) match alongside
+     per-deploy hash URLs (`itinly-7a3lt52rq-...`). Set on
+     **Production only** — that's where the relay runs.
    - `UPSTASH_REDIS_REST_URL` — Upstash REST URL. **Server-only — do
      not prefix with `NEXT_PUBLIC_`.** Read by the Edge runtime in
      `app/shared/[token]/page.tsx` to fetch the share snapshot.
@@ -218,6 +220,37 @@ preview:
 
 After saving these, restart the Railway service so the new env values
 take effect.
+
+## Stable preview alias
+
+The per-deploy `*-vercel.app` URLs change every commit, which is fine
+for one-off previews but awkward to share or bookmark. To get a stable
+URL that always points at the latest commit on the `preview` branch,
+assign a custom domain as a Vercel **branch domain**:
+
+1. **DNS.** Add a CNAME at your domain provider:
+   `preview.itinly.app → cname.vercel-dns.com`. Vercel issues TLS
+   automatically once propagation finishes.
+2. **Vercel domain.** Project → Settings → Domains → add
+   `preview.itinly.app`. In the same row set **Git Branch = `preview`**.
+   This is the bit that re-targets the alias to the preview branch
+   instead of production; without it, Vercel attaches new domains to
+   the production branch by default.
+3. **OAuth relay.** Extend `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` on the
+   **Production** scope so the relay will bounce OAuth codes back to
+   the alias. Anchored alternation, e.g.
+   `^(https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app|https://preview\.itinly\.app)$`.
+4. **Railway preview env CORS.** Add `https://preview.itinly.app` to
+   `CORS_ORIGIN` (literal list) on the Railway `preview` service so
+   browser calls from the alias to the preview backend pass CORS.
+5. **(Optional) Google OAuth.** Because the alias is now stable, you
+   *can* register `https://preview.itinly.app/auth/callback` directly
+   as an Authorized redirect URI in Google Cloud Console — that lets
+   the alias skip the production-relay round-trip and sign in
+   directly. Not required; the relay still works once step 3 is done.
+
+Pushing to the `preview` branch (`git push origin <your-branch>:preview
+--force-with-lease`) triggers Vercel to redeploy the alias.
 
 ## Per-PR previews
 
