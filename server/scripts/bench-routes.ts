@@ -25,6 +25,10 @@
  */
 import fs from "fs";
 import path from "path";
+// Load `server/.env` so DATABASE_URL is picked up for `--postgres`
+// runs without prefixing every command. Mirrors the dotenv setup
+// the integration test runner gets via jest.integration.config.ts.
+import "dotenv/config";
 import request from "supertest";
 import type express from "express";
 import { Client } from "pg";
