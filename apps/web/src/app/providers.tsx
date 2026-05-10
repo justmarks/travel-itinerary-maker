@@ -11,7 +11,7 @@ import { DemoProvider, useDemoMode } from "@/lib/demo";
 import { MockApiClient } from "@/lib/mock-client";
 import { initMonitoring } from "@/lib/monitoring";
 import { logPushDiagnostics } from "@/lib/push";
-import { createWebQueryClient } from "@/lib/query-client";
+import { CACHE_STORAGE_KEY, createWebQueryClient } from "@/lib/query-client";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 import { IntroTourDialog } from "@/components/intro-tour-dialog";
 
@@ -51,6 +51,24 @@ function ApiProviderSwitcher({ children }: { children: React.ReactNode }) {
     () => createWebQueryClient({ enabled: !isDemo }),
     [isDemo],
   );
+
+  // Wipe cached data when auth transitions to signed-out (manual logout
+  // OR refresh-token failure). Without this, switching accounts would
+  // briefly render the previous user's trips on first paint while the
+  // new user's queries refetch — and the persisted localStorage snapshot
+  // would survive across sessions until the next mutation rewrote it.
+  const prevTokenRef = useRef(accessToken);
+  useEffect(() => {
+    if (prevTokenRef.current && !accessToken) {
+      queryClient.clear();
+      try {
+        window.localStorage.removeItem(CACHE_STORAGE_KEY);
+      } catch {
+        // Safari private mode etc. — non-fatal.
+      }
+    }
+    prevTokenRef.current = accessToken;
+  }, [accessToken, queryClient]);
 
   const apiTree = isDemo ? (
     <ApiClientProvider

@@ -66,8 +66,12 @@ export default function MobileLoginPage(): React.JSX.Element {
 
   return (
     <MobileFrame>
-      <div className="flex flex-1 flex-col px-6 pb-10 pt-16">
-        <div className="flex flex-col items-center text-center">
+      <div className="flex flex-1 flex-col px-6 pb-10 pt-6">
+        {/* mt-auto on the wordmark + mt-auto on the bottom desktop link
+            split the leftover space evenly, vertically centering the
+            wordmark/buttons block while keeping the desktop-site link
+            anchored at the bottom. */}
+        <div className="mt-auto flex flex-col items-center text-center">
           <Link href="/welcome" aria-label="itinly home">
             <AppWordmark className="h-16" />
           </Link>

@@ -4,6 +4,7 @@ import type {
   Segment,
   Todo,
   TripShare,
+  TripShareRule,
   CostSummaryItem,
   CreateTripInput,
   UpdateTripInput,
@@ -11,6 +12,8 @@ import type {
   CreateTodoInput,
   UpdateTodoInput,
   CreateShareInput,
+  CreateShareRuleInput,
+  UpdateShareRuleInput,
   PushSubscriptionInput,
   EmailScanResult,
   GmailLabel,
@@ -318,6 +321,41 @@ export class ApiClient {
     return this.request(`/trips/${tripId}/shares/${shareId}`, {
       method: "DELETE",
     });
+  }
+
+  // ─── Auto-Share Rules ──────────────────────────────────
+
+  listShareRules(): Promise<TripShareRule[]> {
+    return this.request("/share-rules");
+  }
+
+  createShareRule(
+    input: CreateShareRuleInput,
+  ): Promise<{ rule: TripShareRule; spawnedShareCount: number; upgradedShareCount: number }> {
+    return this.request("/share-rules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateShareRule(
+    ruleId: string,
+    input: UpdateShareRuleInput,
+  ): Promise<{ rule: TripShareRule; updatedShareCount: number }> {
+    return this.request(`/share-rules/${ruleId}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  }
+
+  deleteShareRule(
+    ruleId: string,
+    opts: { cascade: boolean },
+  ): Promise<{ revokedShareCount: number }> {
+    return this.request(
+      `/share-rules/${ruleId}?cascade=${opts.cascade ? "true" : "false"}`,
+      { method: "DELETE" },
+    );
   }
 
   // ─── Shared (public) ───────────────────────────────────

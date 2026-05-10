@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
+import { AutoShareRulesDialog } from "@/components/auto-share-rules-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +30,7 @@ import {
   Copy,
   Eye,
   Pencil,
+  Repeat,
   Share2,
   Trash2,
 } from "lucide-react";
@@ -141,6 +143,17 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {share.originRuleId && (
+          <p
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            style={{
+              background: "var(--status-info-bg)",
+              color: "var(--status-info-fg)",
+            }}
+          >
+            Via auto-share rule
+          </p>
+        )}
         {activityLabel && (
           <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
         )}
@@ -216,6 +229,9 @@ export function ShareTripDialog({
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [createdCopied, setCreatedCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // null = auto-share dialog closed; string (possibly empty) = open
+  // with that initial email pre-filled into the create form.
+  const [autoShareEmail, setAutoShareEmail] = useState<string | null>(null);
 
   const trimmedEmail = email.trim();
   const emailValid = useMemo(() => {
@@ -494,7 +510,49 @@ export function ShareTripDialog({
             </ul>
           </div>
         )}
+
+        {/* Auto-share advertisement — invites the user to set up an
+            owner-scoped rule so future trips share with the same person
+            automatically. Hidden in the success state to keep the
+            "share link ready" moment focused. */}
+        {!inSuccessState && (
+          <button
+            type="button"
+            onClick={() => {
+              setAutoShareEmail(trimmedEmail || "");
+              onOpenChange(false);
+            }}
+            className="flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted/40"
+            style={{
+              background: "var(--status-info-bg)",
+              borderColor: "var(--status-info-rail)",
+            }}
+          >
+            <Repeat
+              className="mt-0.5 h-4 w-4 shrink-0"
+              style={{ color: "var(--status-info-fg)" }}
+            />
+            <span className="min-w-0 flex-1">
+              <span
+                className="block text-sm font-medium"
+                style={{ color: "var(--status-info-fg)" }}
+              >
+                Always sharing with this person?
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                Auto-share every trip (existing and future) with one rule.
+              </span>
+            </span>
+          </button>
+        )}
       </DialogContent>
+      <AutoShareRulesDialog
+        open={autoShareEmail !== null}
+        onOpenChange={(o) => {
+          if (!o) setAutoShareEmail(null);
+        }}
+        initialEmail={autoShareEmail ?? undefined}
+      />
     </Dialog>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -15,12 +16,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { NotificationToggleMenu } from "@/components/notification-toggle";
-import { LogIn, LogOut, Smartphone, User } from "lucide-react";
+import { AutoShareRulesDialog } from "@/components/auto-share-rules-panel";
+import { LogIn, LogOut, Repeat, Smartphone, User } from "lucide-react";
 
 export function UserMenu(): React.JSX.Element | null {
   const { user, isAuthenticated, logout } = useAuth();
   const isDemo = useDemoMode();
   const router = useRouter();
+  const [autoShareOpen, setAutoShareOpen] = useState(false);
 
   // Clears the persisted "prefer desktop" flag and routes to the mobile
   // site. Without this clear, the mobile-home redirect would bounce the
@@ -75,6 +78,10 @@ export function UserMenu(): React.JSX.Element | null {
           <Smartphone className="mr-2 h-4 w-4" />
           Use mobile site
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setAutoShareOpen(true)}>
+          <Repeat className="mr-2 h-4 w-4" />
+          Auto-share&hellip;
+        </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
         <DropdownMenuItem onClick={logout}>
@@ -87,6 +94,7 @@ export function UserMenu(): React.JSX.Element | null {
           </div>
         )}
       </DropdownMenuContent>
+      <AutoShareRulesDialog open={autoShareOpen} onOpenChange={setAutoShareOpen} />
     </DropdownMenu>
   );
 }

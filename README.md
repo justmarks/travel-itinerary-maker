@@ -19,7 +19,7 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs; one-click "Confirm all" for a whole batch of auto-parsed segments
 - **Embedded costs** — each segment card shows cost and booking details inline, with a dedicated Costs tab
 - **TODO tracking** — categorized checklist for meals, activities, research, and logistics
-- **Sharing** — generate share links with configurable visibility (costs, TODOs)
+- **Sharing** — generate per-trip share links with configurable visibility (costs, TODOs), or set up an **auto-share rule** that shares every existing and future trip with someone in one tap
 - **Trip history (audit log)** — every change to a trip (segments added / edited / deleted, todos checked, dates rolled, day cities edited, segment field-level diffs, shares created or revoked, XLSX or email-scan imports) is recorded in an append-only History tab showing what changed, who did it, and when. Reverse-chrono, grouped by day, capped at the most recent 500 entries per trip. Available to owners and contributors alike — particularly useful on shared edit-trips with multiple collaborators
 - **Export** — download itineraries as Markdown, OneNote-compatible HTML, PDF, or **iCal (.ics)**; the iCal file is named after the trip, includes VTIMEZONE blocks for correct DST display in Outlook, and handles overnight flights (arrival date advances to the next calendar day when the flight crosses midnight UTC)
 - **Google Calendar sync** — push all trip segments to any of your writable Google Calendars with one click; hotels and car rentals become all-day events; flights and trains carry the correct IANA time zone per city so events land at the right wall-clock time regardless of your device zone; re-sync updates existing events; unsync removes them (with a choice to delete the events from Google or just unlink); a calendar picker lets you choose which calendar before each sync; available on both desktop (trip-header overflow menu) and mobile (`/m` overflow menu)
@@ -169,7 +169,7 @@ Current coverage: **647 tests** across 40 test suites.
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | apps/web | Google Maps API key (enables Map tab) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` | apps/web | Cloud map ID for styled markers (optional; defaults to demo ID) |
 | `NEXT_PUBLIC_PROD_ORIGIN` | apps/web | Production origin (e.g. `https://itinly.vercel.app`). Set in Vercel for both **Production and Preview**. Drives the OAuth preview-relay: previews send Google's `redirect_uri` here (the only value Google has registered) and are bounced back via `state.origin`. Leave unset locally. See [docs/vercel-setup.md](docs/vercel-setup.md#oauth-on-preview-deployments). |
-| `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` | apps/web | Anchored regex matching allowed preview origins for the OAuth relay. Set on **Production only** — that's where the relay validates the `state.origin` before bouncing the OAuth code. Mirrors the server's `CORS_ORIGIN_PATTERN`. Example: `^https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app$`. |
+| `NEXT_PUBLIC_PREVIEW_ORIGIN_PATTERN` | apps/web | Anchored regex matching allowed preview origins for the OAuth relay. Set on **Production only** — that's where the relay validates the `state.origin` before bouncing the OAuth code. Mirrors the server's `CORS_ORIGIN_PATTERN`. Include both per-deploy hostnames and any stable preview alias in the alternation. Example: `^(https://itinly-[a-z0-9-]+-justmarks-projects\.vercel\.app\|https://preview\.itinly\.app)$`. |
 
 ## API Overview
 
@@ -197,6 +197,10 @@ Base URL: `/api/v1`
 | `GET` | `/trips/:id/shares` | List share links for a trip |
 | `DELETE` | `/trips/:id/shares/:shareId` | Revoke a share link |
 | `GET` | `/shared/:token` | View a shared trip (public) |
+| `GET` | `/share-rules` | List the owner's auto-share rules |
+| `POST` | `/share-rules` | Create an auto-share rule (backfills shares across existing trips) |
+| `PUT` | `/share-rules/:ruleId` | Edit a rule; cascades permission / visibility changes onto every share the rule spawned |
+| `DELETE` | `/share-rules/:ruleId?cascade=true\|false` | Remove a rule; `cascade=true` also revokes every share the rule spawned, `cascade=false` leaves them in place |
 | `GET` | `/trips/:id/export/markdown` | Export as Markdown |
 | `GET` | `/trips/:id/export/onenote` | Export as OneNote HTML |
 | `GET` | `/trips/:id/export/pdf` | Export as PDF (pdfkit; day-by-day + costs summary) |
@@ -313,6 +317,7 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 - [x] **Per-trip unfurl previews** — `ShareSnapshotStore` writes a tiny title/dates snapshot to Redis on share creation; the public `/shared/[token]` page reads it on the Vercel Edge runtime in `generateMetadata` and renders a per-trip Open Graph card
 - [x] **Contributor edit flow** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` keeps an email index keyed on `sharedWithEmail` for fast lookup
 - [x] **Recipient self-leave** — a share recipient can remove themselves from a trip without waiting for the owner. Leave action lives on both the trip card (dashboard) and the trip detail page on desktop and mobile. Reuses the existing `DELETE /trips/:id/shares/:shareId` endpoint with the access gate relaxed: owners can revoke any share; non-owners can revoke a share row whose `sharedWithEmail` matches their authenticated email. Writes a `share.leave` audit entry (distinct from owner-initiated `share.revoke`) and pushes a notification to the *owner* ("X left your trip") rather than to the leaver. Anonymous link shares stay owner-only since there's no recipient identity to match
+- [x] **Auto-share rules** — owner-scoped rule that auto-shares every existing trip plus every future trip with a given recipient. On rule create, backfills a `TripShare` per existing trip; on trip create, fans out a share to every active rule. Each spawned share carries `originRuleId` so rule edits cascade onto its shares (and only its shares — manual shares to the same recipient stay untouched), and rule delete prompts the owner to choose between keeping existing shares or cascade-revoking them. Conflict policy on backfill is "upgrade only if stricter" (a rule will upgrade view → edit on a manual share, but never downgrade edit → view). One rule per `(owner, recipient)`; self-share rejected. Rule-level activity (create / edit / cascade-delete) collapses into a single push to the recipient instead of N per-share pushes. Surfaced as a dashboard panel on desktop (`AutoShareRulesPanel`) and a bottom sheet on mobile (`MobileAutoShareSheet`); shares originating from a rule render a "Via auto-share rule" pill in the per-trip share dialog so the owner can see at a glance which shares cascade-affect
 
 **Potential ideas for the future:**
 

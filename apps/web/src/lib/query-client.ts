@@ -4,7 +4,13 @@ import { QueryClient } from "@tanstack/react-query";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import type { PersistQueryClientOptions } from "@tanstack/react-query-persist-client";
 
-const STORAGE_KEY = "itinly-rq-cache-v1";
+/**
+ * localStorage key the persister writes to. Exported so the auth flow
+ * can wipe it on sign-out — clearing only the in-memory QueryClient
+ * leaves the persisted snapshot behind, and the next user's first paint
+ * would briefly show the previous user's cached trips.
+ */
+export const CACHE_STORAGE_KEY = "itinly-rq-cache-v1";
 // One week. Trip dates rarely shift week-to-week and stale data is still
 // useful at the airport — fresher data wins as soon as the device is back
 // online.
@@ -58,7 +64,7 @@ export function createWebQueryClient(opts: { enabled: boolean }): WebQueryClient
   try {
     persister = createSyncStoragePersister({
       storage: window.localStorage,
-      key: STORAGE_KEY,
+      key: CACHE_STORAGE_KEY,
       throttleTime: 1_000,
     });
   } catch {

@@ -29,12 +29,14 @@
  * caches get evicted on activate.
  */
 
-// Bumped to v7 to evict the cache-first `/manifest.webmanifest` entry
-// captured before the orientation: portrait → any switch landed.
-// Without eviction, the SW kept serving the stale manifest to Chrome's
-// PWA-update probe, so installed PWAs never picked up the new
-// orientation and stayed locked to portrait.
-const SW_VERSION = "v7";
+// Bumped to v8 to land the `/auth/*` bypass — previous versions
+// re-issued the OAuth callback navigation via `fetch(req)` inside the
+// SW, which (a) cached the URL containing the single-use `code` and
+// (b) made the request look like an SW retry to Vercel's DDoS
+// mitigation, contributing to firewall denials on the callback round
+// trip. Eviction also drops any previously-cached `/auth/callback`
+// HTML carrying a stale `code` query string.
+const SW_VERSION = "v8";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
@@ -143,6 +145,16 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
 
   const url = new URL(req.url);
+
+  // OAuth round-trip: never let the SW touch `/auth/*`. The callback URL
+  // carries a single-use `code` we must not cache, and re-issuing the
+  // navigation through `fetch(req)` inside the SW makes the request look
+  // like an SW retry to Vercel's DDoS mitigation, which has flagged the
+  // cross-site Google → itinly.app navigation as suspicious. Letting the
+  // browser handle it as a plain navigation avoids both problems.
+  if (url.origin === self.location.origin && url.pathname.startsWith("/auth/")) {
+    return;
+  }
 
   // Backend trip JSON — only cache successful GETs to authenticated trip
   // endpoints. We deliberately scope to `/trips` so we don't cache email

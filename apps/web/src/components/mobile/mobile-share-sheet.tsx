@@ -13,6 +13,7 @@ import {
   Copy,
   Eye,
   Pencil,
+  Repeat,
   Send,
   Trash2,
   X,
@@ -23,6 +24,7 @@ import { useConfirm } from "@/lib/confirm-dialog";
 import { shareActivityLabel } from "@/lib/share-activity";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
+import { MobileAutoShareSheet } from "./mobile-auto-share-sheet";
 
 function buildShareUrl(token: string): string {
   // Path form so Cloudflare Pages can render per-trip unfurl metadata.
@@ -176,6 +178,17 @@ function ExistingShareRow({
           {share.showCosts ? "" : " · No costs"}
           {share.showTodos ? "" : " · No to-dos"}
         </p>
+        {share.originRuleId && (
+          <p
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-kicker"
+            style={{
+              background: "var(--status-info-bg)",
+              color: "var(--status-info-fg)",
+            }}
+          >
+            Via auto-share rule
+          </p>
+        )}
         {activityLabel && (
           <p className="mt-0.5 text-xs text-muted-foreground">{activityLabel}</p>
         )}
@@ -240,11 +253,16 @@ export function MobileShareSheet({
   // collapsed behind a "+ Add recipient" affordance until the user
   // opts in. Edit shares always show the input (Gmail required).
   const [emailExpanded, setEmailExpanded] = useState(false);
+  // null = auto-share sheet closed; string (possibly empty) = open with
+  // that initial email pre-filled into the create form.
+  const [autoShareEmail, setAutoShareEmail] = useState<string | null>(null);
   const [showCosts, setShowCosts] = useState(false);
   const [showTodos, setShowTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset form on (re)open so each pull-up starts fresh.
+  // Reset form on (re)open so each pull-up starts fresh. `autoShareEmail`
+  // is cleared too so a stale value can't leak in if the user closes the
+  // share sheet without touching the auto-share child sheet.
   useEffect(() => {
     if (!open) return;
     setPermission("view");
@@ -253,6 +271,7 @@ export function MobileShareSheet({
     setShowCosts(false);
     setShowTodos(false);
     setError(null);
+    setAutoShareEmail(null);
   }, [open]);
 
   const trimmedEmail = email.trim();
@@ -329,6 +348,7 @@ export function MobileShareSheet({
   };
 
   return (
+    <>
     <MobileBottomSheet open={open} onClose={onClose} ariaLabel="Share trip">
       {/* Header */}
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
@@ -461,6 +481,39 @@ export function MobileShareSheet({
             </ul>
           </div>
         )}
+
+        {/* Auto-share advertisement — invites the user to set up an
+            owner-scoped rule so future trips share with the same person
+            automatically. Tapping closes the share sheet and opens the
+            auto-share sheet with the typed email pre-filled. */}
+        <button
+          type="button"
+          onClick={() => {
+            setAutoShareEmail(trimmedEmail || "");
+            onClose();
+          }}
+          className="mt-5 flex w-full items-start gap-2.5 rounded-xl border px-3 py-3 text-left active:opacity-90"
+          style={{
+            background: "var(--status-info-bg)",
+            borderColor: "var(--status-info-rail)",
+          }}
+        >
+          <Repeat
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: "var(--status-info-fg)" }}
+          />
+          <span className="min-w-0 flex-1">
+            <span
+              className="block text-sm font-medium"
+              style={{ color: "var(--status-info-fg)" }}
+            >
+              Always sharing with this person?
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              Auto-share every trip (existing and future) with one rule.
+            </span>
+          </span>
+        </button>
       </div>
 
       {/* Action bar */}
@@ -483,5 +536,16 @@ export function MobileShareSheet({
         </button>
       </div>
     </MobileBottomSheet>
+    {/* Sibling, not child: when `onClose` flips this share sheet's
+        `open` to false, MobileBottomSheet returns null and unmounts
+        its children. Rendering the auto-share sheet outside that tree
+        lets the ad-tap "close-and-open" handoff actually mount the
+        target sheet. */}
+    <MobileAutoShareSheet
+      open={autoShareEmail !== null}
+      onClose={() => setAutoShareEmail(null)}
+      initialEmail={autoShareEmail ?? undefined}
+    />
+    </>
   );
 }

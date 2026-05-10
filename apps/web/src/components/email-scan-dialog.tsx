@@ -724,9 +724,13 @@ export function EmailScanDialog({
             </div>
 
             <DialogFooter>
-              <Button onClick={handleScan} className="w-full">
+              <Button
+                onClick={handleScan}
+                disabled={scanEmails.isPending}
+                className="w-full"
+              >
                 <Mail className="mr-2 h-4 w-4" />
-                Start Scan
+                {scanEmails.isPending ? "Scanning…" : "Start Scan"}
               </Button>
             </DialogFooter>
           </>

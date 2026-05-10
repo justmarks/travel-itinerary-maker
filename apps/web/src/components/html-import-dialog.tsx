@@ -575,8 +575,13 @@ export function HtmlImportDialog({
               <Button variant="ghost" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleImport} disabled={!content.trim()}>
-                Parse {format.toUpperCase()}
+              <Button
+                onClick={handleImport}
+                disabled={!content.trim() || importMutation.isPending}
+              >
+                {importMutation.isPending
+                  ? "Parsing…"
+                  : `Parse ${format.toUpperCase()}`}
               </Button>
             </DialogFooter>
           </div>

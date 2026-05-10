@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { Trip, UserSettings } from "@travel-app/shared";
+import type { Trip, TripShareRule, UserSettings } from "@travel-app/shared";
 import type { ProcessedEmail } from "./google-drive/drive-storage";
 
 /**
@@ -15,6 +15,11 @@ export interface StorageProvider {
   saveSettings(settings: UserSettings): Promise<void>;
   getProcessedEmails(): Promise<ProcessedEmail[]>;
   saveProcessedEmails(emails: ProcessedEmail[]): Promise<void>;
+  /** Auto-share rules — owner-scoped. See `TripShareRule`. */
+  listShareRules(): Promise<TripShareRule[]>;
+  getShareRule(ruleId: string): Promise<TripShareRule | null>;
+  saveShareRule(rule: TripShareRule): Promise<void>;
+  deleteShareRule(ruleId: string): Promise<boolean>;
 }
 
 /**
@@ -34,6 +39,7 @@ export class InMemoryStorage implements StorageProvider {
     notificationsEnabled: true,
   };
   private processedEmails: ProcessedEmail[] = [];
+  private shareRules: Map<string, TripShareRule> = new Map();
 
   async listTrips(): Promise<Trip[]> {
     return Array.from(this.trips.values()).sort(
@@ -70,10 +76,30 @@ export class InMemoryStorage implements StorageProvider {
     this.processedEmails = structuredClone(emails);
   }
 
+  async listShareRules(): Promise<TripShareRule[]> {
+    return Array.from(this.shareRules.values())
+      .map((rule) => structuredClone(rule))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async getShareRule(ruleId: string): Promise<TripShareRule | null> {
+    const rule = this.shareRules.get(ruleId);
+    return rule ? structuredClone(rule) : null;
+  }
+
+  async saveShareRule(rule: TripShareRule): Promise<void> {
+    this.shareRules.set(rule.id, structuredClone(rule));
+  }
+
+  async deleteShareRule(ruleId: string): Promise<boolean> {
+    return this.shareRules.delete(ruleId);
+  }
+
   /** Reset all data (for testing) */
   clear(): void {
     this.trips.clear();
     this.settings = { emailScanIntervalMinutes: 1440, notificationsEnabled: true };
     this.processedEmails = [];
+    this.shareRules.clear();
   }
 }

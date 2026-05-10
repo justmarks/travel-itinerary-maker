@@ -1,6 +1,17 @@
 import { google, type drive_v3 } from "googleapis";
-import { migrateTrip, type Trip, type UserSettings } from "@travel-app/shared";
+import {
+  migrateTrip,
+  type Trip,
+  type TripShareRule,
+  type UserSettings,
+} from "@travel-app/shared";
 import type { StorageProvider } from "../storage";
+import { mapWithConcurrency } from "../../utils/concurrency";
+
+/** Concurrent Drive reads in `listTrips`. ~6 stays well under the
+ * per-user request quota even when route handlers chain follow-up
+ * writes per trip. */
+const LIST_TRIPS_CONCURRENCY = 6;
 
 const APP_FOLDER_NAME = "Itinly";
 /**
@@ -16,6 +27,7 @@ const LEGACY_APP_FOLDER_NAMES = ["TravelItineraryMaker"];
 const TRIPS_FOLDER_NAME = "trips";
 const SETTINGS_FILE_NAME = "settings.json";
 const PROCESSED_EMAILS_FILE_NAME = "processed-emails.json";
+const SHARE_RULES_FILE_NAME = "share-rules.json";
 
 export interface ProcessedEmail {
   gmailMessageId: string;
@@ -198,14 +210,16 @@ export class DriveStorage implements StorageProvider {
       spaces: "drive",
     });
 
-    const trips: Trip[] = [];
-    for (const file of res.data.files || []) {
-      // Trips saved before schema versioning existed don't have
-      // schemaVersion yet — migrateTrip fills it in at read time so the
-      // rest of the app can rely on the field being present.
+    // Trips saved before schema versioning existed don't have
+    // schemaVersion yet — migrateTrip fills it in at read time so the
+    // rest of the app can rely on the field being present. Reads run in
+    // parallel (bounded) — N sequential 300ms round-trips becomes
+    // ceil(N/6) round-trips, the dominant cost at high N.
+    const files = res.data.files || [];
+    const trips = await mapWithConcurrency(files, LIST_TRIPS_CONCURRENCY, async (file) => {
       const raw = await this.readJsonFile<unknown>(file.id!);
-      trips.push(migrateTrip(raw));
-    }
+      return migrateTrip(raw);
+    });
 
     return trips.sort(
       (a, b) =>
@@ -272,5 +286,44 @@ export class DriveStorage implements StorageProvider {
       appFolderId,
       emails,
     );
+  }
+
+  // ─── Share Rules ────────────────────────────────────────
+  // Persisted as a single JSON array in `share-rules.json` alongside
+  // settings.json. Rules are low-cardinality (a handful per user) and
+  // always read/written together, so a single-file layout is the right
+  // granularity — no per-rule file like trips.
+
+  async listShareRules(): Promise<TripShareRule[]> {
+    const appFolderId = await this.getAppFolderId();
+    const fileId = await this.findFile(SHARE_RULES_FILE_NAME, appFolderId);
+    if (!fileId) return [];
+    return this.readJsonFile<TripShareRule[]>(fileId);
+  }
+
+  async getShareRule(ruleId: string): Promise<TripShareRule | null> {
+    const rules = await this.listShareRules();
+    return rules.find((r) => r.id === ruleId) ?? null;
+  }
+
+  async saveShareRule(rule: TripShareRule): Promise<void> {
+    const appFolderId = await this.getAppFolderId();
+    const rules = await this.listShareRules();
+    const idx = rules.findIndex((r) => r.id === rule.id);
+    if (idx >= 0) {
+      rules[idx] = rule;
+    } else {
+      rules.push(rule);
+    }
+    await this.writeJsonFile(SHARE_RULES_FILE_NAME, appFolderId, rules);
+  }
+
+  async deleteShareRule(ruleId: string): Promise<boolean> {
+    const appFolderId = await this.getAppFolderId();
+    const rules = await this.listShareRules();
+    const next = rules.filter((r) => r.id !== ruleId);
+    if (next.length === rules.length) return false;
+    await this.writeJsonFile(SHARE_RULES_FILE_NAME, appFolderId, next);
+    return true;
   }
 }

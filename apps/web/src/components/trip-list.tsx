@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTrips } from "@travel-app/api-client";
+import type { TripSummary } from "@travel-app/api-client";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { TripCard } from "./trip-card";
 import {
   StillLoadingHint,
@@ -9,37 +11,31 @@ import {
   useDelayedLoadingHint,
 } from "./trip-card-skeleton";
 import { AppLogo } from "./app-logo";
-import { Button } from "@/components/ui/button";
 import { describeError } from "@/lib/api-error";
+import {
+  BUCKET_LABEL,
+  groupTripsByBucket,
+  todayLocalISO,
+  type TripBucket,
+} from "@/lib/trip-buckets";
 
 export function TripList(): React.JSX.Element {
   const { data: trips, isLoading, error } = useTrips();
-  const [showCompleted, setShowCompleted] = useState(false);
 
-  // A trip is "completed" for the purposes of this toggle when its status
-  // is explicitly completed or cancelled. End-date is NOT part of the
-  // rule — an upcoming trip with status=planning stays visible even if
-  // the user never gets around to closing it out, and a trip marked
-  // completed a day early is still hidden.
-  const isCompleted = useCallback(
-    (t: { status: string }) =>
-      t.status === "completed" || t.status === "cancelled",
-    [],
+  const today = useMemo(() => todayLocalISO(), []);
+
+  // Mirror the mobile trip list grouping: Now / Upcoming / Past, with the
+  // "Past" section collapsible. Sourced from `lib/trip-buckets.ts` so the
+  // two surfaces share one bucketing rule. No status-based filter here —
+  // mobile shows every trip in its date bucket regardless of status, and
+  // the Past collapse is enough to hide finished trips by default.
+  const buckets = useMemo(
+    () => groupTripsByBucket(trips ?? [], today),
+    [trips, today],
   );
 
-  const completedCount = useMemo(
-    () => trips?.filter(isCompleted).length ?? 0,
-    [trips, isCompleted],
-  );
-
-  const visibleTrips = useMemo(() => {
-    if (!trips) return [];
-    const filtered = showCompleted
-      ? trips
-      : trips.filter((t) => !isCompleted(t));
-    // Ascending by startDate (ISO YYYY-MM-DD sorts lexicographically)
-    return [...filtered].sort((a, b) => a.startDate.localeCompare(b.startDate));
-  }, [trips, showCompleted, isCompleted]);
+  const visibleCount =
+    buckets.current.length + buckets.upcoming.length + buckets.past.length;
 
   if (isLoading) {
     return <TripListLoading />;
@@ -67,41 +63,71 @@ export function TripList(): React.JSX.Element {
   }
 
   return (
-    <div className="space-y-4">
-      {visibleTrips.length === 0 ? (
+    <div className="space-y-6">
+      {visibleCount === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <AppLogo className="mb-4 h-12 w-12 opacity-60" />
           <h3 className="text-lg font-medium">No upcoming trips</h3>
-          {completedCount > 0 && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              You have {completedCount} completed{" "}
-              {completedCount === 1 ? "trip" : "trips"} hidden.
-            </p>
-          )}
         </div>
       ) : (
+        <>
+          <TripBucketSection bucket="current" trips={buckets.current} />
+          <TripBucketSection bucket="upcoming" trips={buckets.upcoming} />
+          <TripBucketSection bucket="past" trips={buckets.past} collapsible />
+        </>
+      )}
+    </div>
+  );
+}
+
+function TripBucketSection({
+  bucket,
+  trips,
+  collapsible = false,
+}: {
+  bucket: TripBucket;
+  trips: TripSummary[];
+  collapsible?: boolean;
+}): React.JSX.Element | null {
+  const [expanded, setExpanded] = useState(!collapsible);
+
+  if (trips.length === 0) return null;
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-kicker font-semibold text-muted-foreground">
+          {BUCKET_LABEL[bucket]}
+          <span className="ml-1.5 text-muted-foreground/60">{trips.length}</span>
+        </h2>
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="h-3 w-3" />
+                Hide
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                Show
+              </>
+            )}
+          </button>
+        )}
+      </div>
+      {expanded && (
         <div className="grid items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleTrips.map((trip) => (
+          {trips.map((trip) => (
             <TripCard key={trip.id} trip={trip} />
           ))}
         </div>
       )}
-
-      {completedCount > 0 && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowCompleted((v) => !v)}
-          >
-            {showCompleted
-              ? `Hide completed trips (${completedCount})`
-              : `Show completed trips (${completedCount})`}
-
-          </Button>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
