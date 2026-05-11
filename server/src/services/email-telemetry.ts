@@ -10,11 +10,7 @@ import { reportMessage } from "./monitoring";
  * the subject, recipient, body, addresses, or confirmation numbers.
  */
 
-export type ParseOutcome =
-  | "failed"
-  | "no_travel_content"
-  | "exception"
-  | "parsed_with_invalid";
+export type ParseOutcome = "failed" | "exception" | "parsed_with_invalid";
 
 export type ParseSource = "gmail_scan" | "html_import" | "eml_import";
 
@@ -96,7 +92,7 @@ export function recordParseFailure(ctx: ParseTelemetryContext): void {
   if (ctx.errorMessage) context.errorMessage = ctx.errorMessage;
 
   reportMessage(`email-parse:${ctx.outcome}`, {
-    level: ctx.outcome === "no_travel_content" ? "info" : "warning",
+    level: "warning",
     tags,
     context,
   });

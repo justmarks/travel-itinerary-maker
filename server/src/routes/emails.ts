@@ -820,16 +820,6 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             });
           } else {
             console.log(`${scanPrefix} Skipped "${email.subject}" (no travel content detected)`);
-            recordParseFailure({
-              outcome: "no_travel_content",
-              source: "gmail_scan",
-              subject: email.subject,
-              from: email.from,
-              receivedAt: email.receivedAt,
-              bodyLength: email.bodyText.length,
-              rawItemCount,
-              invalidCount,
-            });
           }
 
           // Auto-match segments to trips by date, then classify against itinerary
@@ -1235,16 +1225,6 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       if (validationFailedEverything) {
         recordParseFailure({
           outcome: "failed",
-          source: telemetrySource,
-          subject: result.subject,
-          from: result.from,
-          receivedAt: result.receivedAt,
-          rawItemCount,
-          invalidCount,
-        });
-      } else if (!hasTravel) {
-        recordParseFailure({
-          outcome: "no_travel_content",
           source: telemetrySource,
           subject: result.subject,
           from: result.from,
