@@ -243,6 +243,28 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
 
   if (mode === "drive") {
     resolveStorage = (req) => {
+      // Phase 3b: Supabase-authed users have no Google access token
+      // (they signed in through Supabase Auth, which never grabbed a
+      // Drive scope) and so cannot be served by DriveStorage. They
+      // *must* be on Postgres. The legacy `postgresUserIds` dogfooding
+      // list is only relevant for Google-authed users — Supabase
+      // users carry a UUID `sub`, not a Google sub, so they would
+      // never match it anyway.
+      if (req.authSource === "supabase") {
+        if (!req.userId) {
+          throw new Error(
+            "No userId on Supabase-authed request — requireAuth middleware missing?",
+          );
+        }
+        if (!dbClient) {
+          throw new Error(
+            "Supabase-authed user hit a server without DATABASE_URL " +
+              "configured. Postgres is required to serve Supabase " +
+              "sign-ins; set DATABASE_URL and redeploy.",
+          );
+        }
+        return new SupabaseStorage({ db: dbClient.db, userId: req.userId });
+      }
       if (req.userId && postgresUserIds?.has(req.userId) && dbClient) {
         return new SupabaseStorage({ db: dbClient.db, userId: req.userId });
       }
@@ -289,6 +311,27 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
         }
       : mode === "drive"
         ? async (ownerUserId: string) => {
+            // Phase 3b: Supabase user IDs are UUIDs (e.g.
+            // "eb8656e5-98e1-43f3-8b42-3cfa56a1459f"); Google subs are
+            // long numeric strings. Owners with a UUID-shaped id are
+            // Supabase-authed and live on Postgres — they have no
+            // Google access token in the tokenStore, so falling
+            // through to the Drive branch would just return null and
+            // surface as a 404 to the contributor. Until phase 5
+            // migration finishes and everyone is on Supabase, the
+            // shape check is the most reliable signal we have for
+            // "which backend does this owner use?" without an extra
+            // lookup per request.
+            const isSupabaseUuid =
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                ownerUserId,
+              );
+            if (isSupabaseUuid && dbClient) {
+              return new SupabaseStorage({
+                db: dbClient.db,
+                userId: ownerUserId,
+              });
+            }
             if (postgresUserIds?.has(ownerUserId) && dbClient) {
               return new SupabaseStorage({
                 db: dbClient.db,
