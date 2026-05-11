@@ -24,10 +24,8 @@
  * across the OAuth redirect because we initiate and complete on the
  * same origin.
  *
- * Flow type: PKCE. `detectSessionInUrl: true` lets the SDK auto-
- * process the `?code=...` on `/auth/callback` mount; the callback
- * page also calls `exchangeCodeForSession` explicitly as a fallback
- * for the case where auto-detect has already raced ahead.
+ * Flow type: PKCE. `detectSessionInUrl: false` is deliberate — see
+ * comment on the option below for the race-condition this avoids.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
@@ -52,7 +50,18 @@ export function getSupabaseClient(): SupabaseClient | null {
       flowType: "pkce",
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      // Deliberately OFF. With it on, the SDK auto-exchanges any
+      // `?code=` on the URL the moment the client is constructed —
+      // which happens via `AuthProvider` in the root layout on
+      // *every* page, including `/auth/callback`. The callback
+      // page's explicit `exchangeCodeForSession(code)` then races
+      // the auto-exchange for the same code. PKCE verifiers are
+      // one-shot, so whichever exchange runs second sees the
+      // verifier already consumed and throws "PKCE code verifier
+      // not found in storage." Letting the callback page own the
+      // exchange entirely is deterministic and matches how the
+      // legacy custom OAuth callback works.
+      detectSessionInUrl: false,
     },
   });
   return cached;

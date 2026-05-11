@@ -116,10 +116,13 @@ export default function AuthCallbackPage(): React.JSX.Element {
         return;
       }
       try {
-        // The SDK has `detectSessionInUrl: true`, so by the time this
-        // effect runs the URL may have already been consumed. Check
-        // for an existing session first; only fall back to an
-        // explicit exchange if there isn't one yet.
+        // The SDK has `detectSessionInUrl: false` (see lib/supabase.ts)
+        // so this page is the *only* path that consumes the PKCE code.
+        // Belt-and-braces: if a prior tab already exchanged (e.g. the
+        // user opened the callback URL twice), `getSession` returns
+        // the existing session and we skip the second exchange —
+        // which would fail with "PKCE code verifier not found in
+        // storage" because the verifier is single-use.
         let session: Session | null;
         const { data: existing } = await supabase.auth.getSession();
         session = existing.session;
