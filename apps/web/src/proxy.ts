@@ -109,6 +109,14 @@ function buildCsp(nonce: string): string {
       "https://upload.wikimedia.org",
       "https://*.ingest.sentry.io",
       "https://*.vercel-insights.com",
+      // Supabase Auth (phase 3b): the `@supabase/supabase-js` client
+      // calls `https://<project-ref>.supabase.co/auth/v1/...` for the
+      // PKCE code exchange, session refresh, sign-out, and identity-
+      // linking calls. Wildcarding `*.supabase.co` covers any project
+      // ref without needing to thread the exact URL through the
+      // middleware (which runs at the edge and can't easily read
+      // `NEXT_PUBLIC_SUPABASE_URL`).
+      "https://*.supabase.co",
     ],
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],
