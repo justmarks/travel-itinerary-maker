@@ -6,7 +6,8 @@ import { createShareRuleRoutes } from "./routes/share-rules";
 import { createAuthRoutes } from "./routes/auth";
 import { createEmailRoutes } from "./routes/emails";
 import { createCalendarRoutes } from "./routes/calendar";
-import { requireAuth } from "./middleware/auth";
+import { configureAuth, requireAuth } from "./middleware/auth";
+import { createSupabaseAuth } from "./services/supabase-auth";
 import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
@@ -16,6 +17,8 @@ import { PushSubscriptionStore } from "./services/push-subscription-store";
 import { NotificationSender } from "./services/notification-sender";
 import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
+import { createConnectionsRoutes } from "./routes/connections";
+import { ConnectionsStore } from "./services/connections-store";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
@@ -194,6 +197,21 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     pushStore.hydrate(),
   ]);
 
+  // Phase 3: wire Supabase Auth as a secondary acceptance path on
+  // `requireAuth`. Configured iff SUPABASE_URL is set — otherwise
+  // `requireAuth` validates Google tokens only (the legacy path).
+  // Module-level state on `auth.ts` so existing call sites
+  // (`app.use(..., requireAuth, ...)`) don't need a factory rewrite.
+  if (config.supabase.url) {
+    configureAuth({
+      supabaseValidator: createSupabaseAuth({
+        supabaseUrl: config.supabase.url,
+      }),
+    });
+  } else {
+    configureAuth({ supabaseValidator: undefined });
+  }
+
   // Authenticated modes are `drive` and `postgres` — both attach
   // `req.userId` via the auth middleware before route handlers run.
   // Memory mode skips auth and uses a shared singleton storage.
@@ -371,6 +389,19 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     app.use("/api/v1/push", requireAuth, createPushRoutes({ store: pushStore }));
   } else {
     app.use("/api/v1/push", createPushRoutes({ store: pushStore }));
+  }
+
+  // Phase 3: per-user OAuth connections endpoints. Only wired when a
+  // dbClient is available — the routes need the `connections` table
+  // to do anything useful, and memory-mode dev/tests don't have it.
+  // Auth-required in drive / postgres modes (same as everything else).
+  if (dbClient && requiresAuth) {
+    const connectionsStore = new ConnectionsStore(dbClient, encryptionKey);
+    app.use(
+      "/api/v1/connections",
+      requireAuth,
+      createConnectionsRoutes({ store: connectionsStore }),
+    );
   }
 
   // 404 handler — catch any unmatched routes
