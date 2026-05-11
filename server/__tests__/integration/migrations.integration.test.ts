@@ -97,17 +97,27 @@ describe("drizzle migrations", () => {
     }
   });
 
-  it("re-applies cleanly after a full schema reset", async () => {
-    const db = drizzle(client);
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    await resetSchema(client);
-    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+  it(
+    "re-applies cleanly after a full schema reset",
+    async () => {
+      const db = drizzle(client);
+      await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+      await resetSchema(client);
+      await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
 
-    const tables = await listPublicTables(client);
-    for (const expected of EXPECTED_TABLES) {
-      expect(tables).toContain(expected);
-    }
-  });
+      const tables = await listPublicTables(client);
+      for (const expected of EXPECTED_TABLES) {
+        expect(tables).toContain(expected);
+      }
+    },
+    // Two full migrations + a schema reset back-to-back. The other
+    // tests in this file run a single migration each and fit within
+    // Jest's default 5s budget; this one's 2x workload sits right at
+    // the edge on a constrained CI runner and times out
+    // intermittently. 15s is comfortable headroom — even a slow
+    // runner finishes the work in well under that.
+    15000,
+  );
 
   it("trips table exposes the indexed (user_id, start_date) lookup path", async () => {
     const db = drizzle(client);
