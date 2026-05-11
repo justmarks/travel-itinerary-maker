@@ -132,7 +132,7 @@ URL; the JWT signing key comes from there. We do not need
 `SUPABASE_ANON_KEY` or `SUPABASE_SERVICE_ROLE_KEY` on the server —
 those are for client-side or admin-level operations.
 
-**`apps/web/.env.local` (for Phase 3b frontend wiring, later):**
+**`apps/web/.env.local` (Phase 3b frontend wiring — now live):**
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
@@ -140,8 +140,23 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key from Settings → API>
 ```
 
 The frontend uses these via `@supabase/supabase-js` to perform the
-OAuth dance. Phase 3 ships backend only — the frontend overhaul is
-Phase 3b.
+OAuth dance. When **both** vars are present in the build:
+- `/login` and `/m/login` render Google **and** Microsoft buttons; both
+  route through `supabase.auth.signInWithOAuth(...)`.
+- `/auth/callback` recognises Supabase sessions (in addition to the
+  legacy custom Google flow it already handled) and POSTs an
+  identity connection row to `/api/v1/connections` on first sign-in.
+
+When either var is **missing** in the build:
+- The Microsoft button is hidden entirely.
+- The Google button falls back to the legacy custom OAuth flow.
+- Existing signed-in users on legacy tokens are unaffected.
+
+On Vercel set both vars under **Project Settings → Environment Variables**
+for the **Preview** and **Production** scopes. The deletion PR (which
+removes the legacy flow) will turn the missing-env case into a
+build-time failure, mirroring the `NEXT_PUBLIC_API_URL` guard in
+`next.config.ts`.
 
 ## What's safe to do when
 
@@ -152,6 +167,7 @@ Phase 3b.
 | Azure app registration + Microsoft provider in Supabase | Anytime | Inert until frontend uses Supabase Auth |
 | Manual linking: enabled | Anytime | Inert until frontend uses linkIdentity |
 | Set `SUPABASE_URL` on server | After Phase 3 PR lands | `requireAuth` starts accepting Supabase JWTs |
+| Set `NEXT_PUBLIC_SUPABASE_*` on web | After Phase 3b PR lands | Login pages route through Supabase; Microsoft button appears |
 
 ## Verifying the setup
 
