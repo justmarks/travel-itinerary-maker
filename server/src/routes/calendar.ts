@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import { createCalendarSyncRateLimiter } from "../middleware/rate-limit";
+import { resolveCalendarConnector } from "../connectors/resolve";
 
 export interface CalendarRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -21,17 +22,19 @@ export function createCalendarRoutes(
 
   /**
    * GET /trips/calendar/list
-   * Return the authenticated user's writable Google Calendars.
+   * Return the authenticated user's writable calendars from whichever
+   * provider their session resolves to (Google today; Microsoft once
+   * Phase 4b adds the `MicrosoftCalendarConnector`).
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const { listUserCalendars } = await import("../services/google-calendar");
-    const calendars = await listUserCalendars(req.accessToken ?? "");
+    const connector = resolveCalendarConnector(req);
+    const calendars = await connector.listCalendars();
     res.json(calendars);
   });
 
   /**
    * POST /trips/:tripId/calendar/sync
-   * Push all trip segments to Google Calendar.
+   * Push all trip segments to the user's calendar.
    * Creates new events for un-synced segments; updates existing ones.
    * Responds with counts and persists calendarEventId on each segment.
    */
@@ -45,12 +48,10 @@ export function createCalendarRoutes(
 
     const calendarId = (req.query.calendarId as string | undefined) ?? "primary";
 
-    const [{ syncTripToCalendar }, { resolveTripTimezones }] = await Promise.all([
-      import("../services/google-calendar"),
-      import("../utils/timezone-lookup"),
-    ]);
+    const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const result = await syncTripToCalendar(req.accessToken ?? "", trip, calendarId, req.userEmail);
+    const connector = resolveCalendarConnector(req);
+    const result = await connector.syncTrip(trip, calendarId, req.userEmail);
 
     // Persist the returned event IDs back onto each segment
     for (const day of trip.days) {
@@ -75,9 +76,9 @@ export function createCalendarRoutes(
 
   /**
    * POST /trips/:tripId/segments/:segId/calendar/sync
-   * Sync a single segment to Google Calendar (create or update one event).
-   * Used by auto-sync after segment create/edit so only the changed event
-   * is touched rather than re-syncing the entire trip.
+   * Sync a single segment (create or update one event).
+   * Used by auto-sync after segment create/edit so only the changed
+   * event is touched rather than re-syncing the entire trip.
    */
   router.post("/:tripId/segments/:segId/calendar/sync", async (req: Request, res: Response) => {
     const storage = getStorage(req);
@@ -101,12 +102,16 @@ export function createCalendarRoutes(
 
     const calendarId = (req.query.calendarId as string | undefined) ?? trip.calendarId ?? "primary";
 
-    const [{ syncSegmentToCalendar }, { resolveTripTimezones }] = await Promise.all([
-      import("../services/google-calendar"),
-      import("../utils/timezone-lookup"),
-    ]);
+    const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const result = await syncSegmentToCalendar(req.accessToken ?? "", trip, targetDay, targetSegment, calendarId, req.userEmail);
+    const connector = resolveCalendarConnector(req);
+    const result = await connector.syncSegment(
+      trip,
+      targetDay,
+      targetSegment,
+      calendarId,
+      req.userEmail,
+    );
 
     if (result.eventId && result.eventId !== targetSegment.calendarEventId) {
       targetSegment.calendarEventId = result.eventId;
@@ -132,14 +137,16 @@ export function createCalendarRoutes(
 
     // Use the calendarId stored on the trip when no override is given
     const calendarId = (req.query.calendarId as string | undefined) ?? trip.calendarId ?? "primary";
-    // deleteEvents=false → clear sync tracking without touching Google Calendar
+    // deleteEvents=false → clear sync tracking without touching the
+    // remote calendar. Lets a user untie a trip locally even if their
+    // provider link is broken.
     const deleteEvents = req.query.deleteEvents !== "false";
 
     let removed = 0;
     let failed = 0;
     if (deleteEvents) {
-      const { unsyncTripFromCalendar } = await import("../services/google-calendar");
-      const result = await unsyncTripFromCalendar(req.accessToken ?? "", trip, calendarId, req.userEmail);
+      const connector = resolveCalendarConnector(req);
+      const result = await connector.unsyncTrip(trip, calendarId, req.userEmail);
       removed = result.removed;
       failed = result.failed;
     }
