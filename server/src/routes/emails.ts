@@ -15,7 +15,7 @@ import {
 } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ProcessedEmail } from "../services/google-drive/drive-storage";
-import { GmailScanner } from "../services/gmail-scanner";
+import { resolveEmailConnector } from "../connectors/resolve";
 import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { recordParseFailure } from "../services/email-telemetry";
@@ -530,8 +530,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const scanner = new GmailScanner(req.gmailAccessToken || "");
-      const labels = await scanner.listLabels();
+      const connector = resolveEmailConnector(req);
+      const labels = await connector.listLabels();
 
       // Return user labels + useful system labels
       const useful = labels.filter(
@@ -656,10 +656,12 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
-      // Scan Gmail for new emails
-      const scanner = new GmailScanner(req.gmailAccessToken || "");
+      // Scan Gmail for new emails (via the provider-agnostic
+      // resolver — today this is always GoogleEmailConnector;
+      // Phase 4b adds MicrosoftEmailConnector behind the same API).
+      const connector = resolveEmailConnector(req);
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await scanner.scanEmails({
+      const rawEmails = await connector.scanEmails({
         labelFilter,
         maxResults: effectiveMaxResults,
         newerThanDays: newerThanDays ?? 365,
