@@ -191,7 +191,12 @@ export default function LoginPage(): React.JSX.Element {
                   // refresh token from Microsoft; the Azure app
                   // registration must include it in delegated
                   // permissions (see docs/supabase-auth-setup.md).
-                  scopes: "openid email profile offline_access",
+                  // `User.Read` is the Microsoft Graph delegated
+                  // permission needed for `/me/photo/$value` (the
+                  // profile photo fetch in `lib/auth.tsx`). Default
+                  // Azure app registrations include it as a delegated
+                  // permission, so users see no extra consent prompt.
+                  scopes: "openid email profile offline_access User.Read",
                 },
               });
               if (error) throw error;

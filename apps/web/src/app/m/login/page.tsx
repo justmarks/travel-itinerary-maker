@@ -167,7 +167,10 @@ export default function MobileLoginPage(): React.JSX.Element {
                   provider: "azure",
                   options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
-                    scopes: "openid email profile offline_access",
+                    // See desktop /login for why each of these is here.
+                    // `User.Read` powers the Graph photo fetch in
+                    // `lib/auth.tsx`.
+                    scopes: "openid email profile offline_access User.Read",
                   },
                 });
                 if (error) throw error;
