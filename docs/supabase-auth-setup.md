@@ -125,12 +125,90 @@ Copy these from **Project Settings → API** in the Supabase dashboard.
 
 ```
 SUPABASE_URL=https://<your-project-ref>.supabase.co
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@aws-X-<region>.pooler.supabase.com:5432/postgres
 ```
 
-That's all the server needs. The JWKS endpoint is derived from the
-URL; the JWT signing key comes from there. We do not need
-`SUPABASE_ANON_KEY` or `SUPABASE_SERVICE_ROLE_KEY` on the server —
-those are for client-side or admin-level operations.
+The JWKS endpoint is derived from `SUPABASE_URL`; the JWT signing key
+comes from there. We do not need `SUPABASE_ANON_KEY` or
+`SUPABASE_SERVICE_ROLE_KEY` on the server — those are for client-side
+or admin-level operations.
+
+`DATABASE_URL` is the Postgres connection string. **From Railway (and
+most cloud hosts), you must use Supabase's Session pooler URL, not the
+Direct connection URL.** Why: Supabase's Direct connection
+(`db.<ref>.supabase.co:5432`) resolves to IPv6 only as of 2024, and
+Railway's outbound network is IPv4 only — the connection hangs with
+`ENETUNREACH`. The Session pooler (Supavisor) is IPv4-reachable.
+
+**How to get the right URL:**
+
+Supabase Dashboard → **Project Settings → Database → Connection string**.
+Switch the tab to **"Session pooler"** (NOT "Direct" and NOT
+"Transaction pooler"):
+
+- **Session pooler (port 5432)** ✅ — long-lived connections, supports
+  prepared statements, supports `LISTEN/NOTIFY`. Right for a Node/Express
+  server like ours.
+- **Transaction pooler (port 6543)** ❌ — drops prepared statements
+  between requests, which breaks some Drizzle code paths. Use only for
+  serverless functions (we don't have any).
+- **Direct connection (port 5432, host `db.<ref>.supabase.co`)** ❌
+  from cloud hosts — IPv6-only. Works from your laptop; doesn't work
+  from Railway / Vercel / Render / most other PaaS without a paid
+  IPv4 add-on ($4/month).
+
+The Session pooler URL has two non-obvious bits:
+
+- **Username** is `postgres.<project-ref>` (e.g. `postgres.acpcnnchrgoepygukxxs`),
+  not just `postgres`. Direct connection uses bare `postgres`; pooler
+  appends the project ref. Mixing them gives a confusing `28P01`
+  (password auth failed) even with the right password.
+- **SSL mode**: don't add `?sslmode=verify-full` on the pooler — the
+  pooler's TLS chain doesn't validate against system root CAs cleanly
+  and `verify-full` fails the handshake. Either drop the param entirely
+  (default is `require`, which encrypts but skips CA verification) or
+  set `sslmode=require` explicitly.
+
+**Password gotcha:** Supabase auto-generates passwords containing
+URL-reserved characters (`?`, `@`, `:`, `/`, `#`, `%`, `+`). When you
+click **Reset password**:
+
+- The new password is shown **once** in the modal. Copy it before
+  closing the dialog — Supabase's UI says "The database password isn't
+  viewable after creation."
+- If you can type your own password, use only `[A-Za-z0-9]`. Avoids
+  every URL-encoding issue.
+- If the auto-generated one contains special chars, either URL-encode
+  them (`?` → `%3F`, `@` → `%40`, etc.) or reset until you get a clean
+  alphanumeric value.
+
+**Where DATABASE_URL is needed (and where it isn't):**
+
+| Environment | Needed? | Why |
+|---|---|---|
+| **Railway** (server runtime) | **Yes** | Server reads `DATABASE_URL` from env; without it, Supabase-authed users 4xx with `Supabase-authed user hit a server without DATABASE_URL configured`. |
+| `server/.env` (local dev) | Optional | Only if you want to run the backend locally against the same Postgres. |
+| GitHub Actions CI | No | The integration-test job provisions its own ephemeral Postgres as a service container — uses a different value scoped to that job. |
+| Vercel | **No** | The frontend (Next.js) never connects to Postgres directly. Adding `DATABASE_URL` there has no effect. |
+
+**Verifying the URL works** before deploying to Railway:
+
+```bash
+node -e "const u = new URL(process.env.DATABASE_URL); console.log({host: u.hostname, port: u.port, user: u.username})"
+# Should print { host: 'aws-X-<region>.pooler.supabase.com', port: '5432', user: 'postgres.<ref>' }
+```
+
+Or PowerShell:
+```powershell
+node -e "const u = new URL(process.env.DATABASE_URL); console.log({host: u.hostname, port: u.port, user: u.username})"
+```
+
+Then test the actual connection:
+```bash
+node -e "const { Client } = require('pg'); const c = new Client({ connectionString: process.env.DATABASE_URL }); c.connect().then(() => c.query('SELECT current_user')).then(r => { console.log('OK:', r.rows[0]); return c.end(); }).catch(e => { console.error('FAIL:', e.code, e.message); process.exit(1); })"
+```
+
+Run from `server/` so `require('pg')` resolves. If it prints `OK: { current_user: 'postgres.<ref>' }`, the URL works on Railway too.
 
 **`apps/web/.env.local` (Phase 3b frontend wiring — now live):**
 
