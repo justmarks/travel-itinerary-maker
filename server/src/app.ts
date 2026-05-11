@@ -17,6 +17,8 @@ import { PushSubscriptionStore } from "./services/push-subscription-store";
 import { NotificationSender } from "./services/notification-sender";
 import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
+import { createConnectionsRoutes } from "./routes/connections";
+import { ConnectionsStore } from "./services/connections-store";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
@@ -387,6 +389,19 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     app.use("/api/v1/push", requireAuth, createPushRoutes({ store: pushStore }));
   } else {
     app.use("/api/v1/push", createPushRoutes({ store: pushStore }));
+  }
+
+  // Phase 3: per-user OAuth connections endpoints. Only wired when a
+  // dbClient is available — the routes need the `connections` table
+  // to do anything useful, and memory-mode dev/tests don't have it.
+  // Auth-required in drive / postgres modes (same as everything else).
+  if (dbClient && requiresAuth) {
+    const connectionsStore = new ConnectionsStore(dbClient, encryptionKey);
+    app.use(
+      "/api/v1/connections",
+      requireAuth,
+      createConnectionsRoutes({ store: connectionsStore }),
+    );
   }
 
   // 404 handler — catch any unmatched routes
