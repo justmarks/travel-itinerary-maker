@@ -15,7 +15,7 @@ A travel itinerary management app that parses trip data from emails and presents
 ## Active migration plans
 
 - [`docs/backend-migration-plan.md`](docs/backend-migration-plan.md) — Multi-phase plan to migrate from Google Drive storage + Google-only auth to Supabase Postgres + Supabase Auth + pluggable email/calendar connectors (Gmail, Microsoft Graph). Includes phased rollout, per-phase test deliverables, rollback strategy, and a list of decisions still needed before kickoff. Read this before doing any work on storage, auth, sharing, email scan, or calendar sync — those subsystems all change shape under this plan.
-- [`docs/supabase-auth-setup.md`](docs/supabase-auth-setup.md) — One-time Supabase project + Azure AD app registration setup the Phase 3 backend depends on. Setting `SUPABASE_URL` in the server env flips `requireAuth` into "Supabase JWT or legacy Google access token" coexistence mode; until that env var is set, the new auth path is dormant and every client continues using the pre-phase-3 Google flow unchanged.
+- [`docs/supabase-auth-setup.md`](docs/supabase-auth-setup.md) — One-time Supabase project + Azure AD app registration setup the Phase 3 backend depends on. Setting `SUPABASE_URL` in the server env flips `requireAuth` into "Supabase JWT or legacy Google access token" coexistence mode; until that env var is set, the new auth path is dormant and every client continues using the pre-phase-3 Google flow unchanged. **Phase 3b (frontend cutover)**: setting `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` in `apps/web` makes the login pages route both Google and Microsoft sign-in through Supabase Auth. The legacy custom Google OAuth flow stays in the bundle as a fallback (when those vars aren't set) and so in-flight legacy redirects still complete cleanly through the same `/auth/callback` page. Deletion of the legacy flow is a follow-up PR after the new path is verified working.
 
 ---
 
@@ -299,6 +299,8 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 | `DEBUG_EMAIL_SCAN` | server | Set to `1` to enable verbose per-step logs from the email-scan pipeline (Gmail fetch, parse, dedup, apply). Off by default to keep Railway logs quiet. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend base URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_SENTRY_DSN` | apps/web | Sentry browser DSN. Must be `NEXT_PUBLIC_` to be embedded in the static bundle. Unset disables Sentry. |
+| `NEXT_PUBLIC_SUPABASE_URL` | apps/web | Supabase project URL (Phase 3b). When set together with the anon key, the login pages route Google + Microsoft sign-in through Supabase Auth instead of the legacy custom Google OAuth flow. Unset → legacy flow stays active. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | apps/web | Supabase project anon key (Phase 3b). Pair with `NEXT_PUBLIC_SUPABASE_URL`. The anon key is safe to ship in the public bundle — row-level-security policies on the Postgres side are what gate data access. |
 
 ---
 
