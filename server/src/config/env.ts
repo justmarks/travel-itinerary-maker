@@ -121,4 +121,19 @@ export const config = {
     postgresUsers: process.env.STORAGE_POSTGRES_USERS || "",
     databaseUrl: process.env.DATABASE_URL || "",
   },
+  /**
+   * Phase 3 of the Drive→Supabase migration: Supabase Auth as the
+   * identity layer.
+   *
+   *   SUPABASE_URL — project URL, e.g. https://abcxyz.supabase.co.
+   *     When set, `requireAuth` accepts Supabase JWTs in addition to
+   *     legacy Google access tokens. Server only needs the URL; the
+   *     JWKS endpoint is derived from it and the JWT signature key
+   *     comes from there. When unset, `requireAuth` validates Google
+   *     tokens only (legacy behaviour, what every pre-phase-3 user
+   *     sends).
+   */
+  supabase: {
+    url: process.env.SUPABASE_URL || "",
+  },
 };

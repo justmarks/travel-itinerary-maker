@@ -6,7 +6,8 @@ import { createShareRuleRoutes } from "./routes/share-rules";
 import { createAuthRoutes } from "./routes/auth";
 import { createEmailRoutes } from "./routes/emails";
 import { createCalendarRoutes } from "./routes/calendar";
-import { requireAuth } from "./middleware/auth";
+import { configureAuth, requireAuth } from "./middleware/auth";
+import { createSupabaseAuth } from "./services/supabase-auth";
 import type { StorageProvider, StorageResolver } from "./services/storage";
 import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
@@ -193,6 +194,21 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     shareRegistry.hydrate(),
     pushStore.hydrate(),
   ]);
+
+  // Phase 3: wire Supabase Auth as a secondary acceptance path on
+  // `requireAuth`. Configured iff SUPABASE_URL is set — otherwise
+  // `requireAuth` validates Google tokens only (the legacy path).
+  // Module-level state on `auth.ts` so existing call sites
+  // (`app.use(..., requireAuth, ...)`) don't need a factory rewrite.
+  if (config.supabase.url) {
+    configureAuth({
+      supabaseValidator: createSupabaseAuth({
+        supabaseUrl: config.supabase.url,
+      }),
+    });
+  } else {
+    configureAuth({ supabaseValidator: undefined });
+  }
 
   // Authenticated modes are `drive` and `postgres` — both attach
   // `req.userId` via the auth middleware before route handlers run.

@@ -145,6 +145,124 @@ describe("requireAuth middleware", () => {
   });
 });
 
+describe("requireAuth — Supabase JWT path (phase 3)", () => {
+  // Lazy import to avoid affecting the module-mock setup at the top
+  // of the file. The configure/reset helpers let each test set the
+  // validator the middleware should call.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { configureAuth, _resetAuthForTests } = require("../../src/middleware/auth");
+
+  let next: jest.Mock;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    next = jest.fn();
+    _resetAuthForTests();
+  });
+
+  afterAll(() => {
+    _resetAuthForTests();
+  });
+
+  // A minimal JWT-shaped token. Doesn't need to be cryptographically
+  // valid — the mock validator decides accept/reject.
+  const jwtShaped =
+    "eyJhbGciOiJFUzI1NiJ9.eyJzdWIiOiJ4In0.signature-here-as-base64url";
+
+  it("validates via Supabase when configured + token is JWT-shaped", async () => {
+    const validator = jest.fn().mockResolvedValue({
+      sub: "supabase-uuid-1",
+      email: "alice@example.com",
+      provider: "google",
+    });
+    configureAuth({ supabaseValidator: validator });
+
+    const req = makeReq({ authorization: `Bearer ${jwtShaped}` });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(validator).toHaveBeenCalledWith(jwtShaped);
+    expect(req.userId).toBe("supabase-uuid-1");
+    expect(req.userEmail).toBe("alice@example.com");
+    expect((req as Request & { authSource?: string }).authSource).toBe(
+      "supabase",
+    );
+    // Supabase path doesn't set accessToken — provider tokens come
+    // from connections, not the request.
+    expect(req.accessToken).toBeUndefined();
+    expect(next).toHaveBeenCalled();
+  });
+
+  it("does NOT call the validator for non-JWT-shaped tokens (Google opaque)", async () => {
+    const validator = jest.fn();
+    configureAuth({ supabaseValidator: validator });
+    mockUserinfoGet.mockResolvedValue({
+      data: { id: "google-sub", email: "alice@example.com" },
+    });
+
+    const req = makeReq({ authorization: "Bearer ya29.A0AfH6SMAAAAA" });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(validator).not.toHaveBeenCalled();
+    expect(req.userId).toBe("google-sub");
+    expect((req as Request & { authSource?: string }).authSource).toBe(
+      "google-legacy",
+    );
+  });
+
+  it("falls back to Google when Supabase validation throws", async () => {
+    const validator = jest.fn().mockRejectedValue(new Error("expired"));
+    configureAuth({ supabaseValidator: validator });
+    mockUserinfoGet.mockResolvedValue({
+      data: { id: "google-sub", email: "alice@example.com" },
+    });
+    const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+    const req = makeReq({ authorization: `Bearer ${jwtShaped}` });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(validator).toHaveBeenCalled();
+    expect(req.userId).toBe("google-sub");
+    expect((req as Request & { authSource?: string }).authSource).toBe(
+      "google-legacy",
+    );
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("returns 401 when both Supabase and Google reject", async () => {
+    const validator = jest.fn().mockRejectedValue(new Error("expired"));
+    configureAuth({ supabaseValidator: validator });
+    mockUserinfoGet.mockRejectedValue({ response: { status: 401 } });
+    const consoleWarnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+    const req = makeReq({ authorization: `Bearer ${jwtShaped}` });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect((res.status as jest.Mock).mock.calls[0][0]).toBe(401);
+    expect(next).not.toHaveBeenCalled();
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("when no validator is configured, JWT-shaped tokens go straight to Google", async () => {
+    configureAuth({ supabaseValidator: undefined });
+    mockUserinfoGet.mockResolvedValue({
+      data: { id: "google-sub", email: "alice@example.com" },
+    });
+
+    const req = makeReq({ authorization: `Bearer ${jwtShaped}` });
+    const res = makeRes();
+    await requireAuth(req, res, next as unknown as NextFunction);
+
+    expect(req.userId).toBe("google-sub");
+    expect((req as Request & { authSource?: string }).authSource).toBe(
+      "google-legacy",
+    );
+  });
+});
+
 describe("requireGmailAuth middleware", () => {
   let next: jest.Mock;
 
