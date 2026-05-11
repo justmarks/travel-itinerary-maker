@@ -18,7 +18,7 @@ import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { NotificationToggleMenu } from "@/components/notification-toggle";
 import { AutoShareRulesDialog } from "@/components/auto-share-rules-panel";
 import { UserAvatar } from "@/components/user-avatar";
-import { LogIn, LogOut, Repeat, Smartphone } from "lucide-react";
+import { LogIn, LogOut, Repeat, Smartphone, UserCog } from "lucide-react";
 
 export function UserMenu(): React.JSX.Element | null {
   const { user, isAuthenticated, logout } = useAuth();
@@ -66,6 +66,12 @@ export function UserMenu(): React.JSX.Element | null {
           {user.email}
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSwitchToMobile}>
           <Smartphone className="mr-2 h-4 w-4" />
           Use mobile site

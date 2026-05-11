@@ -25,6 +25,7 @@ import {
   Monitor,
   Repeat,
   Share,
+  UserCog,
 } from "lucide-react";
 
 export function MobileUserMenu({
@@ -106,6 +107,12 @@ export function MobileUserMenu({
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/m/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         {canInstall && (
           <DropdownMenuItem
             onSelect={(event) => {
