@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { startGoogleSignIn } from "@/lib/oauth";
-import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { AppWordmark } from "@/components/app-wordmark";
@@ -100,30 +99,27 @@ export default function MobileLoginPage(): React.JSX.Element {
           )}
 
           {/*
-            Phase 3b: same Supabase-when-configured / legacy-otherwise
-            switch as the desktop login. Mobile gets both Google and
-            Microsoft buttons when Supabase is on.
+            Both Google and Microsoft sign-in route through Supabase
+            Auth.
           */}
           <button
             type="button"
             disabled={apiAvailable === false}
             onClick={async () => {
               setLoginError(null);
-              const supabase = isSupabaseConfigured()
-                ? getSupabaseClient()
-                : null;
               try {
-                if (supabase) {
-                  const { error } = await supabase.auth.signInWithOAuth({
-                    provider: "google",
-                    options: {
-                      redirectTo: `${window.location.origin}/auth/callback`,
-                    },
-                  });
-                  if (error) throw error;
-                } else {
-                  startGoogleSignIn("/m");
+                const supabase = getSupabaseClient();
+                if (!supabase) {
+                  setLoginError("Sign-in is not configured.");
+                  return;
                 }
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                  },
+                });
+                if (error) throw error;
               } catch (err) {
                 setLoginError(
                   err instanceof Error ? err.message : "Sign-in is not configured.",
@@ -156,48 +152,46 @@ export default function MobileLoginPage(): React.JSX.Element {
             Sign in with Google
           </button>
 
-          {isSupabaseConfigured() && (
-            <button
-              type="button"
-              disabled={apiAvailable === false}
-              onClick={async () => {
-                setLoginError(null);
+          <button
+            type="button"
+            disabled={apiAvailable === false}
+            onClick={async () => {
+              setLoginError(null);
+              try {
                 const supabase = getSupabaseClient();
                 if (!supabase) {
-                  setLoginError("Microsoft sign-in is not configured.");
+                  setLoginError("Sign-in is not configured.");
                   return;
                 }
-                try {
-                  const { error } = await supabase.auth.signInWithOAuth({
-                    provider: "azure",
-                    options: {
-                      redirectTo: `${window.location.origin}/auth/callback`,
-                      scopes: "openid email profile offline_access",
-                    },
-                  });
-                  if (error) throw error;
-                } catch (err) {
-                  setLoginError(
-                    err instanceof Error
-                      ? err.message
-                      : "Sign-in is not configured.",
-                  );
-                }
-              }}
-              className={cn(
-                "flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-primary bg-background text-base font-semibold text-foreground transition-opacity",
-                "active:opacity-90 disabled:opacity-40",
-              )}
-            >
-              <svg className="h-5 w-5" viewBox="0 0 23 23" aria-hidden>
-                <path fill="#f25022" d="M1 1h10v10H1z" />
-                <path fill="#7fba00" d="M12 1h10v10H12z" />
-                <path fill="#00a4ef" d="M1 12h10v10H1z" />
-                <path fill="#ffb900" d="M12 12h10v10H12z" />
-              </svg>
-              Sign in with Microsoft
-            </button>
-          )}
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "azure",
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                    scopes: "openid email profile offline_access",
+                  },
+                });
+                if (error) throw error;
+              } catch (err) {
+                setLoginError(
+                  err instanceof Error
+                    ? err.message
+                    : "Sign-in is not configured.",
+                );
+              }
+            }}
+            className={cn(
+              "flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-primary bg-background text-base font-semibold text-foreground transition-opacity",
+              "active:opacity-90 disabled:opacity-40",
+            )}
+          >
+            <svg className="h-5 w-5" viewBox="0 0 23 23" aria-hidden>
+              <path fill="#f25022" d="M1 1h10v10H1z" />
+              <path fill="#7fba00" d="M12 1h10v10H12z" />
+              <path fill="#00a4ef" d="M1 12h10v10H1z" />
+              <path fill="#ffb900" d="M12 12h10v10H12z" />
+            </svg>
+            Sign in with Microsoft
+          </button>
 
           {/*
             Hard <a> with relative href so the destination mounts fresh with
