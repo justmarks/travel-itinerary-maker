@@ -117,6 +117,13 @@ function buildCsp(nonce: string): string {
       // middleware (which runs at the edge and can't easily read
       // `NEXT_PUBLIC_SUPABASE_URL`).
       "https://*.supabase.co",
+      // Microsoft Graph: `auth.tsx` fetches the signed-in Microsoft
+      // user's profile photo from `/v1.0/me/photo/$value` using the
+      // provider_token Supabase surfaces post-sign-in. Microsoft
+      // doesn't expose the photo URL via standard OIDC claims, so a
+      // direct Graph call is the only path. Read-only, scoped to the
+      // signed-in user via the bearer token.
+      "https://graph.microsoft.com",
     ],
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],
