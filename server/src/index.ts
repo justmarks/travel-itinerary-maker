@@ -49,15 +49,22 @@ async function bootstrap(): Promise<void> {
     config.storage.backend ?? (isProduction ? "drive" : "memory");
 
   // Boot a DB client when storage involves Postgres (mode=postgres OR
-  // a non-empty user override list). One client per process; we reuse
+  // a non-empty user override list) — or when Supabase Auth is wired
+  // up, since Supabase-authed users live exclusively on Postgres
+  // regardless of `STORAGE_BACKEND`. One client per process; we reuse
   // its pool across requests.
   let dbClient: DbClient | undefined;
-  const needsDb = backend === "postgres" || postgresUserIds.size > 0;
+  const supabaseAuthConfigured = !!config.supabase.url;
+  const needsDb =
+    backend === "postgres" ||
+    postgresUserIds.size > 0 ||
+    supabaseAuthConfigured;
   if (needsDb) {
     if (!config.storage.databaseUrl) {
       throw new Error(
-        "DATABASE_URL is required when STORAGE_BACKEND=postgres or " +
-          "STORAGE_POSTGRES_USERS is non-empty",
+        "DATABASE_URL is required when STORAGE_BACKEND=postgres, " +
+          "STORAGE_POSTGRES_USERS is non-empty, or SUPABASE_URL is set " +
+          "(Supabase-authed users require Postgres).",
       );
     }
     dbClient = createDbClient(config.storage.databaseUrl);
