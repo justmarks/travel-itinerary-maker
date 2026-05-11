@@ -10,15 +10,26 @@
  * the missing-env case should become a build-time failure like the
  * other `NEXT_PUBLIC_*` guards in `next.config.ts`.
  *
- * Session persistence: Supabase stores the user session in
- * localStorage by default. The `flowType: "pkce"` setting picks the
- * OAuth flow that doesn't require a server-side code exchange — the
- * client receives the access + refresh tokens directly after the
- * provider callback, which matches what the existing custom flow's
- * `/auth/callback` page expects (it's a client-side page already).
+ * Storage: we use `createClient` from `@supabase/supabase-js` (not
+ * `createBrowserClient` from `@supabase/ssr`) so the PKCE code
+ * verifier lands in `localStorage`. The SSR helper is designed for
+ * Next.js apps with a *server-side* `/auth/callback` route handler
+ * that reads the verifier from cookies — we deliberately keep the
+ * callback as a client component (`/auth/callback/page.tsx`) so the
+ * whole auth flow stays in the browser, no API token ever needs to
+ * round-trip through a Next.js server handler. Cookies + a client-
+ * side exchange don't mix reliably (the verifier ends up missing
+ * from `localStorage`, the SDK throws "PKCE code verifier not found
+ * in storage", sign-in fails). `localStorage` round-trips cleanly
+ * across the OAuth redirect because we initiate and complete on the
+ * same origin.
+ *
+ * Flow type: PKCE. `detectSessionInUrl: true` lets the SDK auto-
+ * process the `?code=...` on `/auth/callback` mount; the callback
+ * page also calls `exchangeCodeForSession` explicitly as a fallback
+ * for the case where auto-detect has already raced ahead.
  */
-import { createBrowserClient } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let cached: SupabaseClient | null | undefined;
 
@@ -36,12 +47,9 @@ export function getSupabaseClient(): SupabaseClient | null {
     return null;
   }
 
-  cached = createBrowserClient(url, anonKey, {
+  cached = createClient(url, anonKey, {
     auth: {
       flowType: "pkce",
-      // Persist across tabs/devices. localStorage matches how the
-      // legacy auth state is already persisted, so users don't see
-      // a behavioural regression on the storage front.
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
