@@ -15,6 +15,13 @@
       "when": 1778455452390,
       "tag": "0001_mighty_satana",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778458245439,
+      "tag": "0002_broad_praxagora",
+      "breakpoints": true
     }
   ]
 }

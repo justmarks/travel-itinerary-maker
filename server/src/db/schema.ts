@@ -321,3 +321,58 @@ export const pushSubscriptions = pgTable(
     index("push_subscriptions_email_idx").on(t.email),
   ],
 );
+
+// Phase 3 of the Drive→Supabase migration. Per-user OAuth connections
+// to external providers (Google, Microsoft). One row per
+// (user, provider, capability, account_email) so a user can have:
+//   - Both Google + Microsoft identity connections (account-merge flow)
+//   - Multiple Gmail accounts (gmail-personal + gmail-work)
+//   - Identity vs email vs calendar treated as separate "capabilities"
+//     even when granted by the same OAuth round (Phase 4 splits them
+//     out for clearer "is gmail connected?" semantics).
+//
+// Tokens are AES-256-GCM encrypted at rest via the same
+// `token-crypto.ts` helpers TokenStore uses. Format: `v1:nonce-hex:
+// ciphertext-hex:tag-hex`. Plain text columns so the format stays
+// debuggable via `psql` (you can see the version prefix); the
+// ciphertext itself is binary entropy.
+//
+// `status` lifecycle: `active` (default) → `revoked` (user revoked at
+// provider or via DELETE /connections/:id) → garbage-collected later.
+// Soft-delete rather than hard so audit trails / re-auth UX know an
+// expired connection used to exist.
+export const connections = pgTable(
+  "connections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(), // 'google' | 'microsoft'
+    capability: text("capability").notNull(), // 'identity' | 'email' | 'calendar'
+    accountEmail: text("account_email").notNull(), // lower-cased on insert
+    refreshTokenEncrypted: text("refresh_token_encrypted"),
+    accessTokenEncrypted: text("access_token_encrypted"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    scopes: text("scopes").array(),
+    status: text("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One row per (user, provider, capability, email) — re-connecting
+    // the same Gmail account upserts the tokens rather than creating
+    // duplicates.
+    uniqueIndex("connections_user_provider_capability_email_uniq").on(
+      t.userId,
+      t.provider,
+      t.capability,
+      t.accountEmail,
+    ),
+    // listForUser hits this on every authed page-load that needs to
+    // know which providers a user has connected.
+    index("connections_user_idx").on(t.userId),
+  ],
+);

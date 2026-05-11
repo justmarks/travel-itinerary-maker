@@ -29,6 +29,8 @@ const EXPECTED_TABLES = [
   // Phase 2:
   "trip_shares",
   "push_subscriptions",
+  // Phase 3:
+  "connections",
 ];
 
 async function resetSchema(client: Client): Promise<void> {
@@ -236,5 +238,85 @@ describe("drizzle migrations", () => {
          VALUES ('https://push/abc', 'u2', 'u2@example.com', 'k2', 'a2')`,
       ),
     ).rejects.toThrow(/push_subscriptions_pkey|duplicate key/);
+  });
+
+  it("connections enforce unique (user, provider, capability, account_email)", async () => {
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO connections
+         (id, user_id, provider, capability, account_email)
+       VALUES ('c1', 'u1', 'google', 'identity', 'alice@example.com')`,
+    );
+    // Different id, same (user, provider, capability, email) → reject.
+    await expect(
+      client.query(
+        `INSERT INTO connections
+           (id, user_id, provider, capability, account_email)
+         VALUES ('c2', 'u1', 'google', 'identity', 'alice@example.com')`,
+      ),
+    ).rejects.toThrow(/connections_user_provider_capability_email_uniq|duplicate key/);
+  });
+
+  it("connections accept multiple capabilities per (user, provider, email)", async () => {
+    // A user granting Gmail + Calendar from the same Google account
+    // should get separate rows per capability, not a single combined
+    // row. The unique constraint discriminates on capability.
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO connections
+         (id, user_id, provider, capability, account_email)
+       VALUES
+         ('c-id', 'u1', 'google', 'identity', 'alice@example.com'),
+         ('c-em', 'u1', 'google', 'email', 'alice@example.com'),
+         ('c-ca', 'u1', 'google', 'calendar', 'alice@example.com')`,
+    );
+
+    const res = await client.query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM connections WHERE user_id='u1'",
+    );
+    expect(res.rows[0].count).toBe("3");
+  });
+
+  it("connections accept multiple accounts per (user, provider, capability)", async () => {
+    // gmail-personal + gmail-work pattern: same user, same capability,
+    // different account_email = legitimate. Phase 4 reads these as
+    // distinct mailboxes for the scan job.
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO connections
+         (id, user_id, provider, capability, account_email)
+       VALUES
+         ('c-personal', 'u1', 'google', 'email', 'alice@gmail.com'),
+         ('c-work',     'u1', 'google', 'email', 'alice@company.com')`,
+    );
+
+    const res = await client.query<{ count: string }>(
+      "SELECT COUNT(*)::text AS count FROM connections " +
+        "WHERE user_id='u1' AND provider='google' AND capability='email'",
+    );
+    expect(res.rows[0].count).toBe("2");
+  });
+
+  it("connections scopes column is a text[] array", async () => {
+    const db = drizzle(client);
+    await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
+
+    await client.query(
+      `INSERT INTO connections
+         (id, user_id, provider, capability, account_email, scopes)
+       VALUES ('c1', 'u1', 'google', 'identity', 'alice@example.com',
+               ARRAY['openid', 'email', 'profile'])`,
+    );
+
+    const res = await client.query<{ scopes: string[] }>(
+      "SELECT scopes FROM connections WHERE id='c1'",
+    );
+    expect(res.rows[0].scopes).toEqual(["openid", "email", "profile"]);
   });
 });
