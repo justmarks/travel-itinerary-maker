@@ -8,6 +8,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { getSupabaseClient } from "./supabase";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -120,6 +122,55 @@ function saveAuth(state: AuthState) {
   }
 }
 
+/**
+ * Build an AuthState from a Supabase session. The provider-side bits
+ * (`scopes`, `gmail`) are intentionally left empty here — they're
+ * populated separately:
+ *   - `scopes` from the `connections` table after sign-in (Phase 4
+ *     connector wiring will hydrate it; for now the legacy `/auth/scopes`
+ *     bootstrap effect keeps working for users still on the legacy
+ *     access-token path)
+ *   - `gmail` from the dedicated `/auth/google/gmail` link flow, which
+ *     stays on its own OAuth client for CASA reasons
+ */
+function authStateFromSupabaseSession(session: Session): AuthState {
+  const user = session.user;
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const name =
+    typeof metadata.full_name === "string"
+      ? metadata.full_name
+      : typeof metadata.name === "string"
+        ? metadata.name
+        : (user.email ?? "");
+  const picture =
+    typeof metadata.avatar_url === "string"
+      ? metadata.avatar_url
+      : typeof metadata.picture === "string"
+        ? metadata.picture
+        : undefined;
+  return {
+    user: {
+      id: user.id,
+      email: user.email ?? "",
+      name,
+      picture,
+    },
+    // The API client sends this as `Authorization: Bearer ...`. The
+    // server's `requireAuth` middleware (Phase 3 commit 3) recognises
+    // Supabase JWTs by shape and validates them via the project's
+    // JWKS — so the same `accessToken` field on AuthState backs both
+    // sign-in paths during the coexistence window.
+    accessToken: session.access_token,
+    // Supabase handles refresh internally via its own
+    // `autoRefreshToken: true`; we don't need a frontend timer.
+    // Storing the refresh token would be redundant.
+    refreshToken: null,
+    expiresAt: session.expires_at ? session.expires_at * 1000 : null,
+    scopes: [],
+    gmail: null,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [state, setState] = useState<AuthState>(EMPTY_AUTH);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,6 +180,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     const stored = loadAuth();
     setState(stored);
     setIsLoading(false);
+  }, []);
+
+  // Phase 3b: subscribe to Supabase auth state changes. When a session
+  // is present, it takes precedence over the legacy localStorage
+  // AuthState — the API client picks up the Supabase JWT via
+  // `state.accessToken` and the server-side `requireAuth` middleware
+  // routes JWT-shaped tokens through the Supabase validator
+  // (phase 3 commit 3). When no Supabase session exists, we keep the
+  // legacy AuthState intact so existing users continue working
+  // through the cutover.
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let cancelled = false;
+
+    // Pull the existing session on mount so a page reload keeps the
+    // Supabase auth path active without waiting for a state change.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled || !data.session) return;
+      setState(authStateFromSupabaseSession(data.session));
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (cancelled) return;
+        if (session) {
+          setState(authStateFromSupabaseSession(session));
+        } else if (event === "SIGNED_OUT") {
+          // Supabase sign-out should also clear legacy auth state so
+          // the user lands in a clean "signed out" UI. The dual-path
+          // user menu only triggers one of the two sign-outs at a
+          // time; this branch covers the Supabase side.
+          setState(EMPTY_AUTH);
+        }
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
   // Persist state changes
@@ -303,6 +396,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const logout = useCallback(() => {
     setState(EMPTY_AUTH);
+    // Phase 3b: also sign out of Supabase if the user came in through
+    // that path. No-op when Supabase isn't configured or there's no
+    // active Supabase session.
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      void supabase.auth.signOut().catch(() => {
+        // Best-effort — local state is already cleared above, the
+        // worst case is a stale Supabase session sitting in
+        // localStorage until the next visit.
+      });
+    }
   }, []);
 
   const hasScope = useCallback(
