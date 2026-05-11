@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { startGoogleSignIn } from "@/lib/oauth";
-import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { AppWordmark } from "@/components/app-wordmark";
 import { AlertCircle, Info } from "lucide-react";
@@ -115,14 +114,11 @@ export default function LoginPage(): React.JSX.Element {
           </div>
         )}
         {/*
-          Phase 3b: when NEXT_PUBLIC_SUPABASE_URL is set, both Google
-          and Microsoft sign-in route through Supabase Auth. The
-          provider does the OAuth dance and bounces the user back to
-          `/auth/callback`, where the callback page sets up the
-          session and POSTs the provider tokens to /api/v1/connections.
-          When Supabase isn't configured (older builds, dev without
-          env vars), the Google button falls through to the legacy
-          custom OAuth flow so existing users keep working.
+          Both Google and Microsoft sign-in route through Supabase
+          Auth. The provider does the OAuth dance and bounces the
+          user back to `/auth/callback`, where the callback page
+          sets up the session and POSTs the provider tokens to
+          /api/v1/connections.
         */}
         <Button
           size="lg"
@@ -130,22 +126,20 @@ export default function LoginPage(): React.JSX.Element {
           disabled={apiAvailable === false}
           onClick={async () => {
             setLoginError(null);
-            const supabase = isSupabaseConfigured()
-              ? getSupabaseClient()
-              : null;
             try {
-              if (supabase) {
-                const { error } = await supabase.auth.signInWithOAuth({
-                  provider: "google",
-                  options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
-                  },
-                });
-                if (error) throw error;
-                // Supabase fires the redirect; nothing else to do.
-              } else {
-                startGoogleSignIn("/");
+              const supabase = getSupabaseClient();
+              if (!supabase) {
+                setLoginError("Sign-in is not configured.");
+                return;
               }
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                  redirectTo: `${window.location.origin}/auth/callback`,
+                },
+              });
+              if (error) throw error;
+              // Supabase fires the redirect; nothing else to do.
             } catch (err) {
               setLoginError(
                 err instanceof Error ? err.message : "Sign-in is not configured.",
@@ -173,53 +167,51 @@ export default function LoginPage(): React.JSX.Element {
           </svg>
           Sign in with Google
         </Button>
-        {isSupabaseConfigured() && (
-          <Button
-            size="lg"
-            variant="outline"
-            className="w-full"
-            disabled={apiAvailable === false}
-            onClick={async () => {
-              setLoginError(null);
+        <Button
+          size="lg"
+          variant="outline"
+          className="w-full"
+          disabled={apiAvailable === false}
+          onClick={async () => {
+            setLoginError(null);
+            try {
               const supabase = getSupabaseClient();
               if (!supabase) {
-                setLoginError("Microsoft sign-in is not configured.");
+                setLoginError("Sign-in is not configured.");
                 return;
               }
-              try {
-                const { error } = await supabase.auth.signInWithOAuth({
-                  // "azure" is the Supabase identifier for the
-                  // Microsoft / Azure AD provider — they registered it
-                  // before "microsoft" was a common alias.
-                  provider: "azure",
-                  options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
-                    // `offline_access` is required to receive a
-                    // refresh token from Microsoft; the Azure app
-                    // registration must include it in delegated
-                    // permissions (see docs/supabase-auth-setup.md).
-                    scopes: "openid email profile offline_access",
-                  },
-                });
-                if (error) throw error;
-              } catch (err) {
-                setLoginError(
-                  err instanceof Error
-                    ? err.message
-                    : "Sign-in is not configured.",
-                );
-              }
-            }}
-          >
-            <svg className="mr-2 h-5 w-5" viewBox="0 0 23 23">
-              <path fill="#f25022" d="M1 1h10v10H1z" />
-              <path fill="#7fba00" d="M12 1h10v10H12z" />
-              <path fill="#00a4ef" d="M1 12h10v10H1z" />
-              <path fill="#ffb900" d="M12 12h10v10H12z" />
-            </svg>
-            Sign in with Microsoft
-          </Button>
-        )}
+              const { error } = await supabase.auth.signInWithOAuth({
+                // "azure" is the Supabase identifier for the
+                // Microsoft / Azure AD provider — they registered it
+                // before "microsoft" was a common alias.
+                provider: "azure",
+                options: {
+                  redirectTo: `${window.location.origin}/auth/callback`,
+                  // `offline_access` is required to receive a
+                  // refresh token from Microsoft; the Azure app
+                  // registration must include it in delegated
+                  // permissions (see docs/supabase-auth-setup.md).
+                  scopes: "openid email profile offline_access",
+                },
+              });
+              if (error) throw error;
+            } catch (err) {
+              setLoginError(
+                err instanceof Error
+                  ? err.message
+                  : "Sign-in is not configured.",
+              );
+            }
+          }}
+        >
+          <svg className="mr-2 h-5 w-5" viewBox="0 0 23 23">
+            <path fill="#f25022" d="M1 1h10v10H1z" />
+            <path fill="#7fba00" d="M12 1h10v10H12z" />
+            <path fill="#00a4ef" d="M1 12h10v10H1z" />
+            <path fill="#ffb900" d="M12 12h10v10H12z" />
+          </svg>
+          Sign in with Microsoft
+        </Button>
         {/*
           Plain <a> tag (not next/link) on purpose: we want a full page
           reload so the next page mounts with ?demo=true in the URL from

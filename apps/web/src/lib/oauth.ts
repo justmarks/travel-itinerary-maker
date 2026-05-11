@@ -340,16 +340,6 @@ export function isGmailLinkConfigured(): boolean {
   return !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL;
 }
 
-export function startGoogleSignIn(returnTo: string): void {
-  window.location.href = buildAuthUrl({
-    clientId: getPrimaryClientId(),
-    scopes: INITIAL_SCOPES,
-    returnTo,
-    flow: "primary",
-    includeGrantedScopes: true,
-  });
-}
-
 /**
  * Re-runs the OAuth redirect to add scopes to the user's *primary*
  * client grant. Used for Calendar — the user's already signed in with
