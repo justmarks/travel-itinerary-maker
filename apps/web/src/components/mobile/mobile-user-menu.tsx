@@ -107,12 +107,6 @@ export function MobileUserMenu({
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/m/settings/account">
-            <UserCog className="mr-2 h-4 w-4" />
-            Account
-          </Link>
-        </DropdownMenuItem>
         {canInstall && (
           <DropdownMenuItem
             onSelect={(event) => {
@@ -159,6 +153,12 @@ export function MobileUserMenu({
         </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
+        <DropdownMenuItem asChild>
+          <Link href="/m/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

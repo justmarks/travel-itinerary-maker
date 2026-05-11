@@ -66,12 +66,6 @@ export function UserMenu(): React.JSX.Element | null {
           {user.email}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/settings/account">
-            <UserCog className="mr-2 h-4 w-4" />
-            Account
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleSwitchToMobile}>
           <Smartphone className="mr-2 h-4 w-4" />
           Use mobile site
@@ -82,6 +76,12 @@ export function UserMenu(): React.JSX.Element | null {
         </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
+        <DropdownMenuItem asChild>
+          <Link href="/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out
