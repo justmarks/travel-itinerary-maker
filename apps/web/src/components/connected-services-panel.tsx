@@ -58,6 +58,12 @@ const PROVIDER_LABELS = {
 const MICROSOFT_BASE_SCOPES = "openid email profile offline_access User.Read";
 const MICROSOFT_MAIL_SCOPES = `${MICROSOFT_BASE_SCOPES} Mail.Read`;
 const MICROSOFT_CALENDAR_SCOPES = `${MICROSOFT_BASE_SCOPES} Calendars.ReadWrite`;
+// `email profile` are OIDC sign-in scopes; `https://...calendar` is the
+// Google Calendar OAuth scope on the primary client. Asking for both
+// on the same sign-in gets the user a calendar-capable access token
+// the server can refresh via the primary OAuth client.
+const GOOGLE_CALENDAR_SCOPES =
+  "openid email profile https://www.googleapis.com/auth/calendar";
 
 async function fetchConnections(accessToken: string): Promise<PublicConnection[]> {
   const res = await fetch(`${API_BASE_URL}/connections`, {
@@ -105,6 +111,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
   }, [refresh]);
 
   async function startConnect(
+    provider: "azure" | "google",
     capability: "email" | "calendar",
     scopes: string,
   ): Promise<void> {
@@ -115,7 +122,8 @@ export function ConnectedServicesPanel(): React.JSX.Element {
       });
       return;
     }
-    setBusyAction(`connect-microsoft-${capability}`);
+    const providerKey = provider === "azure" ? "microsoft" : "google";
+    setBusyAction(`connect-${providerKey}-${capability}`);
     markPendingConnection({
       capability,
       // Bounce back to the settings page so the user sees their new
@@ -127,7 +135,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
     });
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: "azure",
+        provider,
         options: {
           scopes,
           redirectTo: `${window.location.origin}/auth/callback`,
@@ -191,6 +199,9 @@ export function ConnectedServicesPanel(): React.JSX.Element {
   const microsoftCalendarLinked = linkedByCapability.calendar.some(
     (c) => c.provider === "microsoft",
   );
+  const googleCalendarLinked = linkedByCapability.calendar.some(
+    (c) => c.provider === "google",
+  );
 
   function handleConnectGmail(): void {
     if (!isGmailLinkConfigured()) {
@@ -245,7 +256,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
             size="sm"
             disabled={busyAction === "connect-microsoft-email"}
             onClick={() =>
-              void startConnect("email", MICROSOFT_MAIL_SCOPES)
+              void startConnect("azure", "email", MICROSOFT_MAIL_SCOPES)
             }
           >
             Connect Outlook
@@ -260,13 +271,25 @@ export function ConnectedServicesPanel(): React.JSX.Element {
         busyAction={busyAction}
         onDisconnect={handleDisconnect}
       >
+        {!googleCalendarLinked && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busyAction === "connect-google-calendar"}
+            onClick={() =>
+              void startConnect("google", "calendar", GOOGLE_CALENDAR_SCOPES)
+            }
+          >
+            Connect Google Calendar
+          </Button>
+        )}
         {!microsoftCalendarLinked && (
           <Button
             variant="outline"
             size="sm"
             disabled={busyAction === "connect-microsoft-calendar"}
             onClick={() =>
-              void startConnect("calendar", MICROSOFT_CALENDAR_SCOPES)
+              void startConnect("azure", "calendar", MICROSOFT_CALENDAR_SCOPES)
             }
           >
             Connect Microsoft Calendar
