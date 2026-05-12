@@ -23,6 +23,31 @@ export const config = {
     clientId: process.env.GOOGLE_GMAIL_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_GMAIL_CLIENT_SECRET || "",
   },
+  /**
+   * Microsoft (Azure AD) OAuth client used for sign-in AND for
+   * Microsoft Graph mail + calendar access. Unlike Google, Microsoft
+   * doesn't gate mail/calendar scopes behind a CASA-style assessment
+   * — `Mail.Read` and `Calendars.ReadWrite` are standard delegated
+   * permissions requiring only user consent — so one client serves
+   * every capability.
+   *
+   * `tenantId` controls the issuer:
+   *   - `common` (default) — multi-tenant: any work / school /
+   *     personal Microsoft account can sign in.
+   *   - `consumers` — personal Microsoft accounts only.
+   *   - `organizations` — work/school accounts only (no personal).
+   *   - `<tenant-guid>` — single-tenant: only users in that
+   *     specific Azure AD directory.
+   *
+   * Any var unset (or empty) means "Microsoft integration disabled"
+   * — Phase 4b-2's token refresh helper bails early when these
+   * aren't set.
+   */
+  microsoft: {
+    clientId: process.env.MICROSOFT_CLIENT_ID || "",
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET || "",
+    tenantId: process.env.MICROSOFT_TENANT_ID || "common",
+  },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
   },
