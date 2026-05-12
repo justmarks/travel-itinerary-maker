@@ -134,22 +134,46 @@ export function ConnectedServicesPanel(): React.JSX.Element {
           : "/settings/account",
     });
     try {
-      // `linkIdentity` adds a new OAuth identity (with the requested
-      // scopes) to the CURRENT signed-in user — without rotating the
-      // session. `signInWithOAuth` would instead re-sign-the-user-in,
-      // which on the Microsoft path replaces the existing Google
-      // session with a fresh Microsoft one and orphans the user's
-      // existing connections rows under the old UUID.
+      // Two paths depending on whether the user is already linked to
+      // this provider:
       //
-      // Requires Supabase "Manual identity linking" to be enabled
-      // (docs/supabase-auth-setup.md §5) — already done.
-      const { error } = await supabase.auth.linkIdentity({
-        provider,
-        options: {
-          scopes,
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      });
+      //   - **Different provider** (e.g. user signed in with Google,
+      //     clicking Connect Outlook): `linkIdentity` adds the new
+      //     Azure identity to the existing user without rotating the
+      //     session. Requires Supabase "Manual identity linking"
+      //     (docs/supabase-auth-setup.md §5).
+      //
+      //   - **Same provider** (e.g. user signed in with Microsoft,
+      //     clicking Connect Outlook): `linkIdentity` would reject
+      //     with "Identity is already linked." Instead we run
+      //     `signInWithOAuth` with the broader scope set —
+      //     Microsoft / Google's manual identity linking matches the
+      //     same-email-same-provider case to the existing user, so
+      //     the session UUID stays stable. The newly issued token
+      //     carries the requested scopes via incremental consent.
+      //
+      // Either path lands at /auth/callback which reads the pending-
+      // connection flag and writes the capability row.
+      const supabaseClient = supabase;
+      const { data: userData } = await supabaseClient.auth.getUser();
+      const linkedProviders = new Set(
+        (userData.user?.identities ?? []).map((i) => i.provider),
+      );
+      const alreadyLinked = linkedProviders.has(provider);
+
+      const oauthOptions = {
+        scopes,
+        redirectTo: `${window.location.origin}/auth/callback`,
+      };
+      const { error } = alreadyLinked
+        ? await supabaseClient.auth.signInWithOAuth({
+            provider,
+            options: oauthOptions,
+          })
+        : await supabaseClient.auth.linkIdentity({
+            provider,
+            options: oauthOptions,
+          });
       if (error) throw error;
       // Browser is redirecting — the next render won't happen.
     } catch (err) {
