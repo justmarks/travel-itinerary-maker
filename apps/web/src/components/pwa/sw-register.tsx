@@ -11,11 +11,39 @@ import { useEffect } from "react";
  * the SW would happily serve stale). The SW only ships in production
  * builds, so it can't accidentally trap a developer in a stale `pnpm dev`
  * shell.
+ *
+ * In development we go further: actively unregister any SW left over from
+ * a prior `pnpm start` / production-mode session on the same origin and
+ * wipe the `itinly-*` cache buckets. Without this, the cache-first
+ * `/_next/static/*` strategy in `sw.js` keeps serving chunks from the
+ * previous build's `node_modules/.pnpm/next@..._<hash>/...` paths after
+ * the pnpm hash changes, producing `React is undefined` /
+ * `Class extends value undefined` crashes that only clear with a manual
+ * DevTools → Application → Clear site data.
  */
 export function ServiceWorkerRegister(): null {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+
+    if (process.env.NODE_ENV !== "production") {
+      void (async () => {
+        try {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((r) => r.unregister()));
+        } catch (err) {
+          console.warn("[sw] dev unregister failed", err);
+        }
+        try {
+          const keys = await caches.keys();
+          await Promise.all(
+            keys.filter((k) => k.startsWith("itinly-")).map((k) => caches.delete(k)),
+          );
+        } catch (err) {
+          console.warn("[sw] dev cache clear failed", err);
+        }
+      })();
+      return;
+    }
 
     let cancelled = false;
 
