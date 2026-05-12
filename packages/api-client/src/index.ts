@@ -37,6 +37,7 @@ export {
   useDeleteShareRule,
   useSharedTrip,
   useGmailLabels,
+  useConnections,
   usePendingEmails,
   useScanEmails,
   useImportHtmlEmail,

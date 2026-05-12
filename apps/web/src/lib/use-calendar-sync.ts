@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "@travel-app/api-client";
 import { toast } from "sonner";
-import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
+import { useActiveCalendarProvider } from "@/lib/use-active-provider";
 
 export type CalendarOption = {
   id: string;
@@ -37,12 +37,15 @@ type CalendarSyncTrip = {
 export function useCalendarSync(trip: CalendarSyncTrip) {
   const client = useApiClient();
   const queryClient = useQueryClient();
-  const { hasScope } = useAuth();
   const isDemo = useDemoMode();
-  // Demo mode runs against MockApiClient and never hits Google, so we
-  // skip the scope gate there. Real users without `calendar` granted
-  // see a "Connect Calendar" CTA instead of the full sync flow.
-  const calendarGranted = isDemo || hasScope(CALENDAR_SCOPE);
+  // Resolve "is there ANY calendar provider linked for this user?":
+  //   - Demo → google (mocks everything)
+  //   - Supabase user with a `calendar` connection (google or microsoft)
+  //   - Legacy Google user with `hasScope(CALENDAR_SCOPE)`
+  //   - Nothing → null → gate stays closed and the UI renders the
+  //     Connect CTA / NotConnectedNotice
+  const { provider: activeCalendarProvider } = useActiveCalendarProvider();
+  const calendarGranted = isDemo || activeCalendarProvider !== null;
 
   const [syncing, setSyncing] = useState(false);
   const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
@@ -141,6 +144,12 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
 
   return {
     calendarGranted,
+    /**
+     * Exposed so callers can show a provider-specific notice
+     * (e.g. "Connect Google or Microsoft Calendar in Settings"
+     * when null vs no notice when populated).
+     */
+    activeCalendarProvider,
     isSynced,
     syncedCount,
     syncedCalendarName,

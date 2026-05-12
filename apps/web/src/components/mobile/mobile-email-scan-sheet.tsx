@@ -31,7 +31,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
-import { useAuth } from "@/lib/auth";
+import {
+  useActiveEmailProvider,
+  emailLabelNoun,
+  emailProviderLabel,
+} from "@/lib/use-active-provider";
 import { useDemoMode } from "@/lib/demo";
 import {
   buildGmailLabelTree,
@@ -262,47 +266,58 @@ function ScanBody({
   tripId?: string;
   onClose: () => void;
 }): React.JSX.Element {
-  const { hasGmailLink } = useAuth();
   const isDemo = useDemoMode();
-  // Demo mode bypasses real Google APIs via MockApiClient, so treat
-  // every scope as granted there. For real users, gate the scan path
-  // on the Gmail OAuth client being linked — same logic the desktop
-  // EmailScanDialog uses. Pairs with the 403 GMAIL_SCOPE_REQUIRED
-  // bounce in `handleStartScan` for tokens that were revoked or
+  // Resolve the active email provider across both auth paths:
+  //   - Supabase user with an `email` connection → google or microsoft
+  //   - Legacy Gmail-linked user → google
+  //   - Demo mode → google
+  //   - Nothing linked → null → render the "not-connected" step
+  //
+  // Pairs with the 403 GMAIL_SCOPE_REQUIRED + 401 EMAIL_NOT_CONNECTED
+  // bounces in `handleStartScan` for tokens that were revoked or
   // rejected after first link.
-  const gmailGranted = isDemo || hasGmailLink;
+  // ScanBody only renders when the parent sheet is open, so the hook
+  // is always enabled in this context.
+  const { provider: activeEmailProvider, isLoading: providerLoading } =
+    useActiveEmailProvider(true);
+  const emailGranted = isDemo || activeEmailProvider !== null;
 
   const { data: trips = [], error: tripsError } = useTrips();
-  // Don't fetch Gmail labels or pending results until we've confirmed
-  // the link — fetches would 401/403 and pollute the console. The
-  // desktop dialog gates the same way.
+  // Don't fetch labels/folders or pending results until we've
+  // confirmed the link — fetches would 401/403 and pollute the
+  // console. The desktop dialog gates the same way.
   const {
     data: labels = [],
     error: labelsError,
     isLoading: labelsLoading,
-  } = useGmailLabels(gmailGranted);
+  } = useGmailLabels(emailGranted);
   // Pending-results restoration: if a previous scan left results that
   // weren't applied (e.g. user closed the sheet mid-review), surface
   // them on next open instead of forcing a re-scan. The hook is gated
-  // on `gmailGranted` so unlinked users skip the call.
+  // on `emailGranted` so unlinked users skip the call.
   const {
     data: pendingData,
     error: pendingError,
     isLoading: pendingLoading,
-  } = usePendingEmails(gmailGranted);
+  } = usePendingEmails(emailGranted);
   const scanEmails = useScanEmails();
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
   const createTrip = useCreateTrip();
 
-  // Initial step: needs-scope when we know the user isn't linked,
-  // otherwise verifying — a brief loading screen while the labels +
-  // pending queries confirm the cached `hasGmailLink` is still good.
-  // The transition effect below promotes to config / review (or
-  // bounces to needs-scope on 401/403) once the queries settle.
-  const [step, setStep] = useState<Step>(
-    gmailGranted ? "verifying" : "needs-scope",
-  );
+  // Initial step:
+  //  - we know the user has nothing linked → not-connected (Supabase
+  //    users with no provider connection AND no legacy Gmail link)
+  //  - we know they're still loading → verifying
+  //  - we know they're linked → verifying (queries refute below if stale)
+  // The transition effect promotes to config / review (or bounces to
+  // not-connected / needs-scope on 401/403) once the queries settle.
+  const initialStep: Step = providerLoading
+    ? "verifying"
+    : emailGranted
+      ? "verifying"
+      : "not-connected";
+  const [step, setStep] = useState<Step>(initialStep);
   const [labelId, setLabelId] = useState<string | null>(null);
   const [forceRescan, setForceRescan] = useState(false);
   const [results, setResults] = useState<EmailScanResult[]>([]);
@@ -902,7 +917,15 @@ function ScanBody({
           subtitle={`${selectedCount} selected`}
           onClose={onClose}
         />
-        <div className="flex shrink-0 flex-wrap gap-1.5 border-b bg-background px-3 py-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b bg-background px-3 py-2">
+          {activeEmailProvider && (
+            <span
+              className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              title={`Scanned from ${emailProviderLabel(activeEmailProvider)}`}
+            >
+              {emailProviderLabel(activeEmailProvider)}
+            </span>
+          )}
           {(["new", "enrichment", "conflict", "duplicate"] as const).map(
             (k) =>
               summary[k] > 0 ? (
@@ -1065,7 +1088,7 @@ function ScanBody({
             htmlFor="m-scan-label"
             className="text-kicker font-medium text-muted-foreground"
           >
-            Gmail label
+            {`${emailProviderLabel(activeEmailProvider)} ${emailLabelNoun(activeEmailProvider)}`}
           </label>
           {/* Native <select> so Android / iOS use their platform pickers
               — the same call we made for the segment-type select. The

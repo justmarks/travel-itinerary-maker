@@ -81,6 +81,7 @@ import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError } from "@/lib/api-error";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
@@ -704,7 +705,6 @@ function CalendarSyncButton({
     calendars,
     loadingCalendars,
     loadCalendars,
-    requestCalendarScope,
     sync,
     refresh,
     unsync,
@@ -784,19 +784,13 @@ function CalendarSyncButton({
       <Dialog open={dialog === "scope"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Connect Google Calendar</DialogTitle>
-            <DialogDescription>
-              To sync this trip&apos;s events to your calendar, grant
-              Google Calendar access. You can revoke it any time from
-              your Google Account.
-            </DialogDescription>
+            <DialogTitle>Connect a calendar</DialogTitle>
           </DialogHeader>
+          <div className="py-2">
+            <NotConnectedNotice capability="calendar" />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Not now</Button>
-            <Button onClick={requestCalendarScope}>
-              <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-              Connect Calendar
-            </Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

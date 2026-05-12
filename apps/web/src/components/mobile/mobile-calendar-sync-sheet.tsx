@@ -13,6 +13,7 @@ import type { Trip } from "@travel-app/shared";
 import { cn } from "@/lib/utils";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 
 type Step = "scope" | "pick" | "info" | "confirm-remove";
 
@@ -64,7 +65,6 @@ function CalendarSyncBody({
     calendars,
     loadingCalendars,
     loadCalendars,
-    requestCalendarScope,
     sync,
     refresh,
     unsync,
@@ -140,11 +140,7 @@ function CalendarSyncBody({
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-3">
         {step === "scope" && (
-          <p className="text-sm text-muted-foreground">
-            To sync this trip&apos;s events to your calendar, grant Google
-            Calendar access. You can revoke it any time from your Google
-            Account.
-          </p>
+          <NotConnectedNotice capability="calendar" variant="mobile" />
         )}
 
         {step === "pick" && (
@@ -269,23 +265,13 @@ function CalendarSyncBody({
 
       <div className="flex shrink-0 items-center gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         {step === "scope" && (
-          <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 flex-1 rounded-full border bg-background text-sm font-medium text-foreground active:bg-muted/40"
-            >
-              Not now
-            </button>
-            <button
-              type="button"
-              onClick={requestCalendarScope}
-              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background active:opacity-80"
-            >
-              <CalendarPlus className="h-4 w-4" />
-              Connect
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 flex-1 rounded-full border bg-background text-sm font-medium text-foreground active:bg-muted/40"
+          >
+            Close
+          </button>
         )}
 
         {step === "pick" && (
