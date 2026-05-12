@@ -277,21 +277,38 @@ export default function AuthCallbackPage(): React.JSX.Element {
         return;
       }
       try {
-        // The SDK has `detectSessionInUrl: false` (see lib/supabase.ts)
-        // so this page is the *only* path that consumes the PKCE code.
-        // Belt-and-braces: if a prior tab already exchanged (e.g. the
-        // user opened the callback URL twice), `getSession` returns
-        // the existing session and we skip the second exchange —
-        // which would fail with "PKCE code verifier not found in
-        // storage" because the verifier is single-use.
-        let session: Session | null;
-        const { data: existing } = await supabase.auth.getSession();
-        session = existing.session;
-        if (!session && code) {
-          const { data, error: exchangeError } =
-            await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) throw exchangeError;
-          session = data.session;
+        // For Connect-capability flows (Connect Calendar, Connect Outlook,
+        // etc.) the user is already signed in, so `getSession` returns the
+        // existing session and would silently skip the code exchange.
+        // That session was written WITHOUT `provider_refresh_token` (only
+        // the immediate code-exchange result carries it), so we'd lose
+        // the freshly-issued refresh_token for the new scopes.
+        //
+        // Fix: when a `code` is in the URL, ALWAYS try to exchange it
+        // FIRST — that's the only path where Supabase exposes the
+        // provider's refresh_token. Fall back to `getSession` only when
+        // exchange fails (PKCE verifier already consumed by another
+        // tab, etc.).
+        let session: Session | null = null;
+        if (code) {
+          try {
+            const { data, error: exchangeError } =
+              await supabase.auth.exchangeCodeForSession(code);
+            if (exchangeError) throw exchangeError;
+            session = data.session;
+          } catch (err) {
+            // PKCE single-use; another tab may have already consumed
+            // the code. Fall through to getSession to pick up that
+            // tab's result. Log so we can spot prod-side double-tabs.
+            console.warn(
+              "[auth-callback] exchangeCodeForSession failed; falling back to getSession:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+        if (!session) {
+          const { data: existing } = await supabase.auth.getSession();
+          session = existing.session;
         }
         if (!session) {
           setError(
