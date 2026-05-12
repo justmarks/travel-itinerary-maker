@@ -175,35 +175,14 @@ async function syncConnections(
     };
   }
 
-  // Fresh sign-in with no pending-connection flag. If the
-  // provider_token has scopes beyond identity (because the user
-  // previously consented to Mail.Read / Calendars.ReadWrite at an
-  // earlier session, OR because the login page requested the broad
-  // scope set up front), write capability rows so returning users
-  // get Outlook / Calendar auto-connected without a separate
-  // Connect click.
-  //
-  // Failures here are silent — speculative best-effort writes.
-  // The connection store rejects bad inputs at the schema level;
-  // any token-scope mismatch between what we recorded and what the
-  // token can actually do gets caught by Phase 4c-2's auto-revoke
-  // path on the first API call.
-  //
-  // Gmail is NOT included in the Google branch — it lives on a
-  // separate OAuth client (CASA-isolation), so the primary
-  // Google sign-in token never has gmail.readonly. Users link
-  // Gmail explicitly via /settings/account → Connect Gmail.
-  if (session.provider_token) {
-    const capabilitiesToTry: Array<"email" | "calendar"> =
-      normalisedProvider === "microsoft"
-        ? ["email", "calendar"]
-        : ["calendar"];
-    await Promise.all(
-      capabilitiesToTry.map((capability) =>
-        postConnection(session, capability, normalisedProvider, email),
-      ),
-    );
-  }
+  // Fresh sign-in with no pending-connection flag — write only the
+  // identity row. Capability rows (email / calendar) are written
+  // only after the user explicitly clicks Connect on
+  // /settings/account, which sets the pending-connection flag
+  // handled above. We don't speculatively grant capabilities at
+  // sign-in because the login page only requests identity scopes
+  // — asking for Mail.Read or Calendars.ReadWrite at sign-in
+  // would prompt for permissions the user hasn't asked for yet.
 
   return {
     returnTo: null,

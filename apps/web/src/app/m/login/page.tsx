@@ -117,11 +117,9 @@ export default function MobileLoginPage(): React.JSX.Element {
                   provider: "google",
                   options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
-                    // See desktop /login — request calendar scope at
-                    // sign-in so previously-consented users get
-                    // capability rows auto-written.
-                    scopes:
-                      "openid email profile https://www.googleapis.com/auth/calendar",
+                    // Identity-only at sign-in. Capability scopes
+                    // (Calendar / Gmail) granted on-demand via
+                    // /settings/account Connect buttons.
                   },
                 });
                 if (error) throw error;
@@ -172,12 +170,10 @@ export default function MobileLoginPage(): React.JSX.Element {
                   provider: "azure",
                   options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
-                    // See desktop /login for the full rationale —
-                    // broad scope set so returning users with
-                    // previous consent get capability rows
-                    // auto-written by the callback.
-                    scopes:
-                      "openid email profile offline_access User.Read Mail.Read Calendars.ReadWrite",
+                    // Identity-only at sign-in. Capability scopes
+                    // (Mail.Read / Calendars.ReadWrite) granted on-
+                    // demand via /settings/account Connect buttons.
+                    scopes: "openid email profile offline_access User.Read",
                   },
                 });
                 if (error) throw error;
