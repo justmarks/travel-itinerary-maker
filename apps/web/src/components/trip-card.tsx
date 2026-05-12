@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Calendar,
+  CalendarDays,
   LogOut,
   MoreVertical,
   Share2,
@@ -122,7 +123,7 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
             }
       }
     >
-      {image && (
+      {image ? (
         // Wikipedia thumbnails come from upload.wikimedia.org and don't
         // benefit from Next/Image optimisation (this app is static-exported
         // with images.unoptimized=true). Plain <img> keeps the layout
@@ -145,6 +146,15 @@ function TripCardHero({ trip }: { trip: TripSummary }): React.JSX.Element {
           crossOrigin="anonymous"
           className="absolute inset-0 h-full w-full object-cover"
         />
+      ) : (
+        // No city → no Wikipedia image to fetch. Render a calendar
+        // glyph on top of the gradient so the hero doesn't look
+        // empty. Mirrors the mobile trip card's fallback.
+        !trip.primaryCity && (
+          <div className="absolute inset-0 flex items-center justify-center text-white/70">
+            <CalendarDays className="h-7 w-7" />
+          </div>
+        )
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       {showCountdown && countdownLabel && (
