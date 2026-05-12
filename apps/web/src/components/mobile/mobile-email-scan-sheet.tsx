@@ -917,7 +917,15 @@ function ScanBody({
           subtitle={`${selectedCount} selected`}
           onClose={onClose}
         />
-        <div className="flex shrink-0 flex-wrap gap-1.5 border-b bg-background px-3 py-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b bg-background px-3 py-2">
+          {activeEmailProvider && (
+            <span
+              className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+              title={`Scanned from ${emailProviderLabel(activeEmailProvider)}`}
+            >
+              {emailProviderLabel(activeEmailProvider)}
+            </span>
+          )}
           {(["new", "enrichment", "conflict", "duplicate"] as const).map(
             (k) =>
               summary[k] > 0 ? (

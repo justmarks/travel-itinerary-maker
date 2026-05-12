@@ -790,6 +790,14 @@ export function EmailScanDialog({
               <>
                 {/* Summary bar */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  {activeEmailProvider && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                      title={`Scanned from ${emailProviderLabel(activeEmailProvider)}`}
+                    >
+                      {emailProviderLabel(activeEmailProvider)}
+                    </span>
+                  )}
                   {matchCounts.new > 0 && (
                     <span
                       className="flex items-center gap-1.5"
