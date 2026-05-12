@@ -132,6 +132,30 @@ export class ConnectionsStore {
     const accessEnc = this.encrypt(input.accessToken);
     const now = new Date();
 
+    // Don't clobber the existing refresh_token when the caller has
+    // no new one to give us. Returning users doing signInWithOAuth
+    // frequently get a valid access_token without a fresh
+    // refresh_token (Google won't re-issue one to a user with an
+    // active grant even with `prompt=consent`; Microsoft sometimes
+    // skips it too). Without this guard, every "Reconnect"
+    // attempt that doesn't yield a refresh_token wiped the working
+    // one the row already had.
+    //
+    // Same logic for scopes: if the caller passes [] we leave the
+    // existing scopes alone (the connect flow uses [] for the
+    // identity row write, which would otherwise clear capability
+    // scopes on the same provider).
+    const conflictSet: Record<string, unknown> = {
+      accessTokenEncrypted: accessEnc,
+      expiresAt: input.expiresAt ?? null,
+      status: "active",
+      updatedAt: now,
+    };
+    if (refreshEnc !== null) conflictSet.refreshTokenEncrypted = refreshEnc;
+    if (input.scopes && input.scopes.length > 0) {
+      conflictSet.scopes = input.scopes;
+    }
+
     await this.db
       .insert(connections)
       .values({
@@ -155,14 +179,7 @@ export class ConnectionsStore {
           connections.capability,
           connections.accountEmail,
         ],
-        set: {
-          refreshTokenEncrypted: refreshEnc,
-          accessTokenEncrypted: accessEnc,
-          expiresAt: input.expiresAt ?? null,
-          scopes: input.scopes ?? [],
-          status: "active",
-          updatedAt: now,
-        },
+        set: conflictSet,
       });
 
     // Re-read to get the canonical row (handles the case where the
