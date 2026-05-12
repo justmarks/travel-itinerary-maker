@@ -68,6 +68,7 @@ IMPORTANT RULES:
   For example: if the email was received on 2026-01-15 and mentions "Wednesday, April 15", the correct date is 2026-04-15 (same year, since April 15 is after January 15). If the email was received on 2026-11-15 and mentions "Friday, January 20", the correct date is 2027-01-20 (next year, since January 20 has already passed in 2026).
 - Only include fields that are actually present in the email. Do not guess or fabricate data.
 - For restaurant types, use restaurant_breakfast, restaurant_brunch, restaurant_lunch, or restaurant_dinner based on time or context.
+- **PLACEHOLDER / TBD RESERVATIONS**: Skip emails that describe a booking with no fixed travel dates (Disney Cruise Line "Placeholder Reservation" with "Embark Date: TBD", airline "open ticket" / future-credit stubs, "book by date" promotions). These have nothing to put on a calendar. Do NOT return a segment with "date": "TBD", an empty date, or a free-form date string like "Spring 2026" — return an empty array for that email instead.
 
 If the email contains NO travel-related bookings, return an empty array: []
 
@@ -76,6 +77,35 @@ Return ONLY the JSON array, no other text.`;
 export interface EmailParserOptions {
   apiKey: string;
   model?: string;
+}
+
+/**
+ * Recognises the `date` strings Claude gives back when it tried to
+ * extract a booking but the email's date isn't yet pinned down
+ * ("Embark Date: TBD" on Disney Cruise placeholder reservations,
+ * airline "open ticket" stubs, "book by Spring 2026" promotions).
+ * These items shouldn't go on the itinerary and shouldn't count
+ * against the `invalidCount` retry counter — they're better tagged
+ * as "no travel content" so the email moves to `skipped` (sticky,
+ * no retry).
+ *
+ * Items missing the field entirely are NOT considered placeholders;
+ * those are real parse failures and should still bump invalidCount
+ * so we surface them in telemetry.
+ */
+function isPlaceholderDate(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return true;
+  const upper = trimmed.toUpperCase();
+  if (upper === "TBD" || upper === "TBA" || upper === "T.B.D." || upper === "T.B.A.") {
+    return true;
+  }
+  // Free-form non-ISO strings ("Spring 2026", "next year", "March")
+  // — anything Claude returned in `date` that isn't YYYY-MM-DD.
+  // Hard requirement for downstream is the strict regex, so anything
+  // that fails it is unbookable.
+  return !/^\d{4}-\d{2}-\d{2}$/.test(trimmed);
 }
 
 /**
@@ -550,6 +580,25 @@ export class EmailParser {
               `[EmailParser] No portsOfCall returned for cruise "${item.title}"`,
             );
           }
+        }
+
+        // Placeholder / unconfirmed reservations (Disney Cruise Line
+        // "Embark Date: TBD", airlines' "open ticket" stubs, etc.)
+        // come back from Claude with the literal "TBD" or a non-ISO
+        // free-form string in `date`. There's nothing actionable on
+        // the itinerary for these — drop them silently so the email
+        // gets marked `skipped` (sticky, no retry) instead of
+        // `failed` (retryable, re-burns Claude tokens every scan).
+        //
+        // Missing-date items (Claude didn't return a `date` field at
+        // all) keep falling through to Zod — those are real parse
+        // failures that should bump the retry counter, not silent
+        // placeholders.
+        if (isPlaceholderDate(item.date)) {
+          debugEmailScan(
+            `[EmailParser] Skipping placeholder/unbookable item with date="${item.date}" type="${item.type}" title="${item.title}"`,
+          );
+          continue;
         }
 
         const result = parsedSegmentSchema.safeParse(item);
