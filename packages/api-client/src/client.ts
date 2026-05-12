@@ -449,6 +449,29 @@ export class ApiClient {
     return this.request("/emails/labels");
   }
 
+  /**
+   * Lists the current user's active OAuth connections — the per-
+   * capability links written by the Phase 4c Connect flows.
+   * `identity` rows confirm sign-in via a provider; `email` /
+   * `calendar` rows back the feature-gating decisions in the UI
+   * (e.g. "should we offer the email-scan button at all?").
+   */
+  listConnections(): Promise<{
+    connections: Array<{
+      id: string;
+      provider: "google" | "microsoft";
+      capability: "identity" | "email" | "calendar";
+      accountEmail: string;
+      scopes: string[];
+      status: "active" | "revoked";
+      expiresAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }> {
+    return this.request("/connections");
+  }
+
   getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
     return this.request("/emails/pending");
   }

@@ -47,6 +47,7 @@ export const queryKeys = {
   shareRules: ["share-rules"] as const,
   shared: (token: string) => ["shared", token] as const,
   gmailLabels: ["gmail", "labels"] as const,
+  connections: ["connections"] as const,
   processedEmails: ["emails", "processed"] as const,
   pushConfig: ["push", "config"] as const,
   pushStatus: (endpoint?: string) =>
@@ -826,6 +827,21 @@ export function useGmailLabels(enabled = true) {
   return useQuery({
     queryKey: queryKeys.gmailLabels,
     queryFn: () => client.getGmailLabels(),
+    enabled,
+  });
+}
+
+/**
+ * Lists the user's active OAuth connections. Drives feature gating
+ * decisions ("does the user have any email link?", "should the
+ * calendar-sync button render?"). Skipped in demo mode by callers
+ * (mirrors the `useGmailLabels` pattern).
+ */
+export function useConnections(enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.connections,
+    queryFn: () => client.listConnections(),
     enabled,
   });
 }
