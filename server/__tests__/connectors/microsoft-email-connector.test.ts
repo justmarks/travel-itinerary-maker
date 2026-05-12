@@ -50,6 +50,21 @@ describe("MicrosoftEmailConnector", () => {
     }
   };
 
+  /**
+   * Queues the two-call chain `listInboxTreeIds` makes for a mailbox
+   * whose Inbox has no nested folders:
+   *  1. `GET /me/mailFolders/inbox` → returns the inbox folder ID.
+   *  2. `GET /me/mailFolders/{inboxId}/childFolders` → returns [].
+   * Used for default-scan tests where the test isn't trying to
+   * exercise nested folders.
+   */
+  const mockInboxTreeNoChildren = (inboxId = "inbox-id"): void => {
+    fetchMock.mockResolvedValueOnce(
+      makeJsonResponse(200, { id: inboxId, displayName: "Inbox" }),
+    );
+    fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
+  };
+
   describe("listLabels", () => {
     it("returns all folders as type=user (Graph mailFolder lacks wellKnownName)", async () => {
       // Graph's mailFolder resource doesn't expose a wellKnownName
@@ -147,7 +162,12 @@ describe("MicrosoftEmailConnector", () => {
   });
 
   describe("scanEmails", () => {
-    it("queries /me/messages with $orderby + $top defaults and maps the result", async () => {
+    it("scans the inbox tree and maps each result", async () => {
+      // Default scan (no labelFilter) → listInboxTreeIds resolves the
+      // inbox + walks childFolders, then we fetch /messages from each
+      // folder in the tree. Inbox-with-no-subfolders case: 3 mocks
+      // (inbox resolve, empty childFolders, messages).
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, {
           value: [
@@ -176,15 +196,77 @@ describe("MicrosoftEmailConnector", () => {
         bodyText: "Your booking is confirmed.",
       });
 
-      const [url] = fetchMock.mock.calls[0];
-      const str = url.toString();
-      expect(str).toContain("/me/mailFolders/inbox/messages");
-      expect(str).toContain("%24orderby=receivedDateTime+desc");
-      expect(str).toContain("%24top=100");
-      expect(str).not.toContain("%24filter");
+      // The final /messages call is the third request (after inbox
+      // resolve + childFolders). It carries the orderby/top defaults
+      // and is scoped to the inbox folder ID.
+      const lastUrl =
+        fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
+      expect(lastUrl).toContain("/me/mailFolders/inbox-id/messages");
+      expect(lastUrl).toContain("%24orderby=receivedDateTime+desc");
+      expect(lastUrl).toContain("%24top=100");
+      expect(lastUrl).not.toContain("%24filter");
+    });
+
+    it("merges messages across the inbox tree and trims to maxResults", async () => {
+      // The whole point of the inbox-tree scan: a "Travel" folder
+      // filed *under* Inbox was being missed before because we hit
+      // `/me/mailFolders/inbox/messages` which isn't recursive. Now
+      // the connector fetches messages from each folder in the tree
+      // and merges + sorts + trims so newer messages from nested
+      // folders interleave with older ones from the parent.
+      fetchMock
+        // Step 1: resolve inbox folder ID.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, { id: "inbox-id", displayName: "Inbox" }),
+        )
+        // Step 2: childFolders(inbox) — one nested "Travel" folder.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [{ id: "travel-id", displayName: "Travel" }],
+          }),
+        )
+        // Step 3: childFolders(travel) — leaf.
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        // Step 4 + 5: per-folder messages calls (parallel). Order of
+        // resolution doesn't matter since the connector merges + sorts.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [
+              {
+                id: "inbox-msg",
+                subject: "Older inbox message",
+                bodyPreview: "in inbox",
+                from: { emailAddress: { address: "a@example.com" } },
+                receivedDateTime: "2026-06-10T08:00:00Z",
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [
+              {
+                id: "travel-msg",
+                subject: "Newer travel confirmation",
+                bodyPreview: "in travel folder",
+                from: { emailAddress: { address: "b@example.com" } },
+                receivedDateTime: "2026-06-12T08:00:00Z",
+              },
+            ],
+          }),
+        );
+
+      const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
+      const emails = await conn.scanEmails();
+
+      // Both messages surface, sorted newest first.
+      expect(emails).toHaveLength(2);
+      expect(emails[0].id).toBe("travel-msg");
+      expect(emails[1].id).toBe("inbox-msg");
     });
 
     it("translates HTML bodies through htmlToText", async () => {
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, {
           value: [
@@ -214,6 +296,7 @@ describe("MicrosoftEmailConnector", () => {
     });
 
     it("applies the newerThanDays filter as $filter receivedDateTime ge ...", async () => {
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, { value: [] }),
       );
@@ -221,21 +304,27 @@ describe("MicrosoftEmailConnector", () => {
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       await conn.scanEmails({ newerThanDays: 7 });
 
-      const [url] = fetchMock.mock.calls[0];
-      const str = url.toString();
+      const lastUrl =
+        fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
       // URLSearchParams encodes `$filter`'s value:
       //   ge → ge (intact)
       //   ISO date colons → %3A
       // We just check the directive is present + the comparison op shows up.
-      expect(str).toContain("%24filter=receivedDateTime+ge+");
+      expect(lastUrl).toContain("%24filter=receivedDateTime+ge+");
     });
 
-    it("scans inside a specific folder when labelFilter matches a well-known folder", async () => {
+    it("expands labelFilter='Inbox' to the inbox tree (not just the inbox folder)", async () => {
+      // labelFilter='Inbox' resolves to the well-known 'inbox' name,
+      // which we then expand into Inbox + descendants — same as the
+      // default no-filter scan. Three Graph chains in sequence:
+      //  1. listAllFolders to resolve the labelFilter
+      //  2. listInboxTreeIds (inbox + descendants — only inbox here)
+      //  3. per-folder messages fetch
       mockTopLevelFoldersWithNoChildren([
         { id: "inbox-id", displayName: "Inbox" },
         { id: "travel-id", displayName: "Travel" },
       ]);
-      // Trailing call: the actual messages endpoint scoped to inbox.
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, {
           value: [
@@ -256,7 +345,7 @@ describe("MicrosoftEmailConnector", () => {
       expect(emails[0].id).toBe("msg-in");
 
       const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
-      expect(lastUrl).toContain("/me/mailFolders/inbox/messages");
+      expect(lastUrl).toContain("/me/mailFolders/inbox-id/messages");
     });
 
     it("scans inside a user folder by display name", async () => {
@@ -300,19 +389,23 @@ describe("MicrosoftEmailConnector", () => {
       expect(lastUrl).toContain("/me/mailFolders/nested-travel-id/messages");
     });
 
-    it("falls back to inbox when the labelFilter doesn't match anything", async () => {
+    it("falls back to inbox tree when the labelFilter doesn't match anything", async () => {
+      // listAllFolders → resolveFolderId returns null → fall through to
+      // listInboxTreeIds (same path as default scan).
       mockTopLevelFoldersWithNoChildren([
         { id: "inbox-id", displayName: "Inbox" },
       ]);
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
 
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       await conn.scanEmails({ labelFilter: "Nope" });
       const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
-      expect(lastUrl).toContain("/me/mailFolders/inbox/messages");
+      expect(lastUrl).toContain("/me/mailFolders/inbox-id/messages");
     });
 
     it("handles missing from gracefully", async () => {
+      mockInboxTreeNoChildren("inbox-id");
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, {
           value: [
