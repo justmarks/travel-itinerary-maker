@@ -5,6 +5,60 @@ import {
   createConnectorResolvers,
   type ConnectorResolvers,
 } from "../connectors/resolve";
+import type { CalendarConnector } from "../connectors/calendar-connector";
+
+/**
+ * Diagnostic hook fired only when Google returns 403 "insufficient
+ * scopes" on the calendar-list call. Hits Google's tokeninfo
+ * endpoint to log the ACTUAL scopes baked into the stored access
+ * token. Lets us tell apart:
+ *  - "user never granted Calendar" (token has only identity scopes
+ *    — Supabase's signInWithOAuth `scopes` param didn't take effect)
+ *  - "user granted Calendar but we're using a stale token" (token
+ *    has identity scopes despite user re-consenting recently)
+ *
+ * Best-effort — any failure here is logged and swallowed so the
+ * diagnostic itself doesn't mask the original 403.
+ */
+async function diagnoseScopes(
+  req: Request,
+  err: unknown,
+  _connector: CalendarConnector,
+): Promise<void> {
+  // Pull the access token out of the failed Google API client. The
+  // googleapis library throws errors that carry the request config
+  // on `err.config.headers.Authorization`.
+  const errAny = err as {
+    config?: { headers?: Record<string, unknown> };
+    response?: { config?: { headers?: Record<string, unknown> } };
+  };
+  const authHeader =
+    errAny.config?.headers?.Authorization ??
+    errAny.response?.config?.headers?.Authorization;
+  const token =
+    typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.slice("Bearer ".length)
+      : null;
+  if (!token) {
+    console.warn(
+      `[calendar-list] tokeninfo diagnostic: couldn't extract access token from error`,
+    );
+    return;
+  }
+  const res = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`,
+  );
+  if (!res.ok) {
+    console.warn(
+      `[calendar-list] tokeninfo returned ${res.status} for user=${req.userEmail}`,
+    );
+    return;
+  }
+  const info = (await res.json()) as { scope?: string; expires_in?: string };
+  console.warn(
+    `[calendar-list] user=${req.userEmail} stored access token scopes="${info.scope ?? "(none)"}" expires_in=${info.expires_in ?? "?"}`,
+  );
+}
 
 export interface CalendarRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -79,6 +133,22 @@ export function createCalendarRoutes(
       console.error(
         `[calendar-list] user=${req.userEmail} listCalendars failed status=${status}: ${message}`,
       );
+      // On insufficient-scopes 403 (Google's "Request had insufficient
+      // authentication scopes"), hit Google's tokeninfo endpoint to
+      // log the ACTUAL scopes the stored access_token has. Lets us
+      // distinguish "user didn't grant calendar" from "we cached a
+      // stale identity-only token despite the user re-consenting."
+      // Best-effort — swallows errors so the diagnostic itself can't
+      // mask the original failure.
+      if (status === 403 && message.toLowerCase().includes("scope")) {
+        await diagnoseScopes(req, err, connector).catch((e) => {
+          console.warn(
+            `[calendar-list] tokeninfo diagnostic failed: ${
+              e instanceof Error ? e.message : "unknown"
+            }`,
+          );
+        });
+      }
       res.status(500).json({
         error: message,
         code: status === 401 || status === 403 ? "CALENDAR_AUTH_FAILED" : "CALENDAR_LIST_FAILED",
