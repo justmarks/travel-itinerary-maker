@@ -126,6 +126,11 @@ export function ConnectedServicesPanel(): React.JSX.Element {
     setBusyAction(`connect-${providerKey}-${capability}`);
     markPendingConnection({
       capability,
+      // The scopes string we're about to pass to OAuth gets split
+      // back into an array here so the server can record what was
+      // requested. Drives Microsoft refresh-token requests (v2
+      // rejects refresh with empty/identity-only scope set).
+      scopes: scopes.split(" ").filter(Boolean),
       // Bounce back to the settings page so the user sees their new
       // connection in the list without manual navigation.
       returnTo:
@@ -161,10 +166,27 @@ export function ConnectedServicesPanel(): React.JSX.Element {
       );
       const alreadyLinked = linkedProviders.has(provider);
 
-      const oauthOptions = {
+      // Google requires `access_type=offline&prompt=consent` to
+      // include a refresh_token in the OAuth response. Without the
+      // refresh token, the connection row can't refresh once the
+      // 1-hour access token expires, and the next feature call
+      // returns "no refresh token; needs re-link." Microsoft
+      // returns a refresh token automatically when `offline_access`
+      // is in the scope set (which our Connect scopes already are).
+      const oauthOptions: {
+        scopes: string;
+        redirectTo: string;
+        queryParams?: Record<string, string>;
+      } = {
         scopes,
         redirectTo: `${window.location.origin}/auth/callback`,
       };
+      if (provider === "google") {
+        oauthOptions.queryParams = {
+          access_type: "offline",
+          prompt: "consent",
+        };
+      }
       const { error } = alreadyLinked
         ? await supabaseClient.auth.signInWithOAuth({
             provider,
