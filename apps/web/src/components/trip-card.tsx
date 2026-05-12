@@ -362,6 +362,12 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             onChange={(e) => setNewTitle(e.target.value)}
             className="h-7 text-base font-semibold"
             autoFocus
+            // Select the current title on focus so the user can
+            // start typing immediately to replace it. autoFocus
+            // alone just lands the cursor at the end of the text,
+            // which forces them to manually select-all before
+            // overwriting.
+            onFocus={(e) => e.currentTarget.select()}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setNewTitle(trip.title);
