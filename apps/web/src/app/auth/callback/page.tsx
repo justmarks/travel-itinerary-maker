@@ -225,7 +225,7 @@ async function syncConnections(
 export default function AuthCallbackPage(): React.JSX.Element {
   const router = useRouter();
   const { login, linkGmail } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode | null>(null);
   /**
    * When the error came from a capability-link POST (the user
    * clicked Connect Outlook / Gmail / etc.), they're already
@@ -246,10 +246,51 @@ export default function AuthCallbackPage(): React.JSX.Element {
     const errorDescription = url.searchParams.get("error_description");
 
     if (errorParam) {
+      // Supabase reports "this Microsoft account already belongs to a
+      // different itinly login" as `error=identity_already_exists` (or
+      // a message containing "already linked"). Replace the default
+      // tooltip-style description with an actionable explanation —
+      // until we ship the account-merge flow (see backlog in README),
+      // the user's only path forward is to sign out + sign in as the
+      // other account.
+      const description = errorDescription ?? "";
+      const isAlreadyLinked =
+        errorParam === "identity_already_exists" ||
+        errorParam === "user_already_exists" ||
+        /already linked/i.test(description) ||
+        /already.*registered/i.test(description);
+      if (isAlreadyLinked) {
+        setError(
+          <div className="space-y-2">
+            <p>
+              That account is already registered as a separate itinly login.
+            </p>
+            <p className="font-medium">You have two options:</p>
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                Sign out, sign back in with that other account, and use it
+                directly. Each itinly login keeps its own trips and
+                connections.
+              </li>
+              <li>
+                Stay signed in here — you can still use{" "}
+                <strong>this</strong> account&apos;s email + calendar
+                connections in /settings/account.
+              </li>
+            </ul>
+            <p className="text-xs opacity-80">
+              Account merging (combining trips, share rules, and connections
+              into one login) is on the roadmap — see the README backlog.
+            </p>
+          </div>,
+        );
+        setErrorCta({ label: "Back to settings", href: "/settings/account" });
+        return;
+      }
       setError(
         errorParam === "access_denied"
           ? "Sign-in was cancelled."
-          : errorDescription || `Provider returned an error: ${errorParam}`,
+          : description || `Provider returned an error: ${errorParam}`,
       );
       return;
     }
@@ -398,7 +439,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
           <AppLogo className="mx-auto h-12 w-12" />
           <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-left text-sm text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+            <div className="min-w-0 flex-1">{error}</div>
           </div>
           <Button onClick={() => router.replace(errorCta.href)}>
             {errorCta.label}
