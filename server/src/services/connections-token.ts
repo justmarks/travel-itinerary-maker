@@ -28,6 +28,31 @@ import type {
 } from "./connections-store";
 
 /**
+ * Decides whether a refresh error is permanent (mark the row revoked
+ * so settings reflects reality + a re-link is required) vs transient
+ * (leave the row active so a retry can recover without prompting).
+ *
+ * Permanent signals we recognise:
+ *   - Google: 4xx response with `invalid_grant` — user revoked the
+ *     app at the IdP, refresh token aged out, account suspended.
+ *   - Microsoft: any AADSTS error in the 4xx range; Microsoft's
+ *     refresh failures are uniformly bucketed as `invalid_grant` at
+ *     the OAuth layer, with the AADSTS code in the description for
+ *     diagnostic granularity.
+ *
+ * Transient (returns false, row stays active):
+ *   - Network errors (`fetch` threw, no `OAuthRefreshError`)
+ *   - 5xx from either provider
+ *   - 0 (our `MISSING_CLIENT_CONFIG` synthetic — a server-side
+ *     config bug, not a user problem)
+ */
+function isPermanentRefreshFailure(err: unknown): boolean {
+  if (!(err instanceof OAuthRefreshError)) return false;
+  if (err.status >= 500 || err.status === 0) return false;
+  return err.code === "invalid_grant";
+}
+
+/**
  * How close to the access-token expiry we'll preemptively refresh.
  * 60 seconds covers clock skew + the time between checking the cache
  * and actually using the token on an upstream HTTP call — a token
@@ -112,6 +137,25 @@ export async function getActiveAccessToken(
     console.warn(
       `[connections-token] refresh failed for ${provider}/${capability} user=${userId}: ${code}`,
     );
+    // Mark the row revoked when the provider tells us the grant is
+    // permanently gone — user revoked the app at the IdP, refresh
+    // token aged out, account suspended. Without this the row stays
+    // `active` in the DB and the settings page lies ("Connected"
+    // with a Disconnect button) while every feature 401s. On the
+    // next visit to settings the row is gone, the Connect button
+    // reappears, and re-linking creates a fresh row.
+    //
+    // Transient failures (network, 5xx) keep the row active so a
+    // quick retry can recover without re-prompting the user.
+    if (isPermanentRefreshFailure(err)) {
+      await store.markRevoked(connection.id, connection.userId).catch((e) => {
+        console.warn(
+          `[connections-token] failed to mark revoked id=${connection.id}: ${
+            e instanceof Error ? e.message : "unknown"
+          }`,
+        );
+      });
+    }
     return null;
   }
 
