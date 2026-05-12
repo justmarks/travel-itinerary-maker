@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { markPendingConnection } from "@/app/auth/callback/page";
+import { startGmailLink, isGmailLinkConfigured } from "@/lib/oauth";
 import { describeError } from "@/lib/api-error";
 
 const API_BASE_URL =
@@ -184,9 +185,40 @@ export function ConnectedServicesPanel(): React.JSX.Element {
   const microsoftEmailLinked = linkedByCapability.email.some(
     (c) => c.provider === "microsoft",
   );
+  const googleEmailLinked = linkedByCapability.email.some(
+    (c) => c.provider === "google",
+  );
   const microsoftCalendarLinked = linkedByCapability.calendar.some(
     (c) => c.provider === "microsoft",
   );
+
+  function handleConnectGmail(): void {
+    if (!isGmailLinkConfigured()) {
+      toast.error("Gmail is not configured", {
+        description:
+          "The Gmail OAuth client isn't set on this build. Contact the site owner.",
+      });
+      return;
+    }
+    setBusyAction("connect-google-email");
+    try {
+      // startGmailLink redirects via window.location — control doesn't
+      // come back from this call. The legacy callback branch (flow="gmail")
+      // handles the round-trip, which now writes a `connections` row for
+      // Supabase-authed users via the auth route's Phase 4c handler.
+      const returnTo =
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/m")
+          ? "/m/settings/account"
+          : "/settings/account";
+      startGmailLink(returnTo);
+    } catch (err) {
+      setBusyAction(null);
+      toast.error("Couldn't start Gmail link", {
+        description: describeError(err),
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -197,6 +229,16 @@ export function ConnectedServicesPanel(): React.JSX.Element {
         busyAction={busyAction}
         onDisconnect={handleDisconnect}
       >
+        {!googleEmailLinked && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busyAction === "connect-google-email"}
+            onClick={handleConnectGmail}
+          >
+            Connect Gmail
+          </Button>
+        )}
         {!microsoftEmailLinked && (
           <Button
             variant="outline"

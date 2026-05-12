@@ -350,10 +350,26 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     res.json({ status: "ok", version: "0.1.0" });
   });
 
+  // Phase 4b-2: build the connector resolvers once. The store-backed
+  // path is only available when Postgres is wired up (dbClient
+  // exists) — without that, the resolvers fall back to the legacy
+  // `req.accessToken` / `req.gmailAccessToken` paths so memory-mode
+  // dev/tests continue to work identically to before. Phase 4c also
+  // threads `connectionsStore` into the auth routes so the Gmail-link
+  // handler can write directly to `connections` for Supabase users.
+  const connectionsStore =
+    dbClient && requiresAuth
+      ? new ConnectionsStore(dbClient, encryptionKey)
+      : undefined;
+  const connectorResolvers = createConnectorResolvers({ connectionsStore });
+
   // Auth routes (no auth required)
   // Pass shareRegistry so a successful login pre-warms registry entries
   // for the user's trips — recovers from server restarts without Redis.
-  app.use("/api/v1/auth", createAuthRoutes({ tokenStore, shareRegistry }));
+  app.use(
+    "/api/v1/auth",
+    createAuthRoutes({ tokenStore, shareRegistry, connectionsStore }),
+  );
 
   // Trip routes — require auth in any mode that has a real notion of
   // user identity (drive, postgres). Memory mode is anonymous.
@@ -382,17 +398,6 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // by the same TokenStore so they can mint a Gmail-client access
   // token from the user's stored refresh token. Memory-mode tests
   // skip both guards.
-  // Phase 4b-2: build the connector resolvers once. The store-backed
-  // path is only available when Postgres is wired up (dbClient
-  // exists) — without that, the resolvers fall back to the legacy
-  // `req.accessToken` / `req.gmailAccessToken` paths so memory-mode
-  // dev/tests continue to work identically to before.
-  const connectionsStore =
-    dbClient && requiresAuth
-      ? new ConnectionsStore(dbClient, encryptionKey)
-      : undefined;
-  const connectorResolvers = createConnectorResolvers({ connectionsStore });
-
   if (requiresAuth) {
     app.use("/api/v1/emails", requireAuth, createEmailRoutes({
       resolveStorage,
