@@ -998,10 +998,14 @@ function ScanBody({
                 }}
               >
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  Couldn&apos;t load Gmail labels — the scan may still
-                  work, but suggestions below will be empty.
-                </p>
+                <div className="space-y-1">
+                  <p>
+                    Couldn&apos;t load {emailLabelNoun(activeEmailProvider)}s
+                    for {emailProviderLabel(activeEmailProvider)} — the scan
+                    may still work, but suggestions below will be empty.
+                  </p>
+                  <p className="opacity-75">{describeError(labelsError)}</p>
+                </div>
               </div>
             )}
           {items.length === 0 ? (

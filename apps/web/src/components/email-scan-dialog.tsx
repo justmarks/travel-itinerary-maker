@@ -729,9 +729,16 @@ export function EmailScanDialog({
                   style={statusBadgeStyle("warn")}
                 >
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <p>
-                    Could not load labels. You may need to sign out and back in for Gmail access.
-                  </p>
+                  <div className="space-y-1">
+                    <p>
+                      Could not load {emailLabelNoun(activeEmailProvider)}s for{" "}
+                      {emailProviderLabel(activeEmailProvider)}. Try
+                      reconnecting in Settings if the problem persists.
+                    </p>
+                    <p className="opacity-75">
+                      {describeError(labelsError)}
+                    </p>
+                  </div>
                 </div>
               )}
 
