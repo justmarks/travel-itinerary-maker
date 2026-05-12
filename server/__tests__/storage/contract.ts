@@ -62,6 +62,14 @@ const makeRule = (overrides: Partial<TripShareRule> = {}): TripShareRule => ({
 const makeEmail = (overrides: Partial<ProcessedEmail> = {}): ProcessedEmail => ({
   gmailMessageId: "msg-1",
   parseStatus: "parsed",
+  // The Supabase storage layer always stamps provider + accountEmail
+  // on writes (defaults at the schema level; explicit values for
+  // multi-account / Microsoft scans). The contract fixture includes
+  // them so round-trip equality holds against both InMemoryStorage
+  // (which echoes the input verbatim) and SupabaseStorage (which
+  // reads them back from the DB row).
+  provider: "google",
+  accountEmail: "test@example.com",
   createdAt: "2026-05-09T10:00:00.000Z",
   ...overrides,
 });
