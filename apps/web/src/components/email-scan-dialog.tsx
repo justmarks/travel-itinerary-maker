@@ -583,7 +583,7 @@ export function EmailScanDialog({
             Scan Emails
           </DialogTitle>
           <DialogDescription>
-            Search Gmail for travel confirmations and add them to your itinerary.
+            Search your mailbox for travel confirmations and add them to your itinerary.
           </DialogDescription>
         </DialogHeader>
 

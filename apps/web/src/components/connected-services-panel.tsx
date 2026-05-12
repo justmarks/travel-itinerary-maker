@@ -134,7 +134,16 @@ export function ConnectedServicesPanel(): React.JSX.Element {
           : "/settings/account",
     });
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      // `linkIdentity` adds a new OAuth identity (with the requested
+      // scopes) to the CURRENT signed-in user — without rotating the
+      // session. `signInWithOAuth` would instead re-sign-the-user-in,
+      // which on the Microsoft path replaces the existing Google
+      // session with a fresh Microsoft one and orphans the user's
+      // existing connections rows under the old UUID.
+      //
+      // Requires Supabase "Manual identity linking" to be enabled
+      // (docs/supabase-auth-setup.md §5) — already done.
+      const { error } = await supabase.auth.linkIdentity({
         provider,
         options: {
           scopes,

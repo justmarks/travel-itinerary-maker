@@ -136,6 +136,15 @@ export default function LoginPage(): React.JSX.Element {
                 provider: "google",
                 options: {
                   redirectTo: `${window.location.origin}/auth/callback`,
+                  // Request calendar scope at sign-in so a returning
+                  // user who previously consented gets the calendar
+                  // capability auto-connected by the callback —
+                  // matches the Microsoft path. Gmail is NOT
+                  // requested here (different OAuth client to keep
+                  // the primary off the CASA-required path);
+                  // /settings/account → Connect Gmail handles that.
+                  scopes:
+                    "openid email profile https://www.googleapis.com/auth/calendar",
                 },
               });
               if (error) throw error;
@@ -191,12 +200,23 @@ export default function LoginPage(): React.JSX.Element {
                   // refresh token from Microsoft; the Azure app
                   // registration must include it in delegated
                   // permissions (see docs/supabase-auth-setup.md).
-                  // `User.Read` is the Microsoft Graph delegated
-                  // permission needed for `/me/photo/$value` (the
-                  // profile photo fetch in `lib/auth.tsx`). Default
-                  // Azure app registrations include it as a delegated
-                  // permission, so users see no extra consent prompt.
-                  scopes: "openid email profile offline_access User.Read",
+                  //
+                  // Scope set requested at sign-in — broad on
+                  // purpose so a returning user who previously
+                  // consented to Mail.Read / Calendars.ReadWrite
+                  // gets a token with those scopes silently (no
+                  // re-consent prompt). The auth callback writes
+                  // capability rows for whatever scopes were
+                  // actually granted, so Outlook + Calendar can
+                  // light up automatically without a separate
+                  // Connect click in /settings/account.
+                  //
+                  // First-time users see a single consent screen
+                  // covering all three concerns (identity, mail,
+                  // calendar) — fewer round-trips than asking
+                  // post-sign-in via Connect buttons.
+                  scopes:
+                    "openid email profile offline_access User.Read Mail.Read Calendars.ReadWrite",
                 },
               });
               if (error) throw error;

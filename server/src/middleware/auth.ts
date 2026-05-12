@@ -110,11 +110,15 @@ export async function requireAuth(
       next();
       return;
     } catch (err) {
-      // Defensive fall-through: see top comment. Logged at debug-ish
-      // level so a steady stream of expired Supabase tokens doesn't
-      // pollute prod logs.
-      console.warn(
-        "[auth] Supabase JWT validation failed, falling back to Google:",
+      // Defensive fall-through: see top comment. This fires on every
+      // legacy Google access token (which doesn't have Supabase JWT
+      // shape) AND on expired Supabase JWTs waiting for the client
+      // SDK to refresh. Both are routine; routing to stdout (not
+      // stderr) keeps Railway from styling it as an error. Phrasing
+      // chosen so a future operator reading the log knows this is
+      // expected coexistence behaviour, not an attack signal.
+      console.log(
+        "[auth] supabase token not used (legacy access token or expired JWT), trying legacy validator:",
         err instanceof Error ? err.message : err,
       );
     }
@@ -177,6 +181,18 @@ export function requireGmailAuth(tokenStore: TokenStore) {
       // requireAuth must have run first; this is a wiring bug, not a
       // user-facing error.
       res.status(500).json({ error: "requireGmailAuth requires requireAuth" });
+      return;
+    }
+    // Phase 4c: Supabase-authed users keep their Gmail link in the
+    // `connections` table, NOT TokenStore. The route's connector
+    // resolver (resolveEmailConnector) refreshes from `connections`
+    // and constructs the right connector class. Pass through here
+    // so the resolver gets a chance — checking TokenStore for a
+    // Supabase user would always 403 with GMAIL_SCOPE_REQUIRED and
+    // the frontend would mis-route them to the legacy Connect
+    // Gmail UI even when they're correctly linked via the new flow.
+    if (req.authSource === "supabase") {
+      next();
       return;
     }
 

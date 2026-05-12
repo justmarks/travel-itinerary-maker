@@ -117,6 +117,11 @@ export default function MobileLoginPage(): React.JSX.Element {
                   provider: "google",
                   options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
+                    // See desktop /login — request calendar scope at
+                    // sign-in so previously-consented users get
+                    // capability rows auto-written.
+                    scopes:
+                      "openid email profile https://www.googleapis.com/auth/calendar",
                   },
                 });
                 if (error) throw error;
@@ -167,10 +172,12 @@ export default function MobileLoginPage(): React.JSX.Element {
                   provider: "azure",
                   options: {
                     redirectTo: `${window.location.origin}/auth/callback`,
-                    // See desktop /login for why each of these is here.
-                    // `User.Read` powers the Graph photo fetch in
-                    // `lib/auth.tsx`.
-                    scopes: "openid email profile offline_access User.Read",
+                    // See desktop /login for the full rationale —
+                    // broad scope set so returning users with
+                    // previous consent get capability rows
+                    // auto-written by the callback.
+                    scopes:
+                      "openid email profile offline_access User.Read Mail.Read Calendars.ReadWrite",
                   },
                 });
                 if (error) throw error;
