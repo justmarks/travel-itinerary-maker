@@ -1065,6 +1065,443 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   });
 
   /**
+   * POST /emails/scan/stream
+   * Same scan + parse pipeline as POST /emails/scan, but streamed as
+   * Server-Sent Events so the UI can render progress while parsing
+   * is in flight (which can take minutes for a multi-dozen-email
+   * mailbox). Event types:
+   *   - `found`  { total }                 — once `connector.scanEmails()`
+   *                                          returns, before any parse work.
+   *   - `plan`   { newCount, pendingCount } — after filtering already-
+   *                                          processed emails out.
+   *   - `progress` { parsed, total,
+   *                  subject, from }       — emitted BEFORE each parse so
+   *                                          the user sees movement.
+   *   - `done`   { results, pendingCount,
+   *                newCount, message? }    — final state, identical shape
+   *                                          to the JSON /scan response.
+   *   - `error`  { status, error, code?,
+   *                emailsFound?, results? } — corresponds to a non-2xx
+   *                                          JSON response; the client
+   *                                          should branch on `code`
+   *                                          (same handling as /scan).
+   *
+   * Auth/connector/rate-limit guards mirror /scan exactly.
+   */
+  router.post("/scan/stream", scanRateLimiter, gmailGuard, async (req: Request, res: Response) => {
+    const scanPrefix = emailLogPrefix("email-scan", req.userEmail);
+
+    // Validate before opening the SSE stream — once headers are sent
+    // we can't return a 400 JSON body, so do the cheap check first.
+    const parsed = emailScanRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+
+    // SSE setup. `X-Accel-Buffering: no` disables buffering on Nginx/
+    // proxies (Railway's edge included) so events flush promptly
+    // instead of pooling in a transport buffer.
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    let clientClosed = false;
+    req.on("close", () => {
+      clientClosed = true;
+    });
+
+    // Heartbeat keeps idle proxies from severing the connection during
+    // long Claude parses (per-email can take 10–20 s; an unbuffered
+    // intermediary may time out after 30–60 s of silence).
+    const heartbeat = setInterval(() => {
+      if (clientClosed) return;
+      res.write(`: ping\n\n`);
+    }, 15000);
+
+    const emit = (event: string, data: Record<string, unknown>): void => {
+      if (clientClosed) return;
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
+      const storage = getStorage(req);
+      console.log(
+        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+      );
+
+      const processedEmails = await storage.getProcessedEmails();
+      const processedMap = new Map(processedEmails.map((e) => [e.gmailMessageId, e]));
+      const trips = await storage.listTrips();
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
+
+      const pendingResults: EmailScanResult[] = [];
+      for (const pe of processedEmails) {
+        if (pe.parseStatus === "parsed" && pe.rawParseResult) {
+          const stored = pe.rawParseResult as EmailScanResult;
+          const rematchedSegments = stored.parsedSegments.map((seg) => {
+            const matchingTrip = tripId
+              ? tripsById.get(tripId)
+              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            if (!matchingTrip) {
+              return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
+          });
+          pendingResults.push({ ...stored, parsedSegments: rematchedSegments });
+        }
+      }
+
+      const connector = await resolvers.resolveEmailConnector(req);
+      if (!connector) {
+        emit("error", {
+          status: 401,
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
+      const effectiveMaxResults = maxResults ?? 100;
+      const rawEmails = await connector.scanEmails({
+        labelFilter,
+        maxResults: effectiveMaxResults,
+        newerThanDays: newerThanDays ?? 365,
+        logPrefix: scanPrefix,
+      });
+
+      console.log(
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+      );
+      emit("found", { total: rawEmails.length });
+      if (rawEmails.length >= effectiveMaxResults) {
+        console.warn(
+          `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
+        );
+      }
+
+      const mappedTripStillExists = (prior: ProcessedEmail): boolean =>
+        prior.parseStatus === "mapped" &&
+        !!prior.tripId &&
+        tripsById.has(prior.tripId);
+
+      const newEmails = rawEmails.filter((e) => {
+        const prior = processedMap.get(e.id);
+        if (!prior) return true;
+        if (forceRescan) {
+          console.log(`${scanPrefix} Retrying "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
+          return true;
+        }
+        if (prior.parseStatus === "failed") {
+          console.log(`${scanPrefix} Retrying "${e.subject}" (previously failed — retrying)`);
+          return true;
+        }
+        if (prior.parseStatus === "mapped" && !mappedTripStillExists(prior)) {
+          console.log(`${scanPrefix} Re-parsing "${e.subject}" (was applied to trip ${prior.tripId ?? "?"}, but that trip no longer exists)`);
+          return true;
+        }
+        const reason =
+          prior.parseStatus === "mapped"
+            ? "already applied to a trip"
+            : prior.parseStatus === "skipped"
+              ? "previously dismissed / no travel content"
+              : prior.parseStatus === "parsed"
+                ? "already parsed, pending review"
+                : `already processed (${prior.parseStatus})`;
+        console.log(`${scanPrefix} Skipped "${e.subject}" (${reason})`);
+        return false;
+      });
+
+      emit("plan", { newCount: newEmails.length, pendingCount: pendingResults.length });
+
+      if (newEmails.length === 0) {
+        if (pendingResults.length > 0) {
+          console.log(`${scanPrefix} Done: 0 new, ${pendingResults.length} pending result(s) returned`);
+          emit("done", { results: pendingResults, pendingCount: pendingResults.length, newCount: 0 });
+        } else {
+          console.log(`${scanPrefix} Done: 0 new emails to process`);
+          emit("done", { results: [], message: "No new emails to process" });
+        }
+        return;
+      }
+
+      if (!config.anthropic.apiKey) {
+        emit("error", { status: 500, error: "Anthropic API key not configured" });
+        return;
+      }
+
+      const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
+      const newResults: EmailScanResult[] = [];
+      const noTravelResults: EmailScanResult[] = [];
+      const newProcessedEmails: ProcessedEmail[] = [];
+
+      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from mailbox, ${pendingResults.length} pending)`);
+
+      for (let i = 0; i < newEmails.length; i++) {
+        if (clientClosed) {
+          console.log(`${scanPrefix} Client disconnected mid-scan — stopping after ${i}/${newEmails.length}`);
+          break;
+        }
+        const email = newEmails[i];
+        emit("progress", {
+          parsed: i,
+          total: newEmails.length,
+          subject: email.subject,
+          from: email.from,
+        });
+        try {
+          console.log(`${scanPrefix} Parsing "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
+          const { segments, invalidCount, rawItemCount } = await parser.parseEmail({
+            subject: email.subject,
+            from: email.from,
+            body: email.bodyText,
+            receivedAt: email.receivedAt,
+          });
+
+          const hasTravel = segments.length > 0;
+          const validationFailedEverything =
+            !hasTravel && rawItemCount > 0 && invalidCount > 0;
+
+          if (hasTravel) {
+            console.log(
+              `${scanPrefix} Parsed "${email.subject}" → ${segments.length} segment(s)${invalidCount > 0 ? ` (${invalidCount} invalid item(s) dropped)` : ""}`,
+            );
+            if (invalidCount > 0) {
+              recordParseFailure({
+                outcome: "parsed_with_invalid",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                rawItemCount,
+                invalidCount,
+              });
+            }
+          } else if (validationFailedEverything) {
+            console.warn(
+              `${scanPrefix} Parse failure for "${email.subject}" — Claude returned ${rawItemCount} item(s) but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
+            );
+            recordParseFailure({
+              outcome: "failed",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
+          } else {
+            console.log(`${scanPrefix} Skipped "${email.subject}" (no travel content detected)`);
+            recordParseFailure({
+              outcome: "no_travel_content",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
+          }
+
+          const matchedSegments = segments.map((seg) => {
+            const matchingTrip = tripId
+              ? tripsById.get(tripId)
+              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            if (!matchingTrip) {
+              return { ...seg, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
+          });
+
+          const scanResult: EmailScanResult = {
+            emailId: email.id,
+            subject: email.subject,
+            from: email.from,
+            receivedAt: email.receivedAt,
+            parsedSegments: matchedSegments,
+            parseStatus: hasTravel
+              ? "success"
+              : validationFailedEverything
+                ? "failed"
+                : "no_travel_content",
+            ...(validationFailedEverything
+              ? {
+                  error: `Claude returned ${rawItemCount} item(s) but none passed schema validation. See server logs for details.`,
+                }
+              : {}),
+          };
+
+          if (hasTravel) {
+            newResults.push(scanResult);
+          } else if (validationFailedEverything) {
+            newResults.push(scanResult);
+          } else {
+            noTravelResults.push(scanResult);
+          }
+
+          const idx = processedEmails.findIndex((p) => p.gmailMessageId === email.id);
+          if (idx !== -1) processedEmails.splice(idx, 1);
+
+          newProcessedEmails.push({
+            gmailMessageId: email.id,
+            gmailThreadId: email.threadId,
+            subject: email.subject,
+            fromAddress: email.from,
+            receivedAt: email.receivedAt,
+            parsedType: hasTravel ? segments[0].type : undefined,
+            parseStatus: hasTravel
+              ? "parsed"
+              : validationFailedEverything
+                ? "failed"
+                : "skipped",
+            rawParseResult: hasTravel ? scanResult : undefined,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const errObj = err as Record<string, unknown>;
+          const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
+          const errType = typeof errObj.type === "string" ? errObj.type : "";
+          const isBillingError =
+            errMsg.includes("credit balance") ||
+            errMsg.includes("billing") ||
+            errMsg.includes("too low") ||
+            (errStatus === 400 && errMsg.includes("credit"));
+          const isAuthError =
+            errStatus === 401 ||
+            errMsg.includes("authentication") ||
+            errMsg.includes("invalid x-api-key") ||
+            errMsg.includes("api_key");
+          const isOverloadedError =
+            errStatus === 529 ||
+            errStatus === 503 ||
+            errType === "overloaded_error" ||
+            errMsg.includes("overloaded") ||
+            errMsg.includes("Overloaded");
+
+          if (isOverloadedError) {
+            console.warn(
+              `${scanPrefix} AI service overloaded — halting scan. Email "${email.subject}" will be retried on next scan.`,
+            );
+          } else {
+            console.error(`${scanPrefix} Failed to parse "${email.subject}" (${email.id}):`, err);
+            if (!isBillingError && !isAuthError) {
+              recordParseFailure({
+                outcome: "exception",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                errorMessage: errMsg,
+              });
+              reportError(err, {
+                emailId: email.id,
+                source: "gmail_scan",
+              });
+            }
+          }
+
+          if (isBillingError || isAuthError || isOverloadedError) {
+            const code = isBillingError
+              ? "ANTHROPIC_BILLING"
+              : isAuthError
+                ? "ANTHROPIC_AUTH"
+                : "ANTHROPIC_OVERLOADED";
+            const userMessage = isBillingError
+              ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
+              : isAuthError
+                ? "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY."
+                : "The AI service is temporarily overloaded. Please try scanning again in a few minutes.";
+            const httpStatus = isBillingError ? 402 : isAuthError ? 401 : 503;
+
+            if (newProcessedEmails.length > 0) {
+              await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
+            }
+
+            const allResults = [...pendingResults, ...newResults];
+            emit("error", {
+              status: httpStatus,
+              error: userMessage,
+              code,
+              emailsFound: newEmails.length,
+              results: allResults.length > 0 ? allResults : undefined,
+            });
+            return;
+          }
+
+          newResults.push({
+            emailId: email.id,
+            subject: email.subject,
+            from: email.from,
+            receivedAt: email.receivedAt,
+            parsedSegments: [],
+            parseStatus: "failed",
+            error: errMsg,
+          });
+        }
+      }
+
+      // Final progress tick so the UI shows "Parsed N of N" before
+      // flipping to the review screen — without this the last email's
+      // name lingers as if still in-flight.
+      emit("progress", {
+        parsed: newEmails.length,
+        total: newEmails.length,
+      });
+
+      const allResults = [...pendingResults, ...newResults];
+      deduplicateResults(allResults);
+      allResults.push(...noTravelResults);
+
+      await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
+
+      if (labelFilter) {
+        const settings = await storage.getSettings();
+        if (settings.gmailLabelFilter !== labelFilter) {
+          settings.gmailLabelFilter = labelFilter;
+          await storage.saveSettings(settings);
+        }
+      }
+
+      const parsedCount = newProcessedEmails.filter((p) => p.parseStatus === "parsed").length;
+      const noTravelCount = newProcessedEmails.filter((p) => p.parseStatus === "skipped").length;
+      const failedCount = newProcessedEmails.filter((p) => p.parseStatus === "failed").length;
+      console.log(
+        `${scanPrefix} Done: ${parsedCount} parsed, ${noTravelCount} no-travel, ${failedCount} failed (${pendingResults.length} pending result(s) carried over)`,
+      );
+
+      emit("done", {
+        results: allResults,
+        pendingCount: pendingResults.length,
+        newCount: newResults.length,
+      });
+    } catch (err) {
+      console.error(`${scanPrefix} POST /emails/scan/stream error:`, err);
+      const message = err instanceof Error ? err.message : "Scan failed";
+      if (message.includes("insufficient") || message.includes("scope")) {
+        emit("error", {
+          status: 403,
+          error: "Gmail access not granted",
+          code: "GMAIL_SCOPE_REQUIRED",
+        });
+      } else {
+        emit("error", { status: 500, error: message });
+      }
+    } finally {
+      clearInterval(heartbeat);
+      if (!clientClosed) res.end();
+    }
+  });
+
+  /**
    * POST /emails/import-html
    * Import a raw HTML email (e.g. a saved `.html` file or pasted HTML source),
    * run it through the same Claude parser used for Gmail scanning, and drop

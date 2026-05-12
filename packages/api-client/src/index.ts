@@ -40,6 +40,7 @@ export {
   useConnections,
   usePendingEmails,
   useScanEmails,
+  useStreamingScanEmails,
   useImportHtmlEmail,
   useApplyParsedSegments,
   useProcessedEmails,

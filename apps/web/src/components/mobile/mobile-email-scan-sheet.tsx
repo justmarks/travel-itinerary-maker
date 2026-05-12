@@ -8,7 +8,7 @@ import {
   useDismissEmail,
   useGmailLabels,
   usePendingEmails,
-  useScanEmails,
+  useStreamingScanEmails,
   useTrips,
 } from "@travel-app/api-client";
 import type {
@@ -300,7 +300,16 @@ function ScanBody({
     error: pendingError,
     isLoading: pendingLoading,
   } = usePendingEmails(emailGranted);
-  const scanEmails = useScanEmails();
+  const scanEmails = useStreamingScanEmails();
+  // Live progress while the SSE scan stream is in flight. See the
+  // desktop dialog for the equivalent state — kept identical so both
+  // surfaces show the same "Found N → Parsing X of M" cadence.
+  const [scanProgress, setScanProgress] = useState<{
+    foundTotal: number | null;
+    parsed: number;
+    total: number;
+    current: { subject: string; from: string } | null;
+  }>({ foundTotal: null, parsed: 0, total: 0, current: null });
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
   const createTrip = useCreateTrip();
@@ -461,10 +470,24 @@ function ScanBody({
   const handleStartScan = async () => {
     setStep("scanning");
     setPartialError(null);
+    setScanProgress({ foundTotal: null, parsed: 0, total: 0, current: null });
     try {
       const response = await scanEmails.mutateAsync({
-        labelFilter: labelId || undefined,
-        forceRescan: forceRescan || undefined,
+        input: {
+          labelFilter: labelId || undefined,
+          forceRescan: forceRescan || undefined,
+        },
+        onFound: (total) =>
+          setScanProgress((p) => ({ ...p, foundTotal: total })),
+        onPlan: (newCount) =>
+          setScanProgress((p) => ({ ...p, total: newCount })),
+        onProgress: (parsed, total, current) =>
+          setScanProgress((p) => ({
+            ...p,
+            parsed,
+            total,
+            current: current ?? p.current,
+          })),
       });
       const built = buildReviewItems(response.results, tripId);
       setResults(response.results);
@@ -826,18 +849,64 @@ function ScanBody({
   }
 
   if (step === "scanning") {
+    const showProgressBar =
+      scanProgress.foundTotal !== null && scanProgress.total > 0;
     return (
       <>
         <Header title="Scanning email" onClose={onClose} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm font-medium">
-            Searching {emailProviderLabel(activeEmailProvider)}…
-          </p>
-          <p className="max-w-[280px] text-xs text-muted-foreground">
-            We&apos;re looking through travel emails and parsing each
-            with Claude. This usually takes a few seconds.
-          </p>
+          {scanProgress.foundTotal === null ? (
+            <>
+              <p className="text-sm font-medium">
+                Searching {emailProviderLabel(activeEmailProvider)}…
+              </p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                We&apos;re looking through travel emails. This usually
+                takes a few seconds.
+              </p>
+            </>
+          ) : scanProgress.total === 0 ? (
+            <>
+              <p className="text-sm font-medium">
+                Found {scanProgress.foundTotal} email
+                {scanProgress.foundTotal === 1 ? "" : "s"}
+              </p>
+              <p className="max-w-[280px] text-xs text-muted-foreground">
+                Checking which still need parsing…
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium">
+                Parsing{" "}
+                {Math.min(scanProgress.parsed + 1, scanProgress.total)} of{" "}
+                {scanProgress.total}
+              </p>
+              <p className="max-w-[280px] truncate text-xs text-muted-foreground">
+                {scanProgress.current?.subject ?? "Reading with Claude…"}
+              </p>
+            </>
+          )}
+          {showProgressBar && (
+            <div
+              className="mt-2 h-1.5 w-44 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={scanProgress.parsed}
+              aria-valuemin={0}
+              aria-valuemax={scanProgress.total}
+            >
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{
+                  width: `${Math.round(
+                    (scanProgress.parsed / Math.max(scanProgress.total, 1)) *
+                      100,
+                  )}%`,
+                }}
+              />
+            </div>
+          )}
         </div>
       </>
     );
