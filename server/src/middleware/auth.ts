@@ -110,11 +110,15 @@ export async function requireAuth(
       next();
       return;
     } catch (err) {
-      // Defensive fall-through: see top comment. Logged at debug-ish
-      // level so a steady stream of expired Supabase tokens doesn't
-      // pollute prod logs.
-      console.warn(
-        "[auth] Supabase JWT validation failed, falling back to Google:",
+      // Defensive fall-through: see top comment. This fires on every
+      // legacy Google access token (which doesn't have Supabase JWT
+      // shape) AND on expired Supabase JWTs waiting for the client
+      // SDK to refresh. Both are routine; routing to stdout (not
+      // stderr) keeps Railway from styling it as an error. Phrasing
+      // chosen so a future operator reading the log knows this is
+      // expected coexistence behaviour, not an attack signal.
+      console.log(
+        "[auth] supabase token not used (legacy access token or expired JWT), trying legacy validator:",
         err instanceof Error ? err.message : err,
       );
     }
