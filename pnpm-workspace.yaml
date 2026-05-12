@@ -2,3 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
   - "server"
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
