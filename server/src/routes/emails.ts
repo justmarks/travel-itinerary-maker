@@ -15,7 +15,10 @@ import {
 } from "@travel-app/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ProcessedEmail } from "../services/google-drive/drive-storage";
-import { resolveEmailConnector } from "../connectors/resolve";
+import {
+  createConnectorResolvers,
+  type ConnectorResolvers,
+} from "../connectors/resolve";
 import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { recordParseFailure } from "../services/email-telemetry";
@@ -36,6 +39,13 @@ export interface EmailRoutesOptions {
    * the Gmail flow. The other routes (storage-only) work without it.
    */
   tokenStore?: TokenStore;
+  /**
+   * Phase 4b-2: pre-built connector resolvers bound to the
+   * ConnectionsStore. When omitted (tests, memory mode), falls back
+   * to a default factory with no store — every request takes the
+   * legacy Gmail-via-`req.gmailAccessToken` path.
+   */
+  connectorResolvers?: ConnectorResolvers;
 }
 
 /**
@@ -504,6 +514,8 @@ function emailLogPrefix(
 
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
   const { resolveStorage, tokenStore } = options;
+  const resolvers =
+    options.connectorResolvers ?? createConnectorResolvers({});
 
   const getStorage: StorageResolver =
     typeof resolveStorage === "function"
@@ -530,7 +542,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const connector = resolveEmailConnector(req);
+      const connector = await resolvers.resolveEmailConnector(req);
+      if (!connector) {
+        res.status(401).json({
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
       const labels = await connector.listLabels();
 
       // Return user labels + useful system labels
@@ -656,10 +675,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
-      // Scan Gmail for new emails (via the provider-agnostic
-      // resolver — today this is always GoogleEmailConnector;
-      // Phase 4b adds MicrosoftEmailConnector behind the same API).
-      const connector = resolveEmailConnector(req);
+      // Scan via the provider-agnostic resolver — picks Google or
+      // Microsoft based on the user's `connections` (phase 4b-2),
+      // with the legacy `req.gmailAccessToken` fallback for users
+      // still on the pre-Supabase auth path.
+      const connector = await resolvers.resolveEmailConnector(req);
+      if (!connector) {
+        res.status(401).json({
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
       const effectiveMaxResults = maxResults ?? 100;
       const rawEmails = await connector.scanEmails({
         labelFilter,

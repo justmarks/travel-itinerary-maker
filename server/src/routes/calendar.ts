@@ -1,16 +1,28 @@
 import { Router, type Request, type Response } from "express";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import { createCalendarSyncRateLimiter } from "../middleware/rate-limit";
-import { resolveCalendarConnector } from "../connectors/resolve";
+import {
+  createConnectorResolvers,
+  type ConnectorResolvers,
+} from "../connectors/resolve";
 
 export interface CalendarRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
+  /**
+   * Phase 4b-2: pre-built connector resolvers bound to the
+   * ConnectionsStore. When omitted (tests, memory mode), falls back
+   * to a default factory with no store — every request takes the
+   * legacy Google path via `req.accessToken`.
+   */
+  connectorResolvers?: ConnectorResolvers;
 }
 
 export function createCalendarRoutes(
   options: CalendarRoutesOptions,
 ): Router {
   const { resolveStorage } = options;
+  const resolvers =
+    options.connectorResolvers ?? createConnectorResolvers({});
 
   const getStorage: StorageResolver =
     typeof resolveStorage === "function"
@@ -21,13 +33,30 @@ export function createCalendarRoutes(
   const syncRateLimiter = createCalendarSyncRateLimiter();
 
   /**
+   * Sends the stable `CALENDAR_NOT_CONNECTED` shape when a Supabase
+   * user hits a calendar route without a linked calendar
+   * connection. The frontend branches on `code` to reroute to
+   * /settings/account.
+   */
+  function notConnected(res: Response): void {
+    res.status(401).json({
+      error: "Calendar not connected",
+      code: "CALENDAR_NOT_CONNECTED",
+    });
+  }
+
+  /**
    * GET /trips/calendar/list
    * Return the authenticated user's writable calendars from whichever
    * provider their session resolves to (Google today; Microsoft once
    * Phase 4b adds the `MicrosoftCalendarConnector`).
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const connector = resolveCalendarConnector(req);
+    const connector = await resolvers.resolveCalendarConnector(req);
+    if (!connector) {
+      notConnected(res);
+      return;
+    }
     const calendars = await connector.listCalendars();
     res.json(calendars);
   });
@@ -50,7 +79,11 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = resolveCalendarConnector(req);
+    const connector = await resolvers.resolveCalendarConnector(req);
+    if (!connector) {
+      notConnected(res);
+      return;
+    }
     const result = await connector.syncTrip(trip, calendarId, req.userEmail);
 
     // Persist the returned event IDs back onto each segment
@@ -104,7 +137,11 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = resolveCalendarConnector(req);
+    const connector = await resolvers.resolveCalendarConnector(req);
+    if (!connector) {
+      notConnected(res);
+      return;
+    }
     const result = await connector.syncSegment(
       trip,
       targetDay,
@@ -145,7 +182,11 @@ export function createCalendarRoutes(
     let removed = 0;
     let failed = 0;
     if (deleteEvents) {
-      const connector = resolveCalendarConnector(req);
+      const connector = await resolvers.resolveCalendarConnector(req);
+      if (!connector) {
+        notConnected(res);
+        return;
+      }
       const result = await connector.unsyncTrip(trip, calendarId, req.userEmail);
       removed = result.removed;
       failed = result.failed;
