@@ -1908,13 +1908,34 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         };
         for (const day of trip.days) {
           if (day.city) continue;
-          let best: { city: string; priority: number; title: string } | null = null;
+          // Pick the day's city by precedence + recency:
+          //   - Lower priority value wins outright (activities/hotels
+          //     beat flights beat cars — non-transport is the strongest
+          //     "where are you THIS day" signal).
+          //   - Same priority → later startTime wins. This is what
+          //     makes a layover flight (MIA→LAX 8am, LAX→SEA noon)
+          //     report Seattle as the day's city instead of LAX,
+          //     regardless of the order segments were inserted into
+          //     `day.segments`. Same rule covers the "two dinners in
+          //     two cities" edge case — the later one is where the
+          //     traveler ends the day.
+          let best: {
+            city: string;
+            priority: number;
+            startTime: string;
+            title: string;
+          } | null = null;
           for (const seg of day.segments) {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
             if (!segCity) continue;
             const priority = cityPriority[seg.type];
-            if (best === null || priority < best.priority) {
-              best = { city: segCity, priority, title: seg.title };
+            const startTime = seg.startTime ?? "";
+            const wins =
+              best === null ||
+              priority < best.priority ||
+              (priority === best.priority && startTime > best.startTime);
+            if (wins) {
+              best = { city: segCity, priority, startTime, title: seg.title };
             }
           }
           if (best) {
