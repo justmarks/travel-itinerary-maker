@@ -18,35 +18,64 @@ import { AlertCircle } from "lucide-react";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
-/**
- * Best-effort POST of the user's identity connection to the server.
- * Captures the provider tokens from the Supabase session so the
- * server can call Gmail / Calendar / Outlook on their behalf later
- * (phase 4 connectors). Identity-only sign-ins still create a row
- * with no refresh token — the row's presence is what tells the
- * server "this user has linked Google/Microsoft," even before any
- * mailbox or calendar scope is granted.
- *
- * Failure is non-fatal: the user is still authenticated via the
- * Supabase JWT, so we let them into the app and let the next
- * settings-page visit or feature-gate re-trigger the link.
- */
-async function syncIdentityConnection(session: Session): Promise<void> {
-  const provider = session.user.app_metadata?.provider;
-  // Supabase reports Microsoft as "azure"; normalise to our taxonomy.
-  const normalisedProvider =
-    provider === "azure"
-      ? "microsoft"
-      : provider === "google"
-        ? "google"
-        : null;
-  if (!normalisedProvider) return;
-  const email = session.user.email;
-  if (!email) return;
+type ConnectionCapability = "identity" | "email" | "calendar";
 
+interface PendingConnection {
+  capability: "email" | "calendar";
+  /** Where to land the user after the callback. */
+  returnTo?: string;
+}
+
+const PENDING_CONNECTION_KEY = "pending-connection";
+
+/**
+ * Sets a sessionStorage flag that the auth callback reads after the
+ * Supabase OAuth round-trip completes. The callback writes a
+ * `/api/v1/connections` row with the right `capability` based on
+ * the flag, so a single OAuth flow doubles as "sign in" + "grant
+ * email/calendar capability" — provider scope set is what determines
+ * what the resulting access token can do; the connection row just
+ * records that we have it.
+ *
+ * Exported so the settings page can mark a pending capability link
+ * right before calling `supabase.auth.signInWithOAuth(...)`.
+ */
+export function markPendingConnection(pending: PendingConnection): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(PENDING_CONNECTION_KEY, JSON.stringify(pending));
+  } catch {
+    // Storage disabled — the callback will just write an identity row
+    // and the capability will be missing. The settings page detects
+    // this on its next render and re-offers the Connect button.
+  }
+}
+
+function consumePendingConnection(): PendingConnection | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_CONNECTION_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PENDING_CONNECTION_KEY);
+    const parsed = JSON.parse(raw) as PendingConnection;
+    if (parsed.capability !== "email" && parsed.capability !== "calendar") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function postConnection(
+  session: Session,
+  capability: ConnectionCapability,
+  normalisedProvider: "google" | "microsoft",
+  email: string,
+): Promise<void> {
   const body = {
     provider: normalisedProvider,
-    capability: "identity" as const,
+    capability,
     accountEmail: email,
     // provider_token = the underlying Google/Microsoft access token.
     // Only present immediately post-sign-in; Supabase doesn't store
@@ -57,7 +86,6 @@ async function syncIdentityConnection(session: Session): Promise<void> {
     accessToken: session.provider_token ?? undefined,
     refreshToken: session.provider_refresh_token ?? undefined,
   };
-
   try {
     await fetch(`${API_BASE_URL}/connections`, {
       method: "POST",
@@ -68,8 +96,43 @@ async function syncIdentityConnection(session: Session): Promise<void> {
       body: JSON.stringify(body),
     });
   } catch {
-    // Best-effort; see function-level comment.
+    // Best-effort: failure leaves the user authenticated but without
+    // the new capability row. Settings re-detects on next visit.
   }
+}
+
+/**
+ * Best-effort POST of the user's connection rows to the server.
+ * Always writes an `identity` row (so the server knows the user
+ * has signed in via this provider). Additionally writes an
+ * `email` or `calendar` row when a pending-capability flag was set
+ * before sign-in (see `markPendingConnection`).
+ *
+ * Returns a `returnTo` URL when one was carried on the pending flag
+ * — the settings-page Connect buttons stash their own URL there so
+ * the user lands back where they came from after the OAuth dance.
+ */
+async function syncConnections(session: Session): Promise<{ returnTo: string | null }> {
+  const provider = session.user.app_metadata?.provider;
+  // Supabase reports Microsoft as "azure"; normalise to our taxonomy.
+  const normalisedProvider =
+    provider === "azure"
+      ? "microsoft"
+      : provider === "google"
+        ? "google"
+        : null;
+  if (!normalisedProvider) return { returnTo: null };
+  const email = session.user.email;
+  if (!email) return { returnTo: null };
+
+  await postConnection(session, "identity", normalisedProvider, email);
+
+  const pending = consumePendingConnection();
+  if (pending) {
+    await postConnection(session, pending.capability, normalisedProvider, email);
+    return { returnTo: pending.returnTo ?? null };
+  }
+  return { returnTo: null };
 }
 
 export default function AuthCallbackPage(): React.JSX.Element {
@@ -138,8 +201,8 @@ export default function AuthCallbackPage(): React.JSX.Element {
           );
           return;
         }
-        await syncIdentityConnection(session);
-        router.replace("/");
+        const { returnTo } = await syncConnections(session);
+        router.replace(returnTo ?? "/");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sign-in failed.");
       }
