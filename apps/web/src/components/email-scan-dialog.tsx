@@ -8,7 +8,7 @@ import type {
   ApplyAction,
 } from "@travel-app/shared";
 import {
-  useScanEmails,
+  useStreamingScanEmails,
   useApplyParsedSegments,
   useDismissEmail,
   useGmailLabels,
@@ -184,7 +184,18 @@ export function EmailScanDialog({
     open && emailGranted,
   );
   const { data: trips } = useTrips();
-  const scanEmails = useScanEmails();
+  const scanEmails = useStreamingScanEmails();
+  // Live progress while the SSE stream is in flight. `total` is the
+  // count of *new* (unprocessed) emails we'll actually run through
+  // Claude — `foundTotal` is the raw mailbox count including those
+  // we'll skip. Both are useful: foundTotal frames "we looked at N",
+  // total frames "we're parsing M of those."
+  const [scanProgress, setScanProgress] = useState<{
+    foundTotal: number | null;
+    parsed: number;
+    total: number;
+    current: { subject: string; from: string } | null;
+  }>({ foundTotal: null, parsed: 0, total: 0, current: null });
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
   const createTrip = useCreateTrip();
@@ -307,6 +318,7 @@ export function EmailScanDialog({
   const handleScan = async () => {
     setStep("scanning");
     setErrorMessage("");
+    setScanProgress({ foundTotal: null, parsed: 0, total: 0, current: null });
 
     try {
       const input: Record<string, unknown> = {};
@@ -314,7 +326,20 @@ export function EmailScanDialog({
       if (selectedLabel && selectedLabel !== "__all__") input.labelFilter = selectedLabel;
       if (forceRescan) input.forceRescan = true;
 
-      const res = await scanEmails.mutateAsync(input);
+      const res = await scanEmails.mutateAsync({
+        input,
+        onFound: (total) =>
+          setScanProgress((p) => ({ ...p, foundTotal: total })),
+        onPlan: (newCount) =>
+          setScanProgress((p) => ({ ...p, total: newCount })),
+        onProgress: (parsed, total, current) =>
+          setScanProgress((p) => ({
+            ...p,
+            parsed,
+            total,
+            current: current ?? p.current,
+          })),
+      });
 
       if (!res.results || res.results.length === 0) {
         setResults([]);
@@ -775,10 +800,51 @@ export function EmailScanDialog({
         {step === "scanning" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-            <p className="font-medium">Scanning emails...</p>
-            <p className="text-sm text-muted-foreground">
-              Searching {emailProviderLabel(activeEmailProvider)} and parsing with AI.
-            </p>
+            {scanProgress.foundTotal === null ? (
+              <>
+                <p className="font-medium">Scanning emails...</p>
+                <p className="text-sm text-muted-foreground">
+                  Searching {emailProviderLabel(activeEmailProvider)}.
+                </p>
+              </>
+            ) : scanProgress.total === 0 ? (
+              <>
+                <p className="font-medium">
+                  Found {scanProgress.foundTotal} email
+                  {scanProgress.foundTotal === 1 ? "" : "s"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Checking which need parsing…
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium">
+                  Parsing {Math.min(scanProgress.parsed + 1, scanProgress.total)} of{" "}
+                  {scanProgress.total}
+                </p>
+                <p className="max-w-md truncate text-sm text-muted-foreground">
+                  {scanProgress.current?.subject ?? "Reading with Claude…"}
+                </p>
+                <div
+                  className="mt-2 h-1.5 w-48 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={scanProgress.parsed}
+                  aria-valuemin={0}
+                  aria-valuemax={scanProgress.total}
+                >
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (scanProgress.parsed / Math.max(scanProgress.total, 1)) *
+                          100,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 

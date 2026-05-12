@@ -2056,6 +2056,41 @@ export class MockApiClient extends ApiClient {
     });
   }
 
+  override async streamScanEmails(
+    input: EmailScanRequest | undefined,
+    callbacks: {
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (
+        parsed: number,
+        total: number,
+        current?: { subject: string; from: string },
+      ) => void;
+    },
+  ): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
+    // Simulate the streaming cadence in demo mode so the spinner +
+    // progress UI exercise their real states. The non-streaming
+    // scanEmails returns 2 fake results — we replay the same shape
+    // through the SSE-style callbacks for the demo.
+    const scan = await this.scanEmails(input);
+    const total = scan.results.length;
+    callbacks.onFound?.(total);
+    await new Promise((r) => setTimeout(r, 200));
+    callbacks.onPlan?.(total, 0);
+    for (let i = 0; i < total; i++) {
+      const r = scan.results[i];
+      callbacks.onProgress?.(i, total, { subject: r.subject, from: r.from });
+      await new Promise((res) => setTimeout(res, 400));
+    }
+    callbacks.onProgress?.(total, total);
+    return {
+      results: scan.results,
+      pendingCount: 0,
+      newCount: total,
+      message: scan.message,
+    };
+  }
+
   override importHtmlEmail(
     _input: HtmlImportRequest,
   ): Promise<{ result: EmailScanResult }> {
