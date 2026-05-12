@@ -115,11 +115,38 @@ export async function getActiveAccessToken(
     return { connection, accessToken: cached };
   }
 
-  if (!connection.refreshToken) {
-    console.warn(
-      `[connections-token] ${provider}/${capability} for user ${userId} has no refresh token; needs re-link`,
-    );
-    return null;
+  // When the capability row has no refresh_token (returning users
+  // whose re-auth didn't yield a fresh one — see ConnectionsStore
+  // upsert for the matching write-side rationale), fall back to the
+  // identity row's refresh_token for the same (user, provider).
+  // For Microsoft this works directly — refresh tokens aren't
+  // scope-bound. For Google the identity refresh_token's scopes
+  // (email/profile) won't grant capability access, so the refresh
+  // will likely fail with `invalid_scope`; that's fine — we surface
+  // the failure as "needs re-link" rather than the previous
+  // "no refresh token" silent return, which is more accurate.
+  let refreshToken = connection.refreshToken;
+  if (!refreshToken) {
+    const identityRow = (await store.listForUser(userId))
+      .filter(
+        (c) =>
+          c.provider === provider &&
+          c.capability === "identity" &&
+          c.status === "active" &&
+          c.refreshToken,
+      )
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())[0];
+    if (identityRow?.refreshToken) {
+      refreshToken = identityRow.refreshToken;
+      console.log(
+        `[connections-token] ${provider}/${capability} for user ${userId} using identity-row refresh_token fallback`,
+      );
+    } else {
+      console.warn(
+        `[connections-token] ${provider}/${capability} for user ${userId} has no refresh token (capability or identity); needs re-link`,
+      );
+      return null;
+    }
   }
 
   let refreshed;
@@ -127,10 +154,10 @@ export async function getActiveAccessToken(
     refreshed =
       provider === "google"
         ? await refreshGoogleToken(
-            connection.refreshToken,
+            refreshToken,
             capability === "email" ? "gmail" : "primary",
           )
-        : await refreshMicrosoftToken(connection.refreshToken, connection.scopes);
+        : await refreshMicrosoftToken(refreshToken, connection.scopes);
   } catch (err) {
     const code =
       err instanceof OAuthRefreshError ? err.code : "unknown";
