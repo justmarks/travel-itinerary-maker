@@ -181,22 +181,15 @@ async function syncConnections(
     // the error inline; settings won't show the new row, so re-
     // trying from settings is the next step.
     //
-    // Pre-flight check: a capability row without a refresh_token is
-    // useless — the access_token expires in ~1h and we have no way
-    // to refresh. Microsoft omits the refresh_token when the Azure
-    // app registration is missing `offline_access` in API
-    // permissions even if we requested it in the scope param.
-    // Google omits it on returning users when `access_type=offline`
-    // + `prompt=consent` weren't on the authorize URL.
-    if (!session.provider_refresh_token) {
-      return {
-        returnTo: pending.returnTo ?? null,
-        capabilityError:
-          normalisedProvider === "microsoft"
-            ? "No refresh token from Microsoft. Check the Azure app registration has `offline_access` under API permissions (Microsoft Graph → Delegated), grant admin consent if required, then try again."
-            : "No refresh token from Google. The OAuth flow may not have included `access_type=offline` + `prompt=consent` — try the Connect button again.",
-      };
-    }
+    // No `session.provider_refresh_token` pre-flight: Supabase's
+    // same-provider signInWithOAuth path sometimes returns no new
+    // refresh_token (Microsoft considers the existing identity-row
+    // refresh_token still valid for the broader consent). The
+    // server's connections-token resolver falls back to the
+    // identity row's refresh_token in that case, so writing the
+    // capability row WITHOUT a refresh_token is still useful —
+    // future refreshes work via the fallback. Blocking the POST
+    // here would prevent that recovery path.
     const capabilityResult = await postConnection(
       session,
       pending.capability,
