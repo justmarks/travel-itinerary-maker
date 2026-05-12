@@ -33,6 +33,26 @@ interface PendingConnection {
    * Connect flows that didn't record scopes.
    */
   scopes?: string[];
+  /**
+   * Whether this Connect click used `signInWithOAuth` or
+   * `linkIdentity`. Drives whether the callback exchanges the
+   * code for a new session (signin — wanted for getting the
+   * provider's refresh_token) or trusts the existing session
+   * (link — exchanging would sign the user in as the linked
+   * provider's owner, swapping their session out from under
+   * them, which a recent user report confirmed in the wild).
+   */
+  flow?: "signin" | "link";
+  /**
+   * The user id that initiated the Connect flow. Set so the
+   * callback can detect "the session was swapped under me" —
+   * happens if Supabase's link callback lands on a different
+   * user (e.g. when the linked identity already belongs to a
+   * separate itinly login). When detected, surfaces a clear
+   * error instead of silently writing tokens against the wrong
+   * user-id.
+   */
+  expectedUserId?: string;
 }
 
 const PENDING_CONNECTION_KEY = "pending-connection";
@@ -57,6 +77,27 @@ export function markPendingConnection(pending: PendingConnection): void {
     // Storage disabled — the callback will just write an identity row
     // and the capability will be missing. The settings page detects
     // this on its next render and re-offers the Connect button.
+  }
+}
+
+/**
+ * Read the pending-connection flag WITHOUT clearing it. Used by the
+ * pre-session branching logic that needs to know the flow type
+ * (signin vs link) before `syncConnections` runs and consumes the
+ * flag. The actual write happens later via `consumePendingConnection`.
+ */
+function peekPendingConnection(): PendingConnection | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_CONNECTION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingConnection;
+    if (parsed.capability !== "email" && parsed.capability !== "calendar") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
@@ -318,20 +359,30 @@ export default function AuthCallbackPage(): React.JSX.Element {
         return;
       }
       try {
-        // For Connect-capability flows (Connect Calendar, Connect Outlook,
-        // etc.) the user is already signed in, so `getSession` returns the
-        // existing session and would silently skip the code exchange.
-        // That session was written WITHOUT `provider_refresh_token` (only
-        // the immediate code-exchange result carries it), so we'd lose
-        // the freshly-issued refresh_token for the new scopes.
+        // Peek at the pending-connection flag before we touch any
+        // session state — `consumePendingConnection` is called later
+        // inside `syncConnections` but we need to know the flow type
+        // (sign-in vs identity-link) here to pick the right path:
         //
-        // Fix: when a `code` is in the URL, ALWAYS try to exchange it
-        // FIRST — that's the only path where Supabase exposes the
-        // provider's refresh_token. Fall back to `getSession` only when
-        // exchange fails (PKCE verifier already consumed by another
-        // tab, etc.).
+        //  * `signin` (or no pending) → exchange the code. This is
+        //    the only Supabase path that surfaces
+        //    `provider_refresh_token`, which the server needs to
+        //    refresh capability-scoped access tokens later. PR #321.
+        //
+        //  * `link` → DON'T exchange. `linkIdentity` was supposed to
+        //    attach the new provider to the *current* user, but if
+        //    we exchange the code Supabase signs the user in as the
+        //    *linked* provider's account, replacing their session.
+        //    A real user hit this when, signed in as Microsoft,
+        //    they clicked Connect Google Calendar — and ended up
+        //    signed in as the Google account with no calendar
+        //    capability written. Reading the existing session via
+        //    getSession keeps them signed in as themselves; the
+        //    capability row is still written with whatever tokens
+        //    are on the session (best-effort).
+        const pendingPeek = peekPendingConnection();
         let session: Session | null = null;
-        if (code) {
+        if (code && pendingPeek?.flow !== "link") {
           try {
             const { data, error: exchangeError } =
               await supabase.auth.exchangeCodeForSession(code);
@@ -355,6 +406,32 @@ export default function AuthCallbackPage(): React.JSX.Element {
           setError(
             "Sign-in could not be completed. The provider redirect did not return a session.",
           );
+          return;
+        }
+        // Defence in depth: if Supabase landed the link callback on
+        // a DIFFERENT user than the one who initiated it (the
+        // "linked identity already owned by another user" path),
+        // bail before writing tokens against the wrong user-id.
+        if (
+          pendingPeek?.flow === "link" &&
+          pendingPeek.expectedUserId &&
+          session.user.id !== pendingPeek.expectedUserId
+        ) {
+          consumePendingConnection();
+          setError(
+            <div className="space-y-2">
+              <p>
+                That account is already linked to a different itinly
+                login. Linking would replace your current session.
+              </p>
+              <p className="text-xs opacity-80">
+                Sign out and sign in directly as the other account, or
+                stay here and use this account&apos;s connections in
+                /settings/account.
+              </p>
+            </div>,
+          );
+          setErrorCta({ label: "Back to settings", href: "/settings/account" });
           return;
         }
         const { returnTo, capabilityError } = await syncConnections(session);
