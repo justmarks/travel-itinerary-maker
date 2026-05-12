@@ -1,6 +1,7 @@
 "use client";
 
 import { HardDrive } from "lucide-react";
+import { useConnections } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
@@ -15,8 +16,15 @@ import { DRIVE_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
  * re-grant; `requestAdditionalScopes` already preserves any other scopes
  * (Calendar, etc.) via `include_granted_scopes=true`.
  *
- * Suppressed in demo mode (no real Drive call ever runs) and for users
- * who have the scope. Returns null in both cases so callers can drop it
+ * Suppressed for:
+ *   - Demo mode (no real Drive call ever runs)
+ *   - Users with the Drive scope already granted (legacy happy path)
+ *   - **Supabase-authed users** — they're routed to `SupabaseStorage`
+ *     (Postgres) by the drive-mode resolver, so Drive scope doesn't
+ *     apply. The presence of ANY `/api/v1/connections` row signals
+ *     they're on the new auth path; the banner stays out of their way.
+ *
+ * Returns null in all suppression cases so callers can drop it
  * unconditionally above their list.
  */
 export function DriveScopeBanner({
@@ -26,11 +34,21 @@ export function DriveScopeBanner({
 }): React.JSX.Element | null {
   const { hasScope, isAuthenticated, isLoading } = useAuth();
   const isDemo = useDemoMode();
+  // Skip the /connections fetch when not authed; cuts an unnecessary
+  // call on the signed-out marketing pages.
+  const { data: connectionsData, isLoading: connectionsLoading } =
+    useConnections(isAuthenticated && !isDemo);
 
   if (isDemo) return null;
   if (isLoading) return null;
   if (!isAuthenticated) return null;
   if (hasScope(DRIVE_SCOPE)) return null;
+  // Hide while we don't know yet — better a brief moment of no
+  // banner than a flash of "Grant Drive" for a Supabase user.
+  if (connectionsLoading) return null;
+  // Any connection row = user is on the Supabase path = Postgres
+  // storage, Drive irrelevant.
+  if ((connectionsData?.connections ?? []).length > 0) return null;
 
   const handleClick = () => {
     const returnTo =
