@@ -54,11 +54,36 @@ export function createCalendarRoutes(
   router.get("/calendar/list", async (req: Request, res: Response) => {
     const connector = await resolvers.resolveCalendarConnector(req);
     if (!connector) {
+      console.warn(
+        `[calendar-list] no calendar connector resolved for user=${req.userId} email=${req.userEmail}`,
+      );
       notConnected(res);
       return;
     }
-    const calendars = await connector.listCalendars();
-    res.json(calendars);
+    try {
+      const calendars = await connector.listCalendars();
+      // Useful when the dialog shows "No writable calendars" — lets
+      // us tell "auth worked but list was empty" apart from "auth
+      // failed" in Railway logs.
+      console.log(
+        `[calendar-list] user=${req.userEmail} returned ${calendars.length} calendar(s)`,
+      );
+      res.json(calendars);
+    } catch (err) {
+      // Surface the underlying error code (status + message) so we
+      // can diagnose 401/403/scope failures instead of guessing from
+      // an empty list at the UI.
+      const status = (err as { status?: number; code?: number }).status ??
+        (err as { code?: number }).code ?? 500;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[calendar-list] user=${req.userEmail} listCalendars failed status=${status}: ${message}`,
+      );
+      res.status(500).json({
+        error: message,
+        code: status === 401 || status === 403 ? "CALENDAR_AUTH_FAILED" : "CALENDAR_LIST_FAILED",
+      });
+    }
   });
 
   /**
