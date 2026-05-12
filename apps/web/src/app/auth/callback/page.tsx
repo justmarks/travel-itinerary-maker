@@ -155,23 +155,59 @@ async function syncConnections(
   await postConnection(session, "identity", normalisedProvider, email);
 
   const pending = consumePendingConnection();
-  if (!pending) {
-    return { returnTo: null, capabilityError: null };
+  if (pending) {
+    // Capability-row failures (the user clicked Connect Outlook /
+    // Connect Gmail / etc.) are surfaced — the user did an
+    // explicit action and deserves feedback. The callback shows
+    // the error inline; settings won't show the new row, so re-
+    // trying from settings is the next step.
+    const capabilityResult = await postConnection(
+      session,
+      pending.capability,
+      normalisedProvider,
+      email,
+    );
+    return {
+      returnTo: pending.returnTo ?? null,
+      capabilityError: capabilityResult.ok
+        ? null
+        : capabilityResult.message ?? "Could not save connection",
+    };
   }
-  // Capability-row failures (the user clicked Connect Outlook /
-  // Connect Gmail / etc.) are surfaced — the user did an explicit
-  // action and deserves feedback. The callback shows the error
-  // inline; settings won't show the new row, so re-trying from
-  // settings is the next step.
-  const capabilityResult = await postConnection(
-    session,
-    pending.capability,
-    normalisedProvider,
-    email,
-  );
+
+  // Fresh sign-in with no pending-connection flag. If the
+  // provider_token has scopes beyond identity (because the user
+  // previously consented to Mail.Read / Calendars.ReadWrite at an
+  // earlier session, OR because the login page requested the broad
+  // scope set up front), write capability rows so returning users
+  // get Outlook / Calendar auto-connected without a separate
+  // Connect click.
+  //
+  // Failures here are silent — speculative best-effort writes.
+  // The connection store rejects bad inputs at the schema level;
+  // any token-scope mismatch between what we recorded and what the
+  // token can actually do gets caught by Phase 4c-2's auto-revoke
+  // path on the first API call.
+  //
+  // Gmail is NOT included in the Google branch — it lives on a
+  // separate OAuth client (CASA-isolation), so the primary
+  // Google sign-in token never has gmail.readonly. Users link
+  // Gmail explicitly via /settings/account → Connect Gmail.
+  if (session.provider_token) {
+    const capabilitiesToTry: Array<"email" | "calendar"> =
+      normalisedProvider === "microsoft"
+        ? ["email", "calendar"]
+        : ["calendar"];
+    await Promise.all(
+      capabilitiesToTry.map((capability) =>
+        postConnection(session, capability, normalisedProvider, email),
+      ),
+    );
+  }
+
   return {
-    returnTo: pending.returnTo ?? null,
-    capabilityError: capabilityResult.ok ? null : capabilityResult.message ?? "Could not save connection",
+    returnTo: null,
+    capabilityError: null,
   };
 }
 
