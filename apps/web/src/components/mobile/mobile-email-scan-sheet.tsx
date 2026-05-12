@@ -736,7 +736,7 @@ function ScanBody({
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Checking Gmail connection…
+            Checking {emailProviderLabel(activeEmailProvider)} connection…
           </p>
         </div>
       </>
@@ -831,7 +831,9 @@ function ScanBody({
         <Header title="Scanning email" onClose={onClose} />
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-12 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm font-medium">Searching Gmail…</p>
+          <p className="text-sm font-medium">
+            Searching {emailProviderLabel(activeEmailProvider)}…
+          </p>
           <p className="max-w-[280px] text-xs text-muted-foreground">
             We&apos;re looking through travel emails and parsing each
             with Claude. This usually takes a few seconds.
@@ -1082,9 +1084,9 @@ function ScanBody({
       <Header title="Scan emails" onClose={onClose} />
       <div className="flex-1 overflow-y-auto px-5 py-3">
         <p className="text-sm text-muted-foreground">
-          We&apos;ll look through your Gmail for travel confirmations and
-          parse each one with Claude. Pick a label below to narrow the
-          search.
+          We&apos;ll look through your {emailProviderLabel(activeEmailProvider)}{" "}
+          for travel confirmations and parse each one with Claude. Pick a{" "}
+          {emailLabelNoun(activeEmailProvider)} below to narrow the search.
         </p>
 
         <div className="mt-4 space-y-1.5">
@@ -1111,7 +1113,7 @@ function ScanBody({
               "bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")]",
             )}
           >
-            <option value="">All mail (no label filter)</option>
+            <option value="">All mail (no {emailLabelNoun(activeEmailProvider)} filter)</option>
             {buildGmailLabelTree(labels).map((node) => (
               <option key={node.label.id} value={node.label.id}>
                 {indentedLabel(node)}

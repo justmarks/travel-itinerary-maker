@@ -35,14 +35,21 @@ describe("MicrosoftEmailConnector", () => {
   });
 
   describe("listLabels", () => {
-    it("classifies well-known folders as system and user folders as user", async () => {
+    it("returns all folders as type=user (Graph mailFolder lacks wellKnownName)", async () => {
+      // Graph's mailFolder resource doesn't expose a wellKnownName
+      // property — querying with $select=wellKnownName 400s with
+      // 'Could not find a property named wellKnownName'. So the
+      // connector lists folders without that field and classifies
+      // them all as "user." The well-known folders (Inbox, Drafts,
+      // ...) still appear in the picker by their localised display
+      // names; the user just doesn't see a "system" badge on them.
       fetchMock.mockResolvedValueOnce(
         makeJsonResponse(200, {
           value: [
-            { id: "inbox-id", displayName: "Inbox", wellKnownName: "inbox" },
-            { id: "drafts-id", displayName: "Drafts", wellKnownName: "drafts" },
+            { id: "inbox-id", displayName: "Inbox" },
+            { id: "drafts-id", displayName: "Drafts" },
             { id: "travel-id", displayName: "Travel" },
-            { id: "trips-id", displayName: "Trips", wellKnownName: null },
+            { id: "trips-id", displayName: "Trips" },
           ],
         }),
       );
@@ -51,8 +58,8 @@ describe("MicrosoftEmailConnector", () => {
       const labels = await conn.listLabels();
 
       expect(labels).toEqual([
-        { id: "inbox-id", name: "Inbox", type: "system" },
-        { id: "drafts-id", name: "Drafts", type: "system" },
+        { id: "inbox-id", name: "Inbox", type: "user" },
+        { id: "drafts-id", name: "Drafts", type: "user" },
         { id: "travel-id", name: "Travel", type: "user" },
         { id: "trips-id", name: "Trips", type: "user" },
       ]);
@@ -97,7 +104,7 @@ describe("MicrosoftEmailConnector", () => {
 
       const [url] = fetchMock.mock.calls[0];
       const str = url.toString();
-      expect(str).toContain("/me/messages");
+      expect(str).toContain("/me/mailFolders/inbox/messages");
       expect(str).toContain("%24orderby=receivedDateTime+desc");
       expect(str).toContain("%24top=100");
       expect(str).not.toContain("%24filter");
