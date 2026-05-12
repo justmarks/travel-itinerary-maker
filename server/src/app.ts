@@ -19,6 +19,7 @@ import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
 import { createConnectionsRoutes } from "./routes/connections";
 import { ConnectionsStore } from "./services/connections-store";
+import { createConnectorResolvers } from "./connectors/resolve";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
@@ -381,22 +382,42 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // by the same TokenStore so they can mint a Gmail-client access
   // token from the user's stored refresh token. Memory-mode tests
   // skip both guards.
+  // Phase 4b-2: build the connector resolvers once. The store-backed
+  // path is only available when Postgres is wired up (dbClient
+  // exists) — without that, the resolvers fall back to the legacy
+  // `req.accessToken` / `req.gmailAccessToken` paths so memory-mode
+  // dev/tests continue to work identically to before.
+  const connectionsStore =
+    dbClient && requiresAuth
+      ? new ConnectionsStore(dbClient, encryptionKey)
+      : undefined;
+  const connectorResolvers = createConnectorResolvers({ connectionsStore });
+
   if (requiresAuth) {
     app.use("/api/v1/emails", requireAuth, createEmailRoutes({
       resolveStorage,
       tokenStore,
+      connectorResolvers,
     }));
   } else {
     app.use("/api/v1/emails", createEmailRoutes({
       resolveStorage,
+      connectorResolvers,
     }));
   }
 
   // Calendar sync routes — always require auth (needs Calendar access token)
   if (requiresAuth) {
-    app.use("/api/v1/trips", requireAuth, createCalendarRoutes({ resolveStorage }));
+    app.use(
+      "/api/v1/trips",
+      requireAuth,
+      createCalendarRoutes({ resolveStorage, connectorResolvers }),
+    );
   } else {
-    app.use("/api/v1/trips", createCalendarRoutes({ resolveStorage }));
+    app.use(
+      "/api/v1/trips",
+      createCalendarRoutes({ resolveStorage, connectorResolvers }),
+    );
   }
 
   // Public shared routes (no auth required)
@@ -438,8 +459,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // dbClient is available — the routes need the `connections` table
   // to do anything useful, and memory-mode dev/tests don't have it.
   // Auth-required in drive / postgres modes (same as everything else).
-  if (dbClient && requiresAuth) {
-    const connectionsStore = new ConnectionsStore(dbClient, encryptionKey);
+  if (connectionsStore) {
     app.use(
       "/api/v1/connections",
       requireAuth,
