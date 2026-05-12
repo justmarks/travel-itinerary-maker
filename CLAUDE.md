@@ -41,8 +41,8 @@ itinly/
 
 ### Prerequisites
 
-- Node.js >= 20
-- pnpm 10.33.0 (`corepack enable` then `corepack prepare pnpm@10.33.0 --activate`)
+- Node.js >= 22.13 (pnpm 11's loader uses `node:sqlite`, which is only built in to 22+)
+- pnpm 11.1.1 (`corepack enable` then `corepack prepare pnpm@11.1.1 --activate`)
 
 ### Setup
 
