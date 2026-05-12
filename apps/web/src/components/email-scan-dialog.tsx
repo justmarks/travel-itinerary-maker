@@ -55,7 +55,11 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
-import { useAuth } from "@/lib/auth";
+import {
+  useActiveEmailProvider,
+  emailLabelNoun,
+  emailProviderLabel,
+} from "@/lib/use-active-provider";
 import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import {
@@ -165,19 +169,19 @@ export function EmailScanDialog({
   const [newTripEnd, setNewTripEnd] = useState("");
   const [creatingTrip, setCreatingTrip] = useState(false);
 
-  const { hasGmailLink } = useAuth();
   const isDemo = useDemoMode();
-  // Demo mode bypasses real Google APIs via MockApiClient, so we treat
-  // every feature as "granted" there. For real users, gate Gmail
-  // network calls on the user having linked their Gmail OAuth client
-  // (a separate Google Cloud Console client from the primary one — see
-  // `lib/oauth.ts`). The gate also drives the "Connect Gmail" prompt
-  // below.
-  const gmailGranted = isDemo || hasGmailLink;
+  // Resolve the active email provider across both auth paths:
+  //   - Supabase user with an `email` connection → google or microsoft
+  //   - Legacy Gmail-linked user → google
+  //   - Demo mode → google
+  //   - Nothing linked → null → render the "not-connected" step
+  // The gate also drives the "Connect Gmail / Outlook" prompt below.
+  const { provider: activeEmailProvider } = useActiveEmailProvider(open);
+  const emailGranted = isDemo || activeEmailProvider !== null;
 
-  const { data: labels, error: labelsError } = useGmailLabels(open && gmailGranted);
+  const { data: labels, error: labelsError } = useGmailLabels(open && emailGranted);
   const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(
-    open && gmailGranted,
+    open && emailGranted,
   );
   const { data: trips } = useTrips();
   const scanEmails = useScanEmails();
@@ -203,10 +207,10 @@ export function EmailScanDialog({
   useEffect(() => {
     if (!open) return;
 
-    // Gmail scope hasn't been granted yet — show the connect CTA
-    // instead of trying to load anything from Google.
-    if (!gmailGranted) {
-      setStep("needs-scope");
+    // No email provider linked — show the provider-agnostic
+    // not-connected notice pointing at /settings/account.
+    if (!emailGranted) {
+      setStep("not-connected");
       return;
     }
 
@@ -219,7 +223,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, gmailGranted, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, emailGranted, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(
@@ -683,7 +687,7 @@ export function EmailScanDialog({
                   htmlFor="email-scan-label"
                   className="text-sm font-medium"
                 >
-                  Gmail Label (optional)
+                  {`${emailProviderLabel(activeEmailProvider)} ${emailLabelNoun(activeEmailProvider)} (optional)`}
                 </label>
                 {/* Dropdown tree — labels are flat with `/`-delimited
                     paths, so we sort + tag-with-depth and render with
