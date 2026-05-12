@@ -112,6 +112,56 @@ describe("proposeNewTrips", () => {
     expect(proposals[1].segmentKeys).toEqual(["0"]);
   });
 
+  it("uses the final destination, not a layover, for flight-only round-trips", () => {
+    // Real Delta itinerary: MIA → LAX → SEA outbound, SEA → MIA
+    // return. Previously the title fell on Los Angeles because all
+    // three arrivals tied at count 1 and the layover (first inserted
+    // into the frequency map) won — same bug shape as #303 for
+    // TripDay.city. Now we walk transports in chronological order
+    // and pick the last non-home arrival.
+    const out1 = seg("2026-06-24", {
+      type: "flight",
+      startTime: "08:12",
+      departureCity: "Miami",
+      arrivalCity: "Los Angeles",
+    });
+    const out2 = seg("2026-06-24", {
+      type: "flight",
+      startTime: "11:56",
+      departureCity: "Los Angeles",
+      arrivalCity: "Seattle",
+    });
+    const ret = seg("2026-07-05", {
+      type: "flight",
+      startTime: "08:05",
+      departureCity: "Seattle",
+      arrivalCity: "Miami",
+    });
+    const proposals = proposeNewTrips(inputs(out1, out2, ret));
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0].title).toBe("Seattle June 2026");
+  });
+
+  it("uses the final destination, not a layover, for one-way multi-leg flights", () => {
+    // MIA → LAX → SEA one-way. No return leg, so "last non-home
+    // arrival" still resolves to Seattle.
+    const leg1 = seg("2026-06-24", {
+      type: "flight",
+      startTime: "08:12",
+      departureCity: "Miami",
+      arrivalCity: "Los Angeles",
+    });
+    const leg2 = seg("2026-06-24", {
+      type: "flight",
+      startTime: "11:56",
+      departureCity: "Los Angeles",
+      arrivalCity: "Seattle",
+    });
+    const proposals = proposeNewTrips(inputs(leg1, leg2));
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0].title).toBe("Seattle June 2026");
+  });
+
   it("treats a single segment as one proposal", () => {
     const a = seg("2026-12-22", { city: "Whistler" });
     const proposals = proposeNewTrips(inputs(a));
