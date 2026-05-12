@@ -12,6 +12,10 @@ import {
 import type { Trip } from "@travel-app/shared";
 import { cn } from "@/lib/utils";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
+import {
+  useActiveCalendarProvider,
+  calendarProviderLabel,
+} from "@/lib/use-active-provider";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import { NotConnectedNotice } from "@/components/not-connected-notice";
 
@@ -42,7 +46,7 @@ export function MobileCalendarSyncSheet({
     <MobileBottomSheet
       open={open}
       onClose={onClose}
-      ariaLabel="Sync to Google Calendar"
+      ariaLabel="Sync to Calendar"
     >
       {open && <CalendarSyncBody trip={trip} onClose={onClose} />}
     </MobileBottomSheet>
@@ -69,6 +73,8 @@ function CalendarSyncBody({
     refresh,
     unsync,
   } = useCalendarSync(trip);
+  const { provider: calendarProvider } = useActiveCalendarProvider();
+  const providerLabel = calendarProviderLabel(calendarProvider);
 
   const initialStep: Step = !calendarGranted
     ? "scope"
@@ -119,7 +125,7 @@ function CalendarSyncBody({
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
           <p className="text-kicker font-semibold text-muted-foreground">
-            Google Calendar
+            {providerLabel}
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
             {step === "scope" && "Connect Calendar"}
@@ -146,7 +152,7 @@ function CalendarSyncBody({
         {step === "pick" && (
           <>
             <p className="text-sm text-muted-foreground">
-              Select the Google Calendar to sync this trip&apos;s events to.
+              Select the {providerLabel} to sync this trip&apos;s events to.
             </p>
             {loadingCalendars ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -228,7 +234,7 @@ function CalendarSyncBody({
               />
               <div>
                 <p className="text-sm font-medium">
-                  Delete from Google Calendar
+                  Delete from {providerLabel}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Remove all synced events from your calendar.
@@ -252,7 +258,7 @@ function CalendarSyncBody({
                 className="mt-0.5"
               />
               <div>
-                <p className="text-sm font-medium">Keep in Google Calendar</p>
+                <p className="text-sm font-medium">Keep in {providerLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   Events stay in your calendar but won&apos;t be updated by
                   this app.

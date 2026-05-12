@@ -132,3 +132,11 @@ export function emailProviderLabel(provider: EmailProvider | null): string {
   if (provider === "google") return "Gmail";
   return "Email";
 }
+
+export function calendarProviderLabel(
+  provider: CalendarProvider | null,
+): string {
+  if (provider === "microsoft") return "Outlook Calendar";
+  if (provider === "google") return "Google Calendar";
+  return "Calendar";
+}

@@ -81,6 +81,10 @@ import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError } from "@/lib/api-error";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
+import {
+  useActiveCalendarProvider,
+  calendarProviderLabel,
+} from "@/lib/use-active-provider";
 import { NotConnectedNotice } from "@/components/not-connected-notice";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
@@ -480,10 +484,12 @@ function TripActionsMenu({
           renderTrigger={({ isSynced, syncedCount, syncing, open }) => (
             <DropdownMenuItem
               disabled={syncing}
-              onSelect={(e) => {
-                // Keep the dropdown from auto-closing before the calendar
-                // dialog can take over focus.
-                e.preventDefault();
+              onSelect={() => {
+                // Let Radix close the dropdown — opening the calendar
+                // dialog right after is fine, focus management works
+                // because Radix unmounts the menu before the dialog
+                // gets focus. Keeping the menu open made it overlap
+                // the dialog visually.
                 open();
               }}
             >
@@ -709,6 +715,11 @@ function CalendarSyncButton({
     refresh,
     unsync,
   } = useCalendarSync(trip);
+  // Provider-aware copy across all the dialogs ("Google Calendar"
+  // vs "Outlook Calendar"). Falls back to "Calendar" when nothing
+  // is connected — used by the not-connected dialog branch.
+  const { provider: calendarProvider } = useActiveCalendarProvider();
+  const providerLabel = calendarProviderLabel(calendarProvider);
   // "pick"   → choose-calendar dialog (not yet synced)
   // "info"   → synced-status dialog
   // "scope"  → "needs Calendar permission" CTA
@@ -801,7 +812,7 @@ function CalendarSyncButton({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the Google Calendar to sync this trip&apos;s events to.
+              Select the {providerLabel} to sync this trip&apos;s events to.
             </DialogDescription>
           </DialogHeader>
           {loadingCalendars ? (
@@ -837,7 +848,7 @@ function CalendarSyncButton({
           {removeStep !== "confirm" ? (
             <>
               <DialogHeader>
-                <DialogTitle>Google Calendar sync</DialogTitle>
+                <DialogTitle>{providerLabel} sync</DialogTitle>
                 <DialogDescription>
                   {syncedCount} event{syncedCount !== 1 ? "s" : ""} synced
                   {syncedCalendarName ? ` to ${syncedCalendarName}` : ""}.
@@ -878,7 +889,7 @@ function CalendarSyncButton({
                     className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium">Delete from Google Calendar</p>
+                    <p className="text-sm font-medium">Delete from {providerLabel}</p>
                     <p className="text-xs text-muted-foreground">Remove all synced events from your calendar.</p>
                   </div>
                 </label>
@@ -892,7 +903,7 @@ function CalendarSyncButton({
                     className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium">Keep in Google Calendar</p>
+                    <p className="text-sm font-medium">Keep in {providerLabel}</p>
                     <p className="text-xs text-muted-foreground">Events stay in your calendar but won&apos;t be updated by this app.</p>
                   </div>
                 </label>

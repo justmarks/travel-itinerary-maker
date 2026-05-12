@@ -91,7 +91,7 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
         );
       } else {
         toast.success(
-          `${total} event${total !== 1 ? "s" : ""} synced to Google Calendar`,
+          `${total} event${total !== 1 ? "s" : ""} synced to your calendar`,
         );
       }
     } catch {
