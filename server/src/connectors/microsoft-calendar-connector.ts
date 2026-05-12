@@ -84,6 +84,18 @@ const TRIP_ID_PROPERTY_ID =
   "String {00020329-0000-0000-c000-000000000046} Name ItinlyTripId";
 
 /**
+ * Companion to `TRIP_ID_PROPERTY_ID`. Stamped on every event we create
+ * so a subsequent `syncTrip` can rebuild the `segmentId → eventId`
+ * map even when the segment's `calendarEventId` was cleared (e.g. the
+ * user used "Remove sync, keep events" then re-synced). Without this,
+ * the re-sync sees no `calendarEventId` on the segment, queries
+ * nothing back from Graph, and just creates duplicates alongside the
+ * orphan events.
+ */
+const SEGMENT_ID_PROPERTY_ID =
+  "String {00020329-0000-0000-c000-000000000046} Name ItinlySegmentId";
+
+/**
  * Translates a Google-shaped event (output of `segmentToEvent`) to a
  * Microsoft Graph event. Mirrors `segmentToEvent`'s output 1:1 — the
  * only meaningful difference is the all-day representation.
@@ -138,11 +150,19 @@ export function googleEventToMsEvent(
     ];
   }
 
+  // Pull tripId / segmentId off the Google-shaped extended properties
+  // and re-stamp them in Graph's single-value extended-properties
+  // format. Both are queryable via `$filter` on subsequent syncs,
+  // which is how we rebuild the segmentId→eventId map after a
+  // "remove sync, keep events" round-trip clears `calendarEventId`
+  // on the segments.
+  const extProps: Array<{ id: string; value: string }> = [];
   const tripId = event.extendedProperties?.private?.tripId;
-  if (tripId) {
-    result.singleValueExtendedProperties = [
-      { id: TRIP_ID_PROPERTY_ID, value: tripId },
-    ];
+  if (tripId) extProps.push({ id: TRIP_ID_PROPERTY_ID, value: tripId });
+  const segmentId = event.extendedProperties?.private?.segmentId;
+  if (segmentId) extProps.push({ id: SEGMENT_ID_PROPERTY_ID, value: segmentId });
+  if (extProps.length > 0) {
+    result.singleValueExtendedProperties = extProps;
   }
 
   return result;
@@ -194,18 +214,78 @@ export class MicrosoftCalendarConnector implements CalendarConnector {
       eventMap: {},
     };
 
+    // Pre-fetch any events on this calendar that we previously
+    // created for this trip. Drives the orphan-recovery path in
+    // upsertSegmentEvent so segments missing their `calendarEventId`
+    // (e.g. after the user used "Remove sync, keep events" + then
+    // re-synced) get matched back to the still-live event instead of
+    // duplicating it. Only useful for events created at or after the
+    // commit that started stamping ItinlySegmentId — anything older
+    // won't be matchable.
+    const needsOrphanLookup = trip.days.some((d) =>
+      d.segments.some((s) => !s.calendarEventId),
+    );
+    let existingBySegmentId: Map<string, string> = new Map();
+    if (needsOrphanLookup) {
+      try {
+        existingBySegmentId = await this.listExistingTripEvents(
+          calendarId,
+          trip.id,
+        );
+        if (existingBySegmentId.size > 0) {
+          console.log(
+            `${prefix} Found ${existingBySegmentId.size} prior event(s) for trip via extended property — will reuse where possible`,
+          );
+        }
+      } catch (err) {
+        // Don't fail the whole sync if the orphan lookup blows up —
+        // worst case we duplicate a few events, which is the existing
+        // behavior. Log + continue.
+        console.warn(
+          `${prefix} Orphan-event lookup failed: ${
+            err instanceof Error ? err.message : "unknown error"
+          }`,
+        );
+      }
+    }
+
     for (const day of trip.days) {
       for (const segment of day.segments) {
         try {
+          // Orphan recovery: when a segment lost its `calendarEventId`
+          // (e.g. the user used "Remove sync, keep events" and then
+          // re-synced) but a previously-created event for that segment
+          // still exists on the calendar, reuse it instead of creating
+          // a duplicate alongside the orphan. Build an effective
+          // segment (shallow copy with the recovered id) rather than
+          // mutating the caller's object — the route handler in
+          // calendar.ts also writes the result.eventMap back onto
+          // segments after sync, so mutating here would shadow that
+          // assignment for the eventMap-recovery case.
+          const reuseId =
+            !segment.calendarEventId &&
+            existingBySegmentId.get(segment.id);
+          const effectiveSegment = reuseId
+            ? { ...segment, calendarEventId: reuseId }
+            : segment;
+          if (reuseId) {
+            console.log(
+              `${prefix} Reusing existing event ${reuseId} for "${segment.title}" (orphaned from earlier sync)`,
+            );
+          }
           const eventId = await this.upsertSegmentEvent(
             trip,
             day,
-            segment,
+            effectiveSegment,
             calendarId,
             userEmail,
             prefix,
           );
-          if (segment.calendarEventId === eventId.id) {
+          // Match the prior accounting rule: same event id round-trip
+          // = "updated"; a different id (e.g. the recovery fell
+          // through to create because the orphan event was deleted
+          // out-of-band, or we never had one) = "created".
+          if (effectiveSegment.calendarEventId === eventId.id) {
             result.updated++;
           } else {
             result.created++;
@@ -357,5 +437,54 @@ export class MicrosoftCalendarConnector implements CalendarConnector {
     }
     console.log(`${prefix} Created "${segment.title}" → ${created.id}`);
     return { id: created.id };
+  }
+
+  /**
+   * Queries the calendar for events we previously created for this
+   * trip and returns a `segmentId → eventId` map.
+   *
+   * Uses Graph's `$filter` on `singleValueExtendedProperties` —
+   * matches every event with our `ItinlyTripId` property set to this
+   * trip's id. Each matched event's `ItinlySegmentId` (also stamped
+   * at create time) becomes the map key. Events created before we
+   * started stamping `SEGMENT_ID_PROPERTY_ID` won't be matchable
+   * here; that's the forward-looking limit.
+   *
+   * Returning an empty map on any error is safe — the caller will
+   * just fall through to the existing CREATE path. The orphan-
+   * recovery is best-effort, not correctness-critical.
+   */
+  private async listExistingTripEvents(
+    calendarId: string,
+    tripId: string,
+  ): Promise<Map<string, string>> {
+    const filter = `singleValueExtendedProperties/Any(ep: ep/id eq '${TRIP_ID_PROPERTY_ID}' and ep/value eq '${tripId}')`;
+    const expand = `singleValueExtendedProperties($filter=id eq '${SEGMENT_ID_PROPERTY_ID}')`;
+    interface EventWithExtProps {
+      id: string;
+      singleValueExtendedProperties?: Array<{ id: string; value: string }>;
+    }
+    const events = await graphPaginate<EventWithExtProps>(
+      this.accessToken,
+      `${calendarPath(calendarId)}/events`,
+      {
+        query: {
+          $filter: filter,
+          $expand: expand,
+          $top: "100",
+          $select: "id",
+        },
+      },
+    );
+    const map = new Map<string, string>();
+    for (const event of events) {
+      const segProp = event.singleValueExtendedProperties?.find(
+        (p) => p.id === SEGMENT_ID_PROPERTY_ID,
+      );
+      if (segProp && event.id) {
+        map.set(segProp.value, event.id);
+      }
+    }
+    return map;
   }
 }
