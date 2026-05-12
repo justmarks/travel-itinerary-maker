@@ -825,7 +825,7 @@ function CalendarSyncDialogs({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the {providerLabel} to sync this trip&apos;s events to.
+              Select the {providerLabel}{" "}to sync this trip&apos;s events to.
             </DialogDescription>
           </DialogHeader>
           {loadingCalendars ? (
@@ -844,7 +844,28 @@ function CalendarSyncDialogs({
               </SelectContent>
             </Select>
           ) : (
-            <p className="py-2 text-sm text-muted-foreground">No writable calendars found.</p>
+            // An empty calendar list almost always means the connection
+            // can't authenticate against the provider — Google
+            // sometimes doesn't return a refresh_token on reconnect
+            // (see #306), and Graph 401s when the access token has
+            // expired with nothing to refresh from. In both cases the
+            // capability row looks "active" in /settings/account but
+            // the listCalendars call comes back empty. Point the user
+            // at a fix instead of a dead-end string.
+            <div className="space-y-2 py-2 text-sm text-muted-foreground">
+              <p>No writable calendars found.</p>
+              <p>
+                Your {providerLabel} connection may have expired.{" "}
+                <Link
+                  href="/settings/account"
+                  className="font-medium text-foreground underline underline-offset-2"
+                  onClick={() => setDialog(null)}
+                >
+                  Reconnect from Settings
+                </Link>
+                {" "}to re-grant calendar access.
+              </p>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
