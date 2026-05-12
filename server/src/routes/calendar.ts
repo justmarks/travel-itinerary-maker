@@ -5,13 +5,14 @@ import {
   createConnectorResolvers,
   type ConnectorResolvers,
 } from "../connectors/resolve";
-import type { CalendarConnector } from "../connectors/calendar-connector";
 
 /**
  * Diagnostic hook fired only when Google returns 403 "insufficient
  * scopes" on the calendar-list call. Hits Google's tokeninfo
- * endpoint to log the ACTUAL scopes baked into the stored access
- * token. Lets us tell apart:
+ * endpoint with the access token the resolver just handed us and
+ * logs the ACTUAL scopes baked into it.
+ *
+ * Lets us tell apart:
  *  - "user never granted Calendar" (token has only identity scopes
  *    — Supabase's signInWithOAuth `scopes` param didn't take effect)
  *  - "user granted Calendar but we're using a stale token" (token
@@ -22,31 +23,14 @@ import type { CalendarConnector } from "../connectors/calendar-connector";
  */
 async function diagnoseScopes(
   req: Request,
-  err: unknown,
-  _connector: CalendarConnector,
+  accessToken: string,
 ): Promise<void> {
-  // Pull the access token out of the failed Google API client. The
-  // googleapis library throws errors that carry the request config
-  // on `err.config.headers.Authorization`.
-  const errAny = err as {
-    config?: { headers?: Record<string, unknown> };
-    response?: { config?: { headers?: Record<string, unknown> } };
-  };
-  const authHeader =
-    errAny.config?.headers?.Authorization ??
-    errAny.response?.config?.headers?.Authorization;
-  const token =
-    typeof authHeader === "string" && authHeader.startsWith("Bearer ")
-      ? authHeader.slice("Bearer ".length)
-      : null;
-  if (!token) {
-    console.warn(
-      `[calendar-list] tokeninfo diagnostic: couldn't extract access token from error`,
-    );
+  if (!accessToken) {
+    console.warn(`[calendar-list] tokeninfo diagnostic: empty access token`);
     return;
   }
   const res = await fetch(
-    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`,
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
   );
   if (!res.ok) {
     console.warn(
@@ -106,8 +90,8 @@ export function createCalendarRoutes(
    * Phase 4b adds the `MicrosoftCalendarConnector`).
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
       console.warn(
         `[calendar-list] no calendar connector resolved for user=${req.userId} email=${req.userEmail}`,
       );
@@ -115,7 +99,7 @@ export function createCalendarRoutes(
       return;
     }
     try {
-      const calendars = await connector.listCalendars();
+      const calendars = await resolved.connector.listCalendars();
       // Useful when the dialog shows "No writable calendars" — lets
       // us tell "auth worked but list was empty" apart from "auth
       // failed" in Railway logs.
@@ -134,14 +118,12 @@ export function createCalendarRoutes(
         `[calendar-list] user=${req.userEmail} listCalendars failed status=${status}: ${message}`,
       );
       // On insufficient-scopes 403 (Google's "Request had insufficient
-      // authentication scopes"), hit Google's tokeninfo endpoint to
-      // log the ACTUAL scopes the stored access_token has. Lets us
-      // distinguish "user didn't grant calendar" from "we cached a
-      // stale identity-only token despite the user re-consenting."
-      // Best-effort — swallows errors so the diagnostic itself can't
-      // mask the original failure.
+      // authentication scopes"), hit Google's tokeninfo endpoint with
+      // the stored access token directly — earlier attempts tried to
+      // pull it from `err.config.headers.Authorization` but the
+      // GaxiosError shape varies and the extraction missed.
       if (status === 403 && message.toLowerCase().includes("scope")) {
-        await diagnoseScopes(req, err, connector).catch((e) => {
+        await diagnoseScopes(req, resolved.accessToken).catch((e) => {
           console.warn(
             `[calendar-list] tokeninfo diagnostic failed: ${
               e instanceof Error ? e.message : "unknown"
@@ -174,12 +156,12 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
       notConnected(res);
       return;
     }
-    const result = await connector.syncTrip(trip, calendarId, req.userEmail);
+    const result = await resolved.connector.syncTrip(trip, calendarId, req.userEmail);
 
     // Persist the returned event IDs back onto each segment
     for (const day of trip.days) {
@@ -232,12 +214,12 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
       notConnected(res);
       return;
     }
-    const result = await connector.syncSegment(
+    const result = await resolved.connector.syncSegment(
       trip,
       targetDay,
       targetSegment,
@@ -277,12 +259,12 @@ export function createCalendarRoutes(
     let removed = 0;
     let failed = 0;
     if (deleteEvents) {
-      const connector = await resolvers.resolveCalendarConnector(req);
-      if (!connector) {
+      const resolved = await resolvers.resolveCalendarConnector(req);
+      if (!resolved) {
         notConnected(res);
         return;
       }
-      const result = await connector.unsyncTrip(trip, calendarId, req.userEmail);
+      const result = await resolved.connector.unsyncTrip(trip, calendarId, req.userEmail);
       removed = result.removed;
       failed = result.failed;
     }

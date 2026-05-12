@@ -65,8 +65,18 @@ export interface ResolvedEmailConnector {
   accountEmail: string;
 }
 
+/**
+ * Resolved calendar-connector + the access token it was bound to.
+ * Exposed so route handlers can run targeted diagnostics (hit
+ * Google's tokeninfo endpoint on 403, etc.) without re-resolving.
+ */
+export interface ResolvedCalendarConnector {
+  connector: CalendarConnector;
+  accessToken: string;
+}
+
 export interface ConnectorResolvers {
-  resolveCalendarConnector(req: Request): Promise<CalendarConnector | null>;
+  resolveCalendarConnector(req: Request): Promise<ResolvedCalendarConnector | null>;
   resolveEmailConnector(req: Request): Promise<ResolvedEmailConnector | null>;
 }
 
@@ -86,20 +96,34 @@ export function createConnectorResolvers(
           "microsoft",
           "calendar",
         );
-        if (ms) return new MicrosoftCalendarConnector(ms.accessToken);
+        if (ms) {
+          return {
+            connector: new MicrosoftCalendarConnector(ms.accessToken),
+            accessToken: ms.accessToken,
+          };
+        }
         const google = await getActiveAccessToken(
           { store: deps.connectionsStore },
           req.userId,
           "google",
           "calendar",
         );
-        if (google) return new GoogleCalendarConnector(google.accessToken);
+        if (google) {
+          return {
+            connector: new GoogleCalendarConnector(google.accessToken),
+            accessToken: google.accessToken,
+          };
+        }
         return null;
       }
       // Legacy path. Empty token still constructs a connector so dev /
       // memory-mode tests (where there's no req.accessToken) keep
       // working — same shape as before.
-      return new GoogleCalendarConnector(req.accessToken ?? "");
+      const accessToken = req.accessToken ?? "";
+      return {
+        connector: new GoogleCalendarConnector(accessToken),
+        accessToken,
+      };
     },
 
     async resolveEmailConnector(req) {

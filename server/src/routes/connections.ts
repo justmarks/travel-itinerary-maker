@@ -182,6 +182,15 @@ export function createConnectionsRoutes(
       expiresAt,
       scopes,
     });
+    // Tell apart "Connect button POST landed, row got the expected
+    // scopes" from "POST failed silently / wrote a stale row" when
+    // debugging calendar-sync issues. We log scope STRINGS (not
+    // tokens) and presence flags — no PII / secrets leak.
+    console.log(
+      `[connections] upsert user=${req.userEmail} provider=${provider} capability=${capability} ` +
+        `accountEmail=${accountEmail} hasAccessToken=${!!accessToken} hasRefreshToken=${!!refreshToken} ` +
+        `scopes=[${(scopes ?? []).join(", ")}]`,
+    );
 
     res.status(201).json({ connection: publicView(connection) });
   });
