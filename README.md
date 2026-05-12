@@ -329,6 +329,14 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 - [ ] **Scheduled / auto email import** — opt-in background Gmail scan (e.g. nightly) that parses new confirmations and drops segments into the right trip with `needsReview: true`, so the inbox stays in sync without the user having to remember to run a scan
 - [ ] **Places to go** — per-trip list of points-of-interest (shops, museums, viewpoints, neighbourhoods) that aren't tied to a date or time and aren't a todo. Pinnable on the Map tab, groupable by city, and a candidate source for later "schedule this" actions that promote a place into a real segment
 - [ ] **Trip overview page** — at-a-glance summary tab: hero image, dates, destinations + flag row, total spend by category, segment counts by type, open todos, pending-review count, share status, and a compact "what's next" card. Becomes the default landing tab on a trip in place of jumping straight to day 1
+- [ ] **Account merge** — when a user signed in via Google tries to link a Microsoft identity that's already registered as a *separate* itinly login (today they hit Supabase's "Identity is already linked to another user" and bounce back with an explanation but no merge path), offer to combine the two accounts into one. UX flow:
+  1. Detect the conflict at the auth callback; present a choice screen with the two account emails side-by-side, summarising each (trip count, share-rule count, last sign-in).
+  2. The user picks: **Merge** (fold the other account into this one + sign in with either provider going forward) or **Leave as-is** (keep them separate; current behaviour).
+  3. On merge, migrate the secondary account's data into the primary's user-id: trips, settings, share rules, processed_emails, auto-share rules. Also re-attach the secondary's `email` and `calendar` connection rows to the primary's user-id *only* when the primary doesn't already have a connection of that type (no clobber of a working link).
+  4. Update share rows so trips the merged user *owned* now belong to the primary; share rows where the merged user was the *recipient* point at the primary instead (de-dup if both already had a share to the same trip — keep the more permissive permission).
+  5. Mark the secondary user-id revoked at Supabase and delete it.
+  6. Land on a summary screen: "Linked Microsoft to your Google account. Merged 3 trips (1 overlapped — kept the original), kept 2 auto-share rules, transferred the calendar connection." Per-section counts + a list of any overlap warnings the user should review.
+  Real project — multi-table data migration, needs to be transactional, undo-able on failure, and ideally previewable before commit. Worth doing once a clear signal arrives that multi-account users are common.
 
 ## License
 
