@@ -72,7 +72,7 @@ async function postConnection(
   capability: ConnectionCapability,
   normalisedProvider: "google" | "microsoft",
   email: string,
-): Promise<void> {
+): Promise<{ ok: boolean; message?: string }> {
   const body = {
     provider: normalisedProvider,
     capability,
@@ -87,7 +87,7 @@ async function postConnection(
     refreshToken: session.provider_refresh_token ?? undefined,
   };
   try {
-    await fetch(`${API_BASE_URL}/connections`, {
+    const res = await fetch(`${API_BASE_URL}/connections`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -95,9 +95,28 @@ async function postConnection(
       },
       body: JSON.stringify(body),
     });
-  } catch {
-    // Best-effort: failure leaves the user authenticated but without
-    // the new capability row. Settings re-detects on next visit.
+    if (!res.ok) {
+      // Try to lift the server's error message off the body so the
+      // user sees something specific. Falls back to the status code
+      // when the response isn't JSON or doesn't have an `error`.
+      let message = `Request failed (${res.status})`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (parsed.error) message = parsed.error;
+      } catch {
+        // Non-JSON response; keep the fallback message.
+      }
+      return { ok: false, message };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error
+          ? err.message
+          : "Network error while saving the connection.",
+    };
   }
 }
 
@@ -112,7 +131,9 @@ async function postConnection(
  * — the settings-page Connect buttons stash their own URL there so
  * the user lands back where they came from after the OAuth dance.
  */
-async function syncConnections(session: Session): Promise<{ returnTo: string | null }> {
+async function syncConnections(
+  session: Session,
+): Promise<{ returnTo: string | null; capabilityError: string | null }> {
   const provider = session.user.app_metadata?.provider;
   // Supabase reports Microsoft as "azure"; normalise to our taxonomy.
   const normalisedProvider =
@@ -121,24 +142,54 @@ async function syncConnections(session: Session): Promise<{ returnTo: string | n
       : provider === "google"
         ? "google"
         : null;
-  if (!normalisedProvider) return { returnTo: null };
+  if (!normalisedProvider) {
+    return { returnTo: null, capabilityError: null };
+  }
   const email = session.user.email;
-  if (!email) return { returnTo: null };
+  if (!email) return { returnTo: null, capabilityError: null };
 
+  // Identity-row failures are silent: the user is still authenticated
+  // via the Supabase JWT, the missing row is recoverable on the next
+  // sign-in or settings visit, and there's no actionable UX response
+  // we could offer here.
   await postConnection(session, "identity", normalisedProvider, email);
 
   const pending = consumePendingConnection();
-  if (pending) {
-    await postConnection(session, pending.capability, normalisedProvider, email);
-    return { returnTo: pending.returnTo ?? null };
+  if (!pending) {
+    return { returnTo: null, capabilityError: null };
   }
-  return { returnTo: null };
+  // Capability-row failures (the user clicked Connect Outlook /
+  // Connect Gmail / etc.) are surfaced — the user did an explicit
+  // action and deserves feedback. The callback shows the error
+  // inline; settings won't show the new row, so re-trying from
+  // settings is the next step.
+  const capabilityResult = await postConnection(
+    session,
+    pending.capability,
+    normalisedProvider,
+    email,
+  );
+  return {
+    returnTo: pending.returnTo ?? null,
+    capabilityError: capabilityResult.ok ? null : capabilityResult.message ?? "Could not save connection",
+  };
 }
 
 export default function AuthCallbackPage(): React.JSX.Element {
   const router = useRouter();
   const { login, linkGmail } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  /**
+   * When the error came from a capability-link POST (the user
+   * clicked Connect Outlook / Gmail / etc.), they're already
+   * signed in — bouncing back to /login is the wrong UX. We carry
+   * a target settings URL so the recovery button takes them
+   * somewhere actionable.
+   */
+  const [errorCta, setErrorCta] = useState<{ label: string; href: string }>({
+    label: "Back to sign-in",
+    href: "/login",
+  });
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -201,7 +252,19 @@ export default function AuthCallbackPage(): React.JSX.Element {
           );
           return;
         }
-        const { returnTo } = await syncConnections(session);
+        const { returnTo, capabilityError } = await syncConnections(session);
+        if (capabilityError) {
+          // The user clicked Connect for a capability and the
+          // resulting `/connections` POST failed. Surface inline +
+          // route the recovery button to /settings/account so a
+          // re-try is a single click from here.
+          setError(capabilityError);
+          setErrorCta({
+            label: "Open Settings",
+            href: returnTo ?? "/settings/account",
+          });
+          return;
+        }
         router.replace(returnTo ?? "/");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sign-in failed.");
@@ -273,8 +336,8 @@ export default function AuthCallbackPage(): React.JSX.Element {
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
-          <Button onClick={() => router.replace("/login")}>
-            Back to sign-in
+          <Button onClick={() => router.replace(errorCta.href)}>
+            {errorCta.label}
           </Button>
         </div>
       </main>
