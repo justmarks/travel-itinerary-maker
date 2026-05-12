@@ -141,9 +141,14 @@ describe("MicrosoftCalendarConnector", () => {
 
   describe("syncTrip", () => {
     it("POSTs to /me/calendar/events for un-synced segments", async () => {
-      fetchMock.mockResolvedValueOnce(
-        makeJsonResponse(201, { id: "ms-event-new", subject: "Dinner: Sushi" }),
-      );
+      // First call is the orphan-event lookup syncTrip kicks off
+      // when any segment lacks a `calendarEventId` — returns empty
+      // here so we exercise the create-from-scratch path.
+      fetchMock
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        .mockResolvedValueOnce(
+          makeJsonResponse(201, { id: "ms-event-new", subject: "Dinner: Sushi" }),
+        );
 
       const conn = new MicrosoftCalendarConnector(ACCESS_TOKEN);
       const result = await conn.syncTrip(TRIP, "primary", "user@example.com");
@@ -153,7 +158,8 @@ describe("MicrosoftCalendarConnector", () => {
       expect(result.failed).toBe(0);
       expect(result.eventMap["seg-1"]).toBe("ms-event-new");
 
-      const [url, init] = fetchMock.mock.calls[0];
+      // Index 1 = the POST after the orphan-lookup probe at index 0.
+      const [url, init] = fetchMock.mock.calls[1];
       expect(url.toString()).toContain("/me/calendar/events");
       expect(init?.method).toBe("POST");
       const body = JSON.parse(init?.body as string);
@@ -208,11 +214,15 @@ describe("MicrosoftCalendarConnector", () => {
     });
 
     it("counts failures and continues to the next segment", async () => {
-      fetchMock.mockResolvedValueOnce(
-        makeJsonResponse(500, {
-          error: { code: "InternalServerError", message: "Boom" },
-        }),
-      );
+      // Orphan-lookup probe (empty), then the upsert call we want to
+      // observe failing.
+      fetchMock
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        .mockResolvedValueOnce(
+          makeJsonResponse(500, {
+            error: { code: "InternalServerError", message: "Boom" },
+          }),
+        );
 
       const conn = new MicrosoftCalendarConnector(ACCESS_TOKEN);
       const result = await conn.syncTrip(TRIP, "primary");
@@ -220,6 +230,42 @@ describe("MicrosoftCalendarConnector", () => {
       expect(result.created).toBe(0);
       expect(result.failed).toBe(1);
       expect(result.eventMap["seg-1"]).toBeUndefined();
+    });
+
+    it("reuses an orphaned event when one exists for the segment", async () => {
+      // First call: the orphan-lookup probe finds a prior event with
+      // ItinlySegmentId == "seg-1". Second call: upsertSegmentEvent
+      // PATCHes that event rather than creating a duplicate.
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [
+              {
+                id: "ms-event-orphan",
+                singleValueExtendedProperties: [
+                  {
+                    id: "String {00020329-0000-0000-c000-000000000046} Name ItinlySegmentId",
+                    value: "seg-1",
+                  },
+                ],
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, { id: "ms-event-orphan" }),
+        );
+
+      const conn = new MicrosoftCalendarConnector(ACCESS_TOKEN);
+      const result = await conn.syncTrip(TRIP, "primary", "user@example.com");
+
+      expect(result.updated).toBe(1);
+      expect(result.created).toBe(0);
+      expect(result.eventMap["seg-1"]).toBe("ms-event-orphan");
+      expect(fetchMock.mock.calls[1][1]?.method).toBe("PATCH");
+      expect(fetchMock.mock.calls[1][0].toString()).toContain(
+        "/me/calendar/events/ms-event-orphan",
+      );
     });
   });
 
