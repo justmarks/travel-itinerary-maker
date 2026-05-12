@@ -103,10 +103,10 @@ export function IntroTourDialog(): React.JSX.Element | null {
         title: "Build trips from your inbox",
         body: (
           <>
-            Connect Gmail and itinly scans for booking confirmations —
-            flights, hotels, reservations — and turns them into a
-            structured trip. New emails keep your itineraries up to date
-            automatically.
+            Connect Gmail or Outlook and itinly scans for booking
+            confirmations — flights, hotels, reservations — and turns
+            them into a structured trip. New emails keep your itineraries
+            up to date automatically.
           </>
         ),
       },

@@ -288,7 +288,7 @@ export function MobileShareSheet({
   const handleCreate = async () => {
     setError(null);
     if (permission === "edit" && !trimmedEmail) {
-      setError("Add the contributor's Gmail address.");
+      setError("Add the contributor's email address.");
       return;
     }
     if (!emailValid) {
