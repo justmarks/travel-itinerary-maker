@@ -271,6 +271,78 @@ export class MicrosoftEmailConnector implements EmailConnector {
     }));
   }
 
+  /**
+   * Returns the folder IDs to scan when the user picks "all mail"
+   * (no `labelFilter`) or the well-known `inbox` filter: the Inbox
+   * folder plus every descendant folder. Without this, the scan
+   * would only look at messages filed directly in Inbox and miss
+   * everything filed into nested folders like Inbox/Travel.
+   *
+   * Graph's `/me/mailFolders/{id}/messages` is *not* recursive —
+   * it lists only the folder itself. We resolve the actual Inbox
+   * folder ID via the `inbox` well-known shortcut (locale-safe),
+   * then walk `childFolders` BFS with the same concurrency cap as
+   * `listAllFolders` (3, to stay under Graph's MailboxConcurrency=4).
+   *
+   * On a Graph error mid-walk we return whatever we managed to
+   * collect — a partial tree of folder IDs is still better than
+   * blanking the scan entirely.
+   */
+  private async listInboxTreeIds(): Promise<string[]> {
+    const GRAPH_FOLDER_CONCURRENCY = 3;
+    let inboxId: string;
+    try {
+      const inbox = await graphRequest<MsMailFolder>(
+        this.accessToken,
+        "/me/mailFolders/inbox",
+        { query: { $select: "id" } },
+      );
+      if (!inbox?.id) return [];
+      inboxId = inbox.id;
+    } catch (err) {
+      console.warn(
+        "[MicrosoftEmailConnector] Failed to resolve inbox folder:",
+        err,
+      );
+      return [];
+    }
+
+    const ids: string[] = [inboxId];
+    let queue: string[] = [inboxId];
+
+    while (queue.length > 0) {
+      const batch = queue;
+      queue = [];
+      let cursor = 0;
+      const workerCount = Math.min(GRAPH_FOLDER_CONCURRENCY, batch.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= batch.length) return;
+          const parentId = batch[idx];
+          try {
+            const children = await graphPaginate<MsMailFolder>(
+              this.accessToken,
+              `/me/mailFolders/${parentId}/childFolders`,
+              { query: { $select: "id", $top: "100" } },
+            );
+            for (const c of children) {
+              ids.push(c.id);
+              queue.push(c.id);
+            }
+          } catch (err) {
+            console.warn(
+              `[MicrosoftEmailConnector] Failed to list childFolders of ${parentId}:`,
+              err,
+            );
+          }
+        }
+      });
+      await Promise.all(workers);
+    }
+    return ids;
+  }
+
   async scanEmails(options: EmailScanOptions = {}): Promise<RawEmail[]> {
     const { labelFilter, maxResults = 100, newerThanDays, logPrefix } = options;
     const top = String(Math.max(1, Math.min(maxResults, 500)));
@@ -286,32 +358,94 @@ export class MicrosoftEmailConnector implements EmailConnector {
       query.$filter = `receivedDateTime ge ${cutoff.toISOString()}`;
     }
 
-    // Default to the Inbox folder when no filter is provided.
-    // `/me/messages` returns mail from ALL folders (Sent, Drafts,
-    // Deleted, Junk, ...) — almost never what a user wants when they
-    // click "scan emails." Gmail's default scope is similarly the
-    // INBOX label via the underlying label-filter resolver; this
-    // matches that intent for Outlook.
-    let path = "/me/mailFolders/inbox/messages";
-    if (labelFilter) {
-      const folders = await this.listAllFolders();
-      const folderId = resolveFolderId(labelFilter, folders);
+    // Decide the folder set to scan:
+    //  - no labelFilter           → Inbox tree (Inbox + descendants).
+    //                               "All mail" in the picker means the
+    //                               everyday inbox, not literally every
+    //                               folder (which would include Sent /
+    //                               Drafts / Deleted / Junk).
+    //  - labelFilter = "inbox"    → Inbox tree, same as above. The
+    //                               well-known name routes through here
+    //                               so picking "Inbox" gives the same
+    //                               result as "All mail."
+    //  - labelFilter = <subfolder> → just that folder.
+    let folderIds: string[];
+    if (!labelFilter) {
+      folderIds = await this.listInboxTreeIds();
+    } else {
+      const allFolders = await this.listAllFolders();
+      const folderId = resolveFolderId(labelFilter, allFolders);
       if (!folderId) {
         if (logPrefix) {
-          console.warn(`${logPrefix} folder "${labelFilter}" not found — falling back to inbox`);
+          console.warn(
+            `${logPrefix} folder "${labelFilter}" not found — falling back to inbox tree`,
+          );
         }
-        path = "/me/mailFolders/inbox/messages";
+        folderIds = await this.listInboxTreeIds();
+      } else if (folderId === "inbox") {
+        folderIds = await this.listInboxTreeIds();
       } else {
-        path = `/me/mailFolders/${folderId}/messages`;
+        folderIds = [folderId];
       }
     }
 
-    const messages = await graphRequest<{ value: MsMessage[] }>(
-      this.accessToken,
-      path,
-      { query },
+    if (folderIds.length === 0) {
+      // Last-ditch fallback: hit the well-known inbox shortcut directly.
+      // listInboxTreeIds returns [] only when the initial inbox lookup
+      // itself failed; this gives the user a single retry against the
+      // shortcut name in case it's a transient Graph blip.
+      const messages = await graphRequest<{ value: MsMessage[] }>(
+        this.accessToken,
+        "/me/mailFolders/inbox/messages",
+        { query },
+      );
+      if (!messages?.value) return [];
+      return messages.value.map(messageToRawEmail);
+    }
+
+    // Fetch messages from each folder in parallel (concurrency-capped),
+    // then merge + sort + trim to the requested maxResults. Each per-
+    // folder fetch returns at most `maxResults` messages sorted by date,
+    // so the merged top-N is correct even when one folder dominates.
+    const GRAPH_MESSAGE_CONCURRENCY = 3;
+    const allMessages: MsMessage[] = [];
+    let cursor = 0;
+    const workerCount = Math.min(GRAPH_MESSAGE_CONCURRENCY, folderIds.length);
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (true) {
+        const idx = cursor++;
+        if (idx >= folderIds.length) return;
+        const id = folderIds[idx];
+        try {
+          const res = await graphRequest<{ value: MsMessage[] }>(
+            this.accessToken,
+            `/me/mailFolders/${id}/messages`,
+            { query },
+          );
+          if (res?.value) allMessages.push(...res.value);
+        } catch (err) {
+          console.warn(
+            `[MicrosoftEmailConnector] Failed to list messages in folder ${id}:`,
+            err,
+          );
+        }
+      }
+    });
+    await Promise.all(workers);
+
+    // A message can only live in one folder, but dedup by id is cheap
+    // insurance against weird Graph cases (cross-folder copies, etc.).
+    const seen = new Set<string>();
+    const dedup: MsMessage[] = [];
+    for (const m of allMessages) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        dedup.push(m);
+      }
+    }
+    dedup.sort((a, b) =>
+      (b.receivedDateTime ?? "").localeCompare(a.receivedDateTime ?? ""),
     );
-    if (!messages?.value) return [];
-    return messages.value.map(messageToRawEmail);
+    return dedup.slice(0, maxResults).map(messageToRawEmail);
   }
 }
