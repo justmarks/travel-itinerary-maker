@@ -939,12 +939,23 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             errMsg.includes("authentication") ||
             errMsg.includes("invalid x-api-key") ||
             errMsg.includes("api_key");
+          // 429 rate_limit_error is treated like overloaded: same
+          // "transient, try again later" UX, same halt-and-return-
+          // partial-results behaviour. Anthropic's SDK does its own
+          // internal retries for 429 before throwing, so if we see
+          // one here the user is genuinely over a TPM/RPM budget for
+          // the moment and hammering more email parses just digs
+          // the hole deeper.
           const isOverloadedError =
             errStatus === 529 ||
             errStatus === 503 ||
+            errStatus === 429 ||
             errType === "overloaded_error" ||
+            errType === "rate_limit_error" ||
             errMsg.includes("overloaded") ||
-            errMsg.includes("Overloaded");
+            errMsg.includes("Overloaded") ||
+            errMsg.includes("rate_limit") ||
+            errMsg.includes("rate limit");
 
           // Overloaded errors are transient — log a short message, not the full stack
           if (isOverloadedError) {
@@ -1379,12 +1390,23 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             errMsg.includes("authentication") ||
             errMsg.includes("invalid x-api-key") ||
             errMsg.includes("api_key");
+          // 429 rate_limit_error is treated like overloaded: same
+          // "transient, try again later" UX, same halt-and-return-
+          // partial-results behaviour. Anthropic's SDK does its own
+          // internal retries for 429 before throwing, so if we see
+          // one here the user is genuinely over a TPM/RPM budget for
+          // the moment and hammering more email parses just digs
+          // the hole deeper.
           const isOverloadedError =
             errStatus === 529 ||
             errStatus === 503 ||
+            errStatus === 429 ||
             errType === "overloaded_error" ||
+            errType === "rate_limit_error" ||
             errMsg.includes("overloaded") ||
-            errMsg.includes("Overloaded");
+            errMsg.includes("Overloaded") ||
+            errMsg.includes("rate_limit") ||
+            errMsg.includes("rate limit");
 
           if (isOverloadedError) {
             console.warn(
@@ -1593,12 +1615,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           errMsg.includes("authentication") ||
           errMsg.includes("invalid x-api-key") ||
           errMsg.includes("api_key");
+        // 429 rate_limit_error is treated like overloaded — see the
+        // matching block in the scan handlers for rationale.
         const isOverloadedError =
           errStatus === 529 ||
           errStatus === 503 ||
+          errStatus === 429 ||
           errType === "overloaded_error" ||
+          errType === "rate_limit_error" ||
           errMsg.includes("overloaded") ||
-          errMsg.includes("Overloaded");
+          errMsg.includes("Overloaded") ||
+          errMsg.includes("rate_limit") ||
+          errMsg.includes("rate limit");
 
         if (isBillingError || isAuthError || isOverloadedError) {
           const code = isBillingError

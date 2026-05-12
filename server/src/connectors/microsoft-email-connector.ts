@@ -188,52 +188,70 @@ export class MicrosoftEmailConnector implements EmailConnector {
    *  - the suffix-match in `resolveFolderId` keeps working when the
    *    user (or a stored setting) passes just the leaf name.
    *
-   * The traversal is breadth-first with each level fetched in parallel,
-   * since a typical mailbox has tens of folders and Graph's per-folder
-   * `childFolders` call is fast. Errors fetching one folder's children
-   * are logged and swallowed — one bad subtree shouldn't blank out
-   * the entire picker.
+   * Traversal is breadth-first but each level is processed with a
+   * concurrency cap — Graph enforces a MailboxConcurrency limit of
+   * 4 simultaneous requests per mailbox and fires off a level of
+   * 10+ folders all at once was triggering `Application is over its
+   * MailboxConcurrency limit` 429s. Three workers leaves headroom
+   * for whatever else the user's session is doing against Graph
+   * (calendar list, identity probe, etc.).
+   *
+   * Errors fetching one folder's children are logged and swallowed —
+   * one bad subtree shouldn't blank out the entire picker.
    */
   private async listAllFolders(): Promise<MsMailFolder[]> {
+    const GRAPH_FOLDER_CONCURRENCY = 3;
     const result: MsMailFolder[] = [];
     type QueueEntry = { id: string; pathPrefix: string };
     let queue: QueueEntry[] = [{ id: "", pathPrefix: "" }];
 
+    const fetchOne = async ({
+      id,
+      pathPrefix,
+    }: QueueEntry): Promise<QueueEntry[]> => {
+      // Empty id = the synthetic root entry we seeded the BFS with —
+      // hit `/me/mailFolders` for the top-level listing.
+      const path = id ? `/me/mailFolders/${id}/childFolders` : "/me/mailFolders";
+      let folders: MsMailFolder[];
+      try {
+        folders = await graphPaginate<MsMailFolder>(
+          this.accessToken,
+          path,
+          { query: { $select: "id,displayName", $top: "100" } },
+        );
+      } catch (err) {
+        // Don't fail the whole listing for one childFolders 404 etc.
+        console.warn(
+          `[MicrosoftEmailConnector] Failed to list folders at "${path}":`,
+          err,
+        );
+        return [];
+      }
+      const nextLevel: QueueEntry[] = [];
+      for (const f of folders) {
+        const displayName = pathPrefix
+          ? `${pathPrefix}/${f.displayName}`
+          : f.displayName;
+        result.push({ id: f.id, displayName });
+        nextLevel.push({ id: f.id, pathPrefix: displayName });
+      }
+      return nextLevel;
+    };
+
     while (queue.length > 0) {
       const batch = queue;
       queue = [];
-      const levels = await Promise.all(
-        batch.map(async ({ id, pathPrefix }) => {
-          // Empty id = the synthetic root entry we seeded the BFS with —
-          // hit `/me/mailFolders` for the top-level listing.
-          const path = id ? `/me/mailFolders/${id}/childFolders` : "/me/mailFolders";
-          let folders: MsMailFolder[];
-          try {
-            folders = await graphPaginate<MsMailFolder>(
-              this.accessToken,
-              path,
-              { query: { $select: "id,displayName", $top: "100" } },
-            );
-          } catch (err) {
-            // Don't fail the whole listing for one childFolders 404 etc.
-            console.warn(
-              `[MicrosoftEmailConnector] Failed to list folders at "${path}":`,
-              err,
-            );
-            return [] as QueueEntry[];
-          }
-          const nextLevel: QueueEntry[] = [];
-          for (const f of folders) {
-            const displayName = pathPrefix
-              ? `${pathPrefix}/${f.displayName}`
-              : f.displayName;
-            result.push({ id: f.id, displayName });
-            nextLevel.push({ id: f.id, pathPrefix: displayName });
-          }
-          return nextLevel;
-        }),
-      );
-      for (const next of levels) queue.push(...next);
+      let cursor = 0;
+      const workerCount = Math.min(GRAPH_FOLDER_CONCURRENCY, batch.length);
+      const workers = Array.from({ length: workerCount }, async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= batch.length) return;
+          const next = await fetchOne(batch[idx]);
+          queue.push(...next);
+        }
+      });
+      await Promise.all(workers);
     }
     return result;
   }
