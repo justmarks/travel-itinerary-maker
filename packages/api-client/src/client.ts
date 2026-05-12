@@ -483,6 +483,141 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Streaming variant of `scanEmails`. The server pushes Server-Sent
+   * Events as it works through the mailbox so the UI can render
+   * progress. Callbacks fire on:
+   *   - `onFound(total)`            — once the mailbox listing returns.
+   *   - `onPlan(newCount, pending)` — after dedup against the
+   *                                   already-processed set.
+   *   - `onProgress(parsed, total,  — emitted before each Claude
+   *                 subject, from)`   parse so the spinner can advance.
+   *
+   * Resolves with the same shape as the non-streaming `/emails/scan`
+   * endpoint once the server emits the terminal `done` event.
+   * Rejects with `ApiError(status, body)` if the server emits an
+   * `error` event (matches the JSON endpoint's failure semantics —
+   * `body.results` may be populated with partial parses on 402/503).
+   *
+   * Aborting the AbortSignal closes the stream; the server detects
+   * the disconnect and stops processing further emails on the next
+   * iteration.
+   */
+  async streamScanEmails(
+    input: EmailScanRequest | undefined,
+    callbacks: {
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (parsed: number, total: number, current?: { subject: string; from: string }) => void;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
+    const token = this.getAccessToken?.();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${this.baseUrl}/emails/scan/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input ?? {}),
+      signal,
+    });
+
+    // Non-2xx responses (validation 400, missing-auth 401, etc.) come
+    // back as JSON, not SSE — the server returns those before opening
+    // the stream. Surface them as the existing ApiError so call sites
+    // can branch on `err.status` / `err.body.code` the same way they
+    // do for the JSON endpoint.
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body);
+    }
+    if (!res.body) {
+      throw new ApiError(500, { error: "Stream not supported by runtime" });
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalPayload:
+      | { results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }
+      | undefined;
+    let errorPayload: { status?: number; [k: string]: unknown } | undefined;
+
+    const handleFrame = (frame: string) => {
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        // Comment lines (`: ping` heartbeats) are ignored per SSE spec.
+        if (line.startsWith(":") || line.length === 0) continue;
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data += (data ? "\n" : "") + line.slice(6);
+      }
+      if (!data) return;
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(data);
+      } catch {
+        return;
+      }
+      switch (event) {
+        case "found":
+          callbacks.onFound?.(payload.total as number);
+          break;
+        case "plan":
+          callbacks.onPlan?.(payload.newCount as number, payload.pendingCount as number);
+          break;
+        case "progress":
+          callbacks.onProgress?.(
+            payload.parsed as number,
+            payload.total as number,
+            payload.subject !== undefined
+              ? { subject: payload.subject as string, from: payload.from as string }
+              : undefined,
+          );
+          break;
+        case "done":
+          finalPayload = payload as typeof finalPayload;
+          break;
+        case "error":
+          errorPayload = payload as typeof errorPayload;
+          break;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true });
+      if (done) break;
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        handleFrame(frame);
+      }
+      if (errorPayload || finalPayload) {
+        // Server signalled terminal state — stop reading. The server
+        // will close the stream after writing the terminal event.
+        break;
+      }
+    }
+
+    if (errorPayload) {
+      const status = typeof errorPayload.status === "number" ? errorPayload.status : 500;
+      // Strip `status` from the body so call sites see the same shape
+      // as the JSON endpoint (which doesn't include status in the body).
+      const { status: _status, ...body } = errorPayload;
+      throw new ApiError(status, body);
+    }
+    if (!finalPayload) {
+      throw new ApiError(500, { error: "Stream ended without a result" });
+    }
+    return finalPayload;
+  }
+
   importHtmlEmail(input: HtmlImportRequest): Promise<{ result: EmailScanResult }> {
     return this.request("/emails/import-html", {
       method: "POST",

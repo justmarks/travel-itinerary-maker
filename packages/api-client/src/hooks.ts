@@ -857,6 +857,43 @@ export function useScanEmails() {
   });
 }
 
+/**
+ * Streaming variant of `useScanEmails`. Same input + result shape as
+ * the non-streaming mutation, but takes progress callbacks so the UI
+ * can render "Found N", "Parsing 12 of 89: Subject…" while the
+ * server works through the mailbox. Callbacks fire on the React
+ * event loop, so it's safe to call `setState` directly from them.
+ */
+export function useStreamingScanEmails() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      input?: EmailScanRequest;
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (
+        parsed: number,
+        total: number,
+        current?: { subject: string; from: string },
+      ) => void;
+      signal?: AbortSignal;
+    }) =>
+      client.streamScanEmails(
+        vars.input,
+        {
+          onFound: vars.onFound,
+          onPlan: vars.onPlan,
+          onProgress: vars.onProgress,
+        },
+        vars.signal,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
 export function useImportHtmlEmail() {
   const client = useApiClient();
   const queryClient = useQueryClient();
