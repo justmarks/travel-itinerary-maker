@@ -186,6 +186,15 @@ export function ConnectedServicesPanel(): React.JSX.Element {
           access_type: "offline",
           prompt: "consent",
         };
+      } else if (provider === "azure") {
+        // Force Microsoft to show the account picker rather than
+        // silently signing in with whichever account is currently
+        // active in the browser. Without this, users with multiple
+        // Microsoft accounts (work + personal) can't choose which
+        // one to link.
+        oauthOptions.queryParams = {
+          prompt: "select_account",
+        };
       }
       const { error } = alreadyLinked
         ? await supabaseClient.auth.signInWithOAuth({

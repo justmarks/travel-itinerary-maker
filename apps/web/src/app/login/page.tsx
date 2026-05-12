@@ -141,6 +141,16 @@ export default function LoginPage(): React.JSX.Element {
                   // explicit Connect buttons on /settings/account so
                   // we don't ask for permissions until the user has
                   // signalled they want the feature.
+                  //
+                  // `prompt=select_account` forces Google to show the
+                  // account picker rather than auto-signing in with
+                  // whichever account is currently active in the
+                  // browser. Users with multiple Google accounts
+                  // otherwise have no way to choose between them on
+                  // the sign-in screen.
+                  queryParams: {
+                    prompt: "select_account",
+                  },
                 },
               });
               if (error) throw error;
@@ -208,6 +218,15 @@ export default function LoginPage(): React.JSX.Element {
                   // those scope grants so we never ask for permissions
                   // until the user has signalled they want the feature.
                   scopes: "openid email profile offline_access User.Read",
+                  // `prompt=select_account` forces Microsoft to show
+                  // the account picker rather than silently signing
+                  // the user in with whichever account is currently
+                  // active in the browser. Users with multiple work /
+                  // personal Microsoft accounts otherwise have no way
+                  // to choose between them on the sign-in screen.
+                  queryParams: {
+                    prompt: "select_account",
+                  },
                 },
               });
               if (error) throw error;
