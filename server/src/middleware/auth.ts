@@ -179,6 +179,18 @@ export function requireGmailAuth(tokenStore: TokenStore) {
       res.status(500).json({ error: "requireGmailAuth requires requireAuth" });
       return;
     }
+    // Phase 4c: Supabase-authed users keep their Gmail link in the
+    // `connections` table, NOT TokenStore. The route's connector
+    // resolver (resolveEmailConnector) refreshes from `connections`
+    // and constructs the right connector class. Pass through here
+    // so the resolver gets a chance — checking TokenStore for a
+    // Supabase user would always 403 with GMAIL_SCOPE_REQUIRED and
+    // the frontend would mis-route them to the legacy Connect
+    // Gmail UI even when they're correctly linked via the new flow.
+    if (req.authSource === "supabase") {
+      next();
+      return;
+    }
 
     const result = await tokenStore.getGmailAccessToken(req.userId);
     if ("error" in result) {
