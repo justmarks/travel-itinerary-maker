@@ -213,9 +213,17 @@ export function EmailScanDialog({
     setShowLowConfidence(false);
   }, []);
 
-  // When dialog opens, check for pending results
+  // When dialog opens, check for pending results and pick the initial
+  // step. Gate on `step === "loading"` so this only runs ONCE per
+  // dialog session — without it, the apply mutation invalidates the
+  // `pendingEmails` query, which retriggers this effect and slams the
+  // user back to "config" right after the apply succeeds. The done
+  // screen is supposed to persist until the user closes the dialog,
+  // at which point `reset()` flips step back to "loading" and we
+  // re-initialize fresh on the next open.
   useEffect(() => {
     if (!open) return;
+    if (step !== "loading") return;
 
     // No email provider linked — show the provider-agnostic
     // not-connected notice pointing at /settings/account.
@@ -233,7 +241,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, emailGranted, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, emailGranted, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(
