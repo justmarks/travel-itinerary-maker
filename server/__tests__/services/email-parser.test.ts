@@ -313,6 +313,43 @@ describe("EmailParser.parseEmail", () => {
     expect(result.segments).toHaveLength(0);
   });
 
+  it("silently skips placeholder-date items (TBD / non-ISO free-form)", async () => {
+    // Disney Cruise Line "Placeholder Reservation" emails return a
+    // cruise segment with date="TBD" — there's no embarkation date
+    // pinned yet. Pre-fix: these counted as invalid → email marked
+    // `failed` → retried on every subsequent scan, burning tokens.
+    // Now they drop silently so the email lands in `skipped` (no
+    // travel content) and stays out of the retry queue.
+    mockCreate.mockReturnValueOnce(
+      aiResponse(
+        JSON.stringify([
+          {
+            type: "cruise",
+            title: "Disney Cruise — Placeholder",
+            date: "TBD",
+            departureCity: "TBD",
+            arrivalCity: "TBD",
+            confidence: "high",
+          },
+          {
+            type: "cruise",
+            title: "Disney Cruise — Open Date",
+            date: "Spring 2027",
+            confidence: "high",
+          },
+        ]),
+      ),
+    );
+    const result = await parser.parseEmail({
+      subject: "Enchantment awaits.",
+      from: "DisneyCruiseLine@disney.com",
+      body: "Embark Date: TBD",
+    });
+    expect(result.invalidCount).toBe(0);
+    expect(result.rawItemCount).toBe(2);
+    expect(result.segments).toHaveLength(0);
+  });
+
   it("handles Claude output wrapped in a markdown code block", async () => {
     const segment = {
       type: "flight",
