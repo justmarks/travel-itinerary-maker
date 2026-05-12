@@ -302,11 +302,6 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 - [x] **Phase 7 polish — server-side deprecation watch** — Anthropic returns model-deprecation warnings via response headers (`anthropic-deprecation-warning` and the standard `Warning: 299 ...`). The parser now surfaces those to Sentry as `warning`-level events with the model tagged, deduped per-process so a deprecated model doesn't generate one event per parsed email. Default model bumped from `claude-sonnet-4-20250514` (the one Anthropic flagged) to `claude-sonnet-4-6`
 - [x] **Phase 8 — Google Calendar sync on mobile** — `MobileCalendarSyncSheet` reachable from the trip-detail overflow menu mirrors the desktop dropdown's four states (connect-Calendar prompt, calendar picker, synced-info with refresh / remove, and a delete-from-Google vs unlink choice). Shares the `useCalendarSync` hook with desktop so toast copy and behavior stay identical, and the menu label flips to "Calendar synced (N)" once any segment carries a `calendarEventId`
 
-**Remaining mobile work:**
-
-- [ ] **Segment reorder** — drag-to-reorder within a day. Desktop has it via the segment row; mobile needs a long-press-to-grab gesture or a dedicated reorder mode
-- [ ] **Suggest meals** dialog — the AI meal-suggestion flow that exists on desktop
-
 **Sharing:**
 
 A trip's owner can publish a read-only or contributor-edit link; recipients open it without signing in (view) or sign in to edit (contributor flow). Backed by a Redis-persisted share registry so links survive server restarts and Railway sleep cycles.
@@ -327,6 +322,7 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 - [ ] **Scheduled / auto email import** — opt-in background Gmail scan (e.g. nightly) that parses new confirmations and drops segments into the right trip with `needsReview: true`, so the inbox stays in sync without the user having to remember to run a scan
 - [ ] **Places to go** — per-trip list of points-of-interest (shops, museums, viewpoints, neighbourhoods) that aren't tied to a date or time and aren't a todo. Pinnable on the Map tab, groupable by city, and a candidate source for later "schedule this" actions that promote a place into a real segment
 - [ ] **Trip overview page** — at-a-glance summary tab: hero image, dates, destinations + flag row, total spend by category, segment counts by type, open todos, pending-review count, share status, and a compact "what's next" card. Becomes the default landing tab on a trip in place of jumping straight to day 1
+- [ ] **Notes** — a free-form markdown page per trip with a formatting toolbar (bold / italic / headings / lists / links). For the things that don't fit segments or todos — packing notes, restaurant shortlists, language phrases, confirmation numbers, "ask the hotel about X" — without leaving the trip for a separate app
 
 ## License
 
