@@ -17,7 +17,8 @@ import type {
   ParsedSegment,
   SegmentMatchStatus,
 } from "@travel-app/shared";
-import { NEW_TRIP_PREFIX, proposeNewTrips } from "@travel-app/shared";
+import { proposeNewTrips } from "@travel-app/shared";
+import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
   AlertCircle,
   Check,
@@ -638,43 +639,18 @@ function ScanBody({
     try {
       // Step 1: create any proposed new trips that the user kept
       // selected. We do this BEFORE the apply call so each segment
-      // can be sent with a real trip id. Sequential because
-      // `useCreateTrip` rejects overlapping trips for the same user
-      // — running them in parallel would race the overlap check.
-      const sentinelToRealId = new Map<string, string>();
-      const usedSentinels = new Set(
-        toApply
-          .map((it) => it.tripId)
-          .filter((id) => id.startsWith(NEW_TRIP_PREFIX)),
+      // can be sent with a real trip id. Shared with the desktop
+      // dialog via `resolveProposalSentinels` so both surfaces handle
+      // the subtle date-range expansion identically.
+      const sentinelToRealId = await resolveProposalSentinels(
+        toApply.map((it) => ({
+          tripId: it.tripId,
+          startDate: it.segment.date,
+          endDate: it.segment.endDate,
+        })),
+        proposals,
+        createTrip.mutateAsync,
       );
-      for (const sentinel of usedSentinels) {
-        const proposal = proposals.find((p) => p.id === sentinel);
-        if (!proposal) continue;
-        // Expand the proposal's date range to cover all segments the
-        // user assigned to it — they may have moved a segment into
-        // this proposal whose date falls outside the auto-clustered
-        // range. Apply would otherwise fail because the trip's days
-        // wouldn't include the segment's date.
-        const assigned = toApply.filter((it) => it.tripId === sentinel);
-        const dates = assigned.flatMap((it) => [
-          it.segment.date,
-          it.segment.endDate ?? it.segment.date,
-        ]);
-        const startDate = dates.reduce(
-          (a, b) => (a < b ? a : b),
-          proposal.startDate,
-        );
-        const endDate = dates.reduce(
-          (a, b) => (a > b ? a : b),
-          proposal.endDate,
-        );
-        const created = await createTrip.mutateAsync({
-          title: proposal.title,
-          startDate,
-          endDate,
-        });
-        sentinelToRealId.set(sentinel, created.id);
-      }
 
       // Step 2: apply the segments with sentinel ids swapped for real
       // trip ids.

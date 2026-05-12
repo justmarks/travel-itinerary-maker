@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type {
   EmailScanResult,
   ParsedSegment,
   SegmentMatchStatus,
   ApplyAction,
+  NewTripProposal,
 } from "@travel-app/shared";
+import { proposeNewTrips } from "@travel-app/shared";
+import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
   useStreamingScanEmails,
   useApplyParsedSegments,
@@ -34,7 +37,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Mail,
   Loader2,
@@ -43,7 +45,6 @@ import {
   MinusCircle,
   AlertCircle,
   Check,
-  X,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -162,12 +163,14 @@ export function EmailScanDialog({
     reason: ParseReportReason;
   } | null>(null);
 
-  // Inline new-trip creation
-  const [showNewTripForm, setShowNewTripForm] = useState(false);
-  const [newTripTitle, setNewTripTitle] = useState("");
-  const [newTripStart, setNewTripStart] = useState("");
-  const [newTripEnd, setNewTripEnd] = useState("");
-  const [creatingTrip, setCreatingTrip] = useState(false);
+  // Auto-clustered new-trip proposals (mirrors mobile). Each
+  // unassigned segment is bound to a proposal sentinel id of the form
+  // `__new__N` so the trip picker can show "Create Maui April 2026"
+  // alongside existing trips. Sentinels are resolved into real trip
+  // ids in `handleApply` via sequential `createTrip` mutations before
+  // the segments are applied. The user can also pick an existing trip
+  // from the dropdown, drop the proposal entirely.
+  const [proposals, setProposals] = useState<NewTripProposal[]>([]);
 
   const isDemo = useDemoMode();
   // Resolve the active email provider across both auth paths:
@@ -204,14 +207,10 @@ export function EmailScanDialog({
     setStep("loading");
     setResults([]);
     setSelections([]);
+    setProposals([]);
     setErrorMessage("");
     setAppliedCount(0);
     setShowLowConfidence(false);
-    setShowNewTripForm(false);
-    setNewTripTitle("");
-    setNewTripStart("");
-    setNewTripEnd("");
-    setCreatingTrip(false);
   }, []);
 
   // When dialog opens, check for pending results
@@ -247,6 +246,10 @@ export function EmailScanDialog({
           // Default selection: skip duplicates + low-confidence. User can opt in.
           const defaultSelected =
             matchStatus !== "duplicate" && seg.confidence !== "low";
+          // Per-trip scans (the dialog was opened from a specific trip)
+          // pre-bind every segment to that trip. Otherwise prefer the
+          // server's suggestedTripId; if neither, we leave it blank
+          // and let proposeNewTrips cluster it below.
           sels.push({
             ...seg,
             emailId: result.emailId,
@@ -257,63 +260,48 @@ export function EmailScanDialog({
           });
         }
       }
+
+      // Per-trip scans never propose new trips — the user is targeting
+      // a specific existing one, so unassigned segments either belong
+      // there or get skipped. (Mirrors mobile's buildReviewItems.)
+      if (tripId) {
+        setSelections(sels);
+        setProposals([]);
+        return;
+      }
+
+      // Cluster items that still have no trip into proposed new trips
+      // by date-gap. Each proposal carries a sentinel id of the form
+      // `__new__N`; we bind those ids onto the unassigned selections
+      // so the picker defaults to "Create <proposal title>".
+      const unassigned = sels
+        .map((s, idx) => ({ idx, seg: s }))
+        .filter(({ seg }) => !seg.assignedTripId);
+      const next = proposeNewTrips(
+        unassigned.map(({ idx, seg }) => ({
+          key: String(idx),
+          segment: seg,
+        })),
+      );
+      for (const proposal of next) {
+        for (const key of proposal.segmentKeys) {
+          const idx = parseInt(key, 10);
+          if (Number.isNaN(idx)) continue;
+          sels[idx].assignedTripId = proposal.id;
+        }
+      }
       setSelections(sels);
+      setProposals(next);
     },
     [tripId],
   );
 
-  // Compute date range from ALL scanned segments for new trip defaults.
-  // Uses every segment regardless of selection or assignment — the goal is
-  // to suggest the full travel date span so the trip covers everything.
-  const scannedDateRange = useMemo(() => {
-    const dates = selections.map((s) => s.date).sort();
-    if (dates.length === 0) return null;
-    return { start: dates[0], end: dates[dates.length - 1] };
-  }, [selections]);
-
-  // Suggest a trip name from segment destinations + year
-  const suggestedTripName = useMemo(() => {
-    if (selections.length === 0) return "";
-    // Collect destination cities: prefer flight arrivalCity, then segment city
-    const cities: string[] = [];
-    for (const s of selections) {
-      if (s.type === "flight" && s.arrivalCity) {
-        cities.push(s.arrivalCity);
-      } else if (s.city) {
-        cities.push(s.city);
-      }
-    }
-    if (cities.length === 0) return "";
-    // Count occurrences and pick the most common destination
-    const counts = new Map<string, number>();
-    for (const c of cities) {
-      counts.set(c, (counts.get(c) || 0) + 1);
-    }
-    const topCity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    // Get year from the earliest segment date
-    const year = selections[0]?.date?.slice(0, 4) || "";
-    return year ? `${topCity} ${year}` : topCity;
-  }, [selections]);
-
-  // Check if any selected segment is unassigned (no trip match)
+  // True when a selected segment has no assigned trip AND isn't bound
+  // to one of the auto-clustered proposals. With proposeNewTrips
+  // pre-binding sentinels, the only way this is true is if the user
+  // explicitly cleared the trip picker on a segment — used as the
+  // "Apply is disabled" guard.
   const hasUnassignedSegments = selections.some((s) => s.selected && !s.assignedTripId);
-
-  // Auto-show the new trip form when there are unassigned segments and no existing trips match
-  useEffect(() => {
-    if (step === "results" && hasUnassignedSegments && !showNewTripForm) {
-      if (!trips || trips.length === 0) {
-        setShowNewTripForm(true);
-      }
-    }
-  }, [step, hasUnassignedSegments, trips]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-populate new trip name and dates from scanned segments
-  useEffect(() => {
-    if (!showNewTripForm) return;
-    if (!newTripTitle && suggestedTripName) setNewTripTitle(suggestedTripName);
-    if (!newTripStart && scannedDateRange) setNewTripStart(scannedDateRange.start);
-    if (!newTripEnd && scannedDateRange) setNewTripEnd(scannedDateRange.end);
-  }, [showNewTripForm, scannedDateRange, suggestedTripName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScan = async () => {
     setStep("scanning");
@@ -425,41 +413,6 @@ export function EmailScanDialog({
     );
   };
 
-  /** Create a new trip and auto-assign all unassigned segments within its date range */
-  const handleCreateTrip = async () => {
-    if (!newTripTitle || !newTripStart || !newTripEnd) return;
-
-    setCreatingTrip(true);
-    try {
-      const trip = await createTrip.mutateAsync({
-        title: newTripTitle,
-        startDate: newTripStart,
-        endDate: newTripEnd,
-      });
-
-      // Auto-assign all selected but unassigned segments whose dates fall in range
-      setSelections((prev) =>
-        prev.map((s) => {
-          if (s.selected && !s.assignedTripId && s.date >= newTripStart && s.date <= newTripEnd) {
-            return { ...s, assignedTripId: trip.id };
-          }
-          return s;
-        }),
-      );
-
-      setShowNewTripForm(false);
-      setNewTripTitle("");
-      setNewTripStart("");
-      setNewTripEnd("");
-    } catch (err) {
-      const message = describeError(err);
-      setErrorMessage(message);
-      toast.error("Couldn't create trip", { description: message });
-    } finally {
-      setCreatingTrip(false);
-    }
-  };
-
   const handleApply = async () => {
     const toApply = selections.filter((s) => s.selected && s.assignedTripId);
     if (!toApply.length) return;
@@ -467,6 +420,20 @@ export function EmailScanDialog({
     setStep("applying");
 
     try {
+      // Turn proposal sentinels (`__new__N`) into real trip ids by
+      // creating each used proposal. Shared with the mobile sheet via
+      // `resolveProposalSentinels` so both surfaces handle the subtle
+      // date-range expansion identically.
+      const sentinelToRealId = await resolveProposalSentinels(
+        toApply.map((s) => ({
+          tripId: s.assignedTripId,
+          startDate: s.date,
+          endDate: s.endDate,
+        })),
+        proposals,
+        createTrip.mutateAsync,
+      );
+
       const resolvedSegments = toApply.map((s) => ({
         type: s.type,
         title: s.title,
@@ -497,7 +464,7 @@ export function EmailScanDialog({
         contactName: s.contactName,
         cost: s.cost,
         confidence: s.confidence,
-        tripId: s.assignedTripId,
+        tripId: sentinelToRealId.get(s.assignedTripId) ?? s.assignedTripId,
         emailId: s.emailId,
         action: s.action,
         existingSegmentId:
@@ -922,88 +889,21 @@ export function EmailScanDialog({
 
                 {/* Scrollable content area */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  {/* New Trip Creation — inline at top when segments are unassigned */}
-                  {hasUnassignedSegments && !showNewTripForm && (
+                  {/* Auto-clustered new-trip proposals get surfaced in the
+                      per-segment trip picker as "Create <title>" options.
+                      A leftover unassigned segment (user manually
+                      cleared the picker) shows a warning banner so they
+                      can't miss it before tapping Apply. */}
+                  {hasUnassignedSegments && (
                     <div
                       className="mb-3 rounded-lg border p-2.5"
                       style={statusBadgeStyle("warn")}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs">
-                          Some segments don&apos;t match any trip.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 shrink-0 bg-card text-xs"
-                          onClick={() => setShowNewTripForm(true)}
-                        >
-                          <Plus className="mr-1 h-3 w-3" />
-                          Create Trip
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {showNewTripForm && (
-                    <div
-                      className="mb-3 rounded-lg border p-3 space-y-2"
-                      style={statusBadgeStyle("info")}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium flex items-center gap-1.5">
-                          <Plus className="h-4 w-4" />
-                          Create New Trip
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setShowNewTripForm(false)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      <Input
-                        value={newTripTitle}
-                        onChange={(e) => setNewTripTitle(e.target.value)}
-                        placeholder="Trip name (e.g. Hawaii 2026)"
-                        className="h-8 text-sm bg-background"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>Start date</label>
-                          <Input
-                            type="date"
-                            value={newTripStart}
-                            onChange={(e) => setNewTripStart(e.target.value)}
-                            className="h-8 text-sm bg-background"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>End date</label>
-                          <Input
-                            type="date"
-                            value={newTripEnd}
-                            onChange={(e) => setNewTripEnd(e.target.value)}
-                            className="h-8 text-sm bg-background"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="w-full h-8 text-xs"
-                        onClick={handleCreateTrip}
-                        disabled={creatingTrip || !newTripTitle || !newTripStart || !newTripEnd}
-                      >
-                        {creatingTrip ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        {creatingTrip ? "Creating..." : "Create & Assign Matching Segments"}
-                      </Button>
+                      <p className="text-xs">
+                        Some segments don&apos;t have a trip assigned. Pick one
+                        below or check the &quot;Create&quot; option in the
+                        trip dropdown.
+                      </p>
                     </div>
                   )}
 
@@ -1025,7 +925,7 @@ export function EmailScanDialog({
                             onToggle={toggleSelection}
                             onSetTrip={setTripForSegment}
                             onSetAction={setActionForSegment}
-                            onRequestNewTrip={() => setShowNewTripForm(true)}
+                            proposals={proposals}
                           />
                         );
                       })}
@@ -1064,7 +964,7 @@ export function EmailScanDialog({
                                 onToggle={toggleSelection}
                                 onSetTrip={setTripForSegment}
                                 onSetAction={setActionForSegment}
-                                onRequestNewTrip={() => setShowNewTripForm(true)}
+                                proposals={proposals}
                               />
                             );
                           })}
@@ -1205,19 +1105,19 @@ function SegmentCard({
   index,
   results,
   trips,
+  proposals,
   onToggle,
   onSetTrip,
   onSetAction,
-  onRequestNewTrip,
 }: {
   seg: SegmentSelection;
   index: number;
   results: EmailScanResult[];
   trips: Array<{ id: string; title: string; startDate: string }>;
+  proposals: NewTripProposal[];
   onToggle: (idx: number) => void;
   onSetTrip: (idx: number, tripId: string) => void;
   onSetAction: (idx: number, action: ApplyAction) => void;
-  onRequestNewTrip: () => void;
 }) {
   const email = results.find((r) => r.emailId === seg.emailId);
   const matchStatus: SegmentMatchStatus = seg.match?.status ?? "new";
@@ -1225,7 +1125,7 @@ function SegmentCard({
 
   const handleTripChange = (value: string) => {
     if (value === "__create_new__") {
-      onRequestNewTrip();
+      onSetTrip(index, "");
     } else {
       onSetTrip(index, value);
     }
@@ -1362,15 +1262,17 @@ function SegmentCard({
                       {t.title} ({t.startDate})
                     </SelectItem>
                   ))}
-                  <SelectItem value="__create_new__">
-                    <span
-                      className="flex items-center gap-1.5"
-                      style={{ color: "var(--status-info-fg)" }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Create new trip...
-                    </span>
-                  </SelectItem>
+                  {proposals.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span
+                        className="flex items-center gap-1.5"
+                        style={{ color: "var(--status-info-fg)" }}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Create {p.title} ({p.startDate})
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {!seg.assignedTripId && (
