@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import type { TripSummary } from "@travel-app/api-client";
@@ -189,6 +189,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
   const updateTrip = useUpdateTrip(trip.id);
   const [renaming, setRenaming] = useState(false);
   const [newTitle, setNewTitle] = useState(trip.title);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const tripHref = useDemoHref(`/trips/?id=${trip.id}`);
   const homeHref = useDemoHref("/");
 
@@ -249,6 +250,22 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     });
   };
 
+  // Radix's DropdownMenu restores focus to the trigger on close, which
+  // races with the input's `autoFocus` and wins. Re-focus on the next
+  // frame so the rename field is actually editable, and select the
+  // existing title so the user can replace it in one keystroke.
+  useEffect(() => {
+    if (!renaming) return;
+    // setTimeout(0) (not rAF) so this still runs when the tab is in the
+    // background — rAF is paused in hidden tabs. The 0ms delay defers
+    // past Radix's focus restoration on the dropdown trigger.
+    const id = window.setTimeout(() => {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [renaming]);
+
   const handleRename = () => {
     const trimmed = newTitle.trim();
     if (!trimmed) return;
@@ -307,7 +324,15 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent
+              align="end"
+              // Radix returns focus to the trigger button after the menu
+              // closes. For Rename that races with — and beats — our
+              // imperative focus on the input. Share and Delete both
+              // open dialogs that own their own focus, so suppressing
+              // restoration here is safe for every menu item.
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
               {canShare && (
                 <DropdownMenuItem onClick={() => setShareOpen(true)}>
                   <Share2 className="mr-2 h-4 w-4" />
@@ -358,10 +383,10 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
           }}
         >
           <Input
+            ref={renameInputRef}
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             className="h-7 text-base font-semibold"
-            autoFocus
             onKeyDown={(e) => {
               if (e.key === "Escape") {
                 setNewTitle(trip.title);
