@@ -542,15 +542,15 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const connector = await resolvers.resolveEmailConnector(req);
-      if (!connector) {
+      const resolved = await resolvers.resolveEmailConnector(req);
+      if (!resolved) {
         res.status(401).json({
           error: "Email not connected",
           code: "EMAIL_NOT_CONNECTED",
         });
         return;
       }
-      const labels = await connector.listLabels();
+      const labels = await resolved.connector.listLabels();
 
       // Return user labels + useful system labels
       const useful = labels.filter(
@@ -678,15 +678,19 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       // Scan via the provider-agnostic resolver — picks Google or
       // Microsoft based on the user's `connections` (phase 4b-2),
       // with the legacy `req.gmailAccessToken` fallback for users
-      // still on the pre-Supabase auth path.
-      const connector = await resolvers.resolveEmailConnector(req);
-      if (!connector) {
+      // still on the pre-Supabase auth path. Capture the provider +
+      // account metadata so we can stamp each ProcessedEmail with
+      // it — helps observability + supports a future multi-mailbox
+      // picker.
+      const resolved = await resolvers.resolveEmailConnector(req);
+      if (!resolved) {
         res.status(401).json({
           error: "Email not connected",
           code: "EMAIL_NOT_CONNECTED",
         });
         return;
       }
+      const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
       const rawEmails = await connector.scanEmails({
         labelFilter,
@@ -921,6 +925,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
                 ? "failed"
                 : "skipped",
             rawParseResult: hasTravel ? scanResult : undefined,
+            provider: emailProvider,
+            accountEmail,
             createdAt: new Date().toISOString(),
           });
         } catch (err: unknown) {
@@ -1167,8 +1173,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
-      const connector = await resolvers.resolveEmailConnector(req);
-      if (!connector) {
+      const resolved = await resolvers.resolveEmailConnector(req);
+      if (!resolved) {
         emit("error", {
           status: 401,
           error: "Email not connected",
@@ -1176,6 +1182,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         });
         return;
       }
+      const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
       const rawEmails = await connector.scanEmails({
         labelFilter,
@@ -1373,6 +1380,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
                 ? "failed"
                 : "skipped",
             rawParseResult: hasTravel ? scanResult : undefined,
+            provider: emailProvider,
+            accountEmail,
             createdAt: new Date().toISOString(),
           });
         } catch (err: unknown) {

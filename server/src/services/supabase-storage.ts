@@ -292,6 +292,8 @@ export class SupabaseStorage implements StorageProvider {
       tripId: row.tripId ?? undefined,
       parseStatus: row.parseStatus as ProcessedEmail["parseStatus"],
       rawParseResult: row.parsedResult ?? undefined,
+      provider: (row.provider as "google" | "microsoft") ?? undefined,
+      accountEmail: row.accountEmail || undefined,
       createdAt: row.createdAt.toISOString(),
     }));
   }
@@ -314,6 +316,13 @@ export class SupabaseStorage implements StorageProvider {
           // stays straightforward.
           id: e.gmailMessageId,
           userId: this.userId,
+          // `provider` defaults to "google" at the column level, but
+          // we explicitly pass it so Microsoft scans get the right
+          // tag. `accountEmail` defaults to "" so legacy callers
+          // that don't carry it through still satisfy the NOT NULL
+          // column constraint.
+          provider: e.provider ?? "google",
+          accountEmail: e.accountEmail ?? "",
           messageId: e.gmailMessageId,
           threadId: e.gmailThreadId ?? null,
           subject: e.subject ?? null,

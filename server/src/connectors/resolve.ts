@@ -35,7 +35,10 @@ import { MicrosoftEmailConnector } from "./microsoft-email-connector";
 import type { CalendarConnector } from "./calendar-connector";
 import type { EmailConnector } from "./email-connector";
 import { getActiveAccessToken } from "../services/connections-token";
-import type { ConnectionsStore } from "../services/connections-store";
+import type {
+  ConnectionProvider,
+  ConnectionsStore,
+} from "../services/connections-store";
 
 export interface ConnectorResolverDeps {
   /**
@@ -47,9 +50,24 @@ export interface ConnectorResolverDeps {
   connectionsStore?: ConnectionsStore;
 }
 
+/**
+ * Resolved email-connector + the metadata the route handler may need
+ * to stamp on downstream records (which provider / which mailbox the
+ * scan ran against, for the `processed_emails` row).
+ */
+export interface ResolvedEmailConnector {
+  connector: EmailConnector;
+  provider: ConnectionProvider;
+  /** The email address of the mailbox this connector is bound to.
+   *  Empty string for the legacy Gmail path when we don't have the
+   *  account email plumbed yet — falls back to `req.userEmail` at
+   *  the call site. */
+  accountEmail: string;
+}
+
 export interface ConnectorResolvers {
   resolveCalendarConnector(req: Request): Promise<CalendarConnector | null>;
-  resolveEmailConnector(req: Request): Promise<EmailConnector | null>;
+  resolveEmailConnector(req: Request): Promise<ResolvedEmailConnector | null>;
 }
 
 export function createConnectorResolvers(
@@ -96,17 +114,37 @@ export function createConnectorResolvers(
           "microsoft",
           "email",
         );
-        if (ms) return new MicrosoftEmailConnector(ms.accessToken);
+        if (ms) {
+          return {
+            connector: new MicrosoftEmailConnector(ms.accessToken),
+            provider: "microsoft",
+            accountEmail: ms.connection.accountEmail,
+          };
+        }
         const google = await getActiveAccessToken(
           { store: deps.connectionsStore },
           req.userId,
           "google",
           "email",
         );
-        if (google) return new GoogleEmailConnector(google.accessToken);
+        if (google) {
+          return {
+            connector: new GoogleEmailConnector(google.accessToken),
+            provider: "google",
+            accountEmail: google.connection.accountEmail,
+          };
+        }
         return null;
       }
-      return new GoogleEmailConnector(req.gmailAccessToken ?? "");
+      // Legacy Gmail path — no connections row, so we can only fill
+      // provider deterministically. `accountEmail` is best-effort:
+      // route handlers fall back to `req.userEmail` (the Supabase
+      // JWT's email claim) when needed.
+      return {
+        connector: new GoogleEmailConnector(req.gmailAccessToken ?? ""),
+        provider: "google",
+        accountEmail: req.userEmail ?? "",
+      };
     },
   };
 }
