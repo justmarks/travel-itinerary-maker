@@ -8,7 +8,8 @@ import type {
   ApplyAction,
   NewTripProposal,
 } from "@travel-app/shared";
-import { NEW_TRIP_PREFIX, proposeNewTrips } from "@travel-app/shared";
+import { proposeNewTrips } from "@travel-app/shared";
+import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
   useStreamingScanEmails,
   useApplyParsedSegments,
@@ -419,41 +420,19 @@ export function EmailScanDialog({
     setStep("applying");
 
     try {
-      // Step 1: turn proposal sentinels (`__new__N`) into real trip
-      // ids by creating each used proposal. Sequential because
-      // `useCreateTrip` rejects overlapping trips for the same user —
-      // running them in parallel would race the overlap check. We
-      // also expand each proposal's date range to cover every segment
-      // the user assigned to it (they may have moved a segment from
-      // one proposal into another that doesn't naturally span its
-      // date — apply would otherwise fail because the trip's days
-      // wouldn't include the segment's date). Mirrors mobile.
-      const sentinelToRealId = new Map<string, string>();
-      const usedSentinels = new Set(
-        toApply
-          .map((s) => s.assignedTripId)
-          .filter((id) => id.startsWith(NEW_TRIP_PREFIX)),
+      // Turn proposal sentinels (`__new__N`) into real trip ids by
+      // creating each used proposal. Shared with the mobile sheet via
+      // `resolveProposalSentinels` so both surfaces handle the subtle
+      // date-range expansion identically.
+      const sentinelToRealId = await resolveProposalSentinels(
+        toApply.map((s) => ({
+          tripId: s.assignedTripId,
+          startDate: s.date,
+          endDate: s.endDate,
+        })),
+        proposals,
+        createTrip.mutateAsync,
       );
-      for (const sentinel of usedSentinels) {
-        const proposal = proposals.find((p) => p.id === sentinel);
-        if (!proposal) continue;
-        const assigned = toApply.filter((s) => s.assignedTripId === sentinel);
-        const dates = assigned.flatMap((s) => [s.date, s.endDate ?? s.date]);
-        const startDate = dates.reduce(
-          (a, b) => (a < b ? a : b),
-          proposal.startDate,
-        );
-        const endDate = dates.reduce(
-          (a, b) => (a > b ? a : b),
-          proposal.endDate,
-        );
-        const created = await createTrip.mutateAsync({
-          title: proposal.title,
-          startDate,
-          endDate,
-        });
-        sentinelToRealId.set(sentinel, created.id);
-      }
 
       const resolvedSegments = toApply.map((s) => ({
         type: s.type,
