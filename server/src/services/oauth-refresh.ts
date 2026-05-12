@@ -144,20 +144,38 @@ export async function refreshMicrosoftToken(
     );
   }
 
-  const body = new URLSearchParams({
+  const params: Record<string, string> = {
     grant_type: "refresh_token",
     refresh_token: refreshToken,
     client_id: clientId,
     client_secret: clientSecret,
-    // `offline_access` must be present to receive a new refresh
-    // token in the response — otherwise we get a one-shot access
-    // token and the next refresh fails with `invalid_grant`. The
-    // login page already requests this scope at link time so it's
-    // on every stored connection.
-    scope: scopes.includes("offline_access")
+  };
+  // Only include the `scope` param when we have meaningful resource
+  // scopes to pass — empty or identity-only scope sets cause
+  // Microsoft to reject the refresh with `invalid_scope`. Omitting
+  // the param entirely tells Microsoft to use whatever scopes the
+  // refresh_token was originally issued with (the OAuth 2 RFC 6749
+  // default). This recovers gracefully when older connections rows
+  // were written without scope info; the row's refresh_token still
+  // carries the consent state.
+  //
+  // When we DO have resource scopes, ensure `offline_access` is in
+  // the set — otherwise Microsoft returns a one-shot access token
+  // with no rotated refresh token, and the next refresh would fail
+  // with `invalid_grant`.
+  const resourceScopes = scopes.filter(
+    (s) =>
+      s !== "openid" &&
+      s !== "email" &&
+      s !== "profile" &&
+      s !== "offline_access",
+  );
+  if (resourceScopes.length > 0) {
+    params.scope = scopes.includes("offline_access")
       ? scopes.join(" ")
-      : [...scopes, "offline_access"].join(" "),
-  });
+      : [...scopes, "offline_access"].join(" ");
+  }
+  const body = new URLSearchParams(params);
 
   const url = `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`;
   const res = await fetch(url, {

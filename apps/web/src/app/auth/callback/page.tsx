@@ -24,6 +24,15 @@ interface PendingConnection {
   capability: "email" | "calendar";
   /** Where to land the user after the callback. */
   returnTo?: string;
+  /**
+   * The scopes the Connect flow requested at OAuth time. Stored on
+   * the resulting `connections` row so the server's refresh helper
+   * can pass them back to the provider on token refresh —
+   * Microsoft v2 rejects refresh-with-empty-resource-scopes as
+   * invalid_scope. Optional for backwards compat with older
+   * Connect flows that didn't record scopes.
+   */
+  scopes?: string[];
 }
 
 const PENDING_CONNECTION_KEY = "pending-connection";
@@ -72,8 +81,9 @@ async function postConnection(
   capability: ConnectionCapability,
   normalisedProvider: "google" | "microsoft",
   email: string,
+  scopes?: string[],
 ): Promise<{ ok: boolean; message?: string }> {
-  const body = {
+  const body: Record<string, unknown> = {
     provider: normalisedProvider,
     capability,
     accountEmail: email,
@@ -86,6 +96,15 @@ async function postConnection(
     accessToken: session.provider_token ?? undefined,
     refreshToken: session.provider_refresh_token ?? undefined,
   };
+  // Record the scopes the OAuth flow requested. The server's
+  // Microsoft refresh helper passes these back to the v2 token
+  // endpoint — without them, Microsoft rejects refresh with
+  // `invalid_scope` for connections that only have identity scopes
+  // stored. Omitted for the identity capability and any flow that
+  // doesn't pass them explicitly.
+  if (scopes && scopes.length > 0) {
+    body.scopes = scopes;
+  }
   try {
     const res = await fetch(`${API_BASE_URL}/connections`, {
       method: "POST",
@@ -166,6 +185,7 @@ async function syncConnections(
       pending.capability,
       normalisedProvider,
       email,
+      pending.scopes,
     );
     return {
       returnTo: pending.returnTo ?? null,

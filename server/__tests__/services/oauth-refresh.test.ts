@@ -200,6 +200,41 @@ describe("refreshMicrosoftToken", () => {
     expect(scopes.filter((s) => s === "offline_access")).toHaveLength(1);
   });
 
+  it("omits the scope param entirely when stored scopes are empty", async () => {
+    fetchMock.mockResolvedValueOnce(
+      makeJsonResponse(200, { access_token: "ms-access-empty", expires_in: 3600 }),
+    );
+
+    await refreshMicrosoftToken("ms-rt", []);
+
+    const form = parseFormBody(fetchMock.mock.calls[0][1]);
+    expect(form.get("scope")).toBeNull();
+    expect(form.get("grant_type")).toBe("refresh_token");
+    expect(form.get("refresh_token")).toBe("ms-rt");
+  });
+
+  it("omits the scope param when only identity scopes are stored", async () => {
+    // Identity-only scopes (openid/email/profile/offline_access)
+    // can't refresh on their own — Microsoft rejects with
+    // invalid_scope. Omitting tells Microsoft to use whatever was
+    // originally consented to, which is what we want for older
+    // connections rows written before we started recording the
+    // full requested scope set.
+    fetchMock.mockResolvedValueOnce(
+      makeJsonResponse(200, { access_token: "ms-access-identity", expires_in: 3600 }),
+    );
+
+    await refreshMicrosoftToken("ms-rt", [
+      "openid",
+      "email",
+      "profile",
+      "offline_access",
+    ]);
+
+    const form = parseFormBody(fetchMock.mock.calls[0][1]);
+    expect(form.get("scope")).toBeNull();
+  });
+
   it("throws OAuthRefreshError on Microsoft AADSTS error", async () => {
     fetchMock.mockResolvedValueOnce(
       makeJsonResponse(400, {
