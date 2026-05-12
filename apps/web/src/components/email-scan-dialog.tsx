@@ -63,6 +63,7 @@ import {
   indentedLabel,
 } from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 
 // Each badge maps to a `--status-*` token trio. Pulling the colors
 // from the design system rather than hand-rolling Tailwind 50/700
@@ -123,6 +124,7 @@ interface SegmentSelection extends ParsedSegment {
 type ScanStep =
   | "loading"
   | "needs-scope"
+  | "not-connected"
   | "config"
   | "scanning"
   | "results"
@@ -347,6 +349,14 @@ export function EmailScanDialog({
         // connect step we use for first-time links — it'll re-run the
         // Gmail OAuth flow.
         setStep("needs-scope");
+        return;
+      } else if (status === 401 && body?.code === "EMAIL_NOT_CONNECTED") {
+        // Phase 4b-2 returns this for Supabase-authed users with no
+        // email connection. Different from GMAIL_SCOPE_REQUIRED
+        // (which is the legacy Gmail-token-revoked case): the user
+        // might want to connect Gmail OR Outlook, so route them to
+        // /settings/account instead of forcing the Gmail flow.
+        setStep("not-connected");
         return;
       } else if (status === 503 && body?.code === "ANTHROPIC_OVERLOADED") {
         setErrorMessage(
@@ -647,6 +657,20 @@ export function EmailScanDialog({
                 </DialogFooter>
               </>
             )}
+          </>
+        )}
+
+        {/* ── Step: Not connected (Supabase user with no email link) ── */}
+        {step === "not-connected" && (
+          <>
+            <div className="flex flex-1 flex-col gap-3 py-2">
+              <NotConnectedNotice capability="email" />
+            </div>
+            <DialogFooter className="flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
           </>
         )}
 

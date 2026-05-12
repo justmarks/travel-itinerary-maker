@@ -38,6 +38,7 @@ import {
   indentedLabel,
 } from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 import { cn } from "@/lib/utils";
 import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
@@ -63,6 +64,7 @@ import { MobileBottomSheet } from "./mobile-bottom-sheet";
 type Step =
   | "verifying"
   | "needs-scope"
+  | "not-connected"
   | "config"
   | "scanning"
   | "review"
@@ -361,17 +363,33 @@ function ScanBody({
   // review), surface them on next open instead of forcing a re-scan.
   useEffect(() => {
     if (step !== "verifying") return;
-    const isAuthError = (e: unknown): boolean => {
+    const isNotConnected = (e: unknown): boolean => {
       if (!(e instanceof ApiError)) return false;
       const body = e.body as { code?: string } | null;
+      return e.status === 401 && body?.code === "EMAIL_NOT_CONNECTED";
+    };
+    const isLegacyAuthError = (e: unknown): boolean => {
+      if (!(e instanceof ApiError)) return false;
+      const body = e.body as { code?: string } | null;
+      // GMAIL_SCOPE_REQUIRED is the legacy "Gmail link revoked"
+      // signal; 401/403 without our new EMAIL_NOT_CONNECTED code is
+      // some other auth failure that the legacy "Connect Gmail"
+      // flow can also fix.
       return (
-        e.status === 401 ||
         e.status === 403 ||
+        (e.status === 401 && body?.code !== "EMAIL_NOT_CONNECTED") ||
         body?.code === "GMAIL_SCOPE_REQUIRED"
       );
     };
-    // Auth error wins immediately — bounce before showing anything.
-    if (isAuthError(labelsError) || isAuthError(pendingError)) {
+    // Auth error wins immediately — route to the right "Connect"
+    // surface. The new code path (Supabase users with no link) goes
+    // to the provider-agnostic not-connected step; everything else
+    // keeps using the existing Gmail-only needs-scope step.
+    if (isNotConnected(labelsError) || isNotConnected(pendingError)) {
+      setStep("not-connected");
+      return;
+    }
+    if (isLegacyAuthError(labelsError) || isLegacyAuthError(pendingError)) {
       setStep("needs-scope");
       return;
     }
@@ -405,7 +423,12 @@ function ScanBody({
   // promoted past `verifying` (rare — usually a stale cache that
   // refetches and now errors), still bounce. Same predicate.
   useEffect(() => {
-    if (step === "verifying" || step === "needs-scope") return;
+    if (
+      step === "verifying" ||
+      step === "needs-scope" ||
+      step === "not-connected"
+    )
+      return;
     const isAuthError = (e: unknown): boolean => {
       if (!(e instanceof ApiError)) return false;
       const body = e.body as { code?: string } | null;
@@ -700,6 +723,17 @@ function ScanBody({
           <p className="text-sm text-muted-foreground">
             Checking Gmail connection…
           </p>
+        </div>
+      </>
+    );
+  }
+
+  if (step === "not-connected") {
+    return (
+      <>
+        <Header title="Scan emails" onClose={onClose} />
+        <div className="flex flex-1 flex-col px-4 py-6">
+          <NotConnectedNotice capability="email" variant="mobile" />
         </div>
       </>
     );

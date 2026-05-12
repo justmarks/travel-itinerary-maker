@@ -18,35 +18,64 @@ import { AlertCircle } from "lucide-react";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
-/**
- * Best-effort POST of the user's identity connection to the server.
- * Captures the provider tokens from the Supabase session so the
- * server can call Gmail / Calendar / Outlook on their behalf later
- * (phase 4 connectors). Identity-only sign-ins still create a row
- * with no refresh token — the row's presence is what tells the
- * server "this user has linked Google/Microsoft," even before any
- * mailbox or calendar scope is granted.
- *
- * Failure is non-fatal: the user is still authenticated via the
- * Supabase JWT, so we let them into the app and let the next
- * settings-page visit or feature-gate re-trigger the link.
- */
-async function syncIdentityConnection(session: Session): Promise<void> {
-  const provider = session.user.app_metadata?.provider;
-  // Supabase reports Microsoft as "azure"; normalise to our taxonomy.
-  const normalisedProvider =
-    provider === "azure"
-      ? "microsoft"
-      : provider === "google"
-        ? "google"
-        : null;
-  if (!normalisedProvider) return;
-  const email = session.user.email;
-  if (!email) return;
+type ConnectionCapability = "identity" | "email" | "calendar";
 
+interface PendingConnection {
+  capability: "email" | "calendar";
+  /** Where to land the user after the callback. */
+  returnTo?: string;
+}
+
+const PENDING_CONNECTION_KEY = "pending-connection";
+
+/**
+ * Sets a sessionStorage flag that the auth callback reads after the
+ * Supabase OAuth round-trip completes. The callback writes a
+ * `/api/v1/connections` row with the right `capability` based on
+ * the flag, so a single OAuth flow doubles as "sign in" + "grant
+ * email/calendar capability" — provider scope set is what determines
+ * what the resulting access token can do; the connection row just
+ * records that we have it.
+ *
+ * Exported so the settings page can mark a pending capability link
+ * right before calling `supabase.auth.signInWithOAuth(...)`.
+ */
+export function markPendingConnection(pending: PendingConnection): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(PENDING_CONNECTION_KEY, JSON.stringify(pending));
+  } catch {
+    // Storage disabled — the callback will just write an identity row
+    // and the capability will be missing. The settings page detects
+    // this on its next render and re-offers the Connect button.
+  }
+}
+
+function consumePendingConnection(): PendingConnection | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PENDING_CONNECTION_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PENDING_CONNECTION_KEY);
+    const parsed = JSON.parse(raw) as PendingConnection;
+    if (parsed.capability !== "email" && parsed.capability !== "calendar") {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+async function postConnection(
+  session: Session,
+  capability: ConnectionCapability,
+  normalisedProvider: "google" | "microsoft",
+  email: string,
+): Promise<{ ok: boolean; message?: string }> {
   const body = {
     provider: normalisedProvider,
-    capability: "identity" as const,
+    capability,
     accountEmail: email,
     // provider_token = the underlying Google/Microsoft access token.
     // Only present immediately post-sign-in; Supabase doesn't store
@@ -57,9 +86,8 @@ async function syncIdentityConnection(session: Session): Promise<void> {
     accessToken: session.provider_token ?? undefined,
     refreshToken: session.provider_refresh_token ?? undefined,
   };
-
   try {
-    await fetch(`${API_BASE_URL}/connections`, {
+    const res = await fetch(`${API_BASE_URL}/connections`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -67,15 +95,101 @@ async function syncIdentityConnection(session: Session): Promise<void> {
       },
       body: JSON.stringify(body),
     });
-  } catch {
-    // Best-effort; see function-level comment.
+    if (!res.ok) {
+      // Try to lift the server's error message off the body so the
+      // user sees something specific. Falls back to the status code
+      // when the response isn't JSON or doesn't have an `error`.
+      let message = `Request failed (${res.status})`;
+      try {
+        const parsed = (await res.json()) as { error?: string };
+        if (parsed.error) message = parsed.error;
+      } catch {
+        // Non-JSON response; keep the fallback message.
+      }
+      return { ok: false, message };
+    }
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      message:
+        err instanceof Error
+          ? err.message
+          : "Network error while saving the connection.",
+    };
   }
+}
+
+/**
+ * Best-effort POST of the user's connection rows to the server.
+ * Always writes an `identity` row (so the server knows the user
+ * has signed in via this provider). Additionally writes an
+ * `email` or `calendar` row when a pending-capability flag was set
+ * before sign-in (see `markPendingConnection`).
+ *
+ * Returns a `returnTo` URL when one was carried on the pending flag
+ * — the settings-page Connect buttons stash their own URL there so
+ * the user lands back where they came from after the OAuth dance.
+ */
+async function syncConnections(
+  session: Session,
+): Promise<{ returnTo: string | null; capabilityError: string | null }> {
+  const provider = session.user.app_metadata?.provider;
+  // Supabase reports Microsoft as "azure"; normalise to our taxonomy.
+  const normalisedProvider =
+    provider === "azure"
+      ? "microsoft"
+      : provider === "google"
+        ? "google"
+        : null;
+  if (!normalisedProvider) {
+    return { returnTo: null, capabilityError: null };
+  }
+  const email = session.user.email;
+  if (!email) return { returnTo: null, capabilityError: null };
+
+  // Identity-row failures are silent: the user is still authenticated
+  // via the Supabase JWT, the missing row is recoverable on the next
+  // sign-in or settings visit, and there's no actionable UX response
+  // we could offer here.
+  await postConnection(session, "identity", normalisedProvider, email);
+
+  const pending = consumePendingConnection();
+  if (!pending) {
+    return { returnTo: null, capabilityError: null };
+  }
+  // Capability-row failures (the user clicked Connect Outlook /
+  // Connect Gmail / etc.) are surfaced — the user did an explicit
+  // action and deserves feedback. The callback shows the error
+  // inline; settings won't show the new row, so re-trying from
+  // settings is the next step.
+  const capabilityResult = await postConnection(
+    session,
+    pending.capability,
+    normalisedProvider,
+    email,
+  );
+  return {
+    returnTo: pending.returnTo ?? null,
+    capabilityError: capabilityResult.ok ? null : capabilityResult.message ?? "Could not save connection",
+  };
 }
 
 export default function AuthCallbackPage(): React.JSX.Element {
   const router = useRouter();
   const { login, linkGmail } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  /**
+   * When the error came from a capability-link POST (the user
+   * clicked Connect Outlook / Gmail / etc.), they're already
+   * signed in — bouncing back to /login is the wrong UX. We carry
+   * a target settings URL so the recovery button takes them
+   * somewhere actionable.
+   */
+  const [errorCta, setErrorCta] = useState<{ label: string; href: string }>({
+    label: "Back to sign-in",
+    href: "/login",
+  });
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -138,8 +252,20 @@ export default function AuthCallbackPage(): React.JSX.Element {
           );
           return;
         }
-        await syncIdentityConnection(session);
-        router.replace("/");
+        const { returnTo, capabilityError } = await syncConnections(session);
+        if (capabilityError) {
+          // The user clicked Connect for a capability and the
+          // resulting `/connections` POST failed. Surface inline +
+          // route the recovery button to /settings/account so a
+          // re-try is a single click from here.
+          setError(capabilityError);
+          setErrorCta({
+            label: "Open Settings",
+            href: returnTo ?? "/settings/account",
+          });
+          return;
+        }
+        router.replace(returnTo ?? "/");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Sign-in failed.");
       }
@@ -210,8 +336,8 @@ export default function AuthCallbackPage(): React.JSX.Element {
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
-          <Button onClick={() => router.replace("/login")}>
-            Back to sign-in
+          <Button onClick={() => router.replace(errorCta.href)}>
+            {errorCta.label}
           </Button>
         </div>
       </main>

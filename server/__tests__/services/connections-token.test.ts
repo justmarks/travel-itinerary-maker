@@ -70,7 +70,7 @@ function mockStore(initial: Connection[]): jest.Mocked<ConnectionsStore> {
     upsert,
     findByKey: jest.fn(),
     getById: jest.fn(),
-    markRevoked: jest.fn(),
+    markRevoked: jest.fn().mockResolvedValue(true),
     hardDeleteForUser: jest.fn(),
   } as unknown as jest.Mocked<ConnectionsStore>;
 }
@@ -215,6 +215,54 @@ describe("getActiveAccessToken", () => {
     );
     expect(result).toBeNull();
     expect(store.upsert).not.toHaveBeenCalled();
+  });
+
+  it("marks the connection revoked on a permanent refresh failure", async () => {
+    const store = mockStore([
+      makeConnection({
+        expiresAt: new Date(Date.now() - 60 * 1000),
+      }),
+    ]);
+    mockRefreshGoogle.mockRejectedValueOnce(
+      new OAuthRefreshError(
+        "google",
+        400,
+        "invalid_grant",
+        "Token has been revoked.",
+      ),
+    );
+
+    await getActiveAccessToken({ store }, "user-1", "google", "calendar");
+
+    expect(store.markRevoked).toHaveBeenCalledWith("conn-1", "user-1");
+  });
+
+  it("does NOT mark revoked on transient failures (5xx)", async () => {
+    const store = mockStore([
+      makeConnection({
+        expiresAt: new Date(Date.now() - 60 * 1000),
+      }),
+    ]);
+    mockRefreshGoogle.mockRejectedValueOnce(
+      new OAuthRefreshError("google", 503, "service_unavailable", "Try again"),
+    );
+
+    await getActiveAccessToken({ store }, "user-1", "google", "calendar");
+
+    expect(store.markRevoked).not.toHaveBeenCalled();
+  });
+
+  it("does NOT mark revoked on network errors (not OAuthRefreshError)", async () => {
+    const store = mockStore([
+      makeConnection({
+        expiresAt: new Date(Date.now() - 60 * 1000),
+      }),
+    ]);
+    mockRefreshGoogle.mockRejectedValueOnce(new Error("network exploded"));
+
+    await getActiveAccessToken({ store }, "user-1", "google", "calendar");
+
+    expect(store.markRevoked).not.toHaveBeenCalled();
   });
 
   it("returns null when expired with no refresh token", async () => {
