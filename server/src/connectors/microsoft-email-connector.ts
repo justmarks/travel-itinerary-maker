@@ -174,12 +174,72 @@ function resolveFolderId(
 export class MicrosoftEmailConnector implements EmailConnector {
   constructor(private readonly accessToken: string) {}
 
+  /**
+   * Lists all mail folders in the user's mailbox, walking into
+   * `childFolders` so nested folders (`Inbox > Travel`, `Work > Trips`,
+   * etc.) show up alongside top-level ones. Graph's `/me/mailFolders`
+   * only returns the root level; without traversal, a folder filed
+   * under the Inbox is invisible to both the picker and the scan.
+   *
+   * Nested folders are returned with a slash-joined display name
+   * (`"Inbox/Travel"`) so:
+   *  - the picker renders the path so two folders named "Travel"
+   *    under different parents are distinguishable.
+   *  - the suffix-match in `resolveFolderId` keeps working when the
+   *    user (or a stored setting) passes just the leaf name.
+   *
+   * The traversal is breadth-first with each level fetched in parallel,
+   * since a typical mailbox has tens of folders and Graph's per-folder
+   * `childFolders` call is fast. Errors fetching one folder's children
+   * are logged and swallowed — one bad subtree shouldn't blank out
+   * the entire picker.
+   */
+  private async listAllFolders(): Promise<MsMailFolder[]> {
+    const result: MsMailFolder[] = [];
+    type QueueEntry = { id: string; pathPrefix: string };
+    let queue: QueueEntry[] = [{ id: "", pathPrefix: "" }];
+
+    while (queue.length > 0) {
+      const batch = queue;
+      queue = [];
+      const levels = await Promise.all(
+        batch.map(async ({ id, pathPrefix }) => {
+          // Empty id = the synthetic root entry we seeded the BFS with —
+          // hit `/me/mailFolders` for the top-level listing.
+          const path = id ? `/me/mailFolders/${id}/childFolders` : "/me/mailFolders";
+          let folders: MsMailFolder[];
+          try {
+            folders = await graphPaginate<MsMailFolder>(
+              this.accessToken,
+              path,
+              { query: { $select: "id,displayName", $top: "100" } },
+            );
+          } catch (err) {
+            // Don't fail the whole listing for one childFolders 404 etc.
+            console.warn(
+              `[MicrosoftEmailConnector] Failed to list folders at "${path}":`,
+              err,
+            );
+            return [] as QueueEntry[];
+          }
+          const nextLevel: QueueEntry[] = [];
+          for (const f of folders) {
+            const displayName = pathPrefix
+              ? `${pathPrefix}/${f.displayName}`
+              : f.displayName;
+            result.push({ id: f.id, displayName });
+            nextLevel.push({ id: f.id, pathPrefix: displayName });
+          }
+          return nextLevel;
+        }),
+      );
+      for (const next of levels) queue.push(...next);
+    }
+    return result;
+  }
+
   async listLabels(): Promise<EmailLabel[]> {
-    const folders = await graphPaginate<MsMailFolder>(
-      this.accessToken,
-      "/me/mailFolders",
-      { query: { $select: "id,displayName", $top: "100" } },
-    );
+    const folders = await this.listAllFolders();
     // We can't distinguish system vs user folders from the
     // /me/mailFolders listing alone (Graph's mailFolder resource
     // doesn't expose a wellKnownName field). Mark all as "user" —
@@ -216,11 +276,7 @@ export class MicrosoftEmailConnector implements EmailConnector {
     // matches that intent for Outlook.
     let path = "/me/mailFolders/inbox/messages";
     if (labelFilter) {
-      const folders = await graphPaginate<MsMailFolder>(
-        this.accessToken,
-        "/me/mailFolders",
-        { query: { $select: "id,displayName", $top: "100" } },
-      );
+      const folders = await this.listAllFolders();
       const folderId = resolveFolderId(labelFilter, folders);
       if (!folderId) {
         if (logPrefix) {

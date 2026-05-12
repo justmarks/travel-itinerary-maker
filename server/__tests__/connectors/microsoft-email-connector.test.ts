@@ -34,6 +34,22 @@ describe("MicrosoftEmailConnector", () => {
     global.fetch = fetchMock as unknown as typeof fetch;
   });
 
+  /**
+   * Queues fetch mocks for a top-level folder listing plus one
+   * empty-`childFolders` response per top-level folder. The connector's
+   * `listAllFolders` recursively walks `childFolders` so every test
+   * that exercises folder enumeration needs to satisfy the per-folder
+   * calls even when no nesting is intentionally exercised.
+   */
+  const mockTopLevelFoldersWithNoChildren = (
+    folders: Array<{ id: string; displayName: string }>,
+  ): void => {
+    fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: folders }));
+    for (const _ of folders) {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
+    }
+  };
+
   describe("listLabels", () => {
     it("returns all folders as type=user (Graph mailFolder lacks wellKnownName)", async () => {
       // Graph's mailFolder resource doesn't expose a wellKnownName
@@ -43,16 +59,12 @@ describe("MicrosoftEmailConnector", () => {
       // them all as "user." The well-known folders (Inbox, Drafts,
       // ...) still appear in the picker by their localised display
       // names; the user just doesn't see a "system" badge on them.
-      fetchMock.mockResolvedValueOnce(
-        makeJsonResponse(200, {
-          value: [
-            { id: "inbox-id", displayName: "Inbox" },
-            { id: "drafts-id", displayName: "Drafts" },
-            { id: "travel-id", displayName: "Travel" },
-            { id: "trips-id", displayName: "Trips" },
-          ],
-        }),
-      );
+      mockTopLevelFoldersWithNoChildren([
+        { id: "inbox-id", displayName: "Inbox" },
+        { id: "drafts-id", displayName: "Drafts" },
+        { id: "travel-id", displayName: "Travel" },
+        { id: "trips-id", displayName: "Trips" },
+      ]);
 
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       const labels = await conn.listLabels();
@@ -69,6 +81,68 @@ describe("MicrosoftEmailConnector", () => {
       expect(init?.headers).toMatchObject({
         Authorization: `Bearer ${ACCESS_TOKEN}`,
       });
+    });
+
+    it("walks childFolders so nested folders appear in the listing", async () => {
+      // The user's "Travel" folder under Inbox was invisible to the
+      // picker before — Graph's /me/mailFolders only returns the
+      // root level. Now we walk childFolders breadth-first so
+      // nested folders surface with their full path as the display
+      // name ("Inbox/Travel"), keeping leaves under different
+      // parents distinguishable.
+      fetchMock
+        // Top-level mailFolders listing.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [
+              { id: "inbox-id", displayName: "Inbox" },
+              { id: "archive-id", displayName: "Archive" },
+            ],
+          }),
+        )
+        // childFolders(inbox-id) — Inbox has a nested Travel.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [{ id: "inbox-travel-id", displayName: "Travel" }],
+          }),
+        )
+        // childFolders(archive-id) — none.
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        // childFolders(inbox-travel-id) — leaf, no kids.
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
+
+      const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
+      const labels = await conn.listLabels();
+
+      expect(labels).toEqual([
+        { id: "inbox-id", name: "Inbox", type: "user" },
+        { id: "archive-id", name: "Archive", type: "user" },
+        { id: "inbox-travel-id", name: "Inbox/Travel", type: "user" },
+      ]);
+    });
+
+    it("keeps listing even when one childFolders call fails", async () => {
+      // One bad subtree shouldn't blank out the entire picker — the
+      // connector swallows childFolders errors and continues. Useful
+      // because Graph occasionally 5xx's on rarely-accessed folders
+      // (Recoverable Items, etc.) and a flaky failure shouldn't
+      // prevent the user from scanning their actual inbox.
+      fetchMock
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [
+              { id: "inbox-id", displayName: "Inbox" },
+              { id: "junk-id", displayName: "Junk" },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        .mockResolvedValueOnce(makeJsonResponse(500, { error: "transient" }));
+
+      const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
+      const labels = await conn.listLabels();
+
+      expect(labels.map((l) => l.name)).toEqual(["Inbox", "Junk"]);
     });
   });
 
@@ -157,71 +231,85 @@ describe("MicrosoftEmailConnector", () => {
     });
 
     it("scans inside a specific folder when labelFilter matches a well-known folder", async () => {
-      fetchMock
-        // First call: list folders to resolve the labelFilter.
-        .mockResolvedValueOnce(
-          makeJsonResponse(200, {
-            value: [
-              { id: "inbox-id", displayName: "Inbox", wellKnownName: "inbox" },
-              { id: "travel-id", displayName: "Travel" },
-            ],
-          }),
-        )
-        // Second call: the actual messages endpoint scoped to inbox.
-        .mockResolvedValueOnce(
-          makeJsonResponse(200, {
-            value: [
-              {
-                id: "msg-in",
-                subject: "Inbox msg",
-                bodyPreview: "Preview text",
-                from: { emailAddress: { address: "x@example.com" } },
-                receivedDateTime: "2026-06-10T08:00:00Z",
-              },
-            ],
-          }),
-        );
+      mockTopLevelFoldersWithNoChildren([
+        { id: "inbox-id", displayName: "Inbox" },
+        { id: "travel-id", displayName: "Travel" },
+      ]);
+      // Trailing call: the actual messages endpoint scoped to inbox.
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse(200, {
+          value: [
+            {
+              id: "msg-in",
+              subject: "Inbox msg",
+              bodyPreview: "Preview text",
+              from: { emailAddress: { address: "x@example.com" } },
+              receivedDateTime: "2026-06-10T08:00:00Z",
+            },
+          ],
+        }),
+      );
 
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       const emails = await conn.scanEmails({ labelFilter: "Inbox" });
       expect(emails).toHaveLength(1);
       expect(emails[0].id).toBe("msg-in");
 
-      const secondUrl = fetchMock.mock.calls[1][0].toString();
-      expect(secondUrl).toContain("/me/mailFolders/inbox/messages");
+      const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
+      expect(lastUrl).toContain("/me/mailFolders/inbox/messages");
     });
 
     it("scans inside a user folder by display name", async () => {
+      mockTopLevelFoldersWithNoChildren([
+        { id: "inbox-id", displayName: "Inbox" },
+        { id: "travel-id-abc", displayName: "Travel" },
+      ]);
+      fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
+
+      const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
+      await conn.scanEmails({ labelFilter: "Travel" });
+      const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
+      expect(lastUrl).toContain("/me/mailFolders/travel-id-abc/messages");
+    });
+
+    it("scans inside a nested folder when labelFilter matches a path leaf", async () => {
+      // Bug fix: user's "Travel" lived under "Inbox" — resolveFolderId
+      // suffix-matches "/travel" against the flattened "Inbox/Travel"
+      // display name so passing just "Travel" still routes to the
+      // right folder ID.
       fetchMock
         .mockResolvedValueOnce(
           makeJsonResponse(200, {
-            value: [
-              { id: "inbox-id", displayName: "Inbox", wellKnownName: "inbox" },
-              { id: "travel-id-abc", displayName: "Travel" },
-            ],
+            value: [{ id: "inbox-id", displayName: "Inbox" }],
           }),
         )
+        // childFolders(inbox-id) — the nested Travel folder.
+        .mockResolvedValueOnce(
+          makeJsonResponse(200, {
+            value: [{ id: "nested-travel-id", displayName: "Travel" }],
+          }),
+        )
+        // childFolders(nested-travel-id) — leaf.
+        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }))
+        // The messages call we expect.
         .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
 
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       await conn.scanEmails({ labelFilter: "Travel" });
-      const secondUrl = fetchMock.mock.calls[1][0].toString();
-      expect(secondUrl).toContain("/me/mailFolders/travel-id-abc/messages");
+      const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
+      expect(lastUrl).toContain("/me/mailFolders/nested-travel-id/messages");
     });
 
     it("falls back to inbox when the labelFilter doesn't match anything", async () => {
-      fetchMock
-        .mockResolvedValueOnce(
-          makeJsonResponse(200, {
-            value: [{ id: "inbox-id", displayName: "Inbox", wellKnownName: "inbox" }],
-          }),
-        )
-        .mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
+      mockTopLevelFoldersWithNoChildren([
+        { id: "inbox-id", displayName: "Inbox" },
+      ]);
+      fetchMock.mockResolvedValueOnce(makeJsonResponse(200, { value: [] }));
 
       const conn = new MicrosoftEmailConnector(ACCESS_TOKEN);
       await conn.scanEmails({ labelFilter: "Nope" });
-      const secondUrl = fetchMock.mock.calls[1][0].toString();
-      expect(secondUrl).toContain("/me/mailFolders/inbox/messages");
+      const lastUrl = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0].toString();
+      expect(lastUrl).toContain("/me/mailFolders/inbox/messages");
     });
 
     it("handles missing from gracefully", async () => {
