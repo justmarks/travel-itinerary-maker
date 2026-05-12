@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { UserAvatar } from "@/components/user-avatar";
 import { ConnectedProvidersPanel } from "@/components/connected-providers-panel";
+import { ConnectedServicesPanel } from "@/components/connected-services-panel";
 
 export default function MobileAccountSettingsPage(): React.JSX.Element {
   return (
@@ -51,6 +52,10 @@ function MobileAccountSettingsBody(): React.JSX.Element | null {
         </section>
 
         <ConnectedProvidersPanel />
+
+        <div className="mt-8 border-t border-border pt-6">
+          <ConnectedServicesPanel />
+        </div>
       </div>
     </div>
   );
