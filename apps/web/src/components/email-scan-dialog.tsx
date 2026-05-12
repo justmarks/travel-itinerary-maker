@@ -708,7 +708,7 @@ export function EmailScanDialog({
                   </SelectTrigger>
                   <SelectContent position="popper">
                     <SelectItem value="__all__">
-                      All mail (no label filter)
+                      All mail (no {emailLabelNoun(activeEmailProvider)} filter)
                     </SelectItem>
                     {buildGmailLabelTree(labels ?? []).map((node) => (
                       <SelectItem key={node.label.id} value={node.label.name}>
@@ -777,7 +777,7 @@ export function EmailScanDialog({
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             <p className="font-medium">Scanning emails...</p>
             <p className="text-sm text-muted-foreground">
-              Searching Gmail and parsing with AI.
+              Searching {emailProviderLabel(activeEmailProvider)} and parsing with AI.
             </p>
           </div>
         )}

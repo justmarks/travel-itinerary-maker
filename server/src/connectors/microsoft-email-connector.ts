@@ -29,14 +29,35 @@ import type { RawEmail } from "../services/gmail-scanner";
 interface MsMailFolder {
   id: string;
   displayName: string;
-  /**
-   * Well-known folders (Inbox, Drafts, Sent, etc.) have a non-null
-   * `wellKnownName`. User-created folders return null/undefined here.
-   * We use the presence of this field to assign `type: "system" |
-   * "user"` in the `EmailLabel` mapping.
-   */
-  wellKnownName?: string | null;
 }
+
+/**
+ * Microsoft Graph's well-known mail-folder shortcut names. When the
+ * user passes one of these as a `labelFilter`, we route directly to
+ * `/me/mailFolders/<name>/messages` — Graph accepts these as URL
+ * path segments. For other folders, we look up the user-created
+ * folder by displayName.
+ *
+ * Microsoft Graph's `mailFolder` resource does NOT expose a
+ * `wellKnownName` property (despite what the docs / earlier beta
+ * APIs suggested), so we can't distinguish system vs user folders
+ * from a `/me/mailFolders` listing alone. Hard-coded list is
+ * accurate enough — these names don't change.
+ */
+const MS_WELL_KNOWN_FOLDER_NAMES = new Set([
+  "inbox",
+  "drafts",
+  "sentitems",
+  "deleteditems",
+  "outbox",
+  "junkemail",
+  "archive",
+  "scheduled",
+  "msgfolderroot",
+  "searchfolders",
+  "conversationhistory",
+  "recoverableitemsdeletions",
+]);
 
 interface MsMessageBody {
   contentType: "text" | "html";
@@ -131,12 +152,10 @@ function resolveFolderId(
   folders: MsMailFolder[],
 ): string | null {
   const lower = filter.trim().toLowerCase();
-  // Graph well-known folder names are case-insensitive and can be
-  // used directly in `/me/mailFolders/{name}/messages`.
-  const wellKnown = folders.find(
-    (f) => (f.wellKnownName ?? "").toLowerCase() === lower,
-  );
-  if (wellKnown) return wellKnown.wellKnownName ?? wellKnown.id;
+  // Graph well-known folder names work as direct URL segments.
+  if (MS_WELL_KNOWN_FOLDER_NAMES.has(lower)) {
+    return lower;
+  }
   // Match user folders by display name (case-insensitive). Suffix
   // match supports nested folders like `Work/Travel` finding `Travel`.
   const exact = folders.find((f) => f.displayName.toLowerCase() === lower);
@@ -159,12 +178,18 @@ export class MicrosoftEmailConnector implements EmailConnector {
     const folders = await graphPaginate<MsMailFolder>(
       this.accessToken,
       "/me/mailFolders",
-      { query: { $select: "id,displayName,wellKnownName", $top: "100" } },
+      { query: { $select: "id,displayName", $top: "100" } },
     );
+    // We can't distinguish system vs user folders from the
+    // /me/mailFolders listing alone (Graph's mailFolder resource
+    // doesn't expose a wellKnownName field). Mark all as "user" —
+    // the well-known folders (Inbox, Drafts, etc.) still appear in
+    // the list with their localised display names and the user
+    // picks whichever they want.
     return folders.map((f) => ({
       id: f.id,
       name: f.displayName,
-      type: f.wellKnownName ? "system" : "user",
+      type: "user" as const,
     }));
   }
 
@@ -183,12 +208,18 @@ export class MicrosoftEmailConnector implements EmailConnector {
       query.$filter = `receivedDateTime ge ${cutoff.toISOString()}`;
     }
 
-    let path = "/me/messages";
+    // Default to the Inbox folder when no filter is provided.
+    // `/me/messages` returns mail from ALL folders (Sent, Drafts,
+    // Deleted, Junk, ...) — almost never what a user wants when they
+    // click "scan emails." Gmail's default scope is similarly the
+    // INBOX label via the underlying label-filter resolver; this
+    // matches that intent for Outlook.
+    let path = "/me/mailFolders/inbox/messages";
     if (labelFilter) {
       const folders = await graphPaginate<MsMailFolder>(
         this.accessToken,
         "/me/mailFolders",
-        { query: { $select: "id,displayName,wellKnownName", $top: "100" } },
+        { query: { $select: "id,displayName", $top: "100" } },
       );
       const folderId = resolveFolderId(labelFilter, folders);
       if (!folderId) {

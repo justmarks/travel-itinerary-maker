@@ -258,7 +258,7 @@ export function ShareTripDialog({
     setError(null);
     setCreatedCopied(false);
     if (permission === "edit" && !trimmedEmail) {
-      setError("Add the contributor's Gmail address.");
+      setError("Add the contributor's email address.");
       return;
     }
     createShare.mutate(

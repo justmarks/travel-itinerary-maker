@@ -696,7 +696,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       });
 
       console.log(
-        `${scanPrefix} Gmail returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
       );
       if (rawEmails.length >= effectiveMaxResults) {
         console.warn(
@@ -795,7 +795,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const noTravelResults: EmailScanResult[] = []; // for UI display only
       const newProcessedEmails: ProcessedEmail[] = [];
 
-      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
+      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from mailbox, ${pendingResults.length} pending)`);
 
       for (const email of newEmails) {
         try {
