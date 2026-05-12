@@ -283,6 +283,76 @@ describe("getActiveAccessToken", () => {
     expect(mockRefreshGoogle).not.toHaveBeenCalled();
   });
 
+  it("falls back to identity row's refresh_token when capability row has none", async () => {
+    // Simulates the Supabase same-provider signInWithOAuth case
+    // where Microsoft returns the new access_token + scopes but no
+    // new refresh_token (because the existing identity refresh_token
+    // is still valid for the expanded consent). The capability row
+    // gets written without a refresh_token; we want to mint a Mail-
+    // Read-scoped access token using the identity's refresh_token.
+    const store = mockStore([
+      makeConnection({
+        id: "identity-row",
+        provider: "microsoft",
+        capability: "identity",
+        refreshToken: "rt-identity",
+        accessToken: "at-identity-old",
+        expiresAt: new Date(Date.now() - 60 * 1000),
+        scopes: ["openid", "email", "profile", "offline_access", "User.Read"],
+        updatedAt: new Date(Date.now() - 60 * 60 * 1000),
+      }),
+      makeConnection({
+        id: "email-row",
+        provider: "microsoft",
+        capability: "email",
+        refreshToken: undefined,
+        accessToken: undefined,
+        scopes: ["openid", "Mail.Read"],
+        updatedAt: new Date(),
+      }),
+    ]);
+    mockRefreshMicrosoft.mockResolvedValueOnce({
+      accessToken: "at-mail",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+
+    const result = await getActiveAccessToken(
+      { store },
+      "user-1",
+      "microsoft",
+      "email",
+    );
+
+    expect(result?.accessToken).toBe("at-mail");
+    expect(mockRefreshMicrosoft).toHaveBeenCalledWith(
+      "rt-identity",
+      ["openid", "Mail.Read"],
+    );
+  });
+
+  it("does NOT fall back to identity refresh_token for identity capability lookups", async () => {
+    // An identity-row lookup that's itself missing refresh_token
+    // doesn't have a fallback — would just loop on itself.
+    const store = mockStore([
+      makeConnection({
+        provider: "microsoft",
+        capability: "identity",
+        refreshToken: undefined,
+        accessToken: undefined,
+        expiresAt: new Date(Date.now() - 60 * 1000),
+      }),
+    ]);
+
+    const result = await getActiveAccessToken(
+      { store },
+      "user-1",
+      "microsoft",
+      "identity",
+    );
+    expect(result).toBeNull();
+    expect(mockRefreshMicrosoft).not.toHaveBeenCalled();
+  });
+
   it("picks the most-recently-updated connection when multiple exist", async () => {
     const older = makeConnection({
       id: "conn-old",
