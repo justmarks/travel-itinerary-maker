@@ -405,6 +405,37 @@ export class SupabaseStorage implements StorageProvider {
       .returning({ id: shareRulesTable.id });
     return result.length > 0;
   }
+
+  async deleteAllForUser(userId: string): Promise<void> {
+    // Defence in depth: the route already constructs storage scoped to
+    // `req.userId`, but reject a mismatch loudly so a future bug can't
+    // turn the account-deletion endpoint into a cross-user wipe.
+    if (userId !== this.userId) {
+      throw new Error(
+        `SupabaseStorage.deleteAllForUser: userId mismatch (got ${userId}, scoped to ${this.userId})`,
+      );
+    }
+    // One transaction so partial failure can't leave a half-wiped
+    // account behind. Deleting `trips` rows cascades to `segments`,
+    // `todos`, `trip_history`, and `trip_shares` via FK
+    // `onDelete: "cascade"`. `processed_emails.trip_id` is
+    // `onDelete: "set null"`, but we delete the user's processed-emails
+    // rows directly below so the cascade behaviour doesn't matter.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(tripsTable)
+        .where(eq(tripsTable.userId, this.userId));
+      await tx
+        .delete(shareRulesTable)
+        .where(eq(shareRulesTable.ownerUserId, this.userId));
+      await tx
+        .delete(processedEmailsTable)
+        .where(eq(processedEmailsTable.userId, this.userId));
+      await tx
+        .delete(settingsTable)
+        .where(eq(settingsTable.userId, this.userId));
+    });
+  }
 }
 
 // ---- row ↔ domain conversion ----

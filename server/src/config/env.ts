@@ -158,5 +158,18 @@ export const config = {
    */
   supabase: {
     url: process.env.SUPABASE_URL || "",
+    /**
+     * Service-role key for the Supabase Auth admin API. Distinct from
+     * the anon key shipped to the browser — this one bypasses RLS and
+     * grants admin access to GoTrue.
+     *
+     * Currently used only by the account-deletion endpoint
+     * (`DELETE /api/v1/account`) to wipe the Supabase Auth row after
+     * Postgres + provider tokens are cleaned up. Unset means the
+     * endpoint still returns 204 and wipes everything else; the Auth
+     * row stays behind for an operator to remove manually. Never
+     * expose this key to a browser bundle.
+     */
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   },
 };

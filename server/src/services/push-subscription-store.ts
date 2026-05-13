@@ -188,6 +188,26 @@ export class PushSubscriptionStore {
     this.byEmail.clear();
   }
 
+  /**
+   * Hard-delete every subscription for `userId` from both the in-memory
+   * index and the Postgres table. Used by the account-deletion route;
+   * irreversible.
+   */
+  async deleteAllForUser(userId: string): Promise<void> {
+    const list = this.byUser.get(userId);
+    if (list) {
+      for (const entry of list) {
+        this.unindexEmail(entry.email, entry.subscription.endpoint);
+      }
+      this.byUser.delete(userId);
+    }
+    if (this.db) {
+      await this.db
+        .delete(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId));
+    }
+  }
+
   private persistUpsert(entry: PushEntry): void {
     if (!this.db) return;
     // Endpoint is the PK; same browser re-registering updates the row.

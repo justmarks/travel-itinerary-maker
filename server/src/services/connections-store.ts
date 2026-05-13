@@ -213,7 +213,14 @@ export class ConnectionsStore {
     return result.length > 0;
   }
 
-  /** Hard delete — only for tests. Bypasses the soft-delete semantics. */
+  /**
+   * Hard delete every connection row for `userId`. Bypasses the
+   * soft-delete (`markRevoked`) semantics used by the per-row DELETE
+   * endpoint — the account-deletion route calls this to wipe the
+   * audit trail along with the row, since the user no longer exists.
+   * Also used by the integration test suite to reset state between
+   * cases.
+   */
   async hardDeleteForUser(userId: string): Promise<void> {
     await this.db.delete(connections).where(eq(connections.userId, userId));
   }

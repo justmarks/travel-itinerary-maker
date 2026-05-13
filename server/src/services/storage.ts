@@ -20,6 +20,20 @@ export interface StorageProvider {
   getShareRule(ruleId: string): Promise<TripShareRule | null>;
   saveShareRule(rule: TripShareRule): Promise<void>;
   deleteShareRule(ruleId: string): Promise<boolean>;
+  /**
+   * Hard-delete every row this provider knows about for `userId`.
+   * Irreversible. Used by the account-deletion endpoint.
+   *
+   * SupabaseStorage runs a single transaction that drops the user's
+   * trips (with FK cascades handling segments / todos / history /
+   * trip_shares), share rules, processed emails, and user settings.
+   * Connections + push subscriptions live outside StorageProvider, so
+   * the route also calls their dedicated deletion helpers.
+   *
+   * InMemoryStorage memory-mode is single-user by construction, so
+   * the impl just calls `clear()`.
+   */
+  deleteAllForUser(userId: string): Promise<void>;
 }
 
 /**
@@ -96,6 +110,14 @@ export class InMemoryStorage implements StorageProvider {
 
   async deleteShareRule(ruleId: string): Promise<boolean> {
     return this.shareRules.delete(ruleId);
+  }
+
+  async deleteAllForUser(_userId: string): Promise<void> {
+    // Memory mode has no per-user scoping — everything in this
+    // singleton belongs to the one (anonymous) caller. Mirror the
+    // existing `clear()` behaviour so calling the account-deletion
+    // endpoint in memory mode resets the store.
+    this.clear();
   }
 
   /** Reset all data (for testing) */

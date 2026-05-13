@@ -17,7 +17,12 @@ import { NotificationSender } from "./services/notification-sender";
 import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
 import { createConnectionsRoutes } from "./routes/connections";
+import { createAccountRoutes } from "./routes/account";
 import { ConnectionsStore } from "./services/connections-store";
+import {
+  createSupabaseAdmin,
+  type SupabaseAdmin,
+} from "./services/supabase-admin";
 import { createConnectorResolvers } from "./connectors/resolve";
 import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
@@ -74,6 +79,14 @@ export interface AppOptions {
    * needing real VAPID keys or a real push provider.
    */
   notificationSender?: NotificationSender;
+  /**
+   * Test override for the Supabase Auth admin client used by the
+   * account-deletion endpoint. Pass `null` to force the route to skip
+   * the Auth-row cleanup step; pass a stub to assert it's called.
+   * When unset, the app builds a real client from env when
+   * `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are both set.
+   */
+  supabaseAdmin?: SupabaseAdmin | null;
 }
 
 /**
@@ -93,7 +106,19 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     redisStore: redisStoreOverride,
     resolveOwnerStorage: resolveOwnerStorageOverride,
     notificationSender: notificationSenderOverride,
+    supabaseAdmin: supabaseAdminOverride,
   } = options;
+
+  // Real Supabase admin client (talks to GoTrue `/auth/v1/admin`)
+  // built from env, or null when the service-role key is unset.
+  // Tests pass `null` or a stub via `supabaseAdmin`.
+  const supabaseAdmin: SupabaseAdmin | null =
+    supabaseAdminOverride !== undefined
+      ? supabaseAdminOverride
+      : createSupabaseAdmin({
+          supabaseUrl: config.supabase.url,
+          serviceRoleKey: config.supabase.serviceRoleKey,
+        });
 
   // CORS allowlist combines a comma-separated literal list (CORS_ORIGIN)
   // with an optional regex pattern (CORS_ORIGIN_PATTERN) so Vercel
@@ -378,6 +403,34 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       "/api/v1/connections",
       requireAuth,
       createConnectionsRoutes({ store: connectionsStore }),
+    );
+  }
+
+  // Account hard-delete endpoint. Requires auth in postgres mode (so
+  // `req.userId` is set + the upstream-revoke + Auth-row deletion
+  // steps have something to act on). Memory mode wires the route
+  // anonymously so dev / tests can exercise the storage wipe path
+  // without needing a Supabase session.
+  if (requiresAuth) {
+    app.use(
+      "/api/v1/account",
+      requireAuth,
+      createAccountRoutes({
+        resolveStorage,
+        connectionsStore,
+        pushStore,
+        supabaseAdmin,
+      }),
+    );
+  } else {
+    app.use(
+      "/api/v1/account",
+      createAccountRoutes({
+        resolveStorage,
+        connectionsStore: undefined,
+        pushStore,
+        supabaseAdmin: null,
+      }),
     );
   }
 
