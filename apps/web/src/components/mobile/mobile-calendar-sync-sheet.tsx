@@ -69,7 +69,6 @@ function CalendarSyncBody({
     syncing,
     calendars,
     loadingCalendars,
-    calendarError,
     loadCalendars,
     sync,
     refresh,
@@ -197,17 +196,6 @@ function CalendarSyncBody({
                   );
                 })}
               </ul>
-            ) : calendarError ? (
-              <div
-                className="rounded-xl border p-3 text-sm"
-                style={{
-                  borderColor: "var(--status-danger-rail)",
-                  background: "var(--status-danger-bg)",
-                  color: "var(--status-danger-fg)",
-                }}
-              >
-                Couldn&apos;t load calendars: {calendarError}
-              </div>
             ) : (
               // Same reconnect CTA as desktop — an empty list almost
               // always means the connection can't authenticate.
