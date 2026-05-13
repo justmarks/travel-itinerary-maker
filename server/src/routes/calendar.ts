@@ -88,6 +88,13 @@ export function createCalendarRoutes(
    * Return the authenticated user's writable calendars from whichever
    * provider their session resolves to (Google today; Microsoft once
    * Phase 4b adds the `MicrosoftCalendarConnector`).
+   *
+   * Failures (Graph 401, Google scope revoked mid-session, network
+   * blip) come back as a structured `CALENDAR_LIST_FAILED` 502 with
+   * the provider's message instead of an unhandled 500. The frontend
+   * surfaces this inline so the user sees "Outlook rejected the
+   * request: …" rather than the misleading "No writable calendars
+   * found."
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
     const resolved = await resolvers.resolveCalendarConnector(req);

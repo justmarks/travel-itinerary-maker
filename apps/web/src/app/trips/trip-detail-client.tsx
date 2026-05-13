@@ -481,6 +481,7 @@ function TripActionsMenu({
     syncing,
     calendars,
     loadingCalendars,
+    calendarError,
     loadCalendars,
     sync,
     refresh,
@@ -607,6 +608,7 @@ function TripActionsMenu({
         unsync={unsync}
         calendars={calendars}
         loadingCalendars={loadingCalendars}
+        calendarError={calendarError}
         syncedCount={syncedCount}
         syncedCalendarName={syncedCalendarName}
         providerLabel={providerLabel}
@@ -768,6 +770,7 @@ function CalendarSyncDialogs({
   unsync,
   calendars,
   loadingCalendars,
+  calendarError,
   syncedCount,
   syncedCalendarName,
   providerLabel,
@@ -785,6 +788,7 @@ function CalendarSyncDialogs({
   unsync: (deleteEvents: boolean) => Promise<void>;
   calendars: Array<{ id: string; summary: string; primary: boolean }> | null;
   loadingCalendars: boolean;
+  calendarError: string | null;
   syncedCount: number;
   syncedCalendarName: string | undefined;
   providerLabel: string;
@@ -843,6 +847,17 @@ function CalendarSyncDialogs({
                 ))}
               </SelectContent>
             </Select>
+          ) : calendarError ? (
+            <div
+              className="rounded-md border p-3 text-sm"
+              style={{
+                borderColor: "var(--status-danger-rail)",
+                background: "var(--status-danger-bg)",
+                color: "var(--status-danger-fg)",
+              }}
+            >
+              Couldn&apos;t load calendars: {calendarError}
+            </div>
           ) : (
             // An empty calendar list almost always means the connection
             // can't authenticate against the provider — Google
