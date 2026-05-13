@@ -29,6 +29,21 @@ import { config } from "../config/env";
 import { requireGmailAuth } from "../middleware/auth";
 import type { TokenStore } from "../services/token-store";
 import type { RequestHandler } from "express";
+import type { ConnectionProvider } from "../services/connections-store";
+
+/**
+ * Parses an optional `?provider=google|microsoft` query param so the
+ * UI can pick which mailbox to scan when both providers are
+ * connected. Identical helper to the calendar route's version —
+ * kept inline rather than shared because the two route files have
+ * no other overlap. Unknown values resolve to undefined, preserving
+ * the default Microsoft-first auto-pick.
+ */
+function parseEmailProviderQuery(req: Request): ConnectionProvider | undefined {
+  const raw = req.query.provider;
+  if (raw === "google" || raw === "microsoft") return raw;
+  return undefined;
+}
 
 export interface EmailRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -542,7 +557,10 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const resolved = await resolvers.resolveEmailConnector(req);
+      const resolved = await resolvers.resolveEmailConnector(
+        req,
+        parseEmailProviderQuery(req),
+      );
       if (!resolved) {
         res.status(401).json({
           error: "Email not connected",
@@ -641,7 +659,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return;
       }
 
-      const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
+      const {
+        tripId,
+        labelFilter,
+        maxResults,
+        newerThanDays,
+        forceRescan,
+        provider: preferProvider,
+      } = parsed.data;
       const storage = getStorage(req);
       console.log(
         `${scanPrefix} Starting scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
@@ -682,7 +707,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       // account metadata so we can stamp each ProcessedEmail with
       // it — helps observability + supports a future multi-mailbox
       // picker.
-      const resolved = await resolvers.resolveEmailConnector(req);
+      const resolved = await resolvers.resolveEmailConnector(req, preferProvider);
       if (!resolved) {
         res.status(401).json({
           error: "Email not connected",
@@ -1144,7 +1169,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
     };
 
     try {
-      const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
+      const {
+        tripId,
+        labelFilter,
+        maxResults,
+        newerThanDays,
+        forceRescan,
+        provider: preferProvider,
+      } = parsed.data;
       const storage = getStorage(req);
       console.log(
         `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,

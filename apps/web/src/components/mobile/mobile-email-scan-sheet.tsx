@@ -34,8 +34,10 @@ import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import {
   useActiveEmailProvider,
+  useConnectedEmailProviders,
   emailLabelNoun,
   emailProviderLabel,
+  type EmailProvider,
 } from "@/lib/use-active-provider";
 import { useDemoMode } from "@/lib/demo";
 import {
@@ -279,9 +281,32 @@ function ScanBody({
   // rejected after first link.
   // ScanBody only renders when the parent sheet is open, so the hook
   // is always enabled in this context.
-  const { provider: activeEmailProvider, isLoading: providerLoading } =
+  const { provider: autoProvider, isLoading: providerLoading } =
     useActiveEmailProvider(true);
-  const emailGranted = isDemo || activeEmailProvider !== null;
+  const { providers: connectedEmailProviders } = useConnectedEmailProviders(true);
+  const emailGranted = isDemo || autoProvider !== null;
+
+  // Per-user mailbox picker — same shape as the desktop dialog. Stored
+  // choice survives session boundaries; falls back to the auto-pick if
+  // the provider is no longer connected.
+  const [selectedProvider, setSelectedProviderState] =
+    useState<EmailProvider | null>(() => {
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem("itinly:email-provider");
+      return raw === "google" || raw === "microsoft" ? raw : null;
+    });
+  const effectiveProvider: EmailProvider | null =
+    selectedProvider && connectedEmailProviders.includes(selectedProvider)
+      ? selectedProvider
+      : autoProvider;
+  const setSelectedProvider = (next: EmailProvider) => {
+    setSelectedProviderState(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("itinly:email-provider", next);
+    }
+  };
+  const activeEmailProvider = effectiveProvider;
+  const showProviderPicker = connectedEmailProviders.length > 1;
 
   const { data: trips = [], error: tripsError } = useTrips();
   // Don't fetch labels/folders or pending results until we've
@@ -291,7 +316,7 @@ function ScanBody({
     data: labels = [],
     error: labelsError,
     isLoading: labelsLoading,
-  } = useGmailLabels(emailGranted);
+  } = useGmailLabels(emailGranted, effectiveProvider ?? undefined);
   // Pending-results restoration: if a previous scan left results that
   // weren't applied (e.g. user closed the sheet mid-review), surface
   // them on next open instead of forcing a re-scan. The hook is gated
@@ -477,6 +502,7 @@ function ScanBody({
         input: {
           labelFilter: labelId || undefined,
           forceRescan: forceRescan || undefined,
+          provider: effectiveProvider ?? undefined,
         },
         onFound: (total) =>
           setScanProgress((p) => ({ ...p, foundTotal: total })),
@@ -1133,6 +1159,40 @@ function ScanBody({
           for travel confirmations and parse each one with Claude. Pick a{" "}
           {emailLabelNoun(activeEmailProvider)} below to narrow the search.
         </p>
+
+        {showProviderPicker && (
+          <div className="mt-4 space-y-1.5">
+            <p className="text-kicker font-medium text-muted-foreground">
+              Mailbox
+            </p>
+            <div
+              className="flex gap-2"
+              role="radiogroup"
+              aria-label="Mailbox account"
+            >
+              {connectedEmailProviders.map((p) => {
+                const active = effectiveProvider === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setSelectedProvider(p)}
+                    className={cn(
+                      "h-10 flex-1 rounded-full border text-sm font-medium transition-colors",
+                      active
+                        ? "border-foreground bg-foreground text-background"
+                        : "border-border bg-background text-foreground active:bg-muted/40",
+                    )}
+                  >
+                    {emailProviderLabel(p)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 space-y-1.5">
           <label

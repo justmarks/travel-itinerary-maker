@@ -394,15 +394,22 @@ export class ApiClient {
 
   // ─── Calendar Sync ──────────────────────────────────────
 
-  listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
-    return this.request("/trips/calendar/list");
+  listCalendars(
+    provider?: "google" | "microsoft",
+  ): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    const qs = provider ? `?provider=${provider}` : "";
+    return this.request(`/trips/calendar/list${qs}`);
   }
 
   syncCalendar(
     tripId: string,
     calendarId?: string,
+    provider?: "google" | "microsoft",
   ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
-    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    const params = new URLSearchParams();
+    if (calendarId) params.set("calendarId", calendarId);
+    if (provider) params.set("provider", provider);
+    const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "POST" });
   }
 
@@ -410,18 +417,23 @@ export class ApiClient {
     tripId: string,
     segmentId: string,
     calendarId?: string,
+    provider?: "google" | "microsoft",
   ): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
-    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    const params = new URLSearchParams();
+    if (calendarId) params.set("calendarId", calendarId);
+    if (provider) params.set("provider", provider);
+    const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/segments/${segmentId}/calendar/sync${qs}`, { method: "POST" });
   }
 
   unsyncCalendar(
     tripId: string,
-    opts?: { calendarId?: string; deleteEvents?: boolean },
+    opts?: { calendarId?: string; deleteEvents?: boolean; provider?: "google" | "microsoft" },
   ): Promise<{ removed: number; failed: number }> {
     const params = new URLSearchParams();
     if (opts?.calendarId) params.set("calendarId", opts.calendarId);
     if (opts?.deleteEvents === false) params.set("deleteEvents", "false");
+    if (opts?.provider) params.set("provider", opts.provider);
     const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "DELETE" });
   }
@@ -445,8 +457,9 @@ export class ApiClient {
 
   // ─── Email Scanning ─────────────────────────────────────
 
-  getGmailLabels(): Promise<GmailLabel[]> {
-    return this.request("/emails/labels");
+  getGmailLabels(provider?: "google" | "microsoft"): Promise<GmailLabel[]> {
+    const qs = provider ? `?provider=${provider}` : "";
+    return this.request(`/emails/labels${qs}`);
   }
 
   /**

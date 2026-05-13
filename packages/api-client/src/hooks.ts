@@ -822,11 +822,16 @@ export function usePendingEmails(enabled = true) {
   });
 }
 
-export function useGmailLabels(enabled = true) {
+export function useGmailLabels(
+  enabled = true,
+  provider?: "google" | "microsoft",
+) {
   const client = useApiClient();
   return useQuery({
-    queryKey: queryKeys.gmailLabels,
-    queryFn: () => client.getGmailLabels(),
+    queryKey: provider
+      ? [...queryKeys.gmailLabels, provider]
+      : queryKeys.gmailLabels,
+    queryFn: () => client.getGmailLabels(provider),
     enabled,
   });
 }

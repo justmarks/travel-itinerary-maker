@@ -118,6 +118,81 @@ export function useActiveCalendarProvider(
   }, [isDemo, legacyCalendarGranted, connectionsData, isLoading]);
 }
 
+interface ConnectedProvidersResult<TProvider> {
+  /**
+   * All providers the user has actively linked for this capability,
+   * Microsoft-first to match the server's auto-pick. Empty when none.
+   */
+  providers: TProvider[];
+  isLoading: boolean;
+}
+
+/**
+ * Lists every active calendar provider for the current user. Used by
+ * sync dialogs to decide whether to render the inline provider picker
+ * — show it when `providers.length > 1`.
+ */
+export function useConnectedCalendarProviders(
+  enabled = true,
+): ConnectedProvidersResult<CalendarProvider> {
+  const { hasScope, isAuthenticated } = useAuth();
+  const isDemo = useDemoMode();
+  const legacyCalendarGranted = hasScope(CALENDAR_SCOPE);
+  const { data, isLoading } = useConnections(
+    enabled && isAuthenticated && !isDemo,
+  );
+
+  return useMemo(() => {
+    if (isDemo) return { providers: ["google"], isLoading: false };
+    const set = new Set<CalendarProvider>();
+    if (data) {
+      for (const c of data.connections) {
+        if (c.capability === "calendar" && c.status === "active") {
+          set.add(c.provider);
+        }
+      }
+    }
+    if (legacyCalendarGranted) set.add("google");
+    // Microsoft-first ordering matches the server resolver.
+    const providers: CalendarProvider[] = [];
+    if (set.has("microsoft")) providers.push("microsoft");
+    if (set.has("google")) providers.push("google");
+    return { providers, isLoading };
+  }, [isDemo, legacyCalendarGranted, data, isLoading]);
+}
+
+/**
+ * Lists every active email provider for the current user. Used by
+ * scan dialogs to render the inline provider picker when both Gmail
+ * and Outlook are linked.
+ */
+export function useConnectedEmailProviders(
+  enabled = true,
+): ConnectedProvidersResult<EmailProvider> {
+  const { hasGmailLink, isAuthenticated } = useAuth();
+  const isDemo = useDemoMode();
+  const { data, isLoading } = useConnections(
+    enabled && isAuthenticated && !isDemo,
+  );
+
+  return useMemo(() => {
+    if (isDemo) return { providers: ["google"], isLoading: false };
+    const set = new Set<EmailProvider>();
+    if (data) {
+      for (const c of data.connections) {
+        if (c.capability === "email" && c.status === "active") {
+          set.add(c.provider);
+        }
+      }
+    }
+    if (hasGmailLink) set.add("google");
+    const providers: EmailProvider[] = [];
+    if (set.has("microsoft")) providers.push("microsoft");
+    if (set.has("google")) providers.push("google");
+    return { providers, isLoading };
+  }, [isDemo, hasGmailLink, data, isLoading]);
+}
+
 /**
  * Provider-aware label/folder copy. Gmail organises mail by labels;
  * Outlook by folders. Both expose the same `EmailLabel` API but the

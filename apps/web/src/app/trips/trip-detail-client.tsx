@@ -82,8 +82,8 @@ import { useDemoHref } from "@/lib/demo";
 import { describeError } from "@/lib/api-error";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {
-  useActiveCalendarProvider,
   calendarProviderLabel,
+  type CalendarProvider,
 } from "@/lib/use-active-provider";
 import { NotConnectedNotice } from "@/components/not-connected-notice";
 import { getTodayIso } from "@/lib/today";
@@ -485,9 +485,11 @@ function TripActionsMenu({
     sync,
     refresh,
     unsync,
+    connectedProviders,
+    selectedProvider,
+    setSelectedProvider,
   } = useCalendarSync(trip);
-  const { provider: calendarProvider } = useActiveCalendarProvider();
-  const providerLabel = calendarProviderLabel(calendarProvider);
+  const providerLabel = calendarProviderLabel(selectedProvider);
   const [calDialog, setCalDialog] = useState<"pick" | "info" | "scope" | null>(null);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
   const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
@@ -497,6 +499,11 @@ function TripActionsMenu({
     const cals = await loadCalendars();
     const primary = cals.find((c) => c.primary);
     setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+  };
+
+  const handleProviderChange = (next: CalendarProvider) => {
+    setSelectedProvider(next);
+    void refreshCalendarList();
   };
 
   const openCalendarDialog = () => {
@@ -610,6 +617,9 @@ function TripActionsMenu({
         syncedCount={syncedCount}
         syncedCalendarName={syncedCalendarName}
         providerLabel={providerLabel}
+        connectedProviders={connectedProviders}
+        selectedProvider={selectedProvider}
+        onProviderChange={handleProviderChange}
       />
     </>
   );
@@ -771,6 +781,9 @@ function CalendarSyncDialogs({
   syncedCount,
   syncedCalendarName,
   providerLabel,
+  connectedProviders,
+  selectedProvider,
+  onProviderChange,
 }: {
   dialog: "pick" | "info" | "scope" | null;
   setDialog: (d: "pick" | "info" | "scope" | null) => void;
@@ -788,7 +801,11 @@ function CalendarSyncDialogs({
   syncedCount: number;
   syncedCalendarName: string | undefined;
   providerLabel: string;
+  connectedProviders: CalendarProvider[];
+  selectedProvider: CalendarProvider | null;
+  onProviderChange: (next: CalendarProvider) => void;
 }) {
+  const showProviderPicker = connectedProviders.length > 1;
   const handleSync = async () => {
     setDialog(null);
     await sync(selectedCalendarId);
@@ -828,6 +845,27 @@ function CalendarSyncDialogs({
               Select the {providerLabel}{" "}to sync this trip&apos;s events to.
             </DialogDescription>
           </DialogHeader>
+          {showProviderPicker && (
+            <div className="space-y-2">
+              <p className="text-kicker text-muted-foreground">Account</p>
+              <div className="flex gap-2" role="radiogroup" aria-label="Calendar account">
+                {connectedProviders.map((p) => (
+                  <Button
+                    key={p}
+                    type="button"
+                    variant={selectedProvider === p ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1"
+                    role="radio"
+                    aria-checked={selectedProvider === p}
+                    onClick={() => onProviderChange(p)}
+                  >
+                    {calendarProviderLabel(p)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           {loadingCalendars ? (
             <p className="py-2 text-sm text-muted-foreground">Loading calendars…</p>
           ) : calendars && calendars.length > 0 ? (

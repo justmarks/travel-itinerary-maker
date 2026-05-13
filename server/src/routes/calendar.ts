@@ -5,6 +5,20 @@ import {
   createConnectorResolvers,
   type ConnectorResolvers,
 } from "../connectors/resolve";
+import type { ConnectionProvider } from "../services/connections-store";
+
+/**
+ * Parses an optional `?provider=google|microsoft` query param. Used
+ * by every calendar route to let the UI override the resolver's
+ * auto-pick when the user has both providers connected. Unknown /
+ * missing values resolve to undefined, which preserves the default
+ * Microsoft-first auto-pick.
+ */
+function parseProviderQuery(req: Request): ConnectionProvider | undefined {
+  const raw = req.query.provider;
+  if (raw === "google" || raw === "microsoft") return raw;
+  return undefined;
+}
 
 /**
  * Diagnostic hook fired only when Google returns 403 "insufficient
@@ -97,7 +111,7 @@ export function createCalendarRoutes(
    * found."
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const resolved = await resolvers.resolveCalendarConnector(req);
+    const resolved = await resolvers.resolveCalendarConnector(req, parseProviderQuery(req));
     if (!resolved) {
       console.warn(
         `[calendar-list] no calendar connector resolved for user=${req.userId} email=${req.userEmail}`,
@@ -163,7 +177,7 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const resolved = await resolvers.resolveCalendarConnector(req);
+    const resolved = await resolvers.resolveCalendarConnector(req, parseProviderQuery(req));
     if (!resolved) {
       notConnected(res);
       return;
@@ -221,7 +235,7 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const resolved = await resolvers.resolveCalendarConnector(req);
+    const resolved = await resolvers.resolveCalendarConnector(req, parseProviderQuery(req));
     if (!resolved) {
       notConnected(res);
       return;
@@ -266,7 +280,7 @@ export function createCalendarRoutes(
     let removed = 0;
     let failed = 0;
     if (deleteEvents) {
-      const resolved = await resolvers.resolveCalendarConnector(req);
+      const resolved = await resolvers.resolveCalendarConnector(req, parseProviderQuery(req));
       if (!resolved) {
         notConnected(res);
         return;
