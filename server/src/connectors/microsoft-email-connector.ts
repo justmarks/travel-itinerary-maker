@@ -18,13 +18,28 @@
  */
 
 import { htmlToText } from "../services/gmail-scanner";
-import { graphPaginate, graphRequest } from "../services/microsoft-graph";
+import { GraphError, graphPaginate, graphRequest } from "../services/microsoft-graph";
 import type {
   EmailConnector,
   EmailLabel,
   EmailScanOptions,
 } from "./email-connector";
 import type { RawEmail } from "../services/gmail-scanner";
+import { InvalidAuthError, isAuthFailureStatus } from "./errors";
+
+/**
+ * Rethrows native `GraphError` instances as `InvalidAuthError` when
+ * the status maps to an auth failure (401 / 403). Mirrors
+ * `gmailErrorStatus` + `rethrowAuthFailures` in the Gmail connector
+ * so both impls surface auth failures via the same provider-agnostic
+ * error class for route-level branching.
+ */
+function rethrowGraphAuthFailures(err: unknown): never {
+  if (err instanceof GraphError && isAuthFailureStatus(err.status)) {
+    throw new InvalidAuthError(err.status, err.message, err);
+  }
+  throw err;
+}
 
 interface MsMailFolder {
   id: string;
@@ -220,7 +235,14 @@ export class MicrosoftEmailConnector implements EmailConnector {
           { query: { $select: "id,displayName", $top: "100" } },
         );
       } catch (err) {
-        // Don't fail the whole listing for one childFolders 404 etc.
+        // Auth failures aren't transient — every subsequent fetch
+        // with this token will fail too. Propagate them so the
+        // route can prompt a re-link instead of silently returning
+        // an empty folder list. Other errors (404 on a deleted
+        // folder, transient 5xx, etc.) stay swallowed.
+        if (err instanceof GraphError && isAuthFailureStatus(err.status)) {
+          throw err;
+        }
         console.warn(
           `[MicrosoftEmailConnector] Failed to list folders at "${path}":`,
           err,
@@ -257,18 +279,22 @@ export class MicrosoftEmailConnector implements EmailConnector {
   }
 
   async listLabels(): Promise<EmailLabel[]> {
-    const folders = await this.listAllFolders();
-    // We can't distinguish system vs user folders from the
-    // /me/mailFolders listing alone (Graph's mailFolder resource
-    // doesn't expose a wellKnownName field). Mark all as "user" —
-    // the well-known folders (Inbox, Drafts, etc.) still appear in
-    // the list with their localised display names and the user
-    // picks whichever they want.
-    return folders.map((f) => ({
-      id: f.id,
-      name: f.displayName,
-      type: "user" as const,
-    }));
+    try {
+      const folders = await this.listAllFolders();
+      // We can't distinguish system vs user folders from the
+      // /me/mailFolders listing alone (Graph's mailFolder resource
+      // doesn't expose a wellKnownName field). Mark all as "user" —
+      // the well-known folders (Inbox, Drafts, etc.) still appear in
+      // the list with their localised display names and the user
+      // picks whichever they want.
+      return folders.map((f) => ({
+        id: f.id,
+        name: f.displayName,
+        type: "user" as const,
+      }));
+    } catch (err) {
+      rethrowGraphAuthFailures(err);
+    }
   }
 
   /**
@@ -300,6 +326,10 @@ export class MicrosoftEmailConnector implements EmailConnector {
       if (!inbox?.id) return [];
       inboxId = inbox.id;
     } catch (err) {
+      // Propagate auth failures (see `listAllFolders` for rationale).
+      if (err instanceof GraphError && isAuthFailureStatus(err.status)) {
+        throw err;
+      }
       console.warn(
         "[MicrosoftEmailConnector] Failed to resolve inbox folder:",
         err,
@@ -331,6 +361,10 @@ export class MicrosoftEmailConnector implements EmailConnector {
               queue.push(c.id);
             }
           } catch (err) {
+            // Propagate auth failures (see `listAllFolders` for rationale).
+            if (err instanceof GraphError && isAuthFailureStatus(err.status)) {
+              throw err;
+            }
             console.warn(
               `[MicrosoftEmailConnector] Failed to list childFolders of ${parentId}:`,
               err,
@@ -344,6 +378,14 @@ export class MicrosoftEmailConnector implements EmailConnector {
   }
 
   async scanEmails(options: EmailScanOptions = {}): Promise<RawEmail[]> {
+    try {
+      return await this.scanEmailsInner(options);
+    } catch (err) {
+      rethrowGraphAuthFailures(err);
+    }
+  }
+
+  private async scanEmailsInner(options: EmailScanOptions): Promise<RawEmail[]> {
     const { labelFilter, maxResults = 100, newerThanDays, logPrefix } = options;
     const top = String(Math.max(1, Math.min(maxResults, 500)));
 
@@ -424,6 +466,10 @@ export class MicrosoftEmailConnector implements EmailConnector {
           );
           if (res?.value) allMessages.push(...res.value);
         } catch (err) {
+          // Propagate auth failures (see `listAllFolders`).
+          if (err instanceof GraphError && isAuthFailureStatus(err.status)) {
+            throw err;
+          }
           console.warn(
             `[MicrosoftEmailConnector] Failed to list messages in folder ${id}:`,
             err,

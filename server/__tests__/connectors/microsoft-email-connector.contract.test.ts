@@ -44,6 +44,23 @@ function makeHarness(): EmailConnectorTestHarness {
   const fetchMock = jest.fn() as FetchMock;
   global.fetch = fetchMock as unknown as typeof fetch;
 
+  // Match-all 401 used by `stubAuthFailure`. Queued via
+  // `mockImplementation` after the per-scenario stubs are exhausted —
+  // for the auth-failure scenarios that means the FIRST fetch (any
+  // path) returns 401 because no other stubs are queued.
+  const queueAuthFailure = (): void => {
+    fetchMock.mockImplementationOnce(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            error: { code: "InvalidAuthenticationToken", message: "Access token has expired." },
+          }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+  };
+
   const connector = new MicrosoftEmailConnector("ms-graph-token");
 
   return {
@@ -85,6 +102,14 @@ function makeHarness(): EmailConnectorTestHarness {
           })),
         }),
       );
+    },
+    stubAuthFailure() {
+      // The very next Graph fetch (any path — top-level folders for
+      // listLabels, inbox lookup for scanEmails) returns 401, which
+      // `graphRequest` converts to a `GraphError` carrying status=401.
+      // The connector's catch boundary rethrows that as
+      // `InvalidAuthError` per Phase 4's typed-auth-error contract.
+      queueAuthFailure();
     },
   };
 }
