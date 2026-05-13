@@ -20,6 +20,7 @@
 
 import type { EmailConnector, EmailLabel } from "../../../src/connectors/email-connector";
 import type { RawEmail } from "../../../src/services/gmail-scanner";
+import { InvalidAuthError } from "../../../src/connectors/errors";
 
 export interface EmailConnectorTestHarness {
   connector: EmailConnector;
@@ -38,6 +39,16 @@ export interface EmailConnectorTestHarness {
    * options are passed.
    */
   stubScan: (emails: RawEmail[]) => void;
+  /**
+   * Configure the next provider call (whichever fires first) to fail
+   * with an HTTP 401 from the provider, so the contract can verify
+   * the connector rethrows it as the provider-agnostic
+   * `InvalidAuthError`. Implementations decide how to surface the
+   * 401 — Gmail rejects the mocked scanner method with a
+   * GaxiosError-shaped object (`{ code: 401 }`); Outlook queues a
+   * 401 fetch response.
+   */
+  stubAuthFailure: () => void;
 }
 
 /**
@@ -154,6 +165,43 @@ export function runEmailConnectorContractTests(
         await expect(
           harness.connector.scanEmails({ maxResults: 10, newerThanDays: 30 }),
         ).resolves.toEqual([]);
+      });
+    });
+
+    describe("auth failure", () => {
+      it("listLabels rethrows provider 401 as InvalidAuthError", async () => {
+        const harness = makeHarness();
+        harness.stubAuthFailure();
+
+        await expect(harness.connector.listLabels()).rejects.toBeInstanceOf(
+          InvalidAuthError,
+        );
+      });
+
+      it("scanEmails rethrows provider 401 as InvalidAuthError", async () => {
+        const harness = makeHarness();
+        harness.stubAuthFailure();
+
+        await expect(harness.connector.scanEmails()).rejects.toBeInstanceOf(
+          InvalidAuthError,
+        );
+      });
+
+      it("rethrown InvalidAuthError carries the provider's HTTP status", async () => {
+        const harness = makeHarness();
+        harness.stubAuthFailure();
+
+        try {
+          await harness.connector.listLabels();
+          throw new Error("expected listLabels to reject");
+        } catch (err) {
+          expect(err).toBeInstanceOf(InvalidAuthError);
+          // Status comes through unchanged so routes can branch on
+          // 401 vs 403 if they need to (e.g. emit different telemetry
+          // for "token expired" vs "scopes missing").
+          const status = (err as InvalidAuthError).status;
+          expect([401, 403]).toContain(status);
+        }
       });
     });
   });

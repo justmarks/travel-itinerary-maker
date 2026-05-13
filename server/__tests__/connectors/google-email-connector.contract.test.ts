@@ -59,6 +59,19 @@ function makeHarness(): EmailConnectorTestHarness {
     stubScan(emails: RawEmail[]) {
       mockScanEmails.mockResolvedValueOnce(emails);
     },
+    stubAuthFailure() {
+      // Gmail's `googleapis` surfaces auth failures as GaxiosError
+      // with `code` = HTTP status. The connector reads `code`
+      // first, so mocking the scanner method to reject with a
+      // `code: 401` object is the smallest faithful failure shape.
+      // Queue on BOTH methods so the contract's listLabels AND
+      // scanEmails scenarios each find their stubbed rejection.
+      const gaxiosLike = Object.assign(new Error("Invalid Credentials"), {
+        code: 401,
+      });
+      mockListLabels.mockRejectedValueOnce(gaxiosLike);
+      mockScanEmails.mockRejectedValueOnce(gaxiosLike);
+    },
   };
 }
 
