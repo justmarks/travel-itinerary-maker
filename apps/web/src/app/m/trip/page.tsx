@@ -9,8 +9,8 @@ import {
   useDeleteShare,
   useDeleteTrip,
   useTrip,
-} from "@travel-app/api-client";
-import type { Segment, Trip } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { Segment, Trip } from "@itinly/shared";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import {

@@ -5,8 +5,8 @@ import {
   formatFlightLabel,
   formatFlightEndpoint,
   convertToUsd,
-} from "@travel-app/shared";
-import type { Segment } from "@travel-app/shared";
+} from "@itinly/shared";
+import type { Segment } from "@itinly/shared";
 import {
   AlertCircle,
   Armchair,

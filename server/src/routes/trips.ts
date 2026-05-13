@@ -20,8 +20,8 @@ import {
   type Trip,
   type TripDay,
   type Segment,
-} from "@travel-app/shared";
-import type { SharePermission } from "@travel-app/shared";
+} from "@itinly/shared";
+import type { SharePermission } from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";
@@ -1400,7 +1400,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     async (req: Request, res: Response) => {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
-      const { tripToMarkdown } = await import("@travel-app/shared");
+      const { tripToMarkdown } = await import("@itinly/shared");
       const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
@@ -1425,7 +1425,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     async (req: Request, res: Response) => {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
-      const { tripToOneNoteHtml } = await import("@travel-app/shared");
+      const { tripToOneNoteHtml } = await import("@itinly/shared");
       const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
@@ -1451,7 +1451,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
       const [{ tripToIcal }, { resolveTripTimezones }] = await Promise.all([
-        import("@travel-app/shared"),
+        import("@itinly/shared"),
         import("../utils/timezone-lookup"),
       ]);
       const { trip } = access;

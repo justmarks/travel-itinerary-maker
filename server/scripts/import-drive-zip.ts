@@ -30,8 +30,8 @@
 
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { migrateTrip } from "@travel-app/shared";
-import type { Trip, UserSettings } from "@travel-app/shared";
+import { migrateTrip } from "@itinly/shared";
+import type { Trip, UserSettings } from "@itinly/shared";
 import { createDbClient } from "../src/db/client";
 import { SupabaseStorage } from "../src/services/supabase-storage";
 

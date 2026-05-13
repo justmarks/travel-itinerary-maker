@@ -15,7 +15,7 @@
  * useful to "someone with the link".
  */
 
-import { formatTripDateRange, type Trip, type TripShare } from "@travel-app/shared";
+import { formatTripDateRange, type Trip, type TripShare } from "@itinly/shared";
 import type { StorageProvider } from "./storage";
 import type { ShareActivityTracker, ShareActivityKind } from "./share-activity-tracker";
 import type { NotificationSender } from "./notification-sender";

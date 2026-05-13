@@ -27,7 +27,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import type { SharePermission } from "@travel-app/shared";
+import type { SharePermission } from "@itinly/shared";
 import type { Db, DbClient } from "../db/client";
 import { tripShares } from "../db/schema";
 

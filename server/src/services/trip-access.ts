@@ -20,7 +20,7 @@
  */
 
 import type { Request } from "express";
-import type { SharePermission, Trip } from "@travel-app/shared";
+import type { SharePermission, Trip } from "@itinly/shared";
 import type { ShareRegistry } from "./share-registry";
 import type { StorageProvider, StorageResolver } from "./storage";
 

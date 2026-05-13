@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCreateTrip } from "@travel-app/api-client";
-import { ApiError } from "@travel-app/api-client";
+import { useCreateTrip } from "@itinly/api-client";
+import { ApiError } from "@itinly/api-client";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";

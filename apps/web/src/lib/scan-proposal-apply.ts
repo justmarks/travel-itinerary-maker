@@ -12,7 +12,7 @@
  * one proposal into another) without forcing them to share state types.
  */
 
-import { NEW_TRIP_PREFIX, type NewTripProposal } from "@travel-app/shared";
+import { NEW_TRIP_PREFIX, type NewTripProposal } from "@itinly/shared";
 
 export interface ProposalApplyItem {
   /** Trip id this selection is currently bound to. May be a sentinel

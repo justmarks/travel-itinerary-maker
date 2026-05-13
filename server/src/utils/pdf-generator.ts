@@ -1,10 +1,10 @@
 import PDFDocument from "pdfkit";
-import type { Trip, Segment, CostSummaryItem } from "@travel-app/shared";
+import type { Trip, Segment, CostSummaryItem } from "@itinly/shared";
 import {
   formatCurrency,
   sumByCurrency,
   formatFlightLabel,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 interface PdfOptions {
   includeCosts?: boolean;

@@ -1,5 +1,5 @@
 {
-  "name": "@travel-app/api-client",
+  "name": "@itinly/api-client",
   "version": "0.1.0",
   "private": true,
   "main": "dist/index.js",
@@ -9,7 +9,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@travel-app/shared": "workspace:*"
+    "@itinly/shared": "workspace:*"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.0.0",

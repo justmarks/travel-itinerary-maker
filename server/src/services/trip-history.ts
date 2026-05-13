@@ -7,7 +7,7 @@ import {
   type Trip,
   type TripHistoryEntry,
   type TripHistoryKind,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface RecordHistoryOptions {
   details?: string;

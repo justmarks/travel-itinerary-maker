@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ParseReportReason } from "@travel-app/shared";
+import type { ParseReportReason } from "@itinly/shared";
 import { toast } from "sonner";
 import {
   Dialog,

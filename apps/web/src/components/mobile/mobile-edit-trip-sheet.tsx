@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, useUpdateTrip } from "@travel-app/api-client";
-import type { Trip, TripStatus } from "@travel-app/shared";
-import { TRIP_STATUSES } from "@travel-app/shared";
+import { ApiError, useUpdateTrip } from "@itinly/api-client";
+import type { Trip, TripStatus } from "@itinly/shared";
+import { TRIP_STATUSES } from "@itinly/shared";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";

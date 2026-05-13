@@ -30,7 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package
-        run: pnpm --filter @travel-app/shared build
+        run: pnpm --filter @itinly/shared build
 
       - name: Run tests
         run: pnpm turbo run test
@@ -76,7 +76,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package
-        run: pnpm --filter @travel-app/shared build
+        run: pnpm --filter @itinly/shared build
 
       - name: Wait for Postgres
         run: |
@@ -90,4 +90,4 @@ jobs:
       - name: Run integration tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/itinly_test
-        run: pnpm --filter @travel-app/server test:integration
+        run: pnpm --filter @itinly/server test:integration

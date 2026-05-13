@@ -21,7 +21,7 @@ import type {
   EmailScanRequest,
   HtmlImportRequest,
   XlsxImportRequest,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface PushStatusResponse {
   subscribed: boolean;

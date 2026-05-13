@@ -1,4 +1,4 @@
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 import {
   generateTripPdf,
   formatCostItemDescription,

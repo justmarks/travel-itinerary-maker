@@ -1,7 +1,7 @@
 "use client";
 
 import { HardDrive } from "lucide-react";
-import { useConnections } from "@travel-app/api-client";
+import { useConnections } from "@itinly/api-client";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";

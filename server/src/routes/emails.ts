@@ -12,7 +12,7 @@ import {
   type SegmentMatch,
   type SegmentFieldDiff,
   type Trip,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ProcessedEmail } from "../services/google-drive/drive-storage";
 import {

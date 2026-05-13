@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import type { Trip, TripShareRule, UserSettings } from "@travel-app/shared";
+import type { Trip, TripShareRule, UserSettings } from "@itinly/shared";
 import type { ProcessedEmail } from "./google-drive/drive-storage";
 
 /**

@@ -10,7 +10,7 @@ import {
   Ticket,
   Navigation,
 } from "lucide-react";
-import type { SegmentType } from "@travel-app/shared";
+import type { SegmentType } from "@itinly/shared";
 
 /**
  * Per-segment-type icon component + design tokens used by every mobile

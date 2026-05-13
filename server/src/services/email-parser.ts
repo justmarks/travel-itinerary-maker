@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { simpleParser } from "mailparser";
-import { parsedSegmentSchema, SEGMENT_TYPES } from "@travel-app/shared";
-import type { ParsedSegment } from "@travel-app/shared";
+import { parsedSegmentSchema, SEGMENT_TYPES } from "@itinly/shared";
+import type { ParsedSegment } from "@itinly/shared";
 import { reportMessage } from "./monitoring";
 import { debugEmailScan } from "../utils/debug-log";
 

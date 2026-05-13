@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { formatFlightLabel, formatFlightEndpoint } from "@travel-app/shared";
-import type { TripDay, Segment } from "@travel-app/shared";
+import { formatFlightLabel, formatFlightEndpoint } from "@itinly/shared";
+import type { TripDay, Segment } from "@itinly/shared";
 import {
   useDeleteSegment,
   useConfirmSegment,
   useUpdateDay,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";

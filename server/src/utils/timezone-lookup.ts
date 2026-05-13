@@ -9,8 +9,8 @@
  *   - timeapi.io: https://timeapi.io
  */
 
-import { getCityTimezone, preloadCityTimezone } from "@travel-app/shared";
-import type { Trip } from "@travel-app/shared";
+import { getCityTimezone, preloadCityTimezone } from "@itinly/shared";
+import type { Trip } from "@itinly/shared";
 
 const resolvedCache = new Map<string, string>();
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ThemeProvider } from "next-themes";
 import { polyfillCountryFlagEmojis } from "country-flag-emoji-polyfill";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { ApiClientProvider } from "@travel-app/api-client";
+import { ApiClientProvider } from "@itinly/api-client";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { ConfirmDialogProvider } from "@/lib/confirm-dialog";
 import { DemoProvider, useDemoMode } from "@/lib/demo";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripDay, Segment } from "@travel-app/shared";
+import type { TripDay, Segment } from "@itinly/shared";
 import { MapPin, ArrowDown, Plane, Plus, Train } from "lucide-react";
 import { MobileSegmentCard } from "./mobile-segment-card";
 import { MobileEditableCity } from "./mobile-editable-city";

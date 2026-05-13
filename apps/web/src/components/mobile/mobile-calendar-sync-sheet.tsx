@@ -10,7 +10,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 import { cn } from "@/lib/utils";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {

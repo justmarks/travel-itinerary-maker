@@ -25,7 +25,7 @@ import type {
   CalendarUnsyncResult,
   SegmentSyncResult,
 } from "./calendar-connector";
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { Trip, TripDay, Segment } from "@itinly/shared";
 
 export class GoogleCalendarConnector implements CalendarConnector {
   constructor(private readonly accessToken: string) {}

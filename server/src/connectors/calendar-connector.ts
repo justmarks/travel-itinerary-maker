@@ -20,7 +20,7 @@
  * route code stays provider-agnostic.
  */
 
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { Trip, TripDay, Segment } from "@itinly/shared";
 import type {
   CalendarEntry,
   CalendarSyncResult,

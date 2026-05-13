@@ -17,7 +17,7 @@
  * gated so unauthenticated demo viewers don't 401.
  */
 
-import { useTrips } from "@travel-app/api-client";
+import { useTrips } from "@itinly/api-client";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 

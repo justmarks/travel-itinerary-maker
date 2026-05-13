@@ -1,4 +1,4 @@
-import type { TripSummary } from "@travel-app/api-client";
+import type { TripSummary } from "@itinly/api-client";
 
 export type TripBucket = "current" | "upcoming" | "past";
 

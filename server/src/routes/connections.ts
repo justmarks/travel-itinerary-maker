@@ -17,7 +17,7 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { generateId } from "@travel-app/shared";
+import { generateId } from "@itinly/shared";
 import type {
   ConnectionsStore,
   Connection,

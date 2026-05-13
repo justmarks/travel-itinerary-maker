@@ -8,7 +8,7 @@ import { useDemoMode } from "@/lib/demo";
 import {
   useSubscribePush,
   useUnsubscribePush,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import {
   getCurrentSubscription,
   getNotificationPermission,

@@ -35,10 +35,10 @@ importers:
       '@tanstack/react-query-persist-client':
         specifier: ^5.100.9
         version: 5.100.9(@tanstack/react-query@5.100.9(react@19.2.5))(react@19.2.5)
-      '@travel-app/api-client':
+      '@itinly/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
-      '@travel-app/shared':
+      '@itinly/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@upstash/redis':
@@ -129,7 +129,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@travel-app/shared':
+      '@itinly/shared':
         specifier: workspace:*
         version: link:../shared
       react:
@@ -173,7 +173,7 @@ importers:
       '@sentry/node':
         specifier: ^10.51.0
         version: 10.51.0
-      '@travel-app/shared':
+      '@itinly/shared':
         specifier: workspace:*
         version: link:../packages/shared
       '@upstash/redis':

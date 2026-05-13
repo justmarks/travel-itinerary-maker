@@ -11,8 +11,8 @@ import {
   useApiClient,
   useConfirmAllSegments,
   ApiError,
-} from "@travel-app/api-client";
-import type { TripStatus } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripStatus } from "@itinly/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

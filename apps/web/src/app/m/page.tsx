@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useDeleteShare, useTrips } from "@travel-app/api-client";
-import type { TripSummary } from "@travel-app/api-client";
+import { useDeleteShare, useTrips } from "@itinly/api-client";
+import type { TripSummary } from "@itinly/api-client";
 import {
   AlertCircle,
   Calendar,

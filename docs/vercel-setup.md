@@ -25,11 +25,11 @@ this whole class of issue evaporates when Vercel is the host.
      Vercel tries to build from the workspace root and fails.
    - **Build Command:** *Override* with
      ```
-     cd ../.. && pnpm turbo build --filter=@travel-app/web
+     cd ../.. && pnpm turbo build --filter=@itinly/web
      ```
      This runs Turbo from the monorepo root and builds the shared
-     workspace packages (`@travel-app/shared`, `@travel-app/api-client`)
-     before `@travel-app/web`. The default `next build` would skip those
+     workspace packages (`@itinly/shared`, `@itinly/api-client`)
+     before `@itinly/web`. The default `next build` would skip those
      and fail.
    - **Install Command:** leave default — Vercel auto-detects pnpm and
      installs the whole workspace.

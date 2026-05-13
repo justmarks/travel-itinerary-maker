@@ -5,7 +5,7 @@
  * cheaper than re-implementing the relative-time formatter twice.
  */
 
-import type { TripShare } from "@travel-app/shared";
+import type { TripShare } from "@itinly/shared";
 
 export interface ShareActivity {
   kind: "viewed" | "edited";
