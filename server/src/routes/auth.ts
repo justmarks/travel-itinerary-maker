@@ -290,29 +290,35 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
         const gmailUserInfo = await oauth2.userinfo.get();
 
+        // Legacy Google-authed users: `req.userId` *is* the Google sub.
         // Refuse to attach a Gmail link from a different Google account
         // than the one that owns the primary session. Without this, a
         // user who hits "Choose another account" on the Gmail consent
         // screen could silently link account B's inbox to account A's
         // trip data.
         //
-        // The comparison key differs by auth source:
-        //   - legacy Google: `req.userId` *is* the Google sub →
-        //     compare to the sub returned by Gmail's userinfo.
-        //   - Supabase: `req.userId` is a Supabase UUID — no Google
-        //     sub to compare. Match on email instead (the same email
-        //     that Supabase Auth verified at sign-in).
-        const gmailAccountMatches =
-          req.authSource === "supabase"
-            ? gmailUserInfo.data.email === req.userEmail
-            : gmailUserInfo.data.id === req.userId;
-        if (!gmailAccountMatches) {
-          res.status(400).json({
-            error:
-              "Gmail authorization is for a different Google account than your sign-in. Please re-try and choose the same account.",
-            code: "GMAIL_ACCOUNT_MISMATCH",
-          });
-          return;
+        // Supabase-authed users (cross-provider case): the Supabase user
+        // may have signed in with Microsoft and is intentionally linking
+        // a Gmail mailbox — the Gmail account's email won't match the
+        // Supabase user's email, and forcing them equal blocks the
+        // common "Microsoft-primary + Gmail capability" combination.
+        // The connection row records `accountEmail = gmailUserInfo.email`
+        // (see below), so even a same-provider Supabase user who picked
+        // a *different* Google account on the consent screen ends up
+        // with that account stored on the row, not the Supabase email.
+        // The user picked the account in the OAuth screen explicitly,
+        // and they can disconnect from /settings/account if they made
+        // a mistake — no silent cross-account leakage.
+        if (req.authSource !== "supabase") {
+          const gmailAccountMatches = gmailUserInfo.data.id === req.userId;
+          if (!gmailAccountMatches) {
+            res.status(400).json({
+              error:
+                "Gmail authorization is for a different Google account than your sign-in. Please re-try and choose the same account.",
+              code: "GMAIL_ACCOUNT_MISMATCH",
+            });
+            return;
+          }
         }
 
         if (!tokens.refresh_token) {
@@ -345,7 +351,11 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         //     here and mints a per-request access token.
         let linkedAt: string | null = null;
         if (useConnections && connectionsStore && req.authSource === "supabase") {
-          const accountEmail = req.userEmail ?? gmailUserInfo.data.email ?? "";
+          // The mailbox's own email goes on the connection row — that's
+          // the account whose inbox we'll scan, not necessarily the
+          // user's Supabase sign-in email (the cross-provider case
+          // above relies on this).
+          const accountEmail = gmailUserInfo.data.email ?? req.userEmail ?? "";
           const expiresAt = tokens.expiry_date
             ? new Date(tokens.expiry_date)
             : undefined;

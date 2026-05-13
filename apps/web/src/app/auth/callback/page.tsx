@@ -22,6 +22,16 @@ type ConnectionCapability = "identity" | "email" | "calendar";
 
 interface PendingConnection {
   capability: "email" | "calendar";
+  /**
+   * The provider the user clicked Connect for. Required in the
+   * cross-provider case (Microsoft-primary user clicking Connect
+   * Google Calendar): after `linkIdentity("google")` lands here,
+   * `session.user.app_metadata.provider` still reflects the original
+   * Microsoft sign-in, so without this hint we'd write the capability
+   * row for the wrong provider. Optional for backwards compat with
+   * pending flags written by an older client build.
+   */
+  provider?: "google" | "microsoft";
   /** Where to land the user after the callback. */
   returnTo?: string;
   /**
@@ -216,28 +226,54 @@ async function syncConnections(
 
   const pending = consumePendingConnection();
   if (pending) {
+    // Cross-provider capability case: the user is signed in as one
+    // provider (e.g. Microsoft) and clicked Connect for a different
+    // one (Google). `linkIdentity` attached the new identity to the
+    // existing user, but `app_metadata.provider` + `session.user.email`
+    // still reflect the ORIGINAL sign-in. Trust the explicit
+    // `pending.provider` over the loose session fields, and pull the
+    // capability's `accountEmail` from the matching identity entry —
+    // that's the email of the mailbox / calendar account that was
+    // just authorized, which is what the connection row needs to
+    // identify "which Google mailbox is this row for?"
+    const capabilityProvider = pending.provider ?? normalisedProvider;
+    const supabaseProviderKey =
+      capabilityProvider === "microsoft" ? "azure" : "google";
+    const linkedIdentity = (session.user.identities ?? []).find(
+      (i) => i.provider === supabaseProviderKey,
+    );
+    const linkedEmail = (() => {
+      const data = linkedIdentity?.identity_data as
+        | Record<string, unknown>
+        | undefined;
+      const e = data?.email;
+      return typeof e === "string" ? e : null;
+    })();
+    const capabilityEmail = linkedEmail ?? email;
+
+    // Identity row for the LINKED provider — write it explicitly so
+    // a Microsoft-primary user who just connected Google Calendar
+    // gets a Google identity row stamped with the Google account's
+    // email (not the Microsoft session email).
+    if (capabilityProvider !== normalisedProvider) {
+      await postConnection(
+        session,
+        "identity",
+        capabilityProvider,
+        capabilityEmail,
+      );
+    }
+
     // Capability-row failures (the user clicked Connect Outlook /
     // Connect Gmail / etc.) are surfaced — the user did an
     // explicit action and deserves feedback. The callback shows
     // the error inline; settings won't show the new row, so re-
     // trying from settings is the next step.
-    //
-    // We used to pre-flight check `provider_refresh_token` here and
-    // reject the capability write when it was null. That was the
-    // wrong gate: a returning user's signInWithOAuth often returns
-    // a valid access_token *without* a fresh refresh_token (Google
-    // skips re-issuing one even with `prompt=consent`, Microsoft
-    // sometimes too), but the existing identity-row's refresh_token
-    // is still usable — the server-side resolver falls back to that
-    // when the capability row's is missing. Writing the capability
-    // row here means the user sees "Connected" in settings and the
-    // feature works against whichever refresh path the server
-    // chooses.
     const capabilityResult = await postConnection(
       session,
       pending.capability,
-      normalisedProvider,
-      email,
+      capabilityProvider,
+      capabilityEmail,
       pending.scopes,
     );
     return {

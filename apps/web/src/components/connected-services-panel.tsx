@@ -159,6 +159,13 @@ export function ConnectedServicesPanel(): React.JSX.Element {
       // swapping them out of their original session.
       markPendingConnection({
         capability,
+        // Explicit provider so the callback writes the capability row
+        // for THIS provider regardless of which one the existing
+        // session reports as `app_metadata.provider`. Without this,
+        // a Microsoft-primary user connecting Google Calendar ended
+        // up with the capability row stamped microsoft + Microsoft
+        // email (and no Google calendar row at all).
+        provider: providerKey,
         scopes: scopes.split(" ").filter(Boolean),
         returnTo:
           typeof window !== "undefined" && window.location.pathname.startsWith("/m")
