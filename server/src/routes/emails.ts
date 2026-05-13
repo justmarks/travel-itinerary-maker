@@ -208,8 +208,15 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
   // Must be same type
   if (existing.type !== parsed.type) return false;
 
-  // Confirmation code match is strongest signal, regardless of date/title.
+  // Confirmation code match is the strongest signal for non-flight types,
+  // where one PNR/confirmation = one booking. Flights are different: a
+  // round-trip PNR is shared across both legs (and a multi-city PNR across
+  // every leg), so a confirmation-code-only match would collapse e.g. the
+  // outbound SEA→ONT leg onto the return ONT→SEA leg. For flights, we
+  // fall through to the date + route/city checks below; a matching PNR on
+  // the same date with the same direction will naturally satisfy them.
   if (
+    parsed.type !== "flight" &&
     parsed.confirmationCode &&
     existing.confirmationCode &&
     normStr(parsed.confirmationCode) === normStr(existing.confirmationCode)
