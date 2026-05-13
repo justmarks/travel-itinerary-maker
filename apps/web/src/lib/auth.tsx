@@ -70,7 +70,11 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_KEY = "travel-app-auth";
+const STORAGE_KEY = "itinly-auth";
+/** Predecessor key from before the `@travel-app/*` → `@itinly/*` rename.
+ *  `loadAuth` migrates the value on first read so existing sessions
+ *  survive — without this, every active user would be logged out. */
+const LEGACY_STORAGE_KEY = "travel-app-auth";
 
 const EMPTY_AUTH: AuthState = {
   user: null,
@@ -84,6 +88,19 @@ const EMPTY_AUTH: AuthState = {
 function loadAuth(): AuthState {
   if (typeof window === "undefined") return EMPTY_AUTH;
   try {
+    // One-shot migration: copy the legacy key forward, then delete it.
+    // After the first load on the renamed build, every subsequent read
+    // hits the new key directly.
+    const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacyRaw && !localStorage.getItem(STORAGE_KEY)) {
+      localStorage.setItem(STORAGE_KEY, legacyRaw);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } else if (legacyRaw) {
+      // New key already populated (multi-tab race or partial migration);
+      // just clear the stale legacy entry.
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY_AUTH;
     const parsed = JSON.parse(raw) as Partial<AuthState>;
