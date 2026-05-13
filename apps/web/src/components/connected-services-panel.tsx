@@ -3,8 +3,8 @@
 /**
  * Manages the user's per-capability OAuth links — distinct from the
  * sign-in-methods panel that handles Supabase identities. This is
- * where the user clicks **Connect Microsoft Outlook** to grant
- * `Mail.Read` for email scanning, or **Connect Microsoft Calendar**
+ * where the user clicks **Connect Outlook mail** to grant
+ * `Mail.Read` for email scanning, or **Connect Outlook Calendar**
  * to grant `Calendars.ReadWrite` for trip-segment sync.
  *
  * Each connection row in `/api/v1/connections` has a
@@ -332,7 +332,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "email", MICROSOFT_MAIL_SCOPES)
             }
           >
-            Connect Outlook
+            Connect Outlook mail
           </Button>
         )}
       </CapabilitySection>
@@ -365,7 +365,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "calendar", MICROSOFT_CALENDAR_SCOPES)
             }
           >
-            Connect Microsoft Calendar
+            Connect Outlook calendar
           </Button>
         )}
       </CapabilitySection>
