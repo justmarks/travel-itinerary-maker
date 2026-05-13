@@ -30,6 +30,29 @@ export class GraphError extends Error {
   }
 }
 
+/**
+ * Returns a one-line, leak-safe description of the bearer token's
+ * shape so a Railway log of a Graph 401 is enough to tell whether
+ * we're sending a malformed/wrong-format token vs a structurally
+ * valid one that the server rejected for some other reason. Dot
+ * count is the most telling: real Graph JWTs have 2 (header.
+ * payload.signature); MSA-format tokens issued to personal
+ * Microsoft accounts often have 1 (`M.R3_BAY.<opaque>`); refresh
+ * tokens mistakenly placed in the access slot start with `0.AA`.
+ *
+ * Never log the body — `prefix` and `suffix` are 4 chars each,
+ * enough to fingerprint the format (`eyJ0` = JWT header, `M.R3` =
+ * MSA, `0.AA` = refresh token, `ya29` = Google) without exposing
+ * anything an attacker could replay.
+ */
+function describeTokenShape(token: string): string {
+  if (!token) return "len=0";
+  const dots = (token.match(/\./g) ?? []).length;
+  const prefix = token.slice(0, 4);
+  const suffix = token.slice(-4);
+  return `len=${token.length} prefix=${prefix} suffix=${suffix} dots=${dots}`;
+}
+
 export interface GraphRequestOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
@@ -104,6 +127,13 @@ export async function graphRequest<T = unknown>(
       typeof parsed === "object" && parsed !== null && "error" in parsed
         ? (parsed as { error: { code?: string; message?: string } }).error
         : null;
+    if (res.status === 401) {
+      // Diagnostic for the "JWT not well formed" / personal-MSA-token
+      // class of failures. Shape only — never the token body.
+      console.warn(
+        `[ms-graph] 401 ${method} ${path} — token ${describeTokenShape(accessToken)} — error=${errorEnvelope?.code ?? "unknown"}: ${errorEnvelope?.message ?? "(no message)"}`,
+      );
+    }
     throw new GraphError(
       res.status,
       errorEnvelope?.code,
@@ -153,6 +183,11 @@ export async function graphPaginate<T>(
       error?: { code?: string; message?: string };
     }) : null;
     if (!res.ok) {
+      if (res.status === 401) {
+        console.warn(
+          `[ms-graph] 401 GET ${initialPath} (nextLink) — token ${describeTokenShape(accessToken)} — error=${parsed?.error?.code ?? "unknown"}: ${parsed?.error?.message ?? "(no message)"}`,
+        );
+      }
       throw new GraphError(
         res.status,
         parsed?.error?.code,

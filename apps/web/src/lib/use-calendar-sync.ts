@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiClient } from "@travel-app/api-client";
 import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 import { useActiveCalendarProvider } from "@/lib/use-active-provider";
@@ -50,6 +51,12 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const [syncing, setSyncing] = useState(false);
   const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
+  // Surfacing the underlying load error matters because the dialog
+  // can't tell "you have zero writable calendars" apart from "the
+  // provider rejected our access token" otherwise — both end up
+  // showing "No writable calendars found." When this is non-null
+  // the pick dialog renders it instead of the empty-state copy.
+  const [calendarError, setCalendarError] = useState<string | null>(null);
 
   const syncedSegments = trip.days
     .flatMap((d) => d.segments)
@@ -62,12 +69,14 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const loadCalendars = async (): Promise<CalendarOption[]> => {
     setLoadingCalendars(true);
     setCalendars(null);
+    setCalendarError(null);
     try {
       const cals = await client.listCalendars();
       setCalendars(cals);
       return cals;
-    } catch {
+    } catch (err) {
       setCalendars([]);
+      setCalendarError(describeError(err));
       return [];
     } finally {
       setLoadingCalendars(false);
@@ -156,6 +165,7 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
     syncing,
     calendars,
     loadingCalendars,
+    calendarError,
     loadCalendars,
     requestCalendarScope,
     sync,
