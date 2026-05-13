@@ -28,6 +28,10 @@ import type {
   ConnectionProvider,
   ConnectionCapability,
 } from "../services/connections-store";
+import {
+  fetchGoogleTokenScopes,
+  GMAIL_READ_SCOPE,
+} from "../services/google-tokeninfo";
 
 export interface ConnectionsRoutesOptions {
   store: ConnectionsStore;
@@ -232,6 +236,44 @@ export function createConnectionsRoutes(
         return;
       }
       scopes = body.scopes;
+    }
+
+    // Google email capability requires gmail.readonly. The auth-callback
+    // page POSTs the *requested* scope list from the browser's pending-
+    // connection flag, not the actually-granted set — a user who
+    // unchecks "View your Gmail" on Google's consent screen still ends
+    // up with a row claiming gmail.readonly. Validate against Google's
+    // tokeninfo endpoint so the row reflects truth, and reject the
+    // write outright when the required scope wasn't granted (the UI
+    // surfaces this with a clear "check the box" message).
+    //
+    // Tokeninfo failures (network, rate limit, transient 5xx) fall
+    // through to the client-supplied scope list with a warn — better
+    // to allow a possibly-lying write than to block Connect on a
+    // Google API hiccup. Downstream's GMAIL_SCOPE_REQUIRED 403 still
+    // backstops the actual access check.
+    if (provider === "google" && capability === "email" && accessToken) {
+      const granted = await fetchGoogleTokenScopes(accessToken);
+      if (granted === null) {
+        console.warn(
+          `[connections] tokeninfo unreachable for google/email user=${req.userId} — proceeding with client-supplied scopes`,
+        );
+      } else if (!granted.includes(GMAIL_READ_SCOPE)) {
+        console.warn(
+          `[connections] rejecting google/email write for user=${req.userId} — access token lacks gmail.readonly (granted=[${granted.join(", ")}])`,
+        );
+        res.status(400).json({
+          error:
+            "Gmail read access was not granted. Re-run Connect Gmail and make sure the 'View your email messages and settings' box is checked on Google's consent screen.",
+          code: "GMAIL_SCOPE_NOT_GRANTED",
+        });
+        return;
+      } else {
+        // Granted set includes gmail.readonly. Store the truthful set
+        // (tokeninfo is authoritative) rather than what the client
+        // claimed it asked for.
+        scopes = granted;
+      }
     }
 
     // Pre-upsert peek for the verbose diagnostic log below. Only

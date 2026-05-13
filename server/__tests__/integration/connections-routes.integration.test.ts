@@ -362,6 +362,208 @@ describe("/api/v1/connections", () => {
       expect(rows.rows[0]?.access_token_encrypted).not.toBeNull();
       expect(rows.rows[0]?.refresh_token_encrypted).not.toBeNull();
     });
+
+    describe("Google email scope validation (tokeninfo)", () => {
+      // Regression: the auth-callback page POSTs the *requested* scope
+      // list from sessionStorage (`pending.scopes`), not the actually-
+      // granted set. A user who unchecked "View your Gmail" on the
+      // consent screen previously ended up with a row that claimed
+      // gmail.readonly while the underlying token only granted
+      // identity scopes. Step 5 (scan emails) then failed with
+      // "could not load labels for gmail" because the cached token
+      // lacked the scope. We now call Google's tokeninfo endpoint to
+      // verify and either store the truth or reject the write.
+      let fetchSpy: jest.SpyInstance;
+
+      beforeEach(() => {
+        fetchSpy = jest.spyOn(global, "fetch");
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function mockTokeninfoScope(scope: string): void {
+        fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+          const url = typeof input === "string" ? input : input.toString();
+          if (url.startsWith("https://oauth2.googleapis.com/tokeninfo")) {
+            return new Response(JSON.stringify({ scope }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          throw new Error(`unexpected fetch in test: ${url}`);
+        });
+      }
+
+      it("rejects google/email writes when tokeninfo says gmail.readonly was not granted", async () => {
+        mockTokeninfoScope("openid email profile");
+
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "google",
+            capability: "email",
+            accountEmail: "alice@gmail.com",
+            accessToken: "ya29.a0AfH6SMxxxxx_token_without_gmail_scope",
+            refreshToken: "1//refresh_token_without_gmail_scope",
+            // Client claims gmail.readonly was requested — the auth-
+            // callback sends `pending.scopes` from sessionStorage,
+            // which is the REQUESTED set, not the granted one.
+            scopes: [
+              "openid",
+              "email",
+              "profile",
+              "https://www.googleapis.com/auth/gmail.readonly",
+            ],
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe("GMAIL_SCOPE_NOT_GRANTED");
+        expect(res.body.error).toMatch(/Gmail/i);
+
+        // No row should have been written.
+        const rows = await dbClient.db.execute<{ count: string }>(sql`
+          SELECT COUNT(*)::text AS count FROM connections WHERE user_id = ${USER_ID}
+        `);
+        expect(rows.rows[0]?.count).toBe("0");
+      });
+
+      it("accepts google/email writes when tokeninfo confirms gmail.readonly, and stores granted scopes (not client-supplied)", async () => {
+        // Tokeninfo returns the *actually-granted* set. Note we
+        // deliberately differ from the client-supplied list to lock
+        // in that the server prefers truth over assertion.
+        mockTokeninfoScope(
+          "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+        );
+
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "google",
+            capability: "email",
+            accountEmail: "alice@gmail.com",
+            accessToken: "ya29.a0AfH6SMxxxxx_token_with_gmail_scope",
+            refreshToken: "1//refresh_token_with_gmail_scope",
+            // Client claims an extra scope it didn't actually get
+            // (or fewer scopes than were granted, depending on the
+            // round). The stored set should reflect tokeninfo, not
+            // this list.
+            scopes: [
+              "openid",
+              "email",
+              "https://www.googleapis.com/auth/gmail.readonly",
+              "https://www.googleapis.com/auth/calendar.events",
+            ],
+          })
+          .expect(201);
+
+        expect(res.body.connection.scopes).toEqual([
+          "openid",
+          "email",
+          "profile",
+          "https://www.googleapis.com/auth/gmail.readonly",
+        ]);
+      });
+
+      it("falls through to client-supplied scopes when tokeninfo is unreachable (proceeds with warn)", async () => {
+        // Network failure / Google API hiccup — the server logs a warn
+        // and trusts the client-supplied list. Downstream's
+        // GMAIL_SCOPE_REQUIRED 403 backstops the actual access check.
+        fetchSpy.mockRejectedValue(new Error("network down"));
+
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "google",
+            capability: "email",
+            accountEmail: "alice@gmail.com",
+            accessToken: "ya29.a0AfH6SMxxxxx_token",
+            refreshToken: "1//refresh_token",
+            scopes: [
+              "openid",
+              "email",
+              "https://www.googleapis.com/auth/gmail.readonly",
+            ],
+          })
+          .expect(201);
+
+        expect(res.body.connection.scopes).toEqual([
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/gmail.readonly",
+        ]);
+      });
+
+      it("skips validation when no access token is present (can't validate without one)", async () => {
+        // Supabase sometimes elides `provider_token` for returning
+        // users; without an access token we have nothing to call
+        // tokeninfo with. Don't block the write — the row exists as
+        // a "this user attempted to link" record and the downstream
+        // resolver will return `EMAIL_NOT_CONNECTED` until a follow-
+        // up Connect provides a real token.
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "google",
+            capability: "email",
+            accountEmail: "alice@gmail.com",
+            // No accessToken / refreshToken.
+            scopes: [
+              "openid",
+              "email",
+              "https://www.googleapis.com/auth/gmail.readonly",
+            ],
+          })
+          .expect(201);
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(res.body.connection.scopes).toEqual([
+          "openid",
+          "email",
+          "https://www.googleapis.com/auth/gmail.readonly",
+        ]);
+      });
+
+      it("does not validate microsoft/email writes", async () => {
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "email",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Mail.Read"],
+          })
+          .expect(201);
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(res.body.connection.provider).toBe("microsoft");
+      });
+
+      it("does not validate google/calendar writes (validation is gmail-specific)", async () => {
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "google",
+            capability: "calendar",
+            accountEmail: "alice@gmail.com",
+            accessToken: "ya29.calendar_token",
+            refreshToken: "1//calendar_refresh",
+            scopes: ["https://www.googleapis.com/auth/calendar.events"],
+          })
+          .expect(201);
+
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("DELETE /api/v1/connections/:id", () => {
