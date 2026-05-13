@@ -10,14 +10,14 @@ import {
   usePendingEmails,
   useStreamingScanEmails,
   useTrips,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import type {
   EmailScanResult,
   NewTripProposal,
   ParsedSegment,
   SegmentMatchStatus,
-} from "@travel-app/shared";
-import { proposeNewTrips } from "@travel-app/shared";
+} from "@itinly/shared";
+import { proposeNewTrips } from "@itinly/shared";
 import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
   AlertCircle,

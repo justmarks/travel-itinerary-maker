@@ -20,7 +20,7 @@
  * underlying TZ is mid-transition.
  */
 
-import type { Segment, TripDay } from "@travel-app/shared";
+import type { Segment, TripDay } from "@itinly/shared";
 import { segmentToEvent } from "../../src/services/google-calendar";
 import { googleEventToMsEvent } from "../../src/connectors/microsoft-calendar-connector";
 

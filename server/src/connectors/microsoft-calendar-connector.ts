@@ -30,7 +30,7 @@
  *    single occurrence.
  */
 
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { Trip, TripDay, Segment } from "@itinly/shared";
 import type { calendar_v3 } from "googleapis";
 import { segmentToEvent } from "../services/google-calendar";
 import {

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { google } from "googleapis";
-import { generateId as generateConnectionId } from "@travel-app/shared";
+import { generateId as generateConnectionId } from "@itinly/shared";
 import { config } from "../config/env";
 import { requireAuth } from "../middleware/auth";
 import { createAuthRateLimiter } from "../middleware/rate-limit";

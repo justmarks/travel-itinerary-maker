@@ -22,7 +22,7 @@
  */
 
 import { eq } from "drizzle-orm";
-import type { PushSubscription } from "@travel-app/shared";
+import type { PushSubscription } from "@itinly/shared";
 import type { Db, DbClient } from "../db/client";
 import { pushSubscriptions } from "../db/schema";
 

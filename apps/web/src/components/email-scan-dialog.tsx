@@ -7,8 +7,8 @@ import type {
   SegmentMatchStatus,
   ApplyAction,
   NewTripProposal,
-} from "@travel-app/shared";
-import { proposeNewTrips } from "@travel-app/shared";
+} from "@itinly/shared";
+import { proposeNewTrips } from "@itinly/shared";
 import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
   useStreamingScanEmails,
@@ -18,7 +18,7 @@ import {
   usePendingEmails,
   useTrips,
   useCreateTrip,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +54,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { ParseReportReason } from "@travel-app/shared";
+import type { ParseReportReason } from "@itinly/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 import {
   useActiveEmailProvider,

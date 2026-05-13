@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Todo, TodoCategory } from "@travel-app/shared";
-import { useUpdateTodo } from "@travel-app/api-client";
+import type { Todo, TodoCategory } from "@itinly/shared";
+import { useUpdateTodo } from "@itinly/api-client";
 import {
   Briefcase,
   Check,

@@ -6,13 +6,13 @@ import type {
   ParsedSegment,
   SegmentMatchStatus,
   ApplyAction,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import {
   useImportHtmlEmail,
   useApplyParsedSegments,
   useTrips,
   useCreateTrip,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import {
   Dialog,
   DialogContent,
@@ -47,7 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import { reportError } from "@/lib/monitoring";
 import { describeError } from "@/lib/api-error";
-import type { ParseReportReason } from "@travel-app/shared";
+import type { ParseReportReason } from "@itinly/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 
 // Same shape as the EmailScanDialog's MATCH_STATUS_TONE — both dialogs

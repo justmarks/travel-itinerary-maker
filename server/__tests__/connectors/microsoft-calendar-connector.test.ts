@@ -15,7 +15,7 @@
  */
 
 import { MicrosoftCalendarConnector, googleEventToMsEvent } from "../../src/connectors/microsoft-calendar-connector";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 
 type FetchMock = jest.Mock<Promise<Response>, [string | URL, RequestInit?]>;
 

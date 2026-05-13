@@ -13,7 +13,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useTrips } from "@travel-app/api-client";
+import { useTrips } from "@itinly/api-client";
 import { useAuth } from "@/lib/auth";
 
 export function useShareLinkOwnerRedirect({

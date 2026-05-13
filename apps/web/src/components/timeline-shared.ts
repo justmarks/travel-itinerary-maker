@@ -1,4 +1,4 @@
-import type { Segment, SegmentType, TripDay } from "@travel-app/shared";
+import type { Segment, SegmentType, TripDay } from "@itinly/shared";
 
 // ── Category helpers ──────────────────────────────────────────
 

@@ -5,8 +5,8 @@ import {
   useCreateShare,
   useDeleteShare,
   useShares,
-} from "@travel-app/api-client";
-import type { TripShare } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripShare } from "@itinly/shared";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";

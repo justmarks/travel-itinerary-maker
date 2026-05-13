@@ -30,7 +30,7 @@ import {
   type Todo,
   type TripHistoryEntry,
   type UserSettings,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider } from "./storage";
 import type { ProcessedEmail } from "./google-drive/drive-storage";
 import type { Db } from "../db/client";

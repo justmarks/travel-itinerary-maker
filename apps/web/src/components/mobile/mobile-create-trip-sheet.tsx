@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, useCreateTrip } from "@travel-app/api-client";
+import { ApiError, useCreateTrip } from "@itinly/api-client";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { describeError } from "@/lib/api-error";

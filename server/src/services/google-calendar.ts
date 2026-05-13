@@ -1,12 +1,12 @@
 import { google, type calendar_v3 } from "googleapis";
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { Trip, TripDay, Segment } from "@itinly/shared";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
   getCityTimezone,
   getAirportTimezone,
   lookupAirport,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface CalendarSyncResult {
   created: number;

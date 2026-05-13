@@ -2,7 +2,7 @@ import request from "supertest";
 import express from "express";
 import { createSharedRoutes } from "../../src/routes/shared";
 import { InMemoryStorage } from "../../src/services/storage";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 
 // DriveStorage is imported by shared.ts but only instantiated when shareRegistry
 // provides an owner userId — not exercised in these tests.

@@ -1,4 +1,4 @@
-import { ApiError } from "@travel-app/api-client";
+import { ApiError } from "@itinly/api-client";
 
 /**
  * Extracts a human-readable message from a thrown error. ApiError bodies are

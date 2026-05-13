@@ -22,7 +22,7 @@ import type {
   CalendarConnector,
   CalendarEntry,
 } from "../../../src/connectors/calendar-connector";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 
 export interface CalendarConnectorTestHarness {
   connector: CalendarConnector;

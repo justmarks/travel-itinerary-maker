@@ -3,11 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import type { TripSummary } from "@travel-app/api-client";
-import type { TripStatus } from "@travel-app/shared";
+import type { TripSummary } from "@itinly/api-client";
+import type { TripStatus } from "@itinly/shared";
 import { useDemoHref } from "@/lib/demo";
 import { useConfirm } from "@/lib/confirm-dialog";
-import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@travel-app/api-client";
+import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@itinly/api-client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {

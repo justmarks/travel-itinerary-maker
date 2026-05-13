@@ -5,8 +5,8 @@ import {
   useCreateShare,
   useDeleteShare,
   useShares,
-} from "@travel-app/api-client";
-import type { TripShare } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripShare } from "@itinly/shared";
 import {
   AlertCircle,
   Check,

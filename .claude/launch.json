@@ -4,7 +4,7 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@travel-app/web", "dev"],
+      "runtimeArgs": ["--filter", "@itinly/web", "dev"],
       "port": 3000,
       "autoPort": true
     }

@@ -13,7 +13,7 @@ import {
   type Trip,
   type TripShareRule,
   type UserSettings,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider } from "../../src/services/storage";
 import type { ProcessedEmail } from "../../src/services/google-drive/drive-storage";
 

@@ -1,15 +1,15 @@
-import { ApiClient } from "@travel-app/api-client";
+import { ApiClient } from "@itinly/api-client";
 import {
   convertToUsd,
   applyCruisePortsToDayCities,
   primaryLocationFor,
   CURRENT_TRIP_SCHEMA_VERSION,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
   XlsxImportResponse,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import type {
   Trip,
   Segment,
@@ -31,7 +31,7 @@ import type {
   HtmlImportRequest,
   ApplyParsedSegmentsInput,
   XlsxImportRequest,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -2190,21 +2190,21 @@ export class MockApiClient extends ApiClient {
   override async exportMarkdown(tripId: string): Promise<string> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToMarkdown } = await import("@travel-app/shared");
+    const { tripToMarkdown } = await import("@itinly/shared");
     return tripToMarkdown(trip, { includeCosts: true, includeTodos: true });
   }
 
   override async exportOneNote(tripId: string): Promise<string> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToOneNoteHtml } = await import("@travel-app/shared");
+    const { tripToOneNoteHtml } = await import("@itinly/shared");
     return tripToOneNoteHtml(trip, { includeCosts: true, includeTodos: true });
   }
 
   override async exportIcal(tripId: string): Promise<Blob> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToIcal } = await import("@travel-app/shared");
+    const { tripToIcal } = await import("@itinly/shared");
     const ics = tripToIcal(trip);
     return new Blob([ics], { type: "text/calendar; charset=utf-8" });
   }
@@ -2212,7 +2212,7 @@ export class MockApiClient extends ApiClient {
   override async exportPdf(tripId: string): Promise<Blob> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToOneNoteHtml } = await import("@travel-app/shared");
+    const { tripToOneNoteHtml } = await import("@itinly/shared");
     const html = tripToOneNoteHtml(trip, {
       includeCosts: true,
       includeTodos: true,

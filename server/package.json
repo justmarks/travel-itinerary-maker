@@ -1,5 +1,5 @@
 {
-  "name": "@travel-app/server",
+  "name": "@itinly/server",
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",
@@ -21,7 +21,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.93.0",
     "@sentry/node": "^10.51.0",
-    "@travel-app/shared": "workspace:*",
+    "@itinly/shared": "workspace:*",
     "@upstash/redis": "^1.37.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",

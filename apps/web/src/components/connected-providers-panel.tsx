@@ -38,12 +38,12 @@ import { useEffect, useState } from "react";
 import type { UserIdentity } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys, useConnections } from "@travel-app/api-client";
+import { queryKeys, useConnections } from "@itinly/api-client";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm-dialog";
-import { sortByPrimaryEmail } from "@travel-app/shared";
+import { sortByPrimaryEmail } from "@itinly/shared";
 
 type LinkableProvider = "google" | "azure";
 type ConnectionsProvider = "google" | "microsoft";

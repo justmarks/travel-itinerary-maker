@@ -3,7 +3,11 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export const DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
+export const DESKTOP_OVERRIDE_KEY = "itinly-prefer-desktop";
+/** Predecessor key from before the `@travel-app/*` → `@itinly/*` rename.
+ *  Migrated forward on read so users who set "Use desktop site" before
+ *  the rename don't lose that preference. */
+const LEGACY_DESKTOP_OVERRIDE_KEY = "travel-app-prefer-desktop";
 
 /**
  * Anything strictly below Tailwind's `lg` breakpoint (1024px) gets the
@@ -47,8 +51,9 @@ export function clearDesktopOverride(): void {
  *
  *   1. `?desktop=1` in the URL — also persists the preference so the next
  *      visit goes straight to desktop without flashing /m first.
- *   2. `localStorage["travel-app-prefer-desktop"] === "1"` — set by the
- *      mobile user menu's "Use desktop site" action.
+ *   2. `localStorage["itinly-prefer-desktop"] === "1"` — set by the
+ *      mobile user menu's "Use desktop site" action. (The legacy key
+ *      `travel-app-prefer-desktop` is migrated forward on first read.)
  *   3. `?demo=true` — keeps the demo flag intact when redirecting.
  *
  * Runs client-side rather than as middleware so the redirect honors the
@@ -82,6 +87,16 @@ export function useMobileRedirectTo(targetPath: string): void {
     // Persisted preference — stay on desktop.
     let preferDesktop = false;
     try {
+      // One-shot migration: forward the legacy value to the new key
+      // on first read, then drop the legacy entry. Same pattern
+      // `auth.tsx` uses for the auth-state key.
+      const legacy = localStorage.getItem(LEGACY_DESKTOP_OVERRIDE_KEY);
+      if (legacy !== null) {
+        if (localStorage.getItem(DESKTOP_OVERRIDE_KEY) === null) {
+          localStorage.setItem(DESKTOP_OVERRIDE_KEY, legacy);
+        }
+        localStorage.removeItem(LEGACY_DESKTOP_OVERRIDE_KEY);
+      }
       preferDesktop = localStorage.getItem(DESKTOP_OVERRIDE_KEY) === "1";
     } catch {
       preferDesktop = false;

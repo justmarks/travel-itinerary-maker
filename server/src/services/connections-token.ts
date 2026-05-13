@@ -14,7 +14,7 @@
  * connector classes (Phase 4a foundation + 4b-1 implementations).
  */
 
-import { generateId } from "@travel-app/shared";
+import { generateId } from "@itinly/shared";
 import {
   refreshGoogleToken,
   refreshMicrosoftToken,

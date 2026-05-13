@@ -28,14 +28,14 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys, useConnections } from "@travel-app/api-client";
+import { queryKeys, useConnections } from "@itinly/api-client";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { markPendingConnection } from "@/app/auth/callback/page";
 import { startGmailLink, isGmailLinkConfigured } from "@/lib/oauth";
 import { describeError } from "@/lib/api-error";
-import { sortByPrimaryEmail } from "@travel-app/shared";
+import { sortByPrimaryEmail } from "@itinly/shared";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";

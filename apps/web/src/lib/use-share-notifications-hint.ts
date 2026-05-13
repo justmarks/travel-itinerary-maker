@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useSubscribePush } from "@travel-app/api-client";
+import { useSubscribePush } from "@itinly/api-client";
 import { describeError } from "@/lib/api-error";
 import { dismissHint, isHintDismissed } from "@/lib/onboarding-hints";
 import {

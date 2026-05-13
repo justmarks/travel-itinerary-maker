@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripHistoryEntry } from "@travel-app/shared";
+import type { TripHistoryEntry } from "@itinly/shared";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import { TripHistory } from "@/components/trip-history";
 

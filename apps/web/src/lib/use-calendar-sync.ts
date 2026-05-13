@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApiClient } from "@travel-app/api-client";
+import { useApiClient } from "@itinly/api-client";
 import { toast } from "sonner";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";

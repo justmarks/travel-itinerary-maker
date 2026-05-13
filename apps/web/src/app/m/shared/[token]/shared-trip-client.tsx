@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSharedTrip } from "@travel-app/api-client";
-import type { Segment, Todo } from "@travel-app/shared";
+import { useSharedTrip } from "@itinly/api-client";
+import type { Segment, Todo } from "@itinly/shared";
 import { AlertCircle, Lock, MapPin, Pencil } from "lucide-react";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
 import { MobileDaysList } from "@/components/mobile/mobile-feed-view";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useSharedTrip } from "@travel-app/api-client";
+import { useSharedTrip } from "@itinly/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
 import { Calendar, MapPin, Pencil, Plane } from "lucide-react";

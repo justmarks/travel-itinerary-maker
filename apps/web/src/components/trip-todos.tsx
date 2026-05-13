@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { Todo, TodoCategory, TripDay } from "@travel-app/shared";
+import type { Todo, TodoCategory, TripDay } from "@itinly/shared";
 import {
   useUpdateTodo,
   useCreateTodo,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import {
   CheckSquare2,
   ChevronDown,

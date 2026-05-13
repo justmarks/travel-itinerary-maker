@@ -223,8 +223,8 @@ export function createCalendarRoutes(
     }
 
     const segId = req.params.segId as string;
-    let targetDay: import("@travel-app/shared").TripDay | undefined;
-    let targetSegment: import("@travel-app/shared").Segment | undefined;
+    let targetDay: import("@itinly/shared").TripDay | undefined;
+    let targetSegment: import("@itinly/shared").Segment | undefined;
     for (const day of trip.days) {
       const seg = day.segments.find((s) => s.id === segId);
       if (seg) { targetDay = day; targetSegment = seg; break; }

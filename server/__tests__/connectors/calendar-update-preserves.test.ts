@@ -30,7 +30,7 @@
  * the same segment yields the same payload).
  */
 
-import type { Segment, Trip, TripDay } from "@travel-app/shared";
+import type { Segment, Trip, TripDay } from "@itinly/shared";
 import { segmentToEvent } from "../../src/services/google-calendar";
 import { MicrosoftCalendarConnector } from "../../src/connectors/microsoft-calendar-connector";
 

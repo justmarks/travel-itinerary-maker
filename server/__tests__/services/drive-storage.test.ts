@@ -4,7 +4,7 @@
  */
 
 import { DriveStorage } from "../../src/services/google-drive/drive-storage";
-import type { Trip, TripShareRule, UserSettings } from "@travel-app/shared";
+import type { Trip, TripShareRule, UserSettings } from "@itinly/shared";
 
 // ─── Mock setup ──────────────────────────────────────────
 

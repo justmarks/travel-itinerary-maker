@@ -25,8 +25,8 @@ import type {
   EmailScanRequest,
   HtmlImportRequest,
   XlsxImportRequest,
-} from "@travel-app/shared";
-import { generateId } from "@travel-app/shared";
+} from "@itinly/shared";
+import { generateId } from "@itinly/shared";
 import type {
   TripSummary,
   CostSummaryResponse,

@@ -173,7 +173,7 @@ const nextConfig: NextConfig = {
     // Unsplash and don't need transforming.
     unoptimized: true,
   },
-  transpilePackages: ["@travel-app/shared", "@travel-app/api-client"],
+  transpilePackages: ["@itinly/shared", "@itinly/api-client"],
   // Prevent Next.js from walking up to a parent lockfile (e.g. a global
   // package-lock.json in the user's home directory) and picking the wrong
   // workspace root. Explicitly anchor it to the monorepo root.
