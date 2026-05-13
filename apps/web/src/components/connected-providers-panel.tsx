@@ -43,7 +43,7 @@ import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm-dialog";
-import { sortByPrimaryEmail } from "@/lib/sort-by-primary-email";
+import { sortByPrimaryEmail } from "@travel-app/shared";
 
 type LinkableProvider = "google" | "azure";
 type ConnectionsProvider = "google" | "microsoft";

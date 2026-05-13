@@ -140,3 +140,5 @@ export {
   NEW_TRIP_PREFIX,
 } from "./utils/new-trip-proposals";
 export type { NewTripProposal } from "./utils/new-trip-proposals";
+
+export { sortByPrimaryEmail } from "./utils/sort-by-primary-email";
