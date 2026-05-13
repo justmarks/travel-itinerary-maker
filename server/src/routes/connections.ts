@@ -36,6 +36,40 @@ const CAPABILITIES: readonly ConnectionCapability[] = [
   "calendar",
 ];
 
+/**
+ * `ya29.<base64>` is the unmistakable shape of a Google OAuth access
+ * token. We saw this leak into a `microsoft+calendar` row in
+ * production (the auth-callback page's link-flow path skips
+ * `exchangeCodeForSession` to avoid swapping the session, then
+ * reads `session.provider_token` which still carries the previous
+ * OAuth round's Google token). Letting it through stores a Google
+ * token under a Microsoft row; the first calendar-list call ends
+ * up sending `ya29.…` to Graph and Graph rejects it with
+ * `IDX14120: JWT is not well formed, there is only one dot (.)`.
+ *
+ * Detection is intentionally narrow — only the `ya29.` prefix —
+ * because the inverse (a Microsoft token landing in a Google row)
+ * is also possible but Microsoft's JWT shape collides with anyone
+ * else's JWT, so we can't reliably reject from format alone.
+ * Google tokens are uniquely fingerprinted, so we catch the most
+ * common cross-provider leak.
+ */
+function isGoogleAccessToken(token: string): boolean {
+  return token.startsWith("ya29.");
+}
+
+/**
+ * Google refresh tokens are `1//<long base64>` (one slash-slash near
+ * the start; no dots). Same defensive rationale as
+ * `isGoogleAccessToken` — uniquely fingerprinted, so a Google
+ * refresh-token slot leak into a Microsoft row is easy to catch
+ * and reject. Microsoft refresh tokens (`0.AA…`/`M.…`) overlap with
+ * other formats too much to detect the reverse confidently.
+ */
+function isGoogleRefreshToken(token: string): boolean {
+  return token.startsWith("1//");
+}
+
 interface PublicConnection {
   id: string;
   provider: ConnectionProvider;
@@ -135,10 +169,35 @@ export function createConnectionsRoutes(
       return;
     }
 
-    const refreshToken =
+    let refreshToken =
       typeof body.refreshToken === "string" ? body.refreshToken : undefined;
-    const accessToken =
+    let accessToken =
       typeof body.accessToken === "string" ? body.accessToken : undefined;
+
+    // Cross-provider token leak guard. When the Microsoft row gets a
+    // Google `ya29.*` token (the production failure mode we caught
+    // via the `[ms-graph] 401 ... prefix=ya29 dots=1` diagnostic),
+    // dropping it here is strictly better than storing it: the row
+    // stays as a "provider is linked" record without poisoning the
+    // cache. Next time `getActiveAccessToken` resolves this row it
+    // falls back to the identity-row refresh token (Microsoft) and
+    // mints a real Graph token from it. If that fallback also has
+    // no token, the resolver returns null → frontend prompts a
+    // reconnect, which (via flow="signin" now that the identity is
+    // already linked) does a real `exchangeCodeForSession` and
+    // captures the right tokens.
+    if (provider === "microsoft" && accessToken && isGoogleAccessToken(accessToken)) {
+      console.warn(
+        `[connections] dropping access_token write — caller sent a Google-shaped token (ya29.*) for provider=microsoft (capability=${capability}, user=${req.userId}). Likely the auth-callback link flow leaked the previous OAuth round's token.`,
+      );
+      accessToken = undefined;
+    }
+    if (provider === "microsoft" && refreshToken && isGoogleRefreshToken(refreshToken)) {
+      console.warn(
+        `[connections] dropping refresh_token write — caller sent a Google-shaped refresh token (1//*) for provider=microsoft (capability=${capability}, user=${req.userId}).`,
+      );
+      refreshToken = undefined;
+    }
 
     let expiresAt: Date | undefined;
     if (typeof body.expiresAt === "string") {

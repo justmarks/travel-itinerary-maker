@@ -299,6 +299,69 @@ describe("/api/v1/connections", () => {
     // not worth the harness complexity. Verified by `LEGACY_AUTH_PATH`
     // being the only `res.status(400).json({code: ...})` site in
     // routes/connections.ts.
+
+    it("drops Google-shaped tokens when writing to a microsoft row", async () => {
+      // Production failure mode: the auth-callback link flow can leak
+      // the previous Google OAuth round's tokens into the new
+      // Microsoft connection. The route must refuse to persist them
+      // — better to leave the row tokenless (resolver will return
+      // null → reconnect prompt) than to poison the cache with a
+      // Google `ya29.*` access token that Graph rejects as
+      // "JWT not well formed."
+      const res = await request(app)
+        .post("/api/v1/connections")
+        .set("x-test-user-id", USER_ID)
+        .send({
+          provider: "microsoft",
+          capability: "calendar",
+          accountEmail: "alice@outlook.com",
+          accessToken: "ya29.a0AfH6SMxxxxx_google_shaped_token_xxxxx",
+          refreshToken: "1//google_shaped_refresh_token_xxxxxxx",
+          scopes: ["offline_access", "Calendars.ReadWrite"],
+        })
+        .expect(201);
+
+      expect(res.body.connection.provider).toBe("microsoft");
+
+      // The row exists but neither token survived the write. Confirm
+      // by going to the underlying table since the public view masks
+      // tokens unconditionally.
+      const rows = await dbClient.db.execute<{
+        access_token_encrypted: string | null;
+        refresh_token_encrypted: string | null;
+      }>(sql`
+        SELECT access_token_encrypted, refresh_token_encrypted
+        FROM connections WHERE id = ${res.body.connection.id}
+      `);
+      expect(rows.rows[0]?.access_token_encrypted).toBeNull();
+      expect(rows.rows[0]?.refresh_token_encrypted).toBeNull();
+    });
+
+    it("accepts Google-shaped tokens for a google row (no false positive)", async () => {
+      const res = await request(app)
+        .post("/api/v1/connections")
+        .set("x-test-user-id", USER_ID)
+        .send({
+          provider: "google",
+          capability: "calendar",
+          accountEmail: "alice@gmail.com",
+          accessToken: "ya29.a0AfH6SMxxxxx_legitimate_google_token",
+          refreshToken: "1//legitimate_google_refresh_token",
+          scopes: ["https://www.googleapis.com/auth/calendar"],
+        })
+        .expect(201);
+
+      const rows = await dbClient.db.execute<{
+        access_token_encrypted: string | null;
+        refresh_token_encrypted: string | null;
+      }>(sql`
+        SELECT access_token_encrypted, refresh_token_encrypted
+        FROM connections WHERE id = ${res.body.connection.id}
+      `);
+      // Tokens stored (encrypted, but non-null is what matters here).
+      expect(rows.rows[0]?.access_token_encrypted).not.toBeNull();
+      expect(rows.rows[0]?.refresh_token_encrypted).not.toBeNull();
+    });
   });
 
   describe("DELETE /api/v1/connections/:id", () => {
