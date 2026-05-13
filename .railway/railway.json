@@ -4,7 +4,13 @@
     "builder": "RAILPACK",
     "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @itinly/shared build && pnpm --filter @itinly/server build",
     "watchPatterns": [
-      "server/**"
+      "server/**",
+      "packages/shared/**",
+      "pnpm-lock.yaml",
+      "package.json",
+      "pnpm-workspace.yaml",
+      "tsconfig.base.json",
+      ".railway/railway.json"
     ]
   },
   "deploy": {
