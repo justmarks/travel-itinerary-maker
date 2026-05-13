@@ -1,6 +1,6 @@
 # itinly
 
-Auto-generate structured travel itineraries from email confirmations. Sign in with Google, and your trip data lives in your own Google Drive — no third-party database, no monthly hosting costs.
+Auto-generate structured travel itineraries from email confirmations. Sign in with Google or Microsoft, connect your Gmail or Outlook inbox, and push trips to your Google or Outlook calendar.
 
 [![CI](https://github.com/justmarks/itinly/actions/workflows/ci.yml/badge.svg)](https://github.com/justmarks/itinly/actions/workflows/ci.yml)
 
@@ -14,8 +14,9 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 - **Timeline view** — Hipmunk-style Gantt grid; toggle between swimlane rows (Transport / Hotel / Activities / Dining) and a single chronological row; hotel stays render as spanning bars; prints cleanly
 - **Map view** — plot hotels, dining, activities, and transport endpoints as pins on an interactive Google Map; KML export for sharing with Google My Maps
 - **Flight endpoints by IATA code** — flights store 3-letter airport codes (e.g. `JFK`, `NRT`) and render consistently as `City (CODE)` everywhere; the segment editor has a typeahead that searches 1,178 commercial airports by code, city, airport name, or alias (so "Tokyo" finds NRT) and the title auto-fills to `DEP → ARR (Carrier RouteCode)` once both endpoints are set
-- **Google OAuth** — sign in with your Google account; no separate credentials needed
-- **Google Drive storage** — trip data stored as JSON in your own Drive (you own your data)
+- **Sign in with Google or Microsoft** — Supabase Auth handles both providers; one account holds your trips regardless of which provider you used to sign in
+- **Multi-provider email + calendar** — Connect Gmail or Outlook for email scanning, Google Calendar or Outlook Calendar for sync. Both providers can be linked on the same account; the picker in each sync / scan dialog defaults to whichever you used last
+- **Postgres storage** (via Supabase) — trip data lives in your Supabase project's `trips` / `segments` / `todos` / `history` tables; encrypted refresh tokens stored alongside
 - **Inline editing** — rename trips, add/edit/delete segments, manage TODOs and costs; one-click "Confirm all" for a whole batch of auto-parsed segments
 - **Embedded costs** — each segment card shows cost and booking details inline, with a dedicated Costs tab
 - **TODO tracking** — categorized checklist for meals, activities, research, and logistics
@@ -35,10 +36,10 @@ Auto-generate structured travel itineraries from email confirmations. Sign in wi
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 15 · React 19 · TailwindCSS 4 · ShadCN UI (mobile served as a PWA at `/m`) |
-| Backend | Express 5 · TypeScript · Google Drive API · Gmail API |
+| Backend | Express 5 · TypeScript · Postgres (Drizzle) · Gmail API + Microsoft Graph |
 | AI | Claude API (Anthropic) for email parsing |
 | Shared packages | Zod validators · TanStack React Query · typed API client |
-| Auth | Google OAuth (auth-code flow + PKCE for native) |
+| Auth | Supabase Auth (Google + Microsoft via OAuth) |
 | Monorepo | pnpm 10 workspaces · Turborepo |
 | CI/CD | GitHub Actions · auto version bumping · Vercel deploy |
 | Hosting | Vercel (web, SSR + Edge runtime for share unfurls) · Railway (API) · Upstash Redis (share-token persistence) — all free tier |
@@ -54,9 +55,10 @@ itinly/
 │   └── api-client/           # Typed fetch client + React Query hooks
 ├── server/                   # Express 5 REST API
 │   ├── src/
-│   │   │   ├── routes/           # trips, auth, shared, emails
-│   │   ├── services/         # Google Drive, Gmail scanner, email parser, token store
-│   │   └── middleware/       # Auth
+│   │   │   ├── routes/           # trips, auth, shared, emails, calendar, connections
+│   │   ├── services/         # Storage (Postgres + InMemory), Gmail / Graph clients, email parser, token store
+│   │   ├── connectors/       # Provider-agnostic Email + Calendar connectors (Gmail / Outlook impls)
+│   │   └── middleware/       # Auth (Supabase JWT + legacy Google coexistence)
 │   └── __tests__/
 ├── .github/workflows/        # CI + auto version bump (Vercel handles deploys)
 ├── turbo.json                # Build pipeline
@@ -83,7 +85,10 @@ pnpm install
 
 # Configure environment
 cp server/.env.example server/.env
-# Edit server/.env with your Google OAuth credentials
+# Edit server/.env: at minimum set GOOGLE_CLIENT_ID/SECRET for sign-in
+# and DATABASE_URL + SUPABASE_URL for the auth + storage stack.
+# See `docs/supabase-auth-setup.md` for the one-time Supabase /
+# Azure app-registration setup the new auth path depends on.
 ```
 
 ### Development
@@ -97,7 +102,7 @@ cd server && pnpm dev       # Express API → http://localhost:3001
 cd apps/web && pnpm dev     # Next.js → http://localhost:3000
 ```
 
-The backend runs in **memory mode** during development — no Google Drive credentials needed. Data resets on server restart.
+The backend defaults to **memory mode** during development — no Postgres / Supabase credentials needed; data resets on server restart. Set `DATABASE_URL` to flip to Postgres mode. The frontend always talks to whichever backend is running on port 3001.
 
 ### Build
 
@@ -124,14 +129,21 @@ This line is kept fresh by `scripts/update-test-count.mjs`. Before opening a PR 
 
 | Package | Tests | What's tested |
 |---------|-------|---------------|
-| `packages/shared` | 231 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, IATA airport lookup (code/city/name/keyword search, timezone resolution, normalisation), overlap detection, segment matching, meal suggestions, primary-location detection (bookend exclusion, asymmetric transfer days), trip schema migrations (incl. v1 → v2 history backfill), append-only trip-history helper (append, trim at 500, immutability) |
-| `server` | 416 | Trip + segment + todo CRUD, sharing (incl. recipient self-leave: success path, cross-recipient denial, owner-revoke path unchanged), costs, export (markdown + OneNote + PDF + iCal), trip history audit log across all mutation paths (segment / todo / trip / share / day-city / bulk-import; field-level diffs; no-op writes record nothing), email scanning + match detection, HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar sync + unsync (all-day events for hotels/car rentals, timed events with TZID for flights), auth routes, shared route, contributor edit flow (resolveTripAccess + sharedWithEmail index), `requireAuth` middleware (silenced 401 from Google for expired tokens), CORS origin allow-list + preview-pattern matching, rate limiting on `/emails/scan`, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), DriveStorage, TokenStore, refresh-token AES-256-GCM encryption, ShareRegistry, ShareSnapshotStore (Edge-runtime unfurl previews) |
+| `packages/shared` | 263 | Validators (incl. `html` / `eml` import schema branch and XLSX import schema, `provider` field on email scan request), date utils, currency formatting (including USD FX conversion), markdown + OneNote export, iCal export (VCALENDAR wrapper, TZID on flights, all-day hotels/car-rentals, VTIMEZONE DST offsets, overnight flight date advancement, floating datetimes, line folding, escaping), ID generation, segment label formatting, IATA airport lookup (code/city/name/keyword search, timezone resolution, normalisation), overlap detection, segment matching, meal suggestions, primary-location detection (bookend exclusion, asymmetric transfer days), trip schema migrations (incl. v1 → v2 history backfill), append-only trip-history helper (append, trim at 500, immutability), `sortByPrimaryEmail` stable-partition helper |
+| `server` | 664 | Trip + segment + todo CRUD, sharing (incl. recipient self-leave: success path, cross-recipient denial, owner-revoke path unchanged), costs, export (markdown + OneNote + PDF + iCal), trip history audit log across all mutation paths (segment / todo / trip / share / day-city / bulk-import; field-level diffs; no-op writes record nothing), email scanning + match detection across **both** Gmail and Outlook (provider-agnostic contract + parser-agnostic regression + destination routing), HTML + EML import pipeline, `EmailParser.htmlToText` + `emlToEmail`, XLSX trip importer (B/C column-layout auto-detection, day-of-month carry-forward, year-hint inference + year shift, Costs sheet → lodging attachment, import route), Google Calendar **and** Outlook Calendar sync + unsync (all-day events for hotels/car rentals, timed events with IANA TZ for flights, cross-provider TZ + DST wire-format parity, update-preserves-unmodified-fields), auth routes, shared route, contributor edit flow (resolveTripAccess + sharedWithEmail index), `requireAuth` middleware (silenced 401 from Google for expired tokens), CORS origin allow-list + preview-pattern matching, rate limiting on `/emails/scan`, `EmailParser` (time normalisation, cost/URL sanitisation, hotel defaults, cruise portsOfCall), SupabaseStorage + InMemoryStorage (shared contract), DriveStorage (legacy), TokenStore, refresh-token AES-256-GCM encryption, ShareRegistry, ShareSnapshotStore (Edge-runtime unfurl previews) |
 
 ## Google OAuth Setup
 
+> **New setups should use Supabase Auth** as the primary sign-in path —
+> see [`docs/supabase-auth-setup.md`](docs/supabase-auth-setup.md) for
+> the project + Azure-app-registration steps that unlock Google +
+> Microsoft sign-in side-by-side. The instructions below configure the
+> Google OAuth client itself (still required for Google sign-in and
+> for the Calendar / Gmail API scopes Supabase forwards to Google).
+
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project (or select existing)
-3. Enable **Google Drive API** and **Gmail API**
+3. Enable **Gmail API** and **Google Calendar API**
 4. Go to **APIs & Services → Credentials** → Create **OAuth 2.0 Client ID**
 5. Add authorized JavaScript origins:
    - `http://localhost:3000` (local dev)
@@ -278,7 +290,7 @@ Version is auto-incremented on merge to main via GitHub Actions. `vercel.json` a
 - [x] **Phase 1** — Foundation: monorepo, types, Zod schemas, Express API, tests
 - [x] **Phase 2** — Core UI: Next.js web app, itinerary table, segment cards, inline editing
 - [x] **Phase 3** — Google OAuth: sign-in flow, auth middleware, protected routes
-- [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry
+- [x] **Phase 4** — Google Drive storage: per-user Drive persistence, token store, share registry. **(Superseded.)** Storage moved to Supabase Postgres in the migration tracked in [`docs/backend-migration-plan.md`](docs/backend-migration-plan.md); the legacy Drive path is retained today as a coexistence branch for users on the pre-Supabase build and will be removed in Phase 6 of that plan.
 - [x] **Phase 5** — Email processing: Gmail scanning + Claude AI parsing, segment match detection, USD cost normalization
 - [x] **Phase 6** — UX & export: PDF export (pdfkit), Timeline tab (Hipmunk/Gantt with grouped + chronological views, print-ready), Map tab (Google Maps pins + KML export)
 - [x] **Email file import** — paste or upload a saved `.html` or `.eml` message and run it through the same `EmailParser` pipeline (unblocks non-Gmail users)
@@ -316,10 +328,10 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 A trip's owner can publish a read-only or contributor-edit link; recipients open it without signing in (view) or sign in to edit (contributor flow). Backed by a Redis-persisted share registry so links survive server restarts and Railway sleep cycles.
 
 - [x] **Viewer + share creation** — desktop share dialog (`ShareTripDialog`) and mobile share sheet (`MobileShareSheet`); mobile uses `navigator.share` so the OS picks the channel (Messages, Mail, AirDrop, …); recipient lands at `/shared/[token]` (desktop) or `/m/shared` (mobile); per-share toggles for showing costs and todos
-- [x] **Server hardening** — `ShareRegistry` self-heal on registry miss (rebuilds from the owner's Drive once any owner logs back in); Upstash Redis persistence for `TokenStore` + `ShareRegistry` so refresh tokens and share-token mappings survive process restarts
+- [x] **Server hardening** — `ShareRegistry` self-heal on registry miss (legacy users: rebuilds from the owner's Drive once any owner logs back in; Supabase users: reads the shares array off the trips table); Upstash Redis persistence for `TokenStore` + `ShareRegistry` so refresh tokens and share-token mappings survive process restarts (Supabase-authed users use Postgres-backed `connections` rows instead)
 - [x] **Cross-browser demo shares** — demo-mode share tokens are self-describing (`demo:tripId:perm:costs:todos:nonce`) so a recipient on any other browser running `?demo=true` can resolve them from their local sample trips
 - [x] **Per-trip unfurl previews** — `ShareSnapshotStore` writes a tiny title/dates snapshot to Redis on share creation; the public `/shared/[token]` page reads it on the Vercel Edge runtime in `generateMetadata` and renders a per-trip Open Graph card
-- [x] **Contributor edit flow** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go back to the owner's Drive); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` keeps an email index keyed on `sharedWithEmail` for fast lookup
+- [x] **Contributor edit flow** — shared trips with `permission: "edit"` show up in the recipient's own trip list with a "shared with you" badge; the recipient can open and edit them in place (writes go to the owner's Postgres rows — Drive for legacy-auth users still on the coexistence branch); read/write access is gated by a `resolveTripAccess(req, tripId, requiredPermission)` helper that checks owner-or-shared-with-edit-permission; `ShareRegistry` keeps an email index keyed on `sharedWithEmail` for fast lookup
 - [x] **Recipient self-leave** — a share recipient can remove themselves from a trip without waiting for the owner. Leave action lives on both the trip card (dashboard) and the trip detail page on desktop and mobile. Reuses the existing `DELETE /trips/:id/shares/:shareId` endpoint with the access gate relaxed: owners can revoke any share; non-owners can revoke a share row whose `sharedWithEmail` matches their authenticated email. Writes a `share.leave` audit entry (distinct from owner-initiated `share.revoke`) and pushes a notification to the *owner* ("X left your trip") rather than to the leaver. Anonymous link shares stay owner-only since there's no recipient identity to match
 - [x] **Auto-share rules** — owner-scoped rule that auto-shares every existing trip plus every future trip with a given recipient. On rule create, backfills a `TripShare` per existing trip; on trip create, fans out a share to every active rule. Each spawned share carries `originRuleId` so rule edits cascade onto its shares (and only its shares — manual shares to the same recipient stay untouched), and rule delete prompts the owner to choose between keeping existing shares or cascade-revoking them. Conflict policy on backfill is "upgrade only if stricter" (a rule will upgrade view → edit on a manual share, but never downgrade edit → view). One rule per `(owner, recipient)`; self-share rejected. Rule-level activity (create / edit / cascade-delete) collapses into a single push to the recipient instead of N per-share pushes. Surfaced as a dashboard panel on desktop (`AutoShareRulesPanel`) and a bottom sheet on mobile (`MobileAutoShareSheet`); shares originating from a rule render a "Via auto-share rule" pill in the per-trip share dialog so the owner can see at a glance which shares cascade-affect
 
