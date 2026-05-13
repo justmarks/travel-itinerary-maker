@@ -9,7 +9,6 @@ import { createCalendarRoutes } from "./routes/calendar";
 import { configureAuth, requireAuth } from "./middleware/auth";
 import { createSupabaseAuth } from "./services/supabase-auth";
 import type { StorageProvider, StorageResolver } from "./services/storage";
-import { DriveStorage } from "./services/google-drive/drive-storage";
 import { TokenStore } from "./services/token-store";
 import { ShareRegistry } from "./services/share-registry";
 import { ShareSnapshotStore } from "./services/share-snapshot-store";
@@ -24,7 +23,6 @@ import { createRedisStore, type RedisStore } from "./services/redis-store";
 import { loadEncryptionKey } from "./services/token-crypto";
 import { reportError } from "./services/monitoring";
 import { buildCorsOriginCheck, CorsOriginError } from "./middleware/cors-origin";
-import { isInsufficientScopeError } from "./services/google-drive/drive-error";
 import type { ResolveOwnerStorage } from "./services/trip-access";
 import type { DbClient } from "./db/client";
 import { SupabaseStorage } from "./services/supabase-storage";
@@ -33,31 +31,24 @@ import { config } from "./config/env";
 export interface AppOptions {
   /**
    * Storage mode:
-   * - "memory": Use a shared in-memory storage (dev/test)
-   * - "drive": Use per-user Google Drive storage (production today).
-   *   Users in `postgresUserIds` are routed to `SupabaseStorage`
-   *   instead — this is the phase 1 dogfooding flag.
-   * - "postgres": Use Supabase Postgres for every authenticated user.
-   *   Future state once dogfooding is done.
+   * - "memory": Use a shared in-memory storage (dev/test).
+   * - "postgres": Use Supabase Postgres for every authenticated user
+   *   (production).
+   *
+   * The pre-Phase-6 "drive" mode (per-user Google Drive storage) was
+   * removed once the migration finished — see
+   * `docs/backend-migration-plan.md`.
    */
-  mode: "memory" | "drive" | "postgres";
+  mode: "memory" | "postgres";
   /**
    * Required when mode is "memory". The shared storage instance.
    */
   storage?: StorageProvider;
   /**
-   * Required when storage involves Postgres
-   * (`mode: "postgres"`, or `mode: "drive"` with a non-empty
-   * `postgresUserIds` set). Process-singleton DB client; the app
-   * uses it to construct per-user `SupabaseStorage` instances.
+   * Required when mode is "postgres". Process-singleton DB client; the
+   * app uses it to construct per-user `SupabaseStorage` instances.
    */
   dbClient?: DbClient;
-  /**
-   * In `mode: "drive"`, the set of user IDs to route to Postgres
-   * instead of Drive. Empty / undefined means "every user stays on
-   * Drive". Ignored in other modes.
-   */
-  postgresUserIds?: Set<string>;
   /**
    * Test override: skip Redis even if env vars are set. Lets tests run
    * deterministically without a live Redis instance.
@@ -72,9 +63,9 @@ export interface AppOptions {
   redisStore?: RedisStore | null;
   /**
    * Test override: provide a custom owner-storage resolver for the
-   * contributor flow. In production this is built from `tokenStore` +
-   * `DriveStorage`; tests inject a userId → InMemoryStorage map to
-   * exercise cross-user share access without touching real Drive.
+   * contributor flow. In production this resolves to a per-owner
+   * `SupabaseStorage`; tests inject a userId → InMemoryStorage map to
+   * exercise cross-user share access without touching real Postgres.
    */
   resolveOwnerStorage?: ResolveOwnerStorage;
   /**
@@ -98,7 +89,6 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     mode,
     storage,
     dbClient,
-    postgresUserIds,
     disableRedis,
     redisStore: redisStoreOverride,
     resolveOwnerStorage: resolveOwnerStorageOverride,
@@ -216,67 +206,23 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // Authenticated modes are `drive` and `postgres` — both attach
   // `req.userId` via the auth middleware before route handlers run.
   // Memory mode skips auth and uses a shared singleton storage.
-  const requiresAuth = mode === "drive" || mode === "postgres";
+  const requiresAuth = mode === "postgres";
 
   // Validate cross-option requirements that the type system can't
   // catch on its own.
   if (mode === "postgres" && !dbClient) {
     throw new Error("AppOptions.dbClient is required when mode is 'postgres'");
   }
-  if (
-    mode === "drive" &&
-    postgresUserIds &&
-    postgresUserIds.size > 0 &&
-    !dbClient
-  ) {
-    throw new Error(
-      "AppOptions.dbClient is required when postgresUserIds is non-empty",
-    );
-  }
   if (mode === "memory" && !storage) {
     throw new Error("InMemoryStorage instance required for memory mode");
   }
 
-  // Build the per-request resolver. In drive mode users in
-  // `postgresUserIds` are routed to Postgres; everyone else stays on
-  // Drive. Phase 1's per-user dogfooding lives in this branch.
+  // Per-request storage resolver. Postgres mode constructs a fresh
+  // `SupabaseStorage` per request scoped to the authenticated user;
+  // memory mode shares one instance across the process for dev/test.
   let resolveStorage: StorageResolver | StorageProvider;
 
-  if (mode === "drive") {
-    resolveStorage = (req) => {
-      // Phase 3b: Supabase-authed users have no Google access token
-      // (they signed in through Supabase Auth, which never grabbed a
-      // Drive scope) and so cannot be served by DriveStorage. They
-      // *must* be on Postgres. The legacy `postgresUserIds` dogfooding
-      // list is only relevant for Google-authed users — Supabase
-      // users carry a UUID `sub`, not a Google sub, so they would
-      // never match it anyway.
-      if (req.authSource === "supabase") {
-        if (!req.userId) {
-          throw new Error(
-            "No userId on Supabase-authed request — requireAuth middleware missing?",
-          );
-        }
-        if (!dbClient) {
-          throw new Error(
-            "Supabase-authed user hit a server without DATABASE_URL " +
-              "configured. Postgres is required to serve Supabase " +
-              "sign-ins; set DATABASE_URL and redeploy.",
-          );
-        }
-        return new SupabaseStorage({ db: dbClient.db, userId: req.userId });
-      }
-      if (req.userId && postgresUserIds?.has(req.userId) && dbClient) {
-        return new SupabaseStorage({ db: dbClient.db, userId: req.userId });
-      }
-      if (!req.accessToken) {
-        throw new Error(
-          "No access token on request — requireAuth middleware missing?",
-        );
-      }
-      return new DriveStorage({ accessToken: req.accessToken });
-    };
-  } else if (mode === "postgres") {
+  if (mode === "postgres") {
     resolveStorage = (req) => {
       if (!req.userId) {
         throw new Error(
@@ -294,14 +240,10 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
 
   // Owner-storage resolver for the contributor flow. Used by trip
   // routes to load a shared trip from the *owner's* storage on behalf
-  // of a contributor. The resolver picks the same backend the owner
-  // would normally use:
+  // of a contributor.
   //
   // - postgres mode: every owner uses SupabaseStorage scoped to their
   //   userId, regardless of the requesting contributor.
-  // - drive mode: owners on the postgresUserIds list use
-  //   SupabaseStorage; others use their stored Drive token via
-  //   tokenStore. Returns null when the owner's auth has expired.
   // - memory mode: tests inject their own resolver. Without one, the
   //   contributor flow is a no-op and resolveTripAccess returns 404.
   const resolveOwnerStorage: ResolveOwnerStorage =
@@ -310,40 +252,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       ? async (ownerUserId: string) => {
           return new SupabaseStorage({ db: dbClient!.db, userId: ownerUserId });
         }
-      : mode === "drive"
-        ? async (ownerUserId: string) => {
-            // Phase 3b: Supabase user IDs are UUIDs (e.g.
-            // "eb8656e5-98e1-43f3-8b42-3cfa56a1459f"); Google subs are
-            // long numeric strings. Owners with a UUID-shaped id are
-            // Supabase-authed and live on Postgres — they have no
-            // Google access token in the tokenStore, so falling
-            // through to the Drive branch would just return null and
-            // surface as a 404 to the contributor. Until phase 5
-            // migration finishes and everyone is on Supabase, the
-            // shape check is the most reliable signal we have for
-            // "which backend does this owner use?" without an extra
-            // lookup per request.
-            const isSupabaseUuid =
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                ownerUserId,
-              );
-            if (isSupabaseUuid && dbClient) {
-              return new SupabaseStorage({
-                db: dbClient.db,
-                userId: ownerUserId,
-              });
-            }
-            if (postgresUserIds?.has(ownerUserId) && dbClient) {
-              return new SupabaseStorage({
-                db: dbClient.db,
-                userId: ownerUserId,
-              });
-            }
-            const accessToken = await tokenStore.getAccessToken(ownerUserId);
-            if (!accessToken) return null;
-            return new DriveStorage({ accessToken });
-          }
-        : async () => null);
+      : async () => null);
 
   // Health check
   app.get("/health", (_req, res) => {
@@ -429,7 +338,7 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   app.use("/api/v1/shared", createSharedRoutes({
     resolveStorage,
     shareRegistry,
-    tokenStore,
+    resolveOwnerStorage,
   }));
 
   // Auto-share rule routes — owner-scoped, requires auth in drive /
@@ -486,18 +395,6 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof CorsOriginError) {
       res.status(403).json({ error: err.message });
-      return;
-    }
-    // Drive 403 / "insufficientPermissions" — the user signed in but
-    // unticked Drive on the consent screen, so any owner-side trip
-    // operation hits this. Surface a stable code the frontend can match
-    // to flip into the "Re-grant Drive" CTA. Skip Sentry: it's a
-    // user-state condition, not a server bug.
-    if (isInsufficientScopeError(err)) {
-      res.status(403).json({
-        error: "Drive access not granted",
-        code: "DRIVE_SCOPE_REQUIRED",
-      });
       return;
     }
     console.error(err);

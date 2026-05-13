@@ -48,7 +48,6 @@ import {
   summariseSegmentChanges,
 } from "../services/trip-history";
 import { applyShareToTrip, applyShareRulesToNewTrip } from "../services/share-fanout";
-import { isInsufficientScopeError } from "../services/google-drive/drive-error";
 
 export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -170,24 +169,14 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     try {
       const storage = getStorage(req);
 
-      // listTrips() may fail with `insufficientPermissions` when the
-      // signed-in user unticked Drive on the consent screen. Don't let
-      // that take down the whole endpoint — degrade to "no owned trips"
-      // so any trips that have been *shared* with this user still
-      // surface. The dashboard's banner gates on `hasScope(DRIVE_SCOPE)`
-      // so the user gets a clear "re-grant Drive" prompt either way.
-      let ownedTrips: Trip[] = [];
-      let listTripsMs = 0;
-      try {
-        const t0 = Date.now();
-        ownedTrips = await storage.listTrips();
-        listTripsMs = Date.now() - t0;
-      } catch (err) {
-        if (!isInsufficientScopeError(err)) throw err;
-        console.warn(
-          `${listPrefix} listTrips skipped — Drive scope not granted; serving shared trips only.`,
-        );
-      }
+      // Postgres-backed listTrips doesn't fail on auth state (the
+      // user has already passed `requireAuth`), so this is a simple
+      // call now. Pre-Phase-6 we wrapped it in a try/catch for the
+      // Drive `insufficientPermissions` 403 — that branch is gone
+      // along with `DriveStorage`.
+      const t0 = Date.now();
+      const ownedTrips: Trip[] = await storage.listTrips();
+      const listTripsMs = Date.now() - t0;
       const ownedIds = new Set(ownedTrips.map((t) => t.id));
 
       // Pull every trip shared with this user (in addition to the ones

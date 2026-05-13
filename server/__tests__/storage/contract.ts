@@ -15,7 +15,7 @@ import {
   type UserSettings,
 } from "@itinly/shared";
 import type { StorageProvider } from "../../src/services/storage";
-import type { ProcessedEmail } from "../../src/services/google-drive/drive-storage";
+import type { ProcessedEmail } from "../../src/services/processed-email";
 
 export interface ContractHarness {
   /**

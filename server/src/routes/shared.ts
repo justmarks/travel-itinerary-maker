@@ -1,23 +1,32 @@
 import { Router, type Request, type Response } from "express";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
-import type { TokenStore } from "../services/token-store";
-import { DriveStorage } from "../services/google-drive/drive-storage";
+import type { ResolveOwnerStorage } from "../services/trip-access";
 import { createShareLinkRateLimiter } from "../middleware/rate-limit";
 
 export interface SharedRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
   shareRegistry?: ShareRegistry;
-  tokenStore?: TokenStore;
+  /**
+   * Builds a `StorageProvider` scoped to a given owner-userId. Used
+   * to load a shared trip from the owner's Postgres rows on behalf of
+   * an unauthenticated /shared/:token request — the registry hands us
+   * the ownerUserId for the token; this resolver constructs the
+   * matching SupabaseStorage. Returns null when the owner is unknown
+   * (memory mode: the test suite injects its own resolver; otherwise
+   * the fallback `async () => null` from `app.ts` means we route to
+   * the request-level storage).
+   */
+  resolveOwnerStorage?: ResolveOwnerStorage;
 }
 
 /**
  * Public routes for accessing shared trips (no auth required).
  */
 export function createSharedRoutes(options: SharedRoutesOptions): Router {
-  const { resolveStorage, shareRegistry, tokenStore } = options;
+  const { resolveStorage, shareRegistry, resolveOwnerStorage } = options;
 
-  // Support both a resolver function and a direct storage instance
+  // Support both a resolver function and a direct storage instance.
   const getStorage: StorageResolver =
     typeof resolveStorage === "function"
       ? resolveStorage
@@ -33,39 +42,44 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
     // events without leaking full share tokens to logs.
     const tokenLabel = `${token.slice(0, 6)}…`;
 
-    // Try to resolve storage for the trip owner via share registry
     let storage: StorageProvider;
     let registryHit = false;
 
-    if (shareRegistry && tokenStore) {
+    if (shareRegistry) {
       const entry = shareRegistry.lookup(token);
       if (entry) {
         registryHit = true;
-        // Get a fresh access token for the trip owner
-        const accessToken = await tokenStore.getAccessToken(entry.ownerUserId);
-        if (accessToken) {
-          storage = new DriveStorage({ accessToken });
+        const ownerStorage = resolveOwnerStorage
+          ? await resolveOwnerStorage(entry.ownerUserId)
+          : null;
+        if (ownerStorage) {
+          storage = ownerStorage;
         } else {
-          // Owner's refresh token expired/missing. In drive mode the
-          // request has no auth (this is the public /shared route), so
-          // `getStorage(req)` would throw. Surface a clean 503 instead
-          // of letting it hit the global 500 handler.
-          console.warn(
-            `[shared/${tokenLabel}] registry entry found but tokenStore returned no access token for owner ${entry.ownerUserId}`,
-          );
-          res.status(503).json({
-            error: "Shared trip unavailable",
-            reason: "owner-auth-expired",
-          });
-          return;
+          // No owner storage available — likely memory-mode dev /
+          // tests where the resolver returns null and the in-memory
+          // storage holds every trip regardless of owner. Fall
+          // through to the request-level storage so dev mode
+          // continues to work.
+          try {
+            storage = getStorage(req);
+          } catch (err) {
+            console.warn(
+              `[shared/${tokenLabel}] registry hit for owner=${entry.ownerUserId} but ownerStorage unavailable:`,
+              err instanceof Error ? err.message : err,
+            );
+            res.status(503).json({
+              error: "Shared trip unavailable",
+              reason: "owner-storage-unavailable",
+            });
+            return;
+          }
         }
       } else {
-        // Phase 2: ShareRegistry is durable (Postgres `trip_shares`),
-        // so a registry miss here means the token genuinely doesn't
-        // exist — we no longer rescan every owner's Drive in hopes of
-        // rebuilding state. Fall through to the request-level storage
-        // for the dev-mode in-memory path; in production drive mode
-        // this returns 404 because the public route has no auth.
+        // ShareRegistry is durable (Postgres `trip_shares` in the
+        // production path), so a registry miss means the token
+        // doesn't exist. Fall through to the request-level storage
+        // for the dev-mode in-memory path; in production this is
+        // effectively a 404.
         try {
           storage = getStorage(req);
         } catch (err) {
@@ -81,7 +95,7 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
         }
       }
     } else {
-      // Development mode — use the shared in-memory storage
+      // Development mode — use the shared in-memory storage.
       try {
         storage = getStorage(req);
       } catch (err) {

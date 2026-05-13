@@ -31,40 +31,26 @@ const isProduction = config.nodeEnv === "production";
 // accepting requests. Synchronous boot is preserved when there's no
 // Redis (hydrate becomes a no-op).
 async function bootstrap(): Promise<void> {
-  // Phase 1 dogfooding flag — comma-separated user IDs that should
-  // use Postgres even when the resolved backend is `drive`. Empty list
-  // means nobody overrides.
-  const postgresUserIds = new Set(
-    config.storage.postgresUsers
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
-  );
-  // Resolve the active backend. Explicit STORAGE_BACKEND wins.
-  // Unset falls back to `drive` in production and `memory` in dev,
-  // matching the historical defaults — but an explicit
-  // `STORAGE_BACKEND=drive` now opts into drive mode for local dev too,
-  // which is needed to manually test the dogfood list against Neon.
-  const backend: "drive" | "postgres" | "memory" =
-    config.storage.backend ?? (isProduction ? "drive" : "memory");
+  // Resolve the active backend. Explicit STORAGE_BACKEND wins;
+  // unset falls back to `postgres` in production and `memory` in dev.
+  // The pre-Phase-6 `drive` backend (per-user Google Drive storage)
+  // was removed once the Postgres migration finished — see
+  // `docs/backend-migration-plan.md`.
+  const backend: "postgres" | "memory" =
+    config.storage.backend ?? (isProduction ? "postgres" : "memory");
 
-  // Boot a DB client when storage involves Postgres (mode=postgres OR
-  // a non-empty user override list) — or when Supabase Auth is wired
-  // up, since Supabase-authed users live exclusively on Postgres
-  // regardless of `STORAGE_BACKEND`. One client per process; we reuse
-  // its pool across requests.
+  // Boot a DB client when storage involves Postgres OR when Supabase
+  // Auth is wired up (Supabase-authed users live exclusively on
+  // Postgres). One client per process; we reuse its pool across
+  // requests.
   let dbClient: DbClient | undefined;
   const supabaseAuthConfigured = !!config.supabase.url;
-  const needsDb =
-    backend === "postgres" ||
-    postgresUserIds.size > 0 ||
-    supabaseAuthConfigured;
+  const needsDb = backend === "postgres" || supabaseAuthConfigured;
   if (needsDb) {
     if (!config.storage.databaseUrl) {
       throw new Error(
-        "DATABASE_URL is required when STORAGE_BACKEND=postgres, " +
-          "STORAGE_POSTGRES_USERS is non-empty, or SUPABASE_URL is set " +
-          "(Supabase-authed users require Postgres).",
+        "DATABASE_URL is required when STORAGE_BACKEND=postgres or " +
+          "SUPABASE_URL is set (Supabase-authed users require Postgres).",
       );
     }
     dbClient = createDbClient(config.storage.databaseUrl);
@@ -73,12 +59,6 @@ async function bootstrap(): Promise<void> {
   let app: express.Express;
   if (backend === "postgres") {
     app = await createApp({ mode: "postgres", dbClient });
-  } else if (backend === "drive") {
-    app = await createApp({
-      mode: "drive",
-      dbClient,
-      postgresUserIds: postgresUserIds.size > 0 ? postgresUserIds : undefined,
-    });
   } else {
     app = await createApp({ mode: "memory", storage: new InMemoryStorage() });
   }
@@ -88,12 +68,6 @@ async function bootstrap(): Promise<void> {
     console.log(`Environment: ${config.nodeEnv}`);
     if (backend === "postgres") {
       console.log("Storage: Supabase Postgres (every user)");
-    } else if (backend === "drive" && postgresUserIds.size > 0) {
-      console.log(
-        `Storage: Google Drive (default), Postgres for ${postgresUserIds.size} user(s)`,
-      );
-    } else if (backend === "drive") {
-      console.log("Storage: Google Drive");
     } else {
       console.log("Storage: In-Memory");
     }

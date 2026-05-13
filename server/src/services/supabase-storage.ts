@@ -32,7 +32,7 @@ import {
   type UserSettings,
 } from "@itinly/shared";
 import type { StorageProvider } from "./storage";
-import type { ProcessedEmail } from "./google-drive/drive-storage";
+import type { ProcessedEmail } from "./processed-email";
 import type { Db } from "../db/client";
 import {
   trips as tripsTable,
