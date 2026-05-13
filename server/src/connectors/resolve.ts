@@ -76,43 +76,60 @@ export interface ResolvedCalendarConnector {
 }
 
 export interface ConnectorResolvers {
-  resolveCalendarConnector(req: Request): Promise<ResolvedCalendarConnector | null>;
-  resolveEmailConnector(req: Request): Promise<ResolvedEmailConnector | null>;
+  /**
+   * `preferProvider` overrides the default auto-pick (Microsoft first,
+   * then Google) when the user has both providers connected. Passed
+   * through from a `?provider=` query param so the UI can let users
+   * choose which mailbox / calendar to sync to. Unknown values are
+   * ignored.
+   */
+  resolveCalendarConnector(
+    req: Request,
+    preferProvider?: ConnectionProvider,
+  ): Promise<ResolvedCalendarConnector | null>;
+  resolveEmailConnector(
+    req: Request,
+    preferProvider?: ConnectionProvider,
+  ): Promise<ResolvedEmailConnector | null>;
 }
 
 export function createConnectorResolvers(
   deps: ConnectorResolverDeps,
 ): ConnectorResolvers {
   return {
-    async resolveCalendarConnector(req) {
+    async resolveCalendarConnector(req, preferProvider) {
       if (
         deps.connectionsStore &&
         req.authSource === "supabase" &&
         req.userId
       ) {
-        const ms = await getActiveAccessToken(
-          { store: deps.connectionsStore },
-          req.userId,
-          "microsoft",
-          "calendar",
-        );
-        if (ms) {
-          return {
-            connector: new MicrosoftCalendarConnector(ms.accessToken),
-            accessToken: ms.accessToken,
-          };
-        }
-        const google = await getActiveAccessToken(
-          { store: deps.connectionsStore },
-          req.userId,
-          "google",
-          "calendar",
-        );
-        if (google) {
-          return {
-            connector: new GoogleCalendarConnector(google.accessToken),
-            accessToken: google.accessToken,
-          };
+        // Auto-pick order: Microsoft, then Google. `preferProvider`
+        // (typically `?provider=` from a route query) puts the
+        // requested provider first; the other becomes a fallback in
+        // case the user disconnected it but we have a stale cached
+        // hint somewhere.
+        const order: ConnectionProvider[] =
+          preferProvider === "google"
+            ? ["google", "microsoft"]
+            : preferProvider === "microsoft"
+              ? ["microsoft", "google"]
+              : ["microsoft", "google"];
+        for (const provider of order) {
+          const resolved = await getActiveAccessToken(
+            { store: deps.connectionsStore },
+            req.userId,
+            provider,
+            "calendar",
+          );
+          if (resolved) {
+            return {
+              connector:
+                provider === "microsoft"
+                  ? new MicrosoftCalendarConnector(resolved.accessToken)
+                  : new GoogleCalendarConnector(resolved.accessToken),
+              accessToken: resolved.accessToken,
+            };
+          }
         }
         return null;
       }
@@ -126,37 +143,37 @@ export function createConnectorResolvers(
       };
     },
 
-    async resolveEmailConnector(req) {
+    async resolveEmailConnector(req, preferProvider) {
       if (
         deps.connectionsStore &&
         req.authSource === "supabase" &&
         req.userId
       ) {
-        const ms = await getActiveAccessToken(
-          { store: deps.connectionsStore },
-          req.userId,
-          "microsoft",
-          "email",
-        );
-        if (ms) {
-          return {
-            connector: new MicrosoftEmailConnector(ms.accessToken),
-            provider: "microsoft",
-            accountEmail: ms.connection.accountEmail,
-          };
-        }
-        const google = await getActiveAccessToken(
-          { store: deps.connectionsStore },
-          req.userId,
-          "google",
-          "email",
-        );
-        if (google) {
-          return {
-            connector: new GoogleEmailConnector(google.accessToken),
-            provider: "google",
-            accountEmail: google.connection.accountEmail,
-          };
+        // Same auto-pick + preferProvider override pattern as the
+        // calendar resolver — see the comment there.
+        const order: ConnectionProvider[] =
+          preferProvider === "google"
+            ? ["google", "microsoft"]
+            : preferProvider === "microsoft"
+              ? ["microsoft", "google"]
+              : ["microsoft", "google"];
+        for (const provider of order) {
+          const resolved = await getActiveAccessToken(
+            { store: deps.connectionsStore },
+            req.userId,
+            provider,
+            "email",
+          );
+          if (resolved) {
+            return {
+              connector:
+                provider === "microsoft"
+                  ? new MicrosoftEmailConnector(resolved.accessToken)
+                  : new GoogleEmailConnector(resolved.accessToken),
+              provider,
+              accountEmail: resolved.connection.accountEmail,
+            };
+          }
         }
         return null;
       }

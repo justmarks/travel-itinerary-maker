@@ -14,8 +14,8 @@ import type { Trip } from "@travel-app/shared";
 import { cn } from "@/lib/utils";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {
-  useActiveCalendarProvider,
   calendarProviderLabel,
+  type CalendarProvider,
 } from "@/lib/use-active-provider";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import { NotConnectedNotice } from "@/components/not-connected-notice";
@@ -73,9 +73,12 @@ function CalendarSyncBody({
     sync,
     refresh,
     unsync,
+    connectedProviders,
+    selectedProvider,
+    setSelectedProvider,
   } = useCalendarSync(trip);
-  const { provider: calendarProvider } = useActiveCalendarProvider();
-  const providerLabel = calendarProviderLabel(calendarProvider);
+  const providerLabel = calendarProviderLabel(selectedProvider);
+  const showProviderPicker = connectedProviders.length > 1;
 
   const initialStep: Step = !calendarGranted
     ? "scope"
@@ -121,6 +124,14 @@ function CalendarSyncBody({
     onClose();
   };
 
+  const handleProviderChange = (next: CalendarProvider) => {
+    setSelectedProvider(next);
+    void loadCalendars().then((cals) => {
+      const primary = cals.find((c) => c.primary);
+      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+    });
+  };
+
   return (
     <>
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
@@ -155,6 +166,34 @@ function CalendarSyncBody({
             <p className="text-sm text-muted-foreground">
               Select the {providerLabel} to sync this trip&apos;s events to.
             </p>
+            {showProviderPicker && (
+              <div
+                className="flex gap-2"
+                role="radiogroup"
+                aria-label="Calendar account"
+              >
+                {connectedProviders.map((p) => {
+                  const active = selectedProvider === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => handleProviderChange(p)}
+                      className={cn(
+                        "h-10 flex-1 rounded-full border text-sm font-medium transition-colors",
+                        active
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-background text-foreground active:bg-muted/40",
+                      )}
+                    >
+                      {calendarProviderLabel(p)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {loadingCalendars ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />

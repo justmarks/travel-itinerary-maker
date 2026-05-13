@@ -469,6 +469,13 @@ export const emailScanRequestSchema = z.object({
    * parser bugs.
    */
   forceRescan: z.boolean().optional(),
+  /**
+   * Which connected mailbox to scan when the user has more than one
+   * provider linked. Omitted = server-side auto-pick (Microsoft
+   * first, then Google). The UI sets this from the per-user mailbox
+   * picker on the scan dialog.
+   */
+  provider: z.enum(["google", "microsoft"]).optional(),
 });
 
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;

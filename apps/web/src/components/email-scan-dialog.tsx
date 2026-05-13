@@ -58,8 +58,10 @@ import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 import {
   useActiveEmailProvider,
+  useConnectedEmailProviders,
   emailLabelNoun,
   emailProviderLabel,
+  type EmailProvider,
 } from "@/lib/use-active-provider";
 import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
@@ -179,10 +181,39 @@ export function EmailScanDialog({
   //   - Demo mode → google
   //   - Nothing linked → null → render the "not-connected" step
   // The gate also drives the "Connect Gmail / Outlook" prompt below.
-  const { provider: activeEmailProvider } = useActiveEmailProvider(open);
-  const emailGranted = isDemo || activeEmailProvider !== null;
+  const { provider: autoProvider } = useActiveEmailProvider(open);
+  const { providers: connectedEmailProviders } = useConnectedEmailProviders(open);
+  const emailGranted = isDemo || autoProvider !== null;
 
-  const { data: labels, error: labelsError } = useGmailLabels(open && emailGranted);
+  // Per-user mailbox picker — defaults to the last choice from
+  // localStorage if it's still a linked provider, else the resolver's
+  // Microsoft-first auto-pick. Switching here re-keys the labels query
+  // and threads `provider` into the scan request.
+  const [selectedProvider, setSelectedProviderState] =
+    useState<EmailProvider | null>(() => {
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem("itinly:email-provider");
+      return raw === "google" || raw === "microsoft" ? raw : null;
+    });
+  // Fall back to the auto-pick if the stored choice is no longer
+  // connected (e.g. user disconnected Outlook after last using it).
+  const effectiveProvider: EmailProvider | null =
+    selectedProvider && connectedEmailProviders.includes(selectedProvider)
+      ? selectedProvider
+      : autoProvider;
+  const setSelectedProvider = (next: EmailProvider) => {
+    setSelectedProviderState(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("itinly:email-provider", next);
+    }
+  };
+  const activeEmailProvider = effectiveProvider;
+  const showProviderPicker = connectedEmailProviders.length > 1;
+
+  const { data: labels, error: labelsError } = useGmailLabels(
+    open && emailGranted,
+    effectiveProvider ?? undefined,
+  );
   const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(
     open && emailGranted,
   );
@@ -321,6 +352,7 @@ export function EmailScanDialog({
       if (tripId) input.tripId = tripId;
       if (selectedLabel && selectedLabel !== "__all__") input.labelFilter = selectedLabel;
       if (forceRescan) input.forceRescan = true;
+      if (effectiveProvider) input.provider = effectiveProvider;
 
       const res = await scanEmails.mutateAsync({
         input,
@@ -682,6 +714,31 @@ export function EmailScanDialog({
         {step === "config" && (
           <>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+              {showProviderPicker && (
+                <div className="space-y-2">
+                  <p className="text-kicker text-muted-foreground">Mailbox</p>
+                  <div
+                    className="flex gap-2"
+                    role="radiogroup"
+                    aria-label="Mailbox account"
+                  >
+                    {connectedEmailProviders.map((p) => (
+                      <Button
+                        key={p}
+                        type="button"
+                        variant={effectiveProvider === p ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        role="radio"
+                        aria-checked={effectiveProvider === p}
+                        onClick={() => setSelectedProvider(p)}
+                      >
+                        {emailProviderLabel(p)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <label
                   htmlFor="email-scan-label"

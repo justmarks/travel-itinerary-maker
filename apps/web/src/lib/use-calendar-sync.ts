@@ -6,7 +6,11 @@ import { useApiClient } from "@travel-app/api-client";
 import { toast } from "sonner";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
-import { useActiveCalendarProvider } from "@/lib/use-active-provider";
+import {
+  useActiveCalendarProvider,
+  useConnectedCalendarProviders,
+  type CalendarProvider,
+} from "@/lib/use-active-provider";
 
 export type CalendarOption = {
   id: string;
@@ -34,6 +38,32 @@ type CalendarSyncTrip = {
  * desktop renders three radix dialogs while mobile uses a single bottom
  * sheet with steps, so each surface drives its own UI shell.
  */
+/**
+ * Per-trip localStorage key for the user's last calendar-provider
+ * choice. Scoped to trip so the picker can default to whatever was
+ * last used for THIS trip — switching trips shouldn't drag a stale
+ * choice along.
+ */
+function providerStorageKey(tripId: string): string {
+  return `itinly:calendar-provider:${tripId}`;
+}
+
+export function readStoredCalendarProvider(
+  tripId: string,
+): CalendarProvider | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(providerStorageKey(tripId));
+  return raw === "google" || raw === "microsoft" ? raw : null;
+}
+
+export function writeStoredCalendarProvider(
+  tripId: string,
+  provider: CalendarProvider,
+): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(providerStorageKey(tripId), provider);
+}
+
 export function useCalendarSync(trip: CalendarSyncTrip) {
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -45,7 +75,24 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   //   - Nothing → null → gate stays closed and the UI renders the
   //     Connect CTA / NotConnectedNotice
   const { provider: activeCalendarProvider } = useActiveCalendarProvider();
+  const { providers: connectedProviders } = useConnectedCalendarProviders();
   const calendarGranted = isDemo || activeCalendarProvider !== null;
+
+  // Default = stored choice if it's still a connected provider; else
+  // the resolver's auto-pick (Microsoft-first). null means "let the
+  // server auto-pick" and is the right default during initial load.
+  const stored = readStoredCalendarProvider(trip.id);
+  const defaultProvider: CalendarProvider | null =
+    stored && connectedProviders.includes(stored)
+      ? stored
+      : activeCalendarProvider;
+  const [selectedProvider, setSelectedProviderState] =
+    useState<CalendarProvider | null>(defaultProvider);
+
+  const setSelectedProvider = (provider: CalendarProvider): void => {
+    setSelectedProviderState(provider);
+    writeStoredCalendarProvider(trip.id, provider);
+  };
 
   const [syncing, setSyncing] = useState(false);
   const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
@@ -59,11 +106,14 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const syncedCalendarName = calendars?.find((c) => c.id === trip.calendarId)
     ?.summary;
 
+  const effectiveProvider = (): CalendarProvider | undefined =>
+    selectedProvider ?? defaultProvider ?? undefined;
+
   const loadCalendars = async (): Promise<CalendarOption[]> => {
     setLoadingCalendars(true);
     setCalendars(null);
     try {
-      const cals = await client.listCalendars();
+      const cals = await client.listCalendars(effectiveProvider());
       setCalendars(cals);
       return cals;
     } catch {
@@ -82,7 +132,11 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const sync = async (calendarId: string): Promise<void> => {
     setSyncing(true);
     try {
-      const result = await client.syncCalendar(trip.id, calendarId);
+      const result = await client.syncCalendar(
+        trip.id,
+        calendarId,
+        effectiveProvider(),
+      );
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
       const total = result.created + result.updated;
       if (result.failed > 0) {
@@ -104,7 +158,11 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const refresh = async (): Promise<void> => {
     setSyncing(true);
     try {
-      const result = await client.syncCalendar(trip.id, trip.calendarId);
+      const result = await client.syncCalendar(
+        trip.id,
+        trip.calendarId,
+        effectiveProvider(),
+      );
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
       const total = result.created + result.updated;
       if (result.failed > 0) {
@@ -126,7 +184,10 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const unsync = async (deleteEvents: boolean): Promise<void> => {
     setSyncing(true);
     try {
-      const result = await client.unsyncCalendar(trip.id, { deleteEvents });
+      const result = await client.unsyncCalendar(trip.id, {
+        deleteEvents,
+        provider: effectiveProvider(),
+      });
       await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
       if (deleteEvents) {
         toast.success(
@@ -150,6 +211,17 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
      * when null vs no notice when populated).
      */
     activeCalendarProvider,
+    /**
+     * Every linked calendar provider for this user, in Microsoft-first
+     * order. Dialogs render the inline picker when length > 1.
+     */
+    connectedProviders,
+    /**
+     * The provider currently driving sync calls — defaults to the
+     * stored last-choice (per trip) or the auto-picked active provider.
+     */
+    selectedProvider: selectedProvider ?? defaultProvider,
+    setSelectedProvider,
     isSynced,
     syncedCount,
     syncedCalendarName,
