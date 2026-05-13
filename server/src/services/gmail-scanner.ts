@@ -189,8 +189,15 @@ export class GmailScanner {
         "-from:(amazon.com OR uber.com OR lyft.com OR doordash.com OR grubhub.com OR instacart.com OR paypal.com OR venmo.com)";
       // Subject keywords OR known travel sender domains — catches emails like
       // Hawaiian Airlines even when their subject is a generic "receipt".
+      // Keyword set covers both first-party travel-vendor subjects
+      // (`reservation confirmation`, `e-ticket`, `boarding pass`) AND
+      // the common forwarded-from-a-friend shapes that lose the
+      // original sender — e.g. "Upcoming Stay at the Wailea Beach
+      // Resort", "Your Vacation Travel Dates Are Confirmed". `confirmed`
+      // is listed alongside `confirmation` because Gmail's API search
+      // doesn't reliably stem one to the other.
       const subjectTerms =
-        "subject:(confirmation OR booking OR reservation OR itinerary OR e-ticket OR eticket OR \"boarding pass\" OR flight OR hotel OR check-in)";
+        "subject:(confirmation OR confirmed OR booking OR booked OR reservation OR itinerary OR e-ticket OR eticket OR \"boarding pass\" OR flight OR hotel OR resort OR check-in OR stay OR trip OR vacation OR cruise OR getaway)";
       const travelSenders =
         "from:(airlines OR airline OR flight OR hotel OR marriott OR hilton OR hyatt OR airbnb OR vrbo OR expedia OR booking.com OR kayak OR united OR delta OR american OR southwest OR alaska OR hawaiian OR jetblue OR frontier OR spirit OR lufthansa OR klm OR british-airways OR airfrance OR emirates OR qatar)";
       listParams.q = `(${subjectTerms} OR ${travelSenders}) ${excludes} ${age}`;
