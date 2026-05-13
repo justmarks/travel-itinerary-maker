@@ -124,20 +124,6 @@ export function ConnectedServicesPanel(): React.JSX.Element {
     }
     const providerKey = provider === "azure" ? "microsoft" : "google";
     setBusyAction(`connect-${providerKey}-${capability}`);
-    markPendingConnection({
-      capability,
-      // The scopes string we're about to pass to OAuth gets split
-      // back into an array here so the server can record what was
-      // requested. Drives Microsoft refresh-token requests (v2
-      // rejects refresh with empty/identity-only scope set).
-      scopes: scopes.split(" ").filter(Boolean),
-      // Bounce back to the settings page so the user sees their new
-      // connection in the list without manual navigation.
-      returnTo:
-        typeof window !== "undefined" && window.location.pathname.startsWith("/m")
-          ? "/m/settings/account"
-          : "/settings/account",
-    });
     try {
       // Two paths depending on whether the user is already linked to
       // this provider:
@@ -165,6 +151,22 @@ export function ConnectedServicesPanel(): React.JSX.Element {
         (userData.user?.identities ?? []).map((i) => i.provider),
       );
       const alreadyLinked = linkedProviders.has(provider);
+      // Stamp the pending flag NOW (after we know the flow type) so
+      // the callback can branch its session-selection logic. Without
+      // the flow hint, the callback would unconditionally
+      // exchange-code-for-session on a `linkIdentity` callback and
+      // sign the user in as the *linked* provider's account,
+      // swapping them out of their original session.
+      markPendingConnection({
+        capability,
+        scopes: scopes.split(" ").filter(Boolean),
+        returnTo:
+          typeof window !== "undefined" && window.location.pathname.startsWith("/m")
+            ? "/m/settings/account"
+            : "/settings/account",
+        flow: alreadyLinked ? "signin" : "link",
+        expectedUserId: userData.user?.id,
+      });
 
       // Google requires `access_type=offline&prompt=consent` to
       // include a refresh_token in the OAuth response. Without the
@@ -185,6 +187,15 @@ export function ConnectedServicesPanel(): React.JSX.Element {
         oauthOptions.queryParams = {
           access_type: "offline",
           prompt: "consent",
+        };
+      } else if (provider === "azure") {
+        // Force Microsoft to show the account picker rather than
+        // silently signing in with whichever account is currently
+        // active in the browser. Without this, users with multiple
+        // Microsoft accounts (work + personal) can't choose which
+        // one to link.
+        oauthOptions.queryParams = {
+          prompt: "select_account",
         };
       }
       const { error } = alreadyLinked

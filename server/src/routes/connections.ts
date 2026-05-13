@@ -148,6 +148,18 @@ export function createConnectionsRoutes(
         return;
       }
       expiresAt = parsed;
+    } else if (accessToken) {
+      // The auth-callback page only forwards `accessToken` and
+      // `refreshToken` from the Supabase session — it has no access
+      // to the provider's `expires_in`, so without a default the
+      // row's `expiresAt` stays null. `getActiveAccessToken` then
+      // treats the cached access token as expired-on-arrival and
+      // tries to refresh on the first call, which fails when the
+      // refresh_token was issued by Supabase's OAuth client (not
+      // ours). Defaulting to 55 minutes from now gives the
+      // resolver a cache window that matches Google's standard
+      // 1-hour access-token lifetime (5-minute safety margin).
+      expiresAt = new Date(Date.now() + 55 * 60 * 1000);
     }
 
     let scopes: string[] | undefined;
@@ -170,6 +182,15 @@ export function createConnectionsRoutes(
       expiresAt,
       scopes,
     });
+    // Tell apart "Connect button POST landed, row got the expected
+    // scopes" from "POST failed silently / wrote a stale row" when
+    // debugging calendar-sync issues. We log scope STRINGS (not
+    // tokens) and presence flags — no PII / secrets leak.
+    console.log(
+      `[connections] upsert user=${req.userEmail} provider=${provider} capability=${capability} ` +
+        `accountEmail=${accountEmail} hasAccessToken=${!!accessToken} hasRefreshToken=${!!refreshToken} ` +
+        `scopes=[${(scopes ?? []).join(", ")}]`,
+    );
 
     res.status(201).json({ connection: publicView(connection) });
   });

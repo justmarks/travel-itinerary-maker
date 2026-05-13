@@ -6,6 +6,44 @@ import {
   type ConnectorResolvers,
 } from "../connectors/resolve";
 
+/**
+ * Diagnostic hook fired only when Google returns 403 "insufficient
+ * scopes" on the calendar-list call. Hits Google's tokeninfo
+ * endpoint with the access token the resolver just handed us and
+ * logs the ACTUAL scopes baked into it.
+ *
+ * Lets us tell apart:
+ *  - "user never granted Calendar" (token has only identity scopes
+ *    — Supabase's signInWithOAuth `scopes` param didn't take effect)
+ *  - "user granted Calendar but we're using a stale token" (token
+ *    has identity scopes despite user re-consenting recently)
+ *
+ * Best-effort — any failure here is logged and swallowed so the
+ * diagnostic itself doesn't mask the original 403.
+ */
+async function diagnoseScopes(
+  req: Request,
+  accessToken: string,
+): Promise<void> {
+  if (!accessToken) {
+    console.warn(`[calendar-list] tokeninfo diagnostic: empty access token`);
+    return;
+  }
+  const res = await fetch(
+    `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+  );
+  if (!res.ok) {
+    console.warn(
+      `[calendar-list] tokeninfo returned ${res.status} for user=${req.userEmail}`,
+    );
+    return;
+  }
+  const info = (await res.json()) as { scope?: string; expires_in?: string };
+  console.warn(
+    `[calendar-list] user=${req.userEmail} stored access token scopes="${info.scope ?? "(none)"}" expires_in=${info.expires_in ?? "?"}`,
+  );
+}
+
 export interface CalendarRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
   /**
@@ -59,22 +97,50 @@ export function createCalendarRoutes(
    * found."
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
+      console.warn(
+        `[calendar-list] no calendar connector resolved for user=${req.userId} email=${req.userEmail}`,
+      );
       notConnected(res);
       return;
     }
     try {
-      const calendars = await connector.listCalendars();
+      const calendars = await resolved.connector.listCalendars();
+      // Useful when the dialog shows "No writable calendars" — lets
+      // us tell "auth worked but list was empty" apart from "auth
+      // failed" in Railway logs.
+      console.log(
+        `[calendar-list] user=${req.userEmail} returned ${calendars.length} calendar(s)`,
+      );
       res.json(calendars);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      console.warn(
-        `[calendar/list] user=${req.userEmail ?? req.userId ?? "?"} failed: ${message}`,
+      // Surface the underlying error code (status + message) so we
+      // can diagnose 401/403/scope failures instead of guessing from
+      // an empty list at the UI.
+      const status = (err as { status?: number; code?: number }).status ??
+        (err as { code?: number }).code ?? 500;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[calendar-list] user=${req.userEmail} listCalendars failed status=${status}: ${message}`,
       );
-      res.status(502).json({
-        error: `Failed to load calendars: ${message}`,
-        code: "CALENDAR_LIST_FAILED",
+      // On insufficient-scopes 403 (Google's "Request had insufficient
+      // authentication scopes"), hit Google's tokeninfo endpoint with
+      // the stored access token directly — earlier attempts tried to
+      // pull it from `err.config.headers.Authorization` but the
+      // GaxiosError shape varies and the extraction missed.
+      if (status === 403 && message.toLowerCase().includes("scope")) {
+        await diagnoseScopes(req, resolved.accessToken).catch((e) => {
+          console.warn(
+            `[calendar-list] tokeninfo diagnostic failed: ${
+              e instanceof Error ? e.message : "unknown"
+            }`,
+          );
+        });
+      }
+      res.status(500).json({
+        error: message,
+        code: status === 401 || status === 403 ? "CALENDAR_AUTH_FAILED" : "CALENDAR_LIST_FAILED",
       });
     }
   });
@@ -97,12 +163,12 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
       notConnected(res);
       return;
     }
-    const result = await connector.syncTrip(trip, calendarId, req.userEmail);
+    const result = await resolved.connector.syncTrip(trip, calendarId, req.userEmail);
 
     // Persist the returned event IDs back onto each segment
     for (const day of trip.days) {
@@ -155,12 +221,12 @@ export function createCalendarRoutes(
 
     const { resolveTripTimezones } = await import("../utils/timezone-lookup");
     await resolveTripTimezones(trip);
-    const connector = await resolvers.resolveCalendarConnector(req);
-    if (!connector) {
+    const resolved = await resolvers.resolveCalendarConnector(req);
+    if (!resolved) {
       notConnected(res);
       return;
     }
-    const result = await connector.syncSegment(
+    const result = await resolved.connector.syncSegment(
       trip,
       targetDay,
       targetSegment,
@@ -200,12 +266,12 @@ export function createCalendarRoutes(
     let removed = 0;
     let failed = 0;
     if (deleteEvents) {
-      const connector = await resolvers.resolveCalendarConnector(req);
-      if (!connector) {
+      const resolved = await resolvers.resolveCalendarConnector(req);
+      if (!resolved) {
         notConnected(res);
         return;
       }
-      const result = await connector.unsyncTrip(trip, calendarId, req.userEmail);
+      const result = await resolved.connector.unsyncTrip(trip, calendarId, req.userEmail);
       removed = result.removed;
       failed = result.failed;
     }

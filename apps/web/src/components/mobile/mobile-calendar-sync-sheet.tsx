@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   CalendarCheck,
   CalendarPlus,
@@ -208,9 +209,22 @@ function CalendarSyncBody({
                 Couldn&apos;t load calendars: {calendarError}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No writable calendars found.
-              </p>
+              // Same reconnect CTA as desktop — an empty list almost
+              // always means the connection can't authenticate.
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>No writable calendars found.</p>
+                <p>
+                  Your {providerLabel} connection may have expired.{" "}
+                  <Link
+                    href="/settings/account"
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={onClose}
+                  >
+                    Reconnect from Settings
+                  </Link>
+                  {" "}to re-grant calendar access.
+                </p>
+              </div>
             )}
           </>
         )}
