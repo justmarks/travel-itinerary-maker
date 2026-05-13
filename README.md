@@ -85,8 +85,11 @@ pnpm install
 
 # Configure environment
 cp server/.env.example server/.env
+cp apps/web/.env.example apps/web/.env.local
 # Edit server/.env: at minimum set GOOGLE_CLIENT_ID/SECRET for sign-in
 # and DATABASE_URL + SUPABASE_URL for the auth + storage stack.
+# Edit apps/web/.env.local with the matching NEXT_PUBLIC_* values
+# (Supabase URL + anon key, Google client id, Maps API key).
 # See `docs/supabase-auth-setup.md` for the one-time Supabase /
 # Azure app-registration setup the new auth path depends on.
 ```
