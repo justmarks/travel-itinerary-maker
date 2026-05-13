@@ -23,14 +23,20 @@ this whole class of issue evaporates when Vercel is the host.
    - **Root Directory:** `apps/web`. *This is the critical setting* — it
      tells Vercel the Next.js app lives in a subdirectory; without it
      Vercel tries to build from the workspace root and fails.
-   - **Build Command:** *Override* with
+   - **Build Command:** **leave default / clear any UI override.** The
+     committed `vercel.json` at the repo root sets
      ```
      cd ../.. && pnpm turbo build --filter=@itinly/web
      ```
-     This runs Turbo from the monorepo root and builds the shared
-     workspace packages (`@itinly/shared`, `@itinly/api-client`)
-     before `@itinly/web`. The default `next build` would skip those
-     and fail.
+     which Vercel uses automatically (config-file values take
+     precedence over the UI). Running Turbo from the monorepo root
+     builds the shared workspace packages (`@itinly/shared`,
+     `@itinly/api-client`) before `@itinly/web` — the default
+     `next build` would skip those and fail. If the project was set
+     up before this file existed and the UI override is still
+     present, clear it: Settings → Build & Development → Build
+     Command → toggle off the override. Otherwise the UI value
+     wins for projects that pre-date the config-file commit.
    - **Install Command:** leave default — Vercel auto-detects pnpm and
      installs the whole workspace.
    - **Output Directory:** leave default (`.next`).
