@@ -150,18 +150,17 @@ async function seedUserFixtures(
     id: todoId,
     tripId,
     text: "todo",
-    completed: false,
+    isCompleted: false,
     category: "logistics",
     sortOrder: 0,
   });
   await dbClient.db.insert(tripHistory).values({
     id: historyId,
     tripId,
-    op: "trip-created",
-    actorUserId: userId,
+    ts: new Date(),
     actorEmail: `${userId}@example.com`,
-    payload: {},
-    createdAt: new Date(),
+    kind: "trip-created",
+    summary: "Created trip",
   });
   await dbClient.db.insert(shareRules).values({
     id: shareRuleId,
