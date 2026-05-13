@@ -34,13 +34,16 @@
  *     `unlinkIdentity`.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { UserIdentity } from "@supabase/supabase-js";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, useConnections } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm-dialog";
+import { sortByPrimaryEmail } from "@/lib/sort-by-primary-email";
 
 type LinkableProvider = "google" | "azure";
 type ConnectionsProvider = "google" | "microsoft";
@@ -60,10 +63,6 @@ interface PublicConnection {
   capability: ConnectionsCapability;
   accountEmail: string;
   status: "active" | "revoked";
-}
-
-interface ConnectionsResponse {
-  connections: PublicConnection[];
 }
 
 function providerLabel(provider: string): string {
@@ -110,28 +109,19 @@ function capabilityLabel(
 }
 
 export function ConnectedProvidersPanel(): React.JSX.Element {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
+  // Share connections state with `ConnectedServicesPanel` via the
+  // same React Query cache key. When this panel cascade-unlinks a
+  // provider it invalidates the query so the services panel re-renders
+  // without the just-deleted capability rows — no manual page refresh.
+  const { data: connectionsData } = useConnections();
+  const connections: PublicConnection[] =
+    connectionsData?.connections.filter((c) => c.status === "active") ?? [];
   const [identities, setIdentities] = useState<UserIdentity[] | null>(null);
-  const [connections, setConnections] = useState<PublicConnection[]>([]);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const refreshConnections = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const res = await fetch(`${API_BASE_URL}/connections`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as ConnectionsResponse;
-      setConnections(data.connections.filter((c) => c.status === "active"));
-    } catch {
-      // Non-fatal: the panel still works without the capability
-      // cascade summary — we just won't show the "will also unlink…"
-      // sentence in the confirm dialog. Refreshes again next visit.
-    }
-  }, [accessToken]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -148,11 +138,10 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
       }
       setIdentities(data.identities ?? []);
     });
-    void refreshConnections();
     return () => {
       cancelled = true;
     };
-  }, [refreshConnections]);
+  }, []);
 
   if (loadError) {
     return (
@@ -252,20 +241,25 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
     if (!supabase) return;
     setBusyProvider(identity.provider);
 
-    // Optimistic: drop the identity row from local state immediately
-    // so the panel reflects the click. Restore on error.
+    const queryKey = queryKeys.connections;
+    // Optimistic identity-row state; rolled back on error.
     const prev = identities ?? [];
     setIdentities(prev.filter((i) => i.identity_id !== identity.identity_id));
 
-    // Also drop the matching capability rows + identity row in
-    // connections state so the cascade is visible in this panel
-    // while the DELETEs race the unlink call. Same provider key the
-    // confirm dialog used.
-    const prevConnections = connections;
-    if (connectionsProvider) {
-      setConnections(
-        connections.filter((c) => c.provider !== connectionsProvider),
-      );
+    // Optimistic connections-cache update: drop every row for this
+    // provider from the shared React Query cache so the services
+    // panel re-renders without the cascading rows immediately. Same
+    // queryKey both panels read, so the update propagates to both
+    // without an event bus.
+    const prevConnectionsCache = queryClient.getQueryData<{
+      connections: PublicConnection[];
+    }>(queryKey);
+    if (connectionsProvider && prevConnectionsCache) {
+      queryClient.setQueryData<{ connections: PublicConnection[] }>(queryKey, {
+        connections: prevConnectionsCache.connections.filter(
+          (c) => c.provider !== connectionsProvider,
+        ),
+      });
     }
 
     try {
@@ -275,7 +269,7 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
       // server-side first means the next /connections fetch shows the
       // post-unlink reality even if the user reloads mid-flight.
       if (accessToken && connectionsProvider) {
-        const rowsToDelete = prevConnections.filter(
+        const rowsToDelete = connections.filter(
           (c) => c.provider === connectionsProvider,
         );
         for (const row of rowsToDelete) {
@@ -293,9 +287,15 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
 
       const { error } = await supabase.auth.unlinkIdentity(identity);
       if (error) throw error;
+      // Refetch from server so the cache reflects post-cascade truth
+      // (in case the optimistic write missed any rows the server
+      // server-side cascaded out from under us).
+      await queryClient.invalidateQueries({ queryKey });
     } catch (err) {
       setIdentities(prev);
-      setConnections(prevConnections);
+      if (prevConnectionsCache) {
+        queryClient.setQueryData(queryKey, prevConnectionsCache);
+      }
       toast.error("Couldn't unlink account", {
         description:
           err instanceof Error ? err.message : "Unknown error",
@@ -313,7 +313,11 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
           Sign in with any of these — they all point to the same trips.
         </p>
         <ul className="space-y-2">
-          {identities.map((identity) => {
+          {sortByPrimaryEmail(
+            identities,
+            identityEmail,
+            user?.email ?? null,
+          ).map((identity) => {
             const email = identityEmail(identity);
             const canUnlink = identities.length > 1;
             const isBusy = busyProvider === identity.provider;

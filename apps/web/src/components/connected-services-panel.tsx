@@ -25,14 +25,17 @@
  * (Calendar) and migrate to `/connections` in subsequent commits.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys, useConnections } from "@travel-app/api-client";
 import { Button } from "@/components/ui/button";
 import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { markPendingConnection } from "@/app/auth/callback/page";
 import { startGmailLink, isGmailLinkConfigured } from "@/lib/oauth";
 import { describeError } from "@/lib/api-error";
+import { sortByPrimaryEmail } from "@/lib/sort-by-primary-email";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -44,10 +47,6 @@ interface PublicConnection {
   accountEmail: string;
   scopes: string[];
   status: "active" | "revoked";
-}
-
-interface ConnectionsResponse {
-  connections: PublicConnection[];
 }
 
 const PROVIDER_LABELS = {
@@ -65,17 +64,6 @@ const MICROSOFT_CALENDAR_SCOPES = `${MICROSOFT_BASE_SCOPES} Calendars.ReadWrite`
 const GOOGLE_CALENDAR_SCOPES =
   "openid email profile https://www.googleapis.com/auth/calendar";
 
-async function fetchConnections(accessToken: string): Promise<PublicConnection[]> {
-  const res = await fetch(`${API_BASE_URL}/connections`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to list connections: ${res.status}`);
-  }
-  const data = (await res.json()) as ConnectionsResponse;
-  return data.connections.filter((c) => c.status === "active");
-}
-
 async function deleteConnection(
   accessToken: string,
   connectionId: string,
@@ -90,25 +78,18 @@ async function deleteConnection(
 }
 
 export function ConnectedServicesPanel(): React.JSX.Element {
-  const { accessToken } = useAuth();
-  const [connections, setConnections] = useState<PublicConnection[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { accessToken, user } = useAuth();
+  const queryClient = useQueryClient();
+  // TanStack Query owns the connections fetch so that the
+  // `ConnectedProvidersPanel` cascade-unlink can invalidate this
+  // query and we re-render in step instead of waiting for a manual
+  // page refresh. Same query key (`queryKeys.connections`) is shared
+  // across both panels.
+  const { data, isLoading, error: queryError } = useConnections();
+  const allConnections: PublicConnection[] =
+    data?.connections.filter((c) => c.status === "active") ?? [];
+  const loadError = queryError ? describeError(queryError) : null;
   const [busyAction, setBusyAction] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!accessToken) return;
-    try {
-      const list = await fetchConnections(accessToken);
-      setConnections(list);
-      setLoadError(null);
-    } catch (err) {
-      setLoadError(describeError(err));
-    }
-  }, [accessToken]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
 
   async function startConnect(
     provider: "azure" | "google",
@@ -270,13 +251,26 @@ export function ConnectedServicesPanel(): React.JSX.Element {
   async function handleDisconnect(connection: PublicConnection): Promise<void> {
     if (!accessToken) return;
     setBusyAction(`disconnect-${connection.id}`);
-    // Optimistic: drop from local state immediately. Restore on error.
-    const previous = connections;
-    setConnections((curr) => curr?.filter((c) => c.id !== connection.id) ?? null);
+    // Optimistic: write into the React Query cache so the row
+    // disappears immediately. Roll back on failure. The cache write
+    // also propagates to `ConnectedProvidersPanel` automatically —
+    // both panels read from the same `queryKeys.connections`.
+    const queryKey = queryKeys.connections;
+    const prev = queryClient.getQueryData<{ connections: PublicConnection[] }>(
+      queryKey,
+    );
+    if (prev) {
+      queryClient.setQueryData<{ connections: PublicConnection[] }>(queryKey, {
+        connections: prev.connections.filter((c) => c.id !== connection.id),
+      });
+    }
     try {
       await deleteConnection(accessToken, connection.id);
+      // Refetch from the server so any side-effects we don't track
+      // locally (e.g. server-side cascade) land in the cache.
+      await queryClient.invalidateQueries({ queryKey });
     } catch (err) {
-      setConnections(previous);
+      if (prev) queryClient.setQueryData(queryKey, prev);
       toast.error("Couldn't disconnect", {
         description: describeError(err),
       });
@@ -293,7 +287,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
     );
   }
 
-  if (connections === null) {
+  if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
@@ -302,9 +296,23 @@ export function ConnectedServicesPanel(): React.JSX.Element {
     );
   }
 
+  // Sort by `accountEmail === user.email` first so each capability
+  // section opens with the row tied to the user's primary Supabase
+  // email, then any other accounts. Identical ordering rule the
+  // sign-in-methods panel uses — feels consistent across all three
+  // sections.
+  const primaryEmail = user?.email ?? null;
   const linkedByCapability: Record<"email" | "calendar", PublicConnection[]> = {
-    email: connections.filter((c) => c.capability === "email"),
-    calendar: connections.filter((c) => c.capability === "calendar"),
+    email: sortByPrimaryEmail(
+      allConnections.filter((c) => c.capability === "email"),
+      (c) => c.accountEmail,
+      primaryEmail,
+    ),
+    calendar: sortByPrimaryEmail(
+      allConnections.filter((c) => c.capability === "calendar"),
+      (c) => c.accountEmail,
+      primaryEmail,
+    ),
   };
   const microsoftEmailLinked = linkedByCapability.email.some(
     (c) => c.provider === "microsoft",
