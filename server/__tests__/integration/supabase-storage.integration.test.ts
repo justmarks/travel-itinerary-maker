@@ -1,9 +1,9 @@
 /**
  * Runs the `StorageProvider` contract suite against `SupabaseStorage`
- * + a real Postgres. This is the test that gates the Drive→Supabase
- * switch — `SupabaseStorage` is the third backend the contract is
- * parameterised over (`InMemoryStorage` and `DriveStorage` are the
- * other two), and it must satisfy identical semantics.
+ * + a real Postgres. `SupabaseStorage` is one of two backends the
+ * contract is parameterised over (`InMemoryStorage` is the other);
+ * both must satisfy identical semantics. The Phase-6 pre-removal
+ * `DriveStorage` previously ran here too.
  *
  * Schema migration runs once in `beforeAll`. The harness's
  * `newStorage()` truncates the data tables before constructing each
