@@ -114,6 +114,35 @@ jest.mock("../../src/services/email-parser", () => {
         rawItemCount: 1,
       });
     }
+    if (email.subject.includes("ONT return")) {
+      // Round-trip regression case: the return leg of a PNR the trip
+      // already has the outbound for. Same confirmationCode (a single
+      // PNR covers both legs of a round trip), different date, opposite
+      // direction. The matcher must NOT treat this as a duplicate of
+      // the outbound leg just because the PNRs match.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "flight",
+            title: "ONT → SEA",
+            date: "2026-06-21",
+            startTime: "14:09",
+            endTime: "16:51",
+            carrier: "AS",
+            routeCode: "AS567",
+            departureCity: "Ontario",
+            arrivalCity: "Seattle",
+            departureAirport: "ONT",
+            arrivalAirport: "SEA",
+            seatNumber: "12C, 12D, 12E, 12F",
+            confirmationCode: "ITHZXM",
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
     if (email.subject.includes("Invalid")) {
       // Used by HTML import tests — pretend Claude returned items but all
       // failed Zod validation, so we can verify the "failed" status path.
@@ -702,6 +731,54 @@ describe("Email Routes", () => {
       const flight = res.body.results[0].parsedSegments[0];
       expect(flight.match?.status).toBe("new");
       expect(flight.match?.existingSegmentId).toBeUndefined();
+    });
+
+    it("does not merge a return flight onto the outbound leg of the same PNR", async () => {
+      // Regression: a round-trip airline ticket reuses one PNR across
+      // both legs. Previously, isCandidateMatch short-circuited on a
+      // confirmation-code match before checking date/direction, so an
+      // ONT→SEA return leg parsed from email would collapse onto the
+      // existing SEA→ONT outbound leg and the UI would propose flipping
+      // every field (cities, times, route code, seats). The fix: skip
+      // the confirmation-code-only shortcut for flights and fall through
+      // to the date + route/city check below it.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Palm Desert 2026",
+        startDate: "2026-06-18",
+        endDate: "2026-06-21",
+      });
+      const tripId = tripRes.body.id;
+
+      // Pre-add the outbound leg with the round-trip PNR.
+      await addSegment(tripId, "2026-06-18", {
+        type: "flight",
+        title: "SEA → ONT",
+        startTime: "10:30",
+        endTime: "13:13",
+        carrier: "AS",
+        routeCode: "AS565",
+        departureCity: "Seattle",
+        arrivalCity: "Ontario",
+        departureAirport: "SEA",
+        arrivalAirport: "ONT",
+        seatNumber: "11A, 11B, 11C, 11D",
+        confirmationCode: "ITHZXM",
+      });
+
+      // Import the return-leg email (same PNR, different date/direction).
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>ONT return</p>",
+          subject: "ONT return flight confirmation",
+        });
+      expect(res.status).toBe(201);
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.suggestedTripId).toBe(tripId);
+      // The fix: parser-extracted return leg must NOT be matched to the
+      // outbound segment just because the PNR is shared.
+      expect(seg.match?.status).toBe("new");
+      expect(seg.match?.existingSegmentId).toBeUndefined();
     });
 
     it("merge action fills empty fields on existing segment without overwriting", async () => {
