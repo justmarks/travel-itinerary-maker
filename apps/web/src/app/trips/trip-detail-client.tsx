@@ -495,15 +495,20 @@ function TripActionsMenu({
   const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
   const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
 
-  const refreshCalendarList = async () => {
-    const cals = await loadCalendars();
+  const refreshCalendarList = async (providerOverride?: CalendarProvider) => {
+    const cals = await loadCalendars(providerOverride);
     const primary = cals.find((c) => c.primary);
     setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
   };
 
   const handleProviderChange = (next: CalendarProvider) => {
     setSelectedProvider(next);
-    void refreshCalendarList();
+    // Pass `next` explicitly — the state update from
+    // `setSelectedProvider` hasn't flushed yet, so `loadCalendars`
+    // would otherwise close over the OLD `selectedProvider` and
+    // request the wrong account's calendar list (race that hit prod
+    // as "clicked Outlook, got Google-shaped 401").
+    void refreshCalendarList(next);
   };
 
   const openCalendarDialog = () => {
@@ -870,7 +875,7 @@ function CalendarSyncDialogs({
             <p className="py-2 text-sm text-muted-foreground">Loading calendars…</p>
           ) : calendars && calendars.length > 0 ? (
             <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

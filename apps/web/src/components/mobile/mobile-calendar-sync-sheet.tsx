@@ -126,7 +126,11 @@ function CalendarSyncBody({
 
   const handleProviderChange = (next: CalendarProvider) => {
     setSelectedProvider(next);
-    void loadCalendars().then((cals) => {
+    // Pass `next` explicitly — `setSelectedProvider` hasn't flushed
+    // yet so the closure inside `loadCalendars` would read the OLD
+    // provider and hit the wrong account. Same race the desktop
+    // dialog has.
+    void loadCalendars(next).then((cals) => {
       const primary = cals.find((c) => c.primary);
       setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
     });

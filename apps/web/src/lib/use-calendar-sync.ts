@@ -109,11 +109,24 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const effectiveProvider = (): CalendarProvider | undefined =>
     selectedProvider ?? defaultProvider ?? undefined;
 
-  const loadCalendars = async (): Promise<CalendarOption[]> => {
+  /**
+   * `providerOverride` lets the caller force a specific provider for
+   * this call. Needed because `setSelectedProvider` is async (state
+   * update) — a "click Outlook → reload" handler that called
+   * `loadCalendars()` immediately after would hit the closure with
+   * the OLD `selectedProvider` and request the wrong account's list,
+   * which is exactly the bug a user hit in production (clicked
+   * Outlook, server hit Google API, got a Google-shaped 401).
+   */
+  const loadCalendars = async (
+    providerOverride?: CalendarProvider,
+  ): Promise<CalendarOption[]> => {
     setLoadingCalendars(true);
     setCalendars(null);
     try {
-      const cals = await client.listCalendars(effectiveProvider());
+      const cals = await client.listCalendars(
+        providerOverride ?? effectiveProvider(),
+      );
       setCalendars(cals);
       return cals;
     } catch {
