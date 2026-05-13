@@ -18,6 +18,10 @@
 
 import { Router, type Request, type Response } from "express";
 import { generateId } from "@itinly/shared";
+import {
+  debugConnections,
+  isConnectionsDebugEnabled,
+} from "../utils/debug-log";
 import type {
   ConnectionsStore,
   Connection,
@@ -230,17 +234,18 @@ export function createConnectionsRoutes(
       scopes = body.scopes;
     }
 
-    // Pre-upsert peek for diagnostics: did the row already have a
-    // refresh token, and is the incoming POST about to preserve /
-    // overwrite / fail to provide it? Lets us tell apart "we lost a
-    // working token on re-link" from "row was always tokenless" from
-    // Railway logs alone, without needing to dig into Postgres.
-    const existingRow = await store.findByKey({
-      userId: req.userId,
-      provider: provider as ConnectionProvider,
-      capability: capability as ConnectionCapability,
-      accountEmail,
-    });
+    // Pre-upsert peek for the verbose diagnostic log below. Only
+    // hits the DB when DEBUG_CONNECTIONS=1 — keeps the hot path
+    // free of an extra findByKey call in production.
+    const diagFindExisting = isConnectionsDebugEnabled();
+    const existingRow = diagFindExisting
+      ? await store.findByKey({
+          userId: req.userId,
+          provider: provider as ConnectionProvider,
+          capability: capability as ConnectionCapability,
+          accountEmail,
+        })
+      : undefined;
     const previouslyHadRefreshToken = !!existingRow?.refreshToken;
 
     const connection = await store.upsert({
@@ -258,18 +263,21 @@ export function createConnectionsRoutes(
     // scopes" from "POST failed silently / wrote a stale row" when
     // debugging calendar-sync issues. We log scope STRINGS (not
     // tokens) and presence flags — no PII / secrets leak.
-    //
+    console.log(
+      `[connections] upsert user=${req.userEmail} provider=${provider} capability=${capability} ` +
+        `accountEmail=${accountEmail} hasAccessToken=${!!accessToken} hasRefreshToken=${!!refreshToken} ` +
+        `scopes=[${(scopes ?? []).join(", ")}]`,
+    );
     // `prevHadRefreshToken` + `nowHasRefreshToken` are the diagnostic
     // pair for "why does the row have no refresh token after Connect?"
     // — same value before+after means the upsert was a no-op for the
     // refresh-token slot (preservation path); divergence flags the
-    // overwrite path.
-    const nowHasRefreshToken = !!connection.refreshToken;
-    console.log(
-      `[connections] upsert user=${req.userEmail} provider=${provider} capability=${capability} ` +
-        `accountEmail=${accountEmail} hasAccessToken=${!!accessToken} hasRefreshToken=${!!refreshToken} ` +
-        `prevHadRefreshToken=${previouslyHadRefreshToken} nowHasRefreshToken=${nowHasRefreshToken} ` +
-        `scopes=[${(scopes ?? []).join(", ")}]`,
+    // overwrite path. Verbose; gate behind DEBUG_CONNECTIONS=1 so
+    // production Railway logs stay clean unless ops opted in.
+    debugConnections(
+      `[connections] upsert (debug) user=${req.userEmail} ` +
+        `prevHadRefreshToken=${previouslyHadRefreshToken} ` +
+        `nowHasRefreshToken=${!!connection.refreshToken}`,
     );
 
     res.status(201).json({ connection: publicView(connection) });

@@ -6,6 +6,7 @@ import {
   type ConnectorResolvers,
 } from "../connectors/resolve";
 import type { ConnectionProvider } from "../services/connections-store";
+import { isCalendarDebugEnabled } from "../utils/debug-log";
 
 /**
  * Parses an optional `?provider=google|microsoft` query param. Used
@@ -146,7 +147,17 @@ export function createCalendarRoutes(
       // the stored access token directly — earlier attempts tried to
       // pull it from `err.config.headers.Authorization` but the
       // GaxiosError shape varies and the extraction missed.
-      if (status === 403 && message.toLowerCase().includes("scope")) {
+      //
+      // The diagnostic sends the user's access token to a Google
+      // endpoint, so we ONLY do it when ops opted in with
+      // DEBUG_CALENDAR=1. Default behaviour: rely on the
+      // `[calendar-list ...] listCalendars failed status=403` log
+      // above + connect-flow side to triage.
+      if (
+        status === 403 &&
+        message.toLowerCase().includes("scope") &&
+        isCalendarDebugEnabled()
+      ) {
         await diagnoseScopes(req, resolved.accessToken).catch((e) => {
           console.warn(
             `${tag} tokeninfo diagnostic failed: ${
