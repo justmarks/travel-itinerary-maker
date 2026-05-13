@@ -230,8 +230,21 @@ export function createConnectionsRoutes(
       scopes = body.scopes;
     }
 
+    // Pre-upsert peek for diagnostics: did the row already have a
+    // refresh token, and is the incoming POST about to preserve /
+    // overwrite / fail to provide it? Lets us tell apart "we lost a
+    // working token on re-link" from "row was always tokenless" from
+    // Railway logs alone, without needing to dig into Postgres.
+    const existingRow = await store.findByKey({
+      userId: req.userId,
+      provider: provider as ConnectionProvider,
+      capability: capability as ConnectionCapability,
+      accountEmail,
+    });
+    const previouslyHadRefreshToken = !!existingRow?.refreshToken;
+
     const connection = await store.upsert({
-      id: generateId(),
+      id: existingRow?.id ?? generateId(),
       userId: req.userId,
       provider: provider as ConnectionProvider,
       capability: capability as ConnectionCapability,
@@ -245,9 +258,17 @@ export function createConnectionsRoutes(
     // scopes" from "POST failed silently / wrote a stale row" when
     // debugging calendar-sync issues. We log scope STRINGS (not
     // tokens) and presence flags — no PII / secrets leak.
+    //
+    // `prevHadRefreshToken` + `nowHasRefreshToken` are the diagnostic
+    // pair for "why does the row have no refresh token after Connect?"
+    // — same value before+after means the upsert was a no-op for the
+    // refresh-token slot (preservation path); divergence flags the
+    // overwrite path.
+    const nowHasRefreshToken = !!connection.refreshToken;
     console.log(
       `[connections] upsert user=${req.userEmail} provider=${provider} capability=${capability} ` +
         `accountEmail=${accountEmail} hasAccessToken=${!!accessToken} hasRefreshToken=${!!refreshToken} ` +
+        `prevHadRefreshToken=${previouslyHadRefreshToken} nowHasRefreshToken=${nowHasRefreshToken} ` +
         `scopes=[${(scopes ?? []).join(", ")}]`,
     );
 

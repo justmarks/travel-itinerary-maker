@@ -134,6 +134,15 @@ async function postConnection(
   email: string,
   scopes?: string[],
 ): Promise<{ ok: boolean; message?: string }> {
+  // Devtools-visible diagnostic. The matching server-side log line
+  // says `hasRefreshToken=X prevHadRefreshToken=Y`; pairing the two
+  // tells us whether Supabase surfaced `provider_refresh_token` at
+  // all, or whether we received it and lost it server-side.
+  if (!session.provider_refresh_token && capability !== "identity") {
+    console.warn(
+      `[connect] posting ${normalisedProvider}/${capability} with NO provider_refresh_token (session has access_token=${!!session.provider_token}). Supabase likely elided it for a returning-user OAuth flow — server will rely on the identity-row refresh token if available.`,
+    );
+  }
   const body: Record<string, unknown> = {
     provider: normalisedProvider,
     capability,
