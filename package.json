@@ -9,7 +9,9 @@
     "test:watch": "turbo run test:watch",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
-    "clean": "turbo run clean"
+    "clean": "turbo run clean",
+    "update-test-count": "node scripts/update-test-count.mjs",
+    "check-test-count": "node scripts/update-test-count.mjs --check"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
