@@ -780,6 +780,35 @@ function ScanBody({
   }
 
   if (step === "needs-scope") {
+    // If the user has a non-Gmail email connection (Outlook), or any
+    // mix of connected providers, route them to Settings via the
+    // provider-agnostic NotConnectedNotice — the legacy "Connect
+    // Gmail" hardcoded CTA was wrong UX for a Microsoft-primary user
+    // whose Outlook capability row is missing a refresh token. Only
+    // fall through to the legacy Gmail CTA when the user has zero
+    // active email connections (pre-migration accounts that still
+    // need to grant Gmail through the legacy OAuth client).
+    const hasOutlookConnection = connectedEmailProviders.includes("microsoft");
+    if (hasOutlookConnection || connectedEmailProviders.length > 0) {
+      return (
+        <>
+          <Header title="Reconnect email" onClose={onClose} />
+          <div className="flex flex-1 flex-col gap-3 px-5 py-6">
+            <NotConnectedNotice capability="email" variant="mobile" />
+          </div>
+          <Footer>
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-11 flex-1 rounded-full border bg-background text-sm font-medium"
+            >
+              Close
+            </button>
+          </Footer>
+        </>
+      );
+    }
+
     const configured = isGmailLinkConfigured();
     return (
       <>

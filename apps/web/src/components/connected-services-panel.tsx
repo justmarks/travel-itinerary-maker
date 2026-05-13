@@ -190,20 +190,63 @@ export function ConnectedServicesPanel(): React.JSX.Element {
         scopes,
         redirectTo: `${window.location.origin}/auth/callback`,
       };
+      // Pull the already-linked identity's email so we can pin the
+      // Connect-capability OAuth to THAT specific account when this
+      // is a same-provider flow. Without this, a Microsoft-primary
+      // user with multiple Microsoft accounts (work + personal) sees
+      // the account picker on Connect Outlook and can accidentally
+      // pick a different account — the resulting capability row gets
+      // stamped with that different account's email, and the
+      // already-granted scopes on it cause Microsoft to elide the
+      // refresh token. Result: a `NULL`-token row sitting next to a
+      // working identity row, scan / sync feature fails with
+      // "no refresh token".
+      const existingIdentityEmail = (() => {
+        const match = (userData.user?.identities ?? []).find(
+          (i) => i.provider === provider,
+        );
+        const data = match?.identity_data as
+          | Record<string, unknown>
+          | undefined;
+        const e = data?.email;
+        return typeof e === "string" ? e : undefined;
+      })();
+
       if (provider === "google") {
         oauthOptions.queryParams = {
           access_type: "offline",
           prompt: "consent",
         };
+        // Google accepts `login_hint` the same way Microsoft does.
+        // For a same-provider Connect (alreadyLinked=true) we want
+        // the new OAuth round to bind to the user's existing Google
+        // account, not a random one from the browser cache. This
+        // doesn't suppress the consent screen — `prompt=consent`
+        // still forces it — it only narrows which account that
+        // consent applies to.
+        if (alreadyLinked && existingIdentityEmail) {
+          oauthOptions.queryParams.login_hint = existingIdentityEmail;
+        }
       } else if (provider === "azure") {
-        // Force Microsoft to show the account picker rather than
-        // silently signing in with whichever account is currently
-        // active in the browser. Without this, users with multiple
-        // Microsoft accounts (work + personal) can't choose which
-        // one to link.
-        oauthOptions.queryParams = {
-          prompt: "select_account",
-        };
+        // Same-provider Connect: pin the OAuth to the existing
+        // Microsoft account via `login_hint`. Drops the account
+        // picker entirely for that case so users with multiple
+        // Microsoft accounts (e.g. work + personal) can't pick the
+        // wrong one and silently create a tokenless capability row.
+        //
+        // Cross-provider link (alreadyLinked=false): keep
+        // `prompt=select_account` so users with multiple Microsoft
+        // accounts can choose which one to LINK. Identical to the
+        // login-page behaviour added in #323.
+        if (alreadyLinked && existingIdentityEmail) {
+          oauthOptions.queryParams = {
+            login_hint: existingIdentityEmail,
+          };
+        } else {
+          oauthOptions.queryParams = {
+            prompt: "select_account",
+          };
+        }
       }
       const { error } = alreadyLinked
         ? await supabaseClient.auth.signInWithOAuth({
