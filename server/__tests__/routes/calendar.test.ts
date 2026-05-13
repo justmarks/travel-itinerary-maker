@@ -107,8 +107,8 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
       expect.anything(),
       expect.anything(),
       "custom@group.calendar.google.com",
-      // userEmail — populated from requireAuth in drive mode, undefined in
-      // memory-mode tests where no auth runs.
+      // userEmail — populated from requireAuth in postgres mode,
+      // undefined in memory-mode tests where no auth runs.
       undefined,
     );
   });
@@ -119,16 +119,6 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
 
     expect(res.status).toBe(404);
     expect(mockSync).not.toHaveBeenCalled();
-  });
-
-  it("returns 401 in drive mode when no Authorization header is sent", async () => {
-    // In drive mode, requireAuth middleware rejects requests without a token
-    const driveApp = await createApp({ mode: "drive", disableRedis: true });
-
-    const res = await request(driveApp)
-      .post("/api/v1/trips/any-id/calendar/sync");
-
-    expect(res.status).toBe(401);
   });
 });
 

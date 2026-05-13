@@ -134,16 +134,14 @@ export const config = {
    */
   storage: {
     // `undefined` when unset so `index.ts` can apply the env-aware
-    // default (drive in prod, memory in dev). Don't substitute a
-    // default here — it would shadow the "is this explicitly set?"
-    // check and break local dev's ability to opt into drive mode.
+    // default (postgres in prod, memory in dev). The pre-Phase-6
+    // `drive` backend is gone — only `postgres` and `memory` are
+    // valid values today.
     backend:
       process.env.STORAGE_BACKEND === "postgres" ||
-      process.env.STORAGE_BACKEND === "memory" ||
-      process.env.STORAGE_BACKEND === "drive"
-        ? (process.env.STORAGE_BACKEND as "drive" | "postgres" | "memory")
+      process.env.STORAGE_BACKEND === "memory"
+        ? (process.env.STORAGE_BACKEND as "postgres" | "memory")
         : undefined,
-    postgresUsers: process.env.STORAGE_POSTGRES_USERS || "",
     databaseUrl: process.env.DATABASE_URL || "",
   },
   /**

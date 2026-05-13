@@ -6,7 +6,7 @@ AI assistant guide for understanding and developing this codebase.
 
 ## Project Overview
 
-A travel itinerary management app that parses trip data from emails and presents it in a structured day-by-day format. Users authenticate via Google OAuth, and data is stored in their own Google Drive account (no third-party database).
+A travel itinerary management app that parses trip data from emails and presents it in a structured day-by-day format. Users authenticate via Supabase Auth (Google or Microsoft), and trip data lives in Supabase Postgres. Email scanning supports Gmail + Outlook; calendar sync supports Google Calendar + Outlook Calendar.
 
 **Stack**: Next.js 15 frontend + Express 5 backend + shared TypeScript packages, managed as a pnpm monorepo with Turbo.
 
@@ -238,7 +238,8 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 
 - `StorageProvider` interface in `server/src/services/storage.ts` abstracts persistence.
 - **InMemoryStorage** is used in development and all tests.
-- Production will use **Google Drive** (DriveStorage) — not yet implemented.
+- **SupabaseStorage** (`server/src/services/supabase-storage.ts`) is the production backend — every authenticated user's trips/segments/todos/history live in Postgres tables, scoped by `userId`.
+- The pre-Phase-6 **DriveStorage** path has been removed (see `docs/backend-migration-plan.md` Phase 6); both impls share the same `StorageProvider` contract test suite at `server/__tests__/storage/contract.ts`.
 - Tests call `storage.clear()` in `beforeEach` to reset state.
 
 ### Naming
@@ -272,8 +273,8 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 ### `server`
 
 - Express 5 with TypeScript, compiled to CommonJS.
-- Route files in `src/routes/`: `trips.ts`, `auth.ts`, `shared.ts`.
-- Google OAuth flow in `src/routes/auth.ts` + `src/services/google-drive/`.
+- Route files in `src/routes/`: `trips.ts`, `auth.ts`, `shared.ts`, `calendar.ts`, `emails.ts`, `connections.ts`, `share-rules.ts`, `push.ts`.
+- Google + Microsoft auth in `src/routes/auth.ts` + `src/services/supabase-auth.ts`. Connectors live under `src/connectors/`.
 - Environment config in `src/config/env.ts` — reads `process.env` with defaults, no external config library.
 - All tests in `__tests__/` using Jest + Supertest.
 

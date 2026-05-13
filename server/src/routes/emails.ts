@@ -14,7 +14,7 @@ import {
   type Trip,
 } from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
-import type { ProcessedEmail } from "../services/google-drive/drive-storage";
+import type { ProcessedEmail } from "../services/processed-email";
 import {
   createConnectorResolvers,
   type ConnectorResolvers,
