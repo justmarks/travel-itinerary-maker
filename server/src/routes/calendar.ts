@@ -39,22 +39,21 @@ async function diagnoseScopes(
   req: Request,
   accessToken: string,
 ): Promise<void> {
+  const tag = `[calendar-list ${req.userEmail ?? "?"}]`;
   if (!accessToken) {
-    console.warn(`[calendar-list] tokeninfo diagnostic: empty access token`);
+    console.warn(`${tag} tokeninfo diagnostic: empty access token`);
     return;
   }
   const res = await fetch(
     `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
   );
   if (!res.ok) {
-    console.warn(
-      `[calendar-list] tokeninfo returned ${res.status} for user=${req.userEmail}`,
-    );
+    console.warn(`${tag} tokeninfo returned ${res.status}`);
     return;
   }
   const info = (await res.json()) as { scope?: string; expires_in?: string };
   console.warn(
-    `[calendar-list] user=${req.userEmail} stored access token scopes="${info.scope ?? "(none)"}" expires_in=${info.expires_in ?? "?"}`,
+    `${tag} stored access token scopes="${info.scope ?? "(none)"}" expires_in=${info.expires_in ?? "?"}`,
   );
 }
 
@@ -111,10 +110,12 @@ export function createCalendarRoutes(
    * found."
    */
   router.get("/calendar/list", async (req: Request, res: Response) => {
-    const resolved = await resolvers.resolveCalendarConnector(req, parseProviderQuery(req));
+    const preferProvider = parseProviderQuery(req);
+    const tag = `[calendar-list ${req.userEmail ?? "?"}]`;
+    const resolved = await resolvers.resolveCalendarConnector(req, preferProvider);
     if (!resolved) {
       console.warn(
-        `[calendar-list] no calendar connector resolved for user=${req.userId} email=${req.userEmail}`,
+        `${tag} no calendar connector resolved (preferProvider=${preferProvider ?? "(auto)"})`,
       );
       notConnected(res);
       return;
@@ -123,9 +124,11 @@ export function createCalendarRoutes(
       const calendars = await resolved.connector.listCalendars();
       // Useful when the dialog shows "No writable calendars" — lets
       // us tell "auth worked but list was empty" apart from "auth
-      // failed" in Railway logs.
+      // failed" in Railway logs. Provider tag makes it clear which
+      // backend actually answered (matters when the user has both
+      // Outlook and Gmail connected and is debugging a mismatch).
       console.log(
-        `[calendar-list] user=${req.userEmail} returned ${calendars.length} calendar(s)`,
+        `${tag} provider=${resolved.provider} returned ${calendars.length} calendar(s)`,
       );
       res.json(calendars);
     } catch (err) {
@@ -136,7 +139,7 @@ export function createCalendarRoutes(
         (err as { code?: number }).code ?? 500;
       const message = err instanceof Error ? err.message : String(err);
       console.error(
-        `[calendar-list] user=${req.userEmail} listCalendars failed status=${status}: ${message}`,
+        `${tag} provider=${resolved.provider} listCalendars failed status=${status}: ${message}`,
       );
       // On insufficient-scopes 403 (Google's "Request had insufficient
       // authentication scopes"), hit Google's tokeninfo endpoint with
@@ -146,7 +149,7 @@ export function createCalendarRoutes(
       if (status === 403 && message.toLowerCase().includes("scope")) {
         await diagnoseScopes(req, resolved.accessToken).catch((e) => {
           console.warn(
-            `[calendar-list] tokeninfo diagnostic failed: ${
+            `${tag} tokeninfo diagnostic failed: ${
               e instanceof Error ? e.message : "unknown"
             }`,
           );

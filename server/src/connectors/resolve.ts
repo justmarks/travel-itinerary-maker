@@ -73,6 +73,10 @@ export interface ResolvedEmailConnector {
 export interface ResolvedCalendarConnector {
   connector: CalendarConnector;
   accessToken: string;
+  /** Which provider's connection backed this resolver call. Lets the
+   *  route handler annotate logs / errors with the actual provider
+   *  (Microsoft vs Google) rather than guessing from the URL shape. */
+  provider: ConnectionProvider;
 }
 
 export interface ConnectorResolvers {
@@ -103,16 +107,21 @@ export function createConnectorResolvers(
         req.authSource === "supabase" &&
         req.userId
       ) {
-        // Auto-pick order: Microsoft, then Google. `preferProvider`
-        // (typically `?provider=` from a route query) puts the
-        // requested provider first; the other becomes a fallback in
-        // case the user disconnected it but we have a stale cached
-        // hint somewhere.
+        // When the caller explicitly picks a provider, only try that
+        // one — falling back to the other silently means "user
+        // clicked Outlook in the picker, server quietly hit Google
+        // instead and returned its calendars/errors". The UI already
+        // hides the picker option for any provider the user doesn't
+        // have a `calendar` connection for, so a no-row scenario
+        // here is genuinely "not connected" rather than "try the
+        // other one".
+        //
+        // No preference → auto-pick: Microsoft first, then Google.
         const order: ConnectionProvider[] =
           preferProvider === "google"
-            ? ["google", "microsoft"]
+            ? ["google"]
             : preferProvider === "microsoft"
-              ? ["microsoft", "google"]
+              ? ["microsoft"]
               : ["microsoft", "google"];
         for (const provider of order) {
           const resolved = await getActiveAccessToken(
@@ -128,6 +137,7 @@ export function createConnectorResolvers(
                   ? new MicrosoftCalendarConnector(resolved.accessToken)
                   : new GoogleCalendarConnector(resolved.accessToken),
               accessToken: resolved.accessToken,
+              provider,
             };
           }
         }
@@ -140,6 +150,7 @@ export function createConnectorResolvers(
       return {
         connector: new GoogleCalendarConnector(accessToken),
         accessToken,
+        provider: "google",
       };
     },
 
@@ -149,13 +160,17 @@ export function createConnectorResolvers(
         req.authSource === "supabase" &&
         req.userId
       ) {
-        // Same auto-pick + preferProvider override pattern as the
-        // calendar resolver — see the comment there.
+        // Same no-fallback rule as the calendar resolver: when the
+        // client explicitly picks a provider, only try that one. The
+        // UI only offers a provider in the picker when the user has
+        // a matching `email` connection, so a no-row outcome is a
+        // genuine "not connected" — falling back to Gmail when the
+        // user clicked Outlook would silently scan the wrong mailbox.
         const order: ConnectionProvider[] =
           preferProvider === "google"
-            ? ["google", "microsoft"]
+            ? ["google"]
             : preferProvider === "microsoft"
-              ? ["microsoft", "google"]
+              ? ["microsoft"]
               : ["microsoft", "google"];
         for (const provider of order) {
           const resolved = await getActiveAccessToken(
