@@ -35,7 +35,7 @@ import { useAuth } from "@/lib/auth";
 import { markPendingConnection } from "@/app/auth/callback/page";
 import { startGmailLink, isGmailLinkConfigured } from "@/lib/oauth";
 import { describeError } from "@/lib/api-error";
-import { sortByPrimaryEmail } from "@/lib/sort-by-primary-email";
+import { sortByPrimaryEmail } from "@travel-app/shared";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
