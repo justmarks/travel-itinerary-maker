@@ -61,11 +61,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-function fmtUsdCompact(n: number): string {
-  if (n >= 10000) return `$${(n / 1000).toFixed(1)}k`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
 /**
  * Owner-only "..." overflow that exposes destructive trip actions
  * (currently just Delete trip — the rename / dates affordances live
@@ -75,7 +70,6 @@ function fmtUsdCompact(n: number): string {
 function MobileTripOverflowMenu({
   tripId,
   tripTitle,
-  usdTotal,
   onOpenCosts,
   onOpenHistory,
   onOpenEdit,
@@ -92,8 +86,6 @@ function MobileTripOverflowMenu({
 }: {
   tripId: string;
   tripTitle: string;
-  /** Sum of USD-denominated segment costs, or null when none are USD. */
-  usdTotal: number | null;
   onOpenCosts: () => void;
   onOpenHistory: () => void;
   onOpenEdit: () => void;
@@ -187,7 +179,7 @@ function MobileTripOverflowMenu({
         {showCosts && (
           <DropdownMenuItem onClick={onOpenCosts}>
             <DollarSign className="mr-2 h-4 w-4" />
-            {usdTotal !== null ? `Costs · ${fmtUsdCompact(usdTotal)}` : "Costs"}
+            Costs
           </DropdownMenuItem>
         )}
         {showCalendarSync && (
@@ -243,7 +235,6 @@ function MobileTripOverflowMenu({
 function HeaderActions({
   tripId,
   tripTitle,
-  usdTotal,
   todoRemaining,
   todoTotal,
   pendingCount,
@@ -271,7 +262,6 @@ function HeaderActions({
 }: {
   tripId: string;
   tripTitle: string;
-  usdTotal: number | null;
   todoRemaining: number;
   todoTotal: number;
   /** Count of `needsReview: true` segments — drives the review pill label. */
@@ -378,7 +368,6 @@ function HeaderActions({
       <MobileTripOverflowMenu
         tripId={tripId}
         tripTitle={tripTitle}
-        usdTotal={usdTotal}
         onOpenCosts={onOpenCosts}
         onOpenHistory={onOpenHistory}
         onOpenEdit={onOpenEdit}
@@ -398,20 +387,6 @@ function HeaderActions({
 }
 
 function useTripSummary(trip: Trip) {
-  const usdTotal = useMemo(() => {
-    let sum = 0;
-    let any = false;
-    for (const day of trip.days) {
-      for (const seg of day.segments) {
-        if (seg.cost?.currency === "USD" && typeof seg.cost.amount === "number") {
-          sum += seg.cost.amount;
-          any = true;
-        }
-      }
-    }
-    return any ? sum : null;
-  }, [trip.days]);
-
   const todoSummary = useMemo(() => {
     const total = trip.todos.length;
     const remaining = trip.todos.filter((t) => !t.isCompleted).length;
@@ -428,7 +403,7 @@ function useTripSummary(trip: Trip) {
     return n;
   }, [trip.days]);
 
-  return { usdTotal, todoSummary, pendingCount };
+  return { todoSummary, pendingCount };
 }
 
 function MobileTripInner({
@@ -636,7 +611,7 @@ function TripFrame({
   onOpenCalendarSync: () => void;
   onCloseCalendarSync: () => void;
 }): React.JSX.Element {
-  const { usdTotal, todoSummary, pendingCount } = useTripSummary(trip);
+  const { todoSummary, pendingCount } = useTripSummary(trip);
   const confirmSegment = useConfirmSegment(trip.id);
   // Wired into the carousel + detail sheet so the user can clear a
   // review flag in one tap, instead of going through Edit → Save.
@@ -679,7 +654,6 @@ function TripFrame({
             <HeaderActions
               tripId={trip.id}
               tripTitle={trip.title}
-              usdTotal={usdTotal}
               todoRemaining={todoSummary.remaining}
               todoTotal={todoSummary.total}
               pendingCount={pendingCount}
