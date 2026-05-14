@@ -42,6 +42,7 @@ export {
   useScanEmails,
   useStreamingScanEmails,
   useImportHtmlEmail,
+  useImportSharedContent,
   useApplyParsedSegments,
   useProcessedEmails,
   useDismissEmail,

@@ -12,7 +12,12 @@ import { reportMessage } from "./monitoring";
 
 export type ParseOutcome = "failed" | "exception" | "parsed_with_invalid";
 
-export type ParseSource = "gmail_scan" | "html_import" | "eml_import";
+export type ParseSource =
+  | "gmail_scan"
+  | "html_import"
+  | "eml_import"
+  | "share_text"
+  | "share_url";
 
 export interface ParseTelemetryContext {
   outcome: ParseOutcome;

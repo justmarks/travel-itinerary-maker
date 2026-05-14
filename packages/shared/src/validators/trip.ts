@@ -445,6 +445,49 @@ export const htmlImportRequestSchema = z
   });
 
 /**
+ * Schema for the PWA share-target receiver — POST /emails/import-shared.
+ *
+ * When the user picks "itinly" from an OS share sheet (Mail, Gmail,
+ * Safari, …), the share intent arrives as some combination of:
+ *  - `title` — the subject line / page title
+ *  - `text`  — the selected/full message body or selected text
+ *  - `url`   — a confirmation URL the user wanted to capture
+ *
+ * The receiver collects whichever fields the source app passed along
+ * and forwards them here. At least one of `text` or `url` must be set
+ * (a bare `title` has nothing to parse). The server feeds the content
+ * through the same parser pipeline as the Gmail scan + HTML-import
+ * paths, so the resulting `EmailScanResult` shape is identical and the
+ * existing apply / dismiss endpoints work unchanged.
+ */
+export const importSharedRequestSchema = z
+  .object({
+    /** Subject line / page title from the share intent. Optional. */
+    title: z.string().optional(),
+    /**
+     * Body text from the share intent. May be a forwarded email body,
+     * a hand-pasted confirmation, or selected text from any app.
+     */
+    text: z.string().optional(),
+    /**
+     * URL the user shared (e.g. a booking-confirmation page). Server
+     * fetches it with size + content-type + timeout guards and runs
+     * the resulting HTML through the parser. Only http(s) is allowed.
+     */
+    url: z.string().url().optional(),
+    /**
+     * Optional trip hint — when set, parsed segments are matched
+     * against this trip instead of being auto-matched by date range.
+     * Mirrors the same field on the HTML/EML import schema.
+     */
+    tripId: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.text) || Boolean(data.url), {
+    message: "Provide at least one of `text` or `url`",
+    path: ["text"],
+  });
+
+/**
  * Reasons a user can give when reporting that an email wasn't parsed
  * correctly. Surfaced in the client-side Report dialog, which composes
  * a `mailto:emailerror@itinly.app` draft for the user to send.
@@ -524,5 +567,6 @@ export type CreateShareRuleInput = z.infer<typeof createShareRuleSchema>;
 export type UpdateShareRuleInput = z.infer<typeof updateShareRuleSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
 export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
+export type ImportSharedRequest = z.infer<typeof importSharedRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
 export type XlsxImportRequest = z.infer<typeof xlsxImportRequestSchema>;
