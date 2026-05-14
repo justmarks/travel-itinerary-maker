@@ -496,16 +496,21 @@ function MoreOptionsSection({
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="flex w-full items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        // Full-foreground colour with a faint hover background so the
+        // row reads as an interactive disclosure rather than disabled
+        // helper text. The chevron sits left of the label and rotates
+        // between → and ↓ states. Keeping it inset 1px on either side
+        // gives the focus ring room to render cleanly.
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       >
         {expanded ? (
-          <ChevronDown className="h-4 w-4" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         ) : (
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
         More options
         {filledCount > 0 && (
-          <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/70">
+          <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
             {filledCount} filled
           </span>
         )}

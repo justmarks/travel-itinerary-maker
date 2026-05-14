@@ -99,14 +99,27 @@ export function EditSegmentDialog({
     e.preventDefault();
 
     const flags = getTypeFlags(form.type);
-    const cost =
-      form.costAmount && parseFloat(form.costAmount) >= 0
+    // Cost cleared → send explicit `null` so the server clears the stored
+    // cost. Sending `undefined` would be dropped by `JSON.stringify` and
+    // the segment would keep its old cost on the next read.
+    //
+    // We only send `null` when the segment ACTUALLY had a cost previously
+    // (and the user cleared it). Otherwise — adding a fresh segment with
+    // no cost, or an existing cost-less segment that still has no cost —
+    // we omit the field entirely so the patch stays minimal and the
+    // history diff doesn't note a no-op cost change.
+    const hadCost = Boolean(segment.cost);
+    const filledCost = Boolean(form.costAmount) && parseFloat(form.costAmount) >= 0;
+    const cost: { amount: number; currency: string; details?: string } | null | undefined =
+      filledCost
         ? {
             amount: parseFloat(form.costAmount),
             currency: form.costCurrency,
             details: form.costDetails || undefined,
           }
-        : undefined;
+        : hadCost
+          ? null
+          : undefined;
 
     const updates: Record<string, unknown> = {
       segmentId: segment.id,

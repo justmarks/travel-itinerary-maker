@@ -300,6 +300,13 @@ export const updateSegmentSchema = createSegmentSchema.extend({
   // Segments are stored inside TripDay, not on the segment itself. Accepting
   // `date` here lets a PUT move a segment to a different day in one call.
   date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  // `cost` accepts an explicit `null` on UPDATE so the client can clear a
+  // previously-set cost. Without this override, the client has no way to
+  // signal "remove this" — `cost: undefined` would be stripped by
+  // `JSON.stringify` and the server would never see the change. The server
+  // route translates `null` back to `delete found.cost` before saving so
+  // storage doesn't end up with explicit `null` cost objects.
+  cost: segmentCostSchema.nullable().optional(),
 }).partial();
 
 /** Schema for creating a todo */
