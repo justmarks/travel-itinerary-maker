@@ -185,6 +185,24 @@ describe("/api/v1/connections", () => {
   });
 
   describe("POST /api/v1/connections", () => {
+    // The microsoft scope check now hits Graph (`/me/mailFolders` or
+    // `/me/calendars`); without a global mock, CI's outbound network
+    // is blocked and returns 403, which the probe interprets as
+    // "scope denied" and rejects writes that should succeed. Default
+    // every fetch to a 200 "value: []" so the probe reads as
+    // "granted." Individual scope-validation tests below
+    // (mockTokeninfoScope, mockGraphProbe) override this for the
+    // specific upstream response shape they want to exercise.
+    let outerFetchSpy: jest.SpyInstance;
+    beforeEach(() => {
+      outerFetchSpy = jest.spyOn(global, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ value: [] }), { status: 200 }),
+      );
+    });
+    afterEach(() => {
+      outerFetchSpy.mockRestore();
+    });
+
     it("creates a new connection and returns it (without tokens)", async () => {
       const res = await request(app)
         .post("/api/v1/connections")
@@ -600,6 +618,15 @@ describe("/api/v1/connections", () => {
       // We deliberately avoid parsing the access token: Microsoft
       // documents Graph tokens as opaque and reserves the right to
       // change the format.
+      let fetchSpy: jest.SpyInstance;
+
+      beforeEach(() => {
+        fetchSpy = jest.spyOn(global, "fetch");
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
 
       function mockGraphProbe(status: number, capability: "email" | "calendar"): void {
         const expectedPath =
