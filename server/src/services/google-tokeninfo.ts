@@ -26,7 +26,14 @@ export async function fetchGoogleTokenScopes(
   try {
     const url = new URL(TOKENINFO_URL);
     url.searchParams.set("access_token", accessToken);
-    const res = await fetch(url.toString());
+    // 5s timeout — tokeninfo is on the hot Connect-Gmail path and a
+    // slow Google response would otherwise stall the route handler.
+    // The caller treats `null` as "could not validate" and proceeds
+    // with the client-supplied scopes, so a timeout degrades to the
+    // same fallback as a 5xx.
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) return null;
     const data = (await res.json()) as { scope?: unknown };
     if (typeof data.scope !== "string") return null;

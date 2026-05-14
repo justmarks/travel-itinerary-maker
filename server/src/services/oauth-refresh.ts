@@ -17,6 +17,15 @@
 
 import { config } from "../config/env";
 
+// Hard cap on every upstream OAuth round-trip. A slow / hung
+// Google or Microsoft token endpoint would otherwise hold the
+// Express worker indefinitely (and on cold start cascade into
+// the entire request queue stalling). 10s is well above the
+// real-world refresh latency (~300ms) but tight enough that a
+// hung endpoint surfaces as `OAuthRefreshError` instead of a
+// silently-piling request backlog.
+const REFRESH_TIMEOUT_MS = 10_000;
+
 export interface RefreshResult {
   accessToken: string;
   /**
@@ -81,11 +90,15 @@ export async function refreshGoogleToken(
     client_secret: creds.secret,
   });
 
-  const res = await fetch("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const res = await fetchWithTimeout(
+    "https://oauth2.googleapis.com/token",
+    "google",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    },
+  );
 
   const text = await res.text();
   let parsed: {
@@ -178,7 +191,7 @@ export async function refreshMicrosoftToken(
   const body = new URLSearchParams(params);
 
   const url = `https://login.microsoftonline.com/${encodeURIComponent(tenantId)}/oauth2/v2.0/token`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, "microsoft", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -218,4 +231,34 @@ export async function refreshMicrosoftToken(
     expiresAt: new Date(Date.now() + expiresInSec * 1000),
     refreshToken: parsed.refresh_token,
   };
+}
+
+/**
+ * `fetch` with a hard timeout that throws a typed `OAuthRefreshError`
+ * (status 0, code TIMEOUT) when the upstream doesn't respond in time
+ * — same error envelope callers already handle for "MISSING_CLIENT_
+ * CONFIG", so existing branches (transient vs permanent) keep working.
+ */
+async function fetchWithTimeout(
+  url: string,
+  provider: "google" | "microsoft",
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new OAuthRefreshError(
+        provider,
+        0,
+        "TIMEOUT",
+        `${provider} token endpoint timed out after ${REFRESH_TIMEOUT_MS}ms`,
+      );
+    }
+    throw err;
+  }
 }
