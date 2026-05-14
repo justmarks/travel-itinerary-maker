@@ -1,42 +1,13 @@
 "use client";
 
 import { useCostSummary } from "@travel-app/api-client";
-import { formatCurrency } from "@travel-app/shared";
+import { costCategoryLabel, formatCurrency } from "@travel-app/shared";
 
 function fmtUsd(amount: number) {
   return `$${amount.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-// Human-readable labels for the segment-type "activity" shown in the
-// cost table. Kept in sync with SegmentType in packages/shared/src/types/trip.ts.
-const CATEGORY_LABELS: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
-  car_service: "Car Service",
-  other_transport: "Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-  tour: "Tour",
-  cruise: "Cruise",
-  show: "Show",
-};
-
-function categoryLabel(category: string): string {
-  return (
-    CATEGORY_LABELS[category] ??
-    category
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ")
-  );
 }
 
 export function TripCosts({ tripId }: { tripId: string }): React.JSX.Element {
@@ -60,7 +31,7 @@ export function TripCosts({ tripId }: { tripId: string }): React.JSX.Element {
             {data.items.map((item) => {
               const isForeign =
                 item.amountUsd !== undefined && item.currency !== "USD";
-              const label = categoryLabel(item.category);
+              const label = costCategoryLabel(item.category);
               // Primary line: "City: Activity" (e.g. "Palermo: Car Rental").
               // When no city is known, fall back to just the activity label.
               const primary = item.city ? `${item.city}: ${label}` : label;

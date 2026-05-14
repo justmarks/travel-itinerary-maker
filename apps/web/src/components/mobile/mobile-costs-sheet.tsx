@@ -1,36 +1,9 @@
 "use client";
 
 import { useCostSummary } from "@travel-app/api-client";
-import { formatCurrency } from "@travel-app/shared";
+import { costCategoryLabel, formatCurrency } from "@travel-app/shared";
 import { AlertCircle, X } from "lucide-react";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
-  car_service: "Car Service",
-  other_transport: "Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-  tour: "Tour",
-  cruise: "Cruise",
-  show: "Show",
-};
-
-function categoryLabel(category: string): string {
-  return (
-    CATEGORY_LABELS[category] ??
-    category
-      .split("_")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(" ")
-  );
-}
 
 function fmtUsd(amount: number) {
   return `$${amount.toLocaleString("en-US", {
@@ -124,7 +97,7 @@ export function MobileCostsSheet({
         ) : (
           <ul className="divide-y divide-border/50">
             {data.items.map((item) => {
-              const label = categoryLabel(item.category);
+              const label = costCategoryLabel(item.category);
               const primary = item.city ? `${item.city}: ${label}` : label;
               const isForeign =
                 item.amountUsd !== undefined && item.currency !== "USD";

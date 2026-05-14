@@ -5,6 +5,7 @@ import {
   formatFlightLabel,
   formatFlightEndpoint,
   convertToUsd,
+  SEGMENT_LABELS,
 } from "@travel-app/shared";
 import type { Segment } from "@travel-app/shared";
 import {
@@ -34,22 +35,6 @@ const RESTAURANT_TYPES = new Set([
   "restaurant_dinner",
 ]);
 
-const TYPE_LABEL: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
-  car_service: "Car Service",
-  other_transport: "Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  show: "Show",
-  tour: "Tour",
-  cruise: "Cruise",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-};
 
 function fmt12h(t?: string): string | null {
   if (!t) return null;
@@ -305,13 +290,13 @@ export function MobileSegmentDetailSheet({
     <MobileBottomSheet
       open
       onClose={onClose}
-      ariaLabel={`${TYPE_LABEL[segment.type] ?? "Segment"} · ${segment.title}`}
+      ariaLabel={`${SEGMENT_LABELS[segment.type]} · ${segment.title}`}
     >
       {/* Header */}
       <div className="flex shrink-0 items-start gap-3 px-5 pb-3 pt-2">
         <div className="min-w-0 flex-1">
           <p className="text-kicker font-semibold text-muted-foreground">
-            {TYPE_LABEL[segment.type] ?? "Segment"}
+            {SEGMENT_LABELS[segment.type]}
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
             {titleText}

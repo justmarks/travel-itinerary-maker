@@ -13,7 +13,8 @@
  * Cities not in the lookup table produce floating datetimes (no TZID).
  */
 
-import type { Trip, TripDay, Segment } from "../types/trip";
+import type { Trip, TripDay, Segment, SegmentType } from "../types/trip";
+import { SEGMENT_LABELS } from "../segment-config";
 import { formatFlightLabel, formatFlightEndpoint } from "./segments";
 import { getCityTimezone } from "./city-timezone";
 import { getAirportTimezone, lookupAirport } from "./airport-lookup";
@@ -254,29 +255,23 @@ function collectTripTimezones(trip: Trip): Set<string> {
 
 // ─── Segment → VEVENT ─────────────────────────────────────────────────────────
 
-const TYPE_LABELS: Record<string, string> = {
-  flight:               "Flight",
-  train:                "Train",
-  car_rental:           "Car Rental",
-  car_service:          "Car",
-  other_transport:      "Transport",
-  hotel:                "Hotel",
-  activity:             "Activity",
-  show:                 "Show",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch:    "Brunch",
-  restaurant_lunch:     "Lunch",
-  restaurant_dinner:    "Dinner",
-  tour:                 "Tour",
-  cruise:               "Cruise",
+// Calendar event titles use a slightly more compact label set than the rest
+// of the UI — `car_service` becomes "Car" so the event title doesn't bloat
+// in the user's calendar. Everything else delegates to `SEGMENT_LABELS`.
+const TYPE_LABEL_OVERRIDES: Partial<Record<SegmentType, string>> = {
+  car_service: "Car",
 };
+
+function typeLabel(type: SegmentType): string {
+  return TYPE_LABEL_OVERRIDES[type] ?? SEGMENT_LABELS[type];
+}
 
 function segmentToVEvent(
   segment: Segment,
   day: TripDay,
   tripTitle: string,
 ): string[] {
-  const label = TYPE_LABELS[segment.type] ?? segment.type;
+  const label = typeLabel(segment.type);
 
   // Prefer airport-derived timezones for flights when the IATA codes are
   // present; fall back to the city lookup for legacy data and other transport.
