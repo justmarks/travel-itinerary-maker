@@ -251,15 +251,18 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
     // panel re-renders without the cascading rows immediately. Same
     // queryKey both panels read, so the update propagates to both
     // without an event bus.
-    const prevConnectionsCache = queryClient.getQueryData<{
-      connections: PublicConnection[];
-    }>(queryKey);
-    if (connectionsProvider && prevConnectionsCache) {
-      queryClient.setQueryData<{ connections: PublicConnection[] }>(queryKey, {
-        connections: prevConnectionsCache.connections.filter(
-          (c) => c.provider !== connectionsProvider,
-        ),
-      });
+    if (connectionsProvider) {
+      queryClient.setQueryData<{ connections: PublicConnection[] }>(
+        queryKey,
+        (old) =>
+          old
+            ? {
+                connections: old.connections.filter(
+                  (c) => c.provider !== connectionsProvider,
+                ),
+              }
+            : old,
+      );
     }
 
     try {
@@ -293,9 +296,12 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
       await queryClient.invalidateQueries({ queryKey });
     } catch (err) {
       setIdentities(prev);
-      if (prevConnectionsCache) {
-        queryClient.setQueryData(queryKey, prevConnectionsCache);
-      }
+      // Refetch instead of restoring the snapshot — the loop may
+      // have completed some DELETEs server-side before failing, so
+      // restoring `prevConnectionsCache` would show "still connected"
+      // for rows that are actually gone. Invalidating forces the
+      // services panel to reconcile against truth.
+      await queryClient.invalidateQueries({ queryKey });
       toast.error("Couldn't unlink account", {
         description:
           err instanceof Error ? err.message : "Unknown error",
