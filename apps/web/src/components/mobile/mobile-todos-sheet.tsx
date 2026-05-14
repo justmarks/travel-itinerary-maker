@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Todo, TodoCategory } from "@itinly/shared";
+import type { Todo, TodoCategory, TripDay } from "@itinly/shared";
 import { useUpdateTodo } from "@itinly/api-client";
 import {
   Briefcase,
@@ -12,6 +12,7 @@ import {
   MapPin,
   Plus,
   Search,
+  Sparkles,
   Utensils,
   X,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { describeError } from "@/lib/api-error";
 import { MarkdownText } from "@/components/markdown-text";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
+import { MobileSuggestMealsSheet } from "./mobile-suggest-meals-sheet";
 import {
   MobileTodoFormSheet,
   type TodoFormTarget,
@@ -181,11 +183,20 @@ function TodoRow({
 export function MobileTodosSheet({
   tripId,
   todos,
+  days,
+  canEdit,
   open,
   onClose,
 }: {
   tripId: string;
   todos: readonly Todo[];
+  /** Trip days drive the meal-suggester; omit when the caller has no
+   *  edit permission and the suggest entry isn't surfaced. */
+  days?: readonly TripDay[];
+  /** Mirrors desktop `showSuggestButton={!isReadOnly}`. Gates the
+   *  "Suggest meals" entry point — view-only collaborators see the
+   *  list but not the affordance. */
+  canEdit?: boolean;
   open: boolean;
   onClose: () => void;
 }): React.JSX.Element {
@@ -194,6 +205,7 @@ export function MobileTodosSheet({
     [todos],
   );
   const [editTarget, setEditTarget] = useState<TodoFormTarget>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   // Completed group stays collapsed by default — the whole point is that
   // checked-off items shouldn't crowd the active list. The user can
   // expand to undo a check, edit, or just review.
@@ -205,6 +217,7 @@ export function MobileTodosSheet({
   useEffect(() => {
     if (!open) {
       setEditTarget(null);
+      setSuggestOpen(false);
       setCompletedExpanded(false);
     }
   }, [open]);
@@ -240,6 +253,19 @@ export function MobileTodosSheet({
             </h2>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {canEdit && days && (
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(true)}
+                aria-label="Suggest meals"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+              >
+                <Sparkles
+                  className="h-4 w-4"
+                  style={{ color: "var(--brand)" }}
+                />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setEditTarget("new")}
@@ -354,6 +380,16 @@ export function MobileTodosSheet({
         target={editTarget}
         onClose={() => setEditTarget(null)}
       />
+
+      {canEdit && days && (
+        <MobileSuggestMealsSheet
+          tripId={tripId}
+          days={days}
+          todos={todos}
+          open={suggestOpen}
+          onClose={() => setSuggestOpen(false)}
+        />
+      )}
     </>
   );
 }
