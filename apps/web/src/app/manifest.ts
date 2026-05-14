@@ -85,5 +85,19 @@ export default function manifest(): MetadataRoute.Manifest {
         url: "url",
       },
     },
+    // PWA app-icon shortcuts (Android long-press, desktop right-click).
+    // Each entry adds a quick action straight from the home screen so
+    // common flows skip the trip list. "Create trip" deep-links into
+    // `/m` with `?new=trip`; the trip-list page reads that on mount,
+    // pops the MobileCreateTripSheet open, then scrubs the param out
+    // of the URL so a refresh or back-nav doesn't re-trigger it.
+    shortcuts: [
+      {
+        name: "Create trip",
+        short_name: "New trip",
+        description: "Start a new trip with a name and date range",
+        url: "/m?new=trip",
+      },
+    ],
   };
 }
