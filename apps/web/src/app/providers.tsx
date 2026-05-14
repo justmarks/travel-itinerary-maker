@@ -13,6 +13,7 @@ import { initMonitoring } from "@/lib/monitoring";
 import { logPushDiagnostics } from "@/lib/push";
 import { CACHE_STORAGE_KEY, createWebQueryClient } from "@/lib/query-client";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
+import { PwaBadgeSync } from "@/components/pwa/pwa-badge-sync";
 import { IntroTourDialog } from "@/components/intro-tour-dialog";
 
 const API_BASE_URL =
@@ -144,6 +145,7 @@ export function Providers({
           <ConfirmDialogProvider>
             <ApiProviderSwitcher>{children}</ApiProviderSwitcher>
             <ServiceWorkerRegister />
+            <PwaBadgeSync />
             <IntroTourDialog />
           </ConfirmDialogProvider>
         </DemoProvider>

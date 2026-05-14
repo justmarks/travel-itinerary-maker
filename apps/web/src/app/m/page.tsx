@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -465,6 +465,28 @@ function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [autoShareOpen, setAutoShareOpen] = useState(false);
+
+  // PWA "Create trip" shortcut deep-link. The manifest's `shortcuts`
+  // entry points at `/m?new=trip`; when the user picks it from the
+  // Android long-press menu (or desktop right-click) the OS opens the
+  // installed PWA at that URL. We pop the create sheet on mount and
+  // scrub the param so a refresh / back-nav / SW shell-cache restore
+  // doesn't re-open the sheet on every visit. Reading via
+  // `window.location.search` (rather than `useSearchParams`) avoids
+  // forcing the page into dynamic rendering for what is otherwise a
+  // statically-served shell.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("new") !== "trip") return;
+    setCreateOpen(true);
+    search.delete("new");
+    const qs = search.toString();
+    const cleaned =
+      window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+    window.history.replaceState(null, "", cleaned);
+  }, []);
+
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
