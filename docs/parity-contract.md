@@ -22,7 +22,7 @@ against drift and the third column captures it.
 | Share dialog | `components/share-trip-dialog.tsx` | `components/mobile/mobile-share-sheet.tsx` | `lib/api-error.ts` (`describeError`, `toastMutationError`), `lib/share-activity.ts` |
 | Auto-share rules | `components/auto-share-rules-panel.tsx` | `components/mobile/mobile-auto-share-sheet.tsx` | `@travel-app/api-client` hook set |
 | Email scan | `components/email-scan-dialog.tsx` | `components/mobile/mobile-email-scan-sheet.tsx` | `@travel-app/api-client` hook set; `lib/oauth.ts` for Gmail link |
-| Todos | `components/trip-todos.tsx` (with `showSuggestButton`) | `components/mobile/mobile-todos-sheet.tsx`, `components/mobile/mobile-todo-form-sheet.tsx` | **Known gap:** desktop exposes "Suggest meals"; mobile does not. |
+| Todos | `components/trip-todos.tsx` (with `showSuggestButton`) | `components/mobile/mobile-todos-sheet.tsx`, `components/mobile/mobile-todo-form-sheet.tsx`, `components/mobile/mobile-suggest-meals-sheet.tsx` | Meal-suggester engine + dedup live in `@travel-app/shared` (`suggestMealTodos`, `dedupeAgainstExistingTodos`); both sides render the same suggestions. |
 | Costs | `components/trip-costs.tsx` | `components/mobile/mobile-costs-sheet.tsx` | `costCategoryLabel(category)` from `@travel-app/shared` (single label map) |
 | Trip history | `components/trip-history.tsx` | `components/mobile/mobile-history-sheet.tsx` | — |
 | Timeline view | `components/timeline-view.tsx`, `components/timeline-shared.ts` | `components/mobile/mobile-timeline-view.tsx` | `timeline-shared.ts` (`CATEGORY_TOKEN`, `extractHotels`, `sortByTime`) |
@@ -66,8 +66,6 @@ When a PR touches any surface above, verify:
 
 These intentionally diverge or are pending follow-up:
 
-- **"Suggest meals" affordance is desktop-only.** Mobile todos sheet
-  has no equivalent entry point. Pending product decision.
 - **Share dialog vs. share sheet** picker visual (radio buttons vs.
   pills) is intentional form-factor divergence, not a parity bug.
 - **Shared-trip viewer read-only** is enforced by different mechanisms
