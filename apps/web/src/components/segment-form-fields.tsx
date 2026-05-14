@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   addDays,
   lookupAirport,
@@ -463,6 +464,100 @@ export function NativeSegmentTypeSelect({
   );
 }
 
+// ─── "More options" collapsible ─────────────────────────────────────────────
+//
+// The segment form has a lot of fields — most users only fill in a
+// handful (route / dates / times / venue / cost). Anything beyond that
+// (cabin class, baggage info, seat numbers for activities, restaurant
+// phone, hotel address / breakfast, etc.) is hidden behind a single
+// disclosure at the bottom so the default view is short enough to fit
+// without scrolling on a phone.
+//
+// When EDITING an existing segment, the section auto-expands if any of
+// its fields already have a value so the user doesn't have to hunt for
+// data they previously entered.
+
+function MoreOptionsSection({
+  defaultExpanded,
+  children,
+}: {
+  defaultExpanded: boolean;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {expanded ? (
+          <ChevronDown className="h-4 w-4" />
+        ) : (
+          <ChevronRight className="h-4 w-4" />
+        )}
+        More options
+      </button>
+      {expanded && <div className="mt-3 space-y-4">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * Returns true when at least one "advanced" field on the form already
+ * has a value worth surfacing. Drives the initial expanded state of
+ * `MoreOptionsSection` on edit so a user editing a segment they
+ * previously enriched (cabin class, hotel breakfast, restaurant phone,
+ * etc.) sees those fields immediately instead of having to click to
+ * reveal them.
+ *
+ * The set is type-aware so a hotel's `coach` field (which it doesn't
+ * use) doesn't accidentally trigger expansion, and so the common
+ * advanced fields (provider, url, costDetails) factor in for every
+ * type.
+ */
+function hasAdvancedSegmentValues(form: SegmentFormState): boolean {
+  const flags = getTypeFlags(form.type);
+  const common =
+    Boolean(form.provider) ||
+    Boolean(form.url) ||
+    Boolean(form.costDetails);
+  if (common) return true;
+  if (flags.isFlight) {
+    return Boolean(form.cabinClass) || Boolean(form.seatNumber) || Boolean(form.baggageInfo);
+  }
+  if (flags.isTrain) {
+    return Boolean(form.coach) || Boolean(form.seatNumber);
+  }
+  if (flags.isHotel) {
+    // The hotel check-in/out times default to 15:00 / 11:00; treat the
+    // defaults as "not advanced data" so a freshly-typed hotel doesn't
+    // pop the section open unnecessarily.
+    const nonDefaultStart =
+      Boolean(form.startTime) && form.startTime !== "15:00";
+    const nonDefaultEnd =
+      Boolean(form.endTime) && form.endTime !== "11:00";
+    return (
+      Boolean(form.address) ||
+      nonDefaultStart ||
+      nonDefaultEnd ||
+      form.breakfastIncluded
+    );
+  }
+  if (flags.isCarService) {
+    return Boolean(form.contactName) || Boolean(form.phone);
+  }
+  if (flags.isRestaurant) {
+    return Boolean(form.address) || Boolean(form.phone) || form.creditCardHold;
+  }
+  // Activity / show / tour / cruise / car_rental / other_transport:
+  // address is the only type-specific advanced field; cabin/seats
+  // don't apply.
+  return Boolean(form.address);
+}
+
 // ─── Form fields component ──────────────────────────────────────────────────
 
 export function SegmentFormFields({
@@ -681,35 +776,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-cabin`}>Cabin class</Label>
-              <Input
-                id={`${idPrefix}-cabin`}
-                placeholder="e.g. Economy, Business"
-                value={form.cabinClass}
-                onChange={(e) => onChange({ cabinClass: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
-              <Input
-                id={`${idPrefix}-seats`}
-                placeholder="e.g. 12A, 12B"
-                value={form.seatNumber}
-                onChange={(e) => onChange({ seatNumber: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-baggage`}>Baggage info</Label>
-            <Input
-              id={`${idPrefix}-baggage`}
-              placeholder="e.g. 1 checked bag included"
-              value={form.baggageInfo}
-              onChange={(e) => onChange({ baggageInfo: e.target.value })}
-            />
-          </div>
         </>
       )}
 
@@ -773,26 +839,6 @@ export function SegmentFormFields({
                 type="time"
                 value={form.endTime}
                 onChange={(e) => onChange({ endTime: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-coach`}>Coach</Label>
-              <Input
-                id={`${idPrefix}-coach`}
-                placeholder="e.g. Coach 14"
-                value={form.coach}
-                onChange={(e) => onChange({ coach: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
-              <Input
-                id={`${idPrefix}-seats`}
-                placeholder="e.g. 23A, 23B"
-                value={form.seatNumber}
-                onChange={(e) => onChange({ seatNumber: e.target.value })}
               />
             </div>
           </div>
@@ -878,35 +924,6 @@ export function SegmentFormFields({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-            <Input
-              id={`${idPrefix}-address`}
-              placeholder="Optional"
-              value={form.address}
-              onChange={(e) => onChange({ address: e.target.value })}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-start`}>Check-in time</Label>
-              <Input
-                id={`${idPrefix}-start`}
-                type="time"
-                value={form.startTime}
-                onChange={(e) => onChange({ startTime: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-end`}>Check-out time</Label>
-              <Input
-                id={`${idPrefix}-end`}
-                type="time"
-                value={form.endTime}
-                onChange={(e) => onChange({ endTime: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-end-date`}>Check-out date</Label>
             <Input
               id={`${idPrefix}-end-date`}
@@ -914,17 +931,6 @@ export function SegmentFormFields({
               value={form.endDate || defaultEndDate("hotel", form.date)}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.breakfastIncluded}
-                onChange={(e) => onChange({ breakfastIncluded: e.target.checked })}
-                className="rounded"
-              />
-              Breakfast included
-            </label>
           </div>
         </>
       )}
@@ -1007,27 +1013,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-contact`}>Driver name</Label>
-              <Input
-                id={`${idPrefix}-contact`}
-                placeholder="Optional"
-                value={form.contactName}
-                onChange={(e) => onChange({ contactName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
-              <Input
-                id={`${idPrefix}-phone`}
-                type="tel"
-                placeholder="Optional"
-                value={form.phone}
-                onChange={(e) => onChange({ phone: e.target.value })}
-              />
-            </div>
-          </div>
         </>
       )}
 
@@ -1054,15 +1039,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-            <Input
-              id={`${idPrefix}-address`}
-              placeholder="Optional"
-              value={form.address}
-              onChange={(e) => onChange({ address: e.target.value })}
-            />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-start`}>Reservation time</Label>
@@ -1083,29 +1059,6 @@ export function SegmentFormFields({
                 value={form.partySize}
                 onChange={(e) => onChange({ partySize: e.target.value })}
               />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
-              <Input
-                id={`${idPrefix}-phone`}
-                type="tel"
-                placeholder="Optional"
-                value={form.phone}
-                onChange={(e) => onChange({ phone: e.target.value })}
-              />
-            </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.creditCardHold}
-                  onChange={(e) => onChange({ creditCardHold: e.target.checked })}
-                  className="rounded"
-                />
-                CC hold required
-              </label>
             </div>
           </div>
         </>
@@ -1195,17 +1148,6 @@ export function SegmentFormFields({
               )}
             </div>
           )}
-          {showAddress && (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-              <Input
-                id={`${idPrefix}-address`}
-                placeholder="Optional"
-                value={form.address}
-                onChange={(e) => onChange({ address: e.target.value })}
-              />
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-start`}>Start time</Label>
@@ -1229,7 +1171,7 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Common booking fields ── */}
+      {/* ── Common: Confirmation # + Cost ── */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-conf`}>Confirmation #</Label>
@@ -1240,31 +1182,8 @@ export function SegmentFormFields({
             onChange={(e) => onChange({ confirmationCode: e.target.value })}
           />
         </div>
-        {showProvider && (
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-provider`}>Provider</Label>
-            <Input
-              id={`${idPrefix}-provider`}
-              placeholder="e.g. Expedia, Direct"
-              value={form.provider}
-              onChange={(e) => onChange({ provider: e.target.value })}
-            />
-          </div>
-        )}
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-url`}>URL</Label>
-        <Input
-          id={`${idPrefix}-url`}
-          type="url"
-          placeholder="https://..."
-          value={form.url}
-          onChange={(e) => onChange({ url: e.target.value })}
-        />
-      </div>
-
-      {/* ── Cost ── */}
       <div className="grid grid-cols-4 gap-4">
         <div className="col-span-2 space-y-2">
           <Label htmlFor={`${idPrefix}-cost`}>
@@ -1300,26 +1219,245 @@ export function SegmentFormFields({
         </div>
       </div>
 
-      {/* ── Details — always last, multi-line ── */}
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-details`}>Details</Label>
-        <Textarea
-          id={`${idPrefix}-details`}
-          placeholder={
-            isHotel
-              ? "e.g. 2 Bedroom Villa, 2 Bathrooms. Parking $30/night. Resort fee $45/night."
-              : isFlight
-              ? "e.g. Premium Economy, 2 checked bags included"
-              : isCarRental
-              ? "e.g. Midsize SUV, GPS included"
-              : "Additional notes..."
-          }
-          value={form.costDetails}
-          onChange={(e) => onChange({ costDetails: e.target.value })}
-          rows={2}
-          className="resize-none"
-        />
-      </div>
+      {/* ── More options ── */}
+      {/*
+        Single collapsible section that consolidates every advanced /
+        infrequently-used field, regardless of segment type. Each block
+        below is gated on the active type so only the relevant subset
+        renders. The section auto-expands when ANY of these fields
+        already has a value so editing an existing segment doesn't hide
+        data the user previously entered.
+      */}
+      <MoreOptionsSection defaultExpanded={hasAdvancedSegmentValues(form)}>
+        {/* Flight-specific advanced fields */}
+        {isFlight && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-cabin`}>Cabin class</Label>
+                <Input
+                  id={`${idPrefix}-cabin`}
+                  placeholder="e.g. Economy, Business"
+                  value={form.cabinClass}
+                  onChange={(e) => onChange({ cabinClass: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
+                <Input
+                  id={`${idPrefix}-seats`}
+                  placeholder="e.g. 12A, 12B"
+                  value={form.seatNumber}
+                  onChange={(e) => onChange({ seatNumber: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-baggage`}>Baggage info</Label>
+              <Input
+                id={`${idPrefix}-baggage`}
+                placeholder="e.g. 1 checked bag included"
+                value={form.baggageInfo}
+                onChange={(e) => onChange({ baggageInfo: e.target.value })}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Train-specific advanced fields */}
+        {isTrain && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-coach`}>Coach</Label>
+              <Input
+                id={`${idPrefix}-coach`}
+                placeholder="e.g. Coach 14"
+                value={form.coach}
+                onChange={(e) => onChange({ coach: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
+              <Input
+                id={`${idPrefix}-seats`}
+                placeholder="e.g. 23A, 23B"
+                value={form.seatNumber}
+                onChange={(e) => onChange({ seatNumber: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Hotel-specific advanced fields */}
+        {isHotel && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+              <Input
+                id={`${idPrefix}-address`}
+                placeholder="Optional"
+                value={form.address}
+                onChange={(e) => onChange({ address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-start`}>Check-in time</Label>
+                <Input
+                  id={`${idPrefix}-start`}
+                  type="time"
+                  value={form.startTime}
+                  onChange={(e) => onChange({ startTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-end`}>Check-out time</Label>
+                <Input
+                  id={`${idPrefix}-end`}
+                  type="time"
+                  value={form.endTime}
+                  onChange={(e) => onChange({ endTime: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.breakfastIncluded}
+                  onChange={(e) => onChange({ breakfastIncluded: e.target.checked })}
+                  className="rounded"
+                />
+                Breakfast included
+              </label>
+            </div>
+          </>
+        )}
+
+        {/* Car-service-specific advanced fields */}
+        {isCarService && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-contact`}>Driver name</Label>
+              <Input
+                id={`${idPrefix}-contact`}
+                placeholder="Optional"
+                value={form.contactName}
+                onChange={(e) => onChange({ contactName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
+              <Input
+                id={`${idPrefix}-phone`}
+                type="tel"
+                placeholder="Optional"
+                value={form.phone}
+                onChange={(e) => onChange({ phone: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Restaurant-specific advanced fields */}
+        {isRestaurant && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+              <Input
+                id={`${idPrefix}-address`}
+                placeholder="Optional"
+                value={form.address}
+                onChange={(e) => onChange({ address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
+                <Input
+                  id={`${idPrefix}-phone`}
+                  type="tel"
+                  placeholder="Optional"
+                  value={form.phone}
+                  onChange={(e) => onChange({ phone: e.target.value })}
+                />
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.creditCardHold}
+                    onChange={(e) => onChange({ creditCardHold: e.target.checked })}
+                    className="rounded"
+                  />
+                  CC hold required
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Activity / Show / Tour / Cruise — address only.
+            Cruise & transport pages don't render an address row but
+            the form state can still carry one from an earlier edit; we
+            keep the row available behind the disclosure so users can
+            view / clear it without losing data. */}
+        {showAddress && !isHotel && !isRestaurant && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+            <Input
+              id={`${idPrefix}-address`}
+              placeholder="Optional"
+              value={form.address}
+              onChange={(e) => onChange({ address: e.target.value })}
+            />
+          </div>
+        )}
+
+        {/* Common across types: Provider (when applicable), URL, free-form notes. */}
+        {showProvider && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-provider`}>Provider</Label>
+            <Input
+              id={`${idPrefix}-provider`}
+              placeholder="e.g. Expedia, Direct"
+              value={form.provider}
+              onChange={(e) => onChange({ provider: e.target.value })}
+            />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-url`}>URL</Label>
+          <Input
+            id={`${idPrefix}-url`}
+            type="url"
+            placeholder="https://..."
+            value={form.url}
+            onChange={(e) => onChange({ url: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-details`}>Details</Label>
+          <Textarea
+            id={`${idPrefix}-details`}
+            placeholder={
+              isHotel
+                ? "e.g. 2 Bedroom Villa, 2 Bathrooms. Parking $30/night. Resort fee $45/night."
+                : isFlight
+                ? "e.g. Premium Economy, 2 checked bags included"
+                : isCarRental
+                ? "e.g. Midsize SUV, GPS included"
+                : "Additional notes..."
+            }
+            value={form.costDetails}
+            onChange={(e) => onChange({ costDetails: e.target.value })}
+            rows={2}
+            className="resize-none"
+          />
+        </div>
+      </MoreOptionsSection>
     </div>
   );
 }
