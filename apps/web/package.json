@@ -1,5 +1,5 @@
 {
-  "name": "@travel-app/web",
+  "name": "@itinly/web",
   "version": "1.1.5",
   "private": true,
   "scripts": {
@@ -10,11 +10,12 @@
   },
   "dependencies": {
     "@sentry/browser": "^10.51.0",
+    "@supabase/supabase-js": "^2.105.4",
     "@tanstack/query-sync-storage-persister": "^5.100.9",
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-query-persist-client": "^5.100.9",
-    "@travel-app/api-client": "workspace:*",
-    "@travel-app/shared": "workspace:*",
+    "@itinly/api-client": "workspace:*",
+    "@itinly/shared": "workspace:*",
     "@upstash/redis": "^1.37.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",

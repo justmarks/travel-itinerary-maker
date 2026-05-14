@@ -1,4 +1,4 @@
-import { ApiError } from "@travel-app/api-client";
+import { ApiError } from "@itinly/api-client";
 import { toast } from "sonner";
 
 /**

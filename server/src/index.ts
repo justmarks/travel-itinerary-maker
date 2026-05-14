@@ -13,9 +13,11 @@ dotenv.config({
   override: true,
 });
 
+import type express from "express";
 import { createApp } from "./app";
 import { InMemoryStorage } from "./services/storage";
 import { initMonitoring } from "./services/monitoring";
+import { createDbClient, type DbClient } from "./db/client";
 import { config } from "./config/env";
 
 // Initialise Sentry before building the app so any bootstrap error is
@@ -29,14 +31,46 @@ const isProduction = config.nodeEnv === "production";
 // accepting requests. Synchronous boot is preserved when there's no
 // Redis (hydrate becomes a no-op).
 async function bootstrap(): Promise<void> {
-  const app = isProduction
-    ? await createApp({ mode: "drive" })
-    : await createApp({ mode: "memory", storage: new InMemoryStorage() });
+  // Resolve the active backend. Explicit STORAGE_BACKEND wins;
+  // unset falls back to `postgres` in production and `memory` in dev.
+  // The pre-Phase-6 `drive` backend (per-user Google Drive storage)
+  // was removed once the Postgres migration finished — see
+  // `docs/backend-migration-plan.md`.
+  const backend: "postgres" | "memory" =
+    config.storage.backend ?? (isProduction ? "postgres" : "memory");
+
+  // Boot a DB client when storage involves Postgres OR when Supabase
+  // Auth is wired up (Supabase-authed users live exclusively on
+  // Postgres). One client per process; we reuse its pool across
+  // requests.
+  let dbClient: DbClient | undefined;
+  const supabaseAuthConfigured = !!config.supabase.url;
+  const needsDb = backend === "postgres" || supabaseAuthConfigured;
+  if (needsDb) {
+    if (!config.storage.databaseUrl) {
+      throw new Error(
+        "DATABASE_URL is required when STORAGE_BACKEND=postgres or " +
+          "SUPABASE_URL is set (Supabase-authed users require Postgres).",
+      );
+    }
+    dbClient = createDbClient(config.storage.databaseUrl);
+  }
+
+  let app: express.Express;
+  if (backend === "postgres") {
+    app = await createApp({ mode: "postgres", dbClient });
+  } else {
+    app = await createApp({ mode: "memory", storage: new InMemoryStorage() });
+  }
 
   app.listen(config.port, () => {
     console.log(`Server running on http://localhost:${config.port}`);
     console.log(`Environment: ${config.nodeEnv}`);
-    console.log(`Storage: ${isProduction ? "Google Drive" : "In-Memory"}`);
+    if (backend === "postgres") {
+      console.log("Storage: Supabase Postgres (every user)");
+    } else {
+      console.log("Storage: In-Memory");
+    }
     // Railway injects these on every deploy. Log them once at boot so a
     // deployment UUID in Railway's log UI can be mapped back to a
     // human-readable preview URL / branch / commit without digging

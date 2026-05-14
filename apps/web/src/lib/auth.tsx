@@ -8,6 +8,8 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { getSupabaseClient } from "./supabase";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -68,7 +70,11 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_KEY = "travel-app-auth";
+const STORAGE_KEY = "itinly-auth";
+/** Predecessor key from before the `@travel-app/*` → `@itinly/*` rename.
+ *  `loadAuth` migrates the value on first read so existing sessions
+ *  survive — without this, every active user would be logged out. */
+const LEGACY_STORAGE_KEY = "travel-app-auth";
 
 const EMPTY_AUTH: AuthState = {
   user: null,
@@ -82,6 +88,19 @@ const EMPTY_AUTH: AuthState = {
 function loadAuth(): AuthState {
   if (typeof window === "undefined") return EMPTY_AUTH;
   try {
+    // One-shot migration: copy the legacy key forward, then delete it.
+    // After the first load on the renamed build, every subsequent read
+    // hits the new key directly.
+    const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacyRaw && !localStorage.getItem(STORAGE_KEY)) {
+      localStorage.setItem(STORAGE_KEY, legacyRaw);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } else if (legacyRaw) {
+      // New key already populated (multi-tab race or partial migration);
+      // just clear the stale legacy entry.
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    }
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return EMPTY_AUTH;
     const parsed = JSON.parse(raw) as Partial<AuthState>;
@@ -120,6 +139,129 @@ function saveAuth(state: AuthState) {
   }
 }
 
+/**
+ * Build an AuthState from a Supabase session. The provider-side bits
+ * (`scopes`, `gmail`) are intentionally left empty here — they're
+ * populated separately:
+ *   - `scopes` from the `connections` table after sign-in (Phase 4
+ *     connector wiring will hydrate it; for now the legacy `/auth/scopes`
+ *     bootstrap effect keeps working for users still on the legacy
+ *     access-token path)
+ *   - `gmail` from the dedicated `/auth/google/gmail` link flow, which
+ *     stays on its own OAuth client for CASA reasons
+ *
+ * Microsoft accounts: Supabase's OIDC userinfo for Azure AD doesn't
+ * include `avatar_url` (Microsoft doesn't surface the profile photo
+ * via standard OIDC claims). We patch the photo in asynchronously via
+ * `fetchMicrosoftAvatar` below, reading from
+ * `https://graph.microsoft.com/v1.0/me/photo/$value` with the
+ * provider_token and caching the resulting data URL to localStorage
+ * so subsequent loads render the photo instantly without another
+ * Graph round-trip.
+ */
+const MS_AVATAR_CACHE_PREFIX = "ms-avatar:";
+
+function getCachedMicrosoftAvatar(userId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(`${MS_AVATAR_CACHE_PREFIX}${userId}`);
+  } catch {
+    return null;
+  }
+}
+
+function setCachedMicrosoftAvatar(userId: string, dataUrl: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(`${MS_AVATAR_CACHE_PREFIX}${userId}`, dataUrl);
+  } catch {
+    // localStorage full / disabled — non-fatal, we'll just re-fetch next
+    // session.
+  }
+}
+
+/**
+ * Fetches the signed-in Microsoft user's profile photo via Microsoft
+ * Graph and returns it as a data URL. Uses the provider_token surfaced
+ * by Supabase on the OAuth callback (`session.provider_token`), which
+ * is the underlying Microsoft access token with `User.Read` delegated
+ * permission — automatically granted by the `openid profile` scopes the
+ * login page requests.
+ *
+ * Returns null when:
+ * - The user has no photo set (`/me/photo/$value` returns 404)
+ * - The provider_token expired (1h lifetime; after the first Supabase
+ *   session refresh it's no longer exposed)
+ * - The Graph request fails for any other reason (network, CORS, etc.)
+ *
+ * All failure modes are non-fatal — the auth state just keeps its
+ * undefined `picture` and the user-menu's fallback icon renders.
+ */
+async function fetchMicrosoftAvatar(providerToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      "https://graph.microsoft.com/v1.0/me/photo/$value",
+      { headers: { Authorization: `Bearer ${providerToken}` } },
+    );
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+function authStateFromSupabaseSession(session: Session): AuthState {
+  const user = session.user;
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const name =
+    typeof metadata.full_name === "string"
+      ? metadata.full_name
+      : typeof metadata.name === "string"
+        ? metadata.name
+        : (user.email ?? "");
+  // Prefer whatever Supabase surfaced from the provider (Google: yes;
+  // Microsoft: no). If neither is present and we have a cached Graph
+  // photo for this user, use that. Asynchronous Graph fetches that
+  // come after sign-in patch this in via setState — the cache is what
+  // makes a returning user's photo show up before the Graph round-trip
+  // completes (or at all, when the provider_token has already
+  // expired).
+  const providerPicture =
+    typeof metadata.avatar_url === "string"
+      ? metadata.avatar_url
+      : typeof metadata.picture === "string"
+        ? metadata.picture
+        : undefined;
+  const picture = providerPicture ?? getCachedMicrosoftAvatar(user.id) ?? undefined;
+  return {
+    user: {
+      id: user.id,
+      email: user.email ?? "",
+      name,
+      picture,
+    },
+    // The API client sends this as `Authorization: Bearer ...`. The
+    // server's `requireAuth` middleware (Phase 3 commit 3) recognises
+    // Supabase JWTs by shape and validates them via the project's
+    // JWKS — so the same `accessToken` field on AuthState backs both
+    // sign-in paths during the coexistence window.
+    accessToken: session.access_token,
+    // Supabase handles refresh internally via its own
+    // `autoRefreshToken: true`; we don't need a frontend timer.
+    // Storing the refresh token would be redundant.
+    refreshToken: null,
+    expiresAt: session.expires_at ? session.expires_at * 1000 : null,
+    scopes: [],
+    gmail: null,
+  };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [state, setState] = useState<AuthState>(EMPTY_AUTH);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,6 +271,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
     const stored = loadAuth();
     setState(stored);
     setIsLoading(false);
+  }, []);
+
+  // Phase 3b: subscribe to Supabase auth state changes. When a session
+  // is present, it takes precedence over the legacy localStorage
+  // AuthState — the API client picks up the Supabase JWT via
+  // `state.accessToken` and the server-side `requireAuth` middleware
+  // routes JWT-shaped tokens through the Supabase validator
+  // (phase 3 commit 3). When no Supabase session exists, we keep the
+  // legacy AuthState intact so existing users continue working
+  // through the cutover.
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    let cancelled = false;
+
+    // Fire-and-forget Graph fetch for Microsoft users. The first time a
+    // Microsoft user signs in, Supabase exposes the underlying Azure
+    // access token as `session.provider_token` — short-lived (~1h) and
+    // only available immediately post-sign-in. We use it to GET the
+    // user's profile photo from `/me/photo/$value` and cache the
+    // resulting data URL to localStorage. On future page loads, the
+    // cached value flows through `authStateFromSupabaseSession` and
+    // the photo renders without any Graph round-trip.
+    //
+    // Skips itself when:
+    // - The user already has an avatar URL from the provider (Google).
+    // - The user already has a cached Graph photo (returning user on
+    //   the same device).
+    // - `provider_token` isn't present (session was refreshed, the
+    //   provider token was discarded and we never cached the photo —
+    //   user-menu just shows the fallback icon until they sign in
+    //   again, which is rare enough not to be worth a re-fetch flow).
+    const maybeFetchMicrosoftAvatar = (session: Session): void => {
+      if (cancelled) return;
+      const provider = session.user.app_metadata?.provider;
+      if (provider !== "azure") return;
+      if (getCachedMicrosoftAvatar(session.user.id)) return;
+      const metadata = session.user.user_metadata ?? {};
+      if (
+        typeof (metadata as Record<string, unknown>).avatar_url === "string" ||
+        typeof (metadata as Record<string, unknown>).picture === "string"
+      ) {
+        return;
+      }
+      const providerToken = session.provider_token;
+      if (!providerToken) return;
+      void fetchMicrosoftAvatar(providerToken).then((dataUrl) => {
+        if (cancelled || !dataUrl) return;
+        setCachedMicrosoftAvatar(session.user.id, dataUrl);
+        setState((prev) =>
+          prev.user
+            ? { ...prev, user: { ...prev.user, picture: dataUrl } }
+            : prev,
+        );
+      });
+    };
+
+    // Pull the existing session on mount so a page reload keeps the
+    // Supabase auth path active without waiting for a state change.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled || !data.session) return;
+      setState(authStateFromSupabaseSession(data.session));
+      maybeFetchMicrosoftAvatar(data.session);
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (cancelled) return;
+        if (session) {
+          setState(authStateFromSupabaseSession(session));
+          maybeFetchMicrosoftAvatar(session);
+        } else if (event === "SIGNED_OUT") {
+          // Supabase sign-out should also clear legacy auth state so
+          // the user lands in a clean "signed out" UI. The dual-path
+          // user menu only triggers one of the two sign-outs at a
+          // time; this branch covers the Supabase side.
+          setState(EMPTY_AUTH);
+        }
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
   // Persist state changes
@@ -303,6 +531,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const logout = useCallback(() => {
     setState(EMPTY_AUTH);
+    // Phase 3b: also sign out of Supabase if the user came in through
+    // that path. No-op when Supabase isn't configured or there's no
+    // active Supabase session.
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      void supabase.auth.signOut().catch(() => {
+        // Best-effort — local state is already cleared above, the
+        // worst case is a stale Supabase session sitting in
+        // localStorage until the next visit.
+      });
+    }
   }, []);
 
   const hasScope = useCallback(

@@ -6,8 +6,8 @@ import {
   useCreateShareRule,
   useDeleteShareRule,
   useUpdateShareRule,
-} from "@travel-app/api-client";
-import type { TripShareRule } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripShareRule } from "@itinly/shared";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   CalendarCheck,
   CalendarPlus,
@@ -9,10 +10,15 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 import { cn } from "@/lib/utils";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
+import {
+  calendarProviderLabel,
+  type CalendarProvider,
+} from "@/lib/use-active-provider";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 
 type Step = "scope" | "pick" | "info" | "confirm-remove";
 
@@ -41,7 +47,7 @@ export function MobileCalendarSyncSheet({
     <MobileBottomSheet
       open={open}
       onClose={onClose}
-      ariaLabel="Sync to Google Calendar"
+      ariaLabel="Sync to Calendar"
     >
       {open && <CalendarSyncBody trip={trip} onClose={onClose} />}
     </MobileBottomSheet>
@@ -64,11 +70,15 @@ function CalendarSyncBody({
     calendars,
     loadingCalendars,
     loadCalendars,
-    requestCalendarScope,
     sync,
     refresh,
     unsync,
+    connectedProviders,
+    selectedProvider,
+    setSelectedProvider,
   } = useCalendarSync(trip);
+  const providerLabel = calendarProviderLabel(selectedProvider);
+  const showProviderPicker = connectedProviders.length > 1;
 
   const initialStep: Step = !calendarGranted
     ? "scope"
@@ -114,12 +124,24 @@ function CalendarSyncBody({
     onClose();
   };
 
+  const handleProviderChange = (next: CalendarProvider) => {
+    setSelectedProvider(next);
+    // Pass `next` explicitly — `setSelectedProvider` hasn't flushed
+    // yet so the closure inside `loadCalendars` would read the OLD
+    // provider and hit the wrong account. Same race the desktop
+    // dialog has.
+    void loadCalendars(next).then((cals) => {
+      const primary = cals.find((c) => c.primary);
+      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+    });
+  };
+
   return (
     <>
       <div className="flex shrink-0 items-start justify-between gap-3 px-5 pb-3 pt-1">
         <div className="min-w-0 flex-1">
           <p className="text-kicker font-semibold text-muted-foreground">
-            Google Calendar
+            {providerLabel}
           </p>
           <h2 className="mt-0.5 text-lg font-semibold leading-snug">
             {step === "scope" && "Connect Calendar"}
@@ -140,18 +162,42 @@ function CalendarSyncBody({
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-3">
         {step === "scope" && (
-          <p className="text-sm text-muted-foreground">
-            To sync this trip&apos;s events to your calendar, grant Google
-            Calendar access. You can revoke it any time from your Google
-            Account.
-          </p>
+          <NotConnectedNotice capability="calendar" variant="mobile" />
         )}
 
         {step === "pick" && (
           <>
             <p className="text-sm text-muted-foreground">
-              Select the Google Calendar to sync this trip&apos;s events to.
+              Select the {providerLabel} to sync this trip&apos;s events to.
             </p>
+            {showProviderPicker && (
+              <div
+                className="flex gap-2"
+                role="radiogroup"
+                aria-label="Calendar account"
+              >
+                {connectedProviders.map((p) => {
+                  const active = selectedProvider === p;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => handleProviderChange(p)}
+                      className={cn(
+                        "h-10 flex-1 rounded-full border text-sm font-medium transition-colors",
+                        active
+                          ? "border-foreground bg-foreground text-background"
+                          : "border-border bg-background text-foreground active:bg-muted/40",
+                      )}
+                    >
+                      {calendarProviderLabel(p)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {loadingCalendars ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -194,9 +240,22 @@ function CalendarSyncBody({
                 })}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No writable calendars found.
-              </p>
+              // Same reconnect CTA as desktop — an empty list almost
+              // always means the connection can't authenticate.
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>No writable calendars found.</p>
+                <p>
+                  Your {providerLabel} connection may have expired.{" "}
+                  <Link
+                    href="/settings/account"
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={onClose}
+                  >
+                    Reconnect from Settings
+                  </Link>
+                  {" "}to re-grant calendar access.
+                </p>
+              </div>
             )}
           </>
         )}
@@ -232,7 +291,7 @@ function CalendarSyncBody({
               />
               <div>
                 <p className="text-sm font-medium">
-                  Delete from Google Calendar
+                  Delete from {providerLabel}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Remove all synced events from your calendar.
@@ -256,7 +315,7 @@ function CalendarSyncBody({
                 className="mt-0.5"
               />
               <div>
-                <p className="text-sm font-medium">Keep in Google Calendar</p>
+                <p className="text-sm font-medium">Keep in {providerLabel}</p>
                 <p className="text-xs text-muted-foreground">
                   Events stay in your calendar but won&apos;t be updated by
                   this app.
@@ -269,23 +328,13 @@ function CalendarSyncBody({
 
       <div className="flex shrink-0 items-center gap-2 border-t bg-background px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         {step === "scope" && (
-          <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 flex-1 rounded-full border bg-background text-sm font-medium text-foreground active:bg-muted/40"
-            >
-              Not now
-            </button>
-            <button
-              type="button"
-              onClick={requestCalendarScope}
-              className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-foreground text-sm font-medium text-background active:opacity-80"
-            >
-              <CalendarPlus className="h-4 w-4" />
-              Connect
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-11 flex-1 rounded-full border bg-background text-sm font-medium text-foreground active:bg-muted/40"
+          >
+            Close
+          </button>
         )}
 
         {step === "pick" && (

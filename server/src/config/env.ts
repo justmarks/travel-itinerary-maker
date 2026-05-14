@@ -23,6 +23,31 @@ export const config = {
     clientId: process.env.GOOGLE_GMAIL_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_GMAIL_CLIENT_SECRET || "",
   },
+  /**
+   * Microsoft (Azure AD) OAuth client used for sign-in AND for
+   * Microsoft Graph mail + calendar access. Unlike Google, Microsoft
+   * doesn't gate mail/calendar scopes behind a CASA-style assessment
+   * — `Mail.Read` and `Calendars.ReadWrite` are standard delegated
+   * permissions requiring only user consent — so one client serves
+   * every capability.
+   *
+   * `tenantId` controls the issuer:
+   *   - `common` (default) — multi-tenant: any work / school /
+   *     personal Microsoft account can sign in.
+   *   - `consumers` — personal Microsoft accounts only.
+   *   - `organizations` — work/school accounts only (no personal).
+   *   - `<tenant-guid>` — single-tenant: only users in that
+   *     specific Azure AD directory.
+   *
+   * Any var unset (or empty) means "Microsoft integration disabled"
+   * — Phase 4b-2's token refresh helper bails early when these
+   * aren't set.
+   */
+  microsoft: {
+    clientId: process.env.MICROSOFT_CLIENT_ID || "",
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET || "",
+    tenantId: process.env.MICROSOFT_TENANT_ID || "common",
+  },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || "",
   },
@@ -81,5 +106,55 @@ export const config = {
     publicKey: process.env.VAPID_PUBLIC_KEY || "",
     privateKey: process.env.VAPID_PRIVATE_KEY || "",
     subject: process.env.VAPID_SUBJECT || "mailto:hello@itinly.app",
+  },
+  /**
+   * Controls which StorageProvider per-user requests resolve to.
+   *
+   *   STORAGE_BACKEND
+   *     `postgres` — every user is on Postgres. Requires DATABASE_URL.
+   *     `memory` — dev/test only.
+   *     unset — `index.ts` defaults to `postgres` in production
+   *       (NODE_ENV=production) and `memory` in dev.
+   *
+   *   DATABASE_URL
+   *     Postgres connection string. Required when backend=postgres.
+   */
+  storage: {
+    // `undefined` when unset so `index.ts` can apply the env-aware
+    // default (postgres in prod, memory in dev).
+    backend:
+      process.env.STORAGE_BACKEND === "postgres" ||
+      process.env.STORAGE_BACKEND === "memory"
+        ? (process.env.STORAGE_BACKEND as "postgres" | "memory")
+        : undefined,
+    databaseUrl: process.env.DATABASE_URL || "",
+  },
+  /**
+   * Phase 3 of the Drive→Supabase migration: Supabase Auth as the
+   * identity layer.
+   *
+   *   SUPABASE_URL — project URL, e.g. https://abcxyz.supabase.co.
+   *     When set, `requireAuth` accepts Supabase JWTs in addition to
+   *     legacy Google access tokens. Server only needs the URL; the
+   *     JWKS endpoint is derived from it and the JWT signature key
+   *     comes from there. When unset, `requireAuth` validates Google
+   *     tokens only (legacy behaviour, what every pre-phase-3 user
+   *     sends).
+   */
+  supabase: {
+    url: process.env.SUPABASE_URL || "",
+    /**
+     * Service-role key for the Supabase Auth admin API. Distinct from
+     * the anon key shipped to the browser — this one bypasses RLS and
+     * grants admin access to GoTrue.
+     *
+     * Currently used only by the account-deletion endpoint
+     * (`DELETE /api/v1/account`) to wipe the Supabase Auth row after
+     * Postgres + provider tokens are cleaned up. Unset means the
+     * endpoint still returns 204 and wipes everything else; the Auth
+     * row stays behind for an operator to remove manually. Never
+     * expose this key to a browser bundle.
+     */
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
   },
 };

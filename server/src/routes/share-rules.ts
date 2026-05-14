@@ -7,7 +7,7 @@ import {
   type Trip,
   type TripShare,
   type TripShareRule,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";

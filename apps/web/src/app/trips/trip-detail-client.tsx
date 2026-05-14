@@ -11,8 +11,8 @@ import {
   useApiClient,
   useConfirmAllSegments,
   ApiError,
-} from "@travel-app/api-client";
-import type { TripStatus } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripStatus } from "@itinly/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,6 +81,11 @@ import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError, toastMutationError } from "@/lib/api-error";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
+import {
+  calendarProviderLabel,
+  type CalendarProvider,
+} from "@/lib/use-active-provider";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { cn } from "@/lib/utils";
@@ -451,88 +456,167 @@ function TripActionsMenu({
       downloadBlobDirect(blob, `${safeName}.ics`);
     });
 
+  // Calendar-sync state lives at this level (not inside the dropdown's
+  // content) because Radix unmounts `DropdownMenuContent` when the
+  // menu closes — that took the dialog state + dialog components with
+  // it, so clicking "Sync to Calendar…" closed the menu and then
+  // showed nothing. Hoisting state up + rendering the dialogs as a
+  // sibling of `<DropdownMenu>` means the dialogs survive the menu
+  // collapse.
+  const {
+    calendarGranted,
+    isSynced,
+    syncedCount,
+    syncedCalendarName,
+    syncing,
+    calendars,
+    loadingCalendars,
+    loadCalendars,
+    sync,
+    refresh,
+    unsync,
+    connectedProviders,
+    selectedProvider,
+    setSelectedProvider,
+  } = useCalendarSync(trip);
+  const providerLabel = calendarProviderLabel(selectedProvider);
+  const [calDialog, setCalDialog] = useState<"pick" | "info" | "scope" | null>(null);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
+  const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
+  const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
+
+  const refreshCalendarList = async (providerOverride?: CalendarProvider) => {
+    const cals = await loadCalendars(providerOverride);
+    const primary = cals.find((c) => c.primary);
+    setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+  };
+
+  const handleProviderChange = (next: CalendarProvider) => {
+    setSelectedProvider(next);
+    // Pass `next` explicitly — the state update from
+    // `setSelectedProvider` hasn't flushed yet, so `loadCalendars`
+    // would otherwise close over the OLD `selectedProvider` and
+    // request the wrong account's calendar list (race that hit prod
+    // as "clicked Outlook, got Google-shaped 401").
+    void refreshCalendarList(next);
+  };
+
+  const openCalendarDialog = () => {
+    if (!calendarGranted) {
+      setCalDialog("scope");
+      return;
+    }
+    if (isSynced) {
+      setRemoveStep(null);
+      setDeleteChoice("delete");
+      setCalDialog("info");
+      void refreshCalendarList();
+    } else {
+      setCalDialog("pick");
+      void refreshCalendarList();
+    }
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          aria-label="More trip actions"
-          disabled={exporting}
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <CalendarSyncButton
-          trip={trip}
-          renderTrigger={({ isSynced, syncedCount, syncing, open }) => (
-            <DropdownMenuItem
-              disabled={syncing}
-              onSelect={(e) => {
-                // Keep the dropdown from auto-closing before the calendar
-                // dialog can take over focus.
-                e.preventDefault();
-                open();
-              }}
-            >
-              {isSynced ? (
-                <CalendarCheck className="mr-2 h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
-              ) : (
-                <CalendarPlus className="mr-2 h-4 w-4" />
-              )}
-              {syncing
-                ? "Syncing…"
-                : isSynced
-                  ? `Calendar synced (${syncedCount})`
-                  : "Sync to Calendar…"}
-            </DropdownMenuItem>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="More trip actions"
+            disabled={exporting}
+          >
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            disabled={syncing}
+            onSelect={() => {
+              // Radix closes the dropdown on default selection — that's
+              // fine; the dialog lives outside this content tree so it
+              // mounts independently and isn't torn down with the menu.
+              openCalendarDialog();
+            }}
+          >
+            {isSynced ? (
+              <CalendarCheck className="mr-2 h-4 w-4" style={{ color: "var(--status-ok-fg)" }} />
+            ) : (
+              <CalendarPlus className="mr-2 h-4 w-4" />
+            )}
+            {syncing
+              ? "Syncing…"
+              : isSynced
+                ? `Calendar synced (${syncedCount})`
+                : "Sync to Calendar…"}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={onImportEmail}>
+            <FileCode2 className="mr-2 h-4 w-4" />
+            Import email
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onClick={handleExportMarkdown}>
+                <FileText className="mr-2 h-4 w-4" />
+                Markdown (.md)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportOneNote}>
+                <BookOpen className="mr-2 h-4 w-4" />
+                OneNote (.html)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportPdf}>
+                <FileDown className="mr-2 h-4 w-4" />
+                PDF (.pdf)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportIcal}>
+                <CalendarDays className="mr-2 h-4 w-4" />
+                iCal (.ics)
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {canDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={handleDelete}
+                disabled={deleteTrip.isPending}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete trip
+              </DropdownMenuItem>
+            </>
           )}
-        />
-        <DropdownMenuItem onSelect={onImportEmail}>
-          <FileCode2 className="mr-2 h-4 w-4" />
-          Import email
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem onClick={handleExportMarkdown}>
-              <FileText className="mr-2 h-4 w-4" />
-              Markdown (.md)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportOneNote}>
-              <BookOpen className="mr-2 h-4 w-4" />
-              OneNote (.html)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportPdf}>
-              <FileDown className="mr-2 h-4 w-4" />
-              PDF (.pdf)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportIcal}>
-              <CalendarDays className="mr-2 h-4 w-4" />
-              iCal (.ics)
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        {canDelete && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={handleDelete}
-              disabled={deleteTrip.isPending}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete trip
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <CalendarSyncDialogs
+        dialog={calDialog}
+        setDialog={setCalDialog}
+        removeStep={removeStep}
+        setRemoveStep={setRemoveStep}
+        selectedCalendarId={selectedCalendarId}
+        setSelectedCalendarId={setSelectedCalendarId}
+        deleteChoice={deleteChoice}
+        setDeleteChoice={setDeleteChoice}
+        sync={sync}
+        refresh={refresh}
+        unsync={unsync}
+        calendars={calendars}
+        loadingCalendars={loadingCalendars}
+        syncedCount={syncedCount}
+        syncedCalendarName={syncedCalendarName}
+        providerLabel={providerLabel}
+        connectedProviders={connectedProviders}
+        selectedProvider={selectedProvider}
+        onProviderChange={handleProviderChange}
+      />
+    </>
   );
 }
 
@@ -629,8 +713,9 @@ function NeedsReviewBanner({
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="flex-1 min-w-0">
         <strong>{reviewCount}</strong>{" "}
-        {reviewCount === 1 ? "segment" : "segments"} from email need review.
-        Look for the yellow &quot;Review&quot; badge and click the green checkmark to confirm.
+        {reviewCount === 1 ? "segment" : "segments"}{" "}from email need
+        review. Look for the yellow &quot;Review&quot; badge and click the
+        green checkmark to confirm.
       </span>
       <Button
         size="sm"
@@ -654,85 +739,68 @@ function NeedsReviewBanner({
   );
 }
 
-interface CalendarSyncTriggerArgs {
-  isSynced: boolean;
-  syncedCount: number;
-  syncing: boolean;
-  open: () => void;
-}
-
-function CalendarSyncButton({
-  trip,
-  renderTrigger,
+/**
+ * Dialogs the calendar-sync flow renders alongside the trigger
+ * (header button OR overflow-menu item). The trigger and dialogs
+ * are deliberately decoupled so the trigger can live inside a
+ * `<DropdownMenuContent>` (which Radix unmounts when the menu
+ * closes) while the dialogs live OUTSIDE it — picking "Sync to
+ * Calendar" closes the menu, but the dialog still mounts because
+ * its React subtree didn't go with the dropdown.
+ *
+ * Controlled via the `dialog` prop. The parent owns the open state
+ * so the dialog survives menu collapse.
+ */
+function CalendarSyncDialogs({
+  dialog,
+  setDialog,
+  removeStep,
+  setRemoveStep,
+  selectedCalendarId,
+  setSelectedCalendarId,
+  deleteChoice,
+  setDeleteChoice,
+  sync,
+  refresh,
+  unsync,
+  calendars,
+  loadingCalendars,
+  syncedCount,
+  syncedCalendarName,
+  providerLabel,
+  connectedProviders,
+  selectedProvider,
+  onProviderChange,
 }: {
-  trip: {
-    id: string;
-    calendarId?: string;
-    days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
-  };
-  /**
-   * Optional override for the trigger element. Defaults to a standalone
-   * outline Button matching the desktop trip header. Provide a custom
-   * render-prop to host the trigger inside e.g. a DropdownMenuItem.
-   */
-  renderTrigger?: (args: CalendarSyncTriggerArgs) => React.ReactNode;
+  dialog: "pick" | "info" | "scope" | null;
+  setDialog: (d: "pick" | "info" | "scope" | null) => void;
+  removeStep: "confirm" | null;
+  setRemoveStep: (s: "confirm" | null) => void;
+  selectedCalendarId: string;
+  setSelectedCalendarId: (id: string) => void;
+  deleteChoice: "delete" | "keep";
+  setDeleteChoice: (c: "delete" | "keep") => void;
+  sync: (id: string) => Promise<void>;
+  refresh: () => Promise<void>;
+  unsync: (deleteEvents: boolean) => Promise<void>;
+  calendars: Array<{ id: string; summary: string; primary: boolean }> | null;
+  loadingCalendars: boolean;
+  syncedCount: number;
+  syncedCalendarName: string | undefined;
+  providerLabel: string;
+  connectedProviders: CalendarProvider[];
+  selectedProvider: CalendarProvider | null;
+  onProviderChange: (next: CalendarProvider) => void;
 }) {
-  const {
-    calendarGranted,
-    isSynced,
-    syncedCount,
-    syncedCalendarName,
-    syncing,
-    calendars,
-    loadingCalendars,
-    loadCalendars,
-    requestCalendarScope,
-    sync,
-    refresh,
-    unsync,
-  } = useCalendarSync(trip);
-  // "pick"   → choose-calendar dialog (not yet synced)
-  // "info"   → synced-status dialog
-  // "scope"  → "needs Calendar permission" CTA
-  // null     → no dialog
-  const [dialog, setDialog] = useState<"pick" | "info" | "scope" | null>(null);
-  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("primary");
-  // "confirm" = showing the remove-sync confirmation step
-  const [removeStep, setRemoveStep] = useState<"confirm" | null>(null);
-  const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
-
-  const refreshCalendarList = async () => {
-    const cals = await loadCalendars();
-    const primary = cals.find((c) => c.primary);
-    setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
-  };
-
-  const openDialog = () => {
-    if (!calendarGranted) {
-      setDialog("scope");
-      return;
-    }
-    if (isSynced) {
-      setRemoveStep(null);
-      setDeleteChoice("delete");
-      setDialog("info");
-      void refreshCalendarList();
-    } else {
-      setDialog("pick");
-      void refreshCalendarList();
-    }
-  };
-
+  const showProviderPicker = connectedProviders.length > 1;
   const handleSync = async () => {
     setDialog(null);
     await sync(selectedCalendarId);
   };
-
   const handleRefresh = async () => {
     setDialog(null);
     await refresh();
   };
-
   const handleRemove = async () => {
     setDialog(null);
     await unsync(deleteChoice === "delete");
@@ -740,45 +808,17 @@ function CalendarSyncButton({
 
   return (
     <>
-      {renderTrigger ? (
-        renderTrigger({ isSynced, syncedCount, syncing, open: openDialog })
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={syncing}
-          onClick={openDialog}
-        >
-          {isSynced ? (
-            <CalendarCheck className="mr-2 h-3.5 w-3.5" style={{ color: "var(--status-ok-fg)" }} />
-          ) : (
-            <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-          )}
-          {syncing
-            ? "Syncing…"
-            : isSynced
-              ? `Synced (${syncedCount})`
-              : "Sync to Calendar"}
-        </Button>
-      )}
-
       {/* ── Needs Calendar scope ── */}
       <Dialog open={dialog === "scope"} onOpenChange={(o) => !o && setDialog(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Connect Google Calendar</DialogTitle>
-            <DialogDescription>
-              To sync this trip&apos;s events to your calendar, grant
-              Google Calendar access. You can revoke it any time from
-              your Google Account.
-            </DialogDescription>
+            <DialogTitle>Connect a calendar</DialogTitle>
           </DialogHeader>
+          <div className="py-2">
+            <NotConnectedNotice capability="calendar" />
+          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialog(null)}>Not now</Button>
-            <Button onClick={requestCalendarScope}>
-              <CalendarPlus className="mr-2 h-3.5 w-3.5" />
-              Connect Calendar
-            </Button>
+            <Button variant="outline" onClick={() => setDialog(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -789,14 +829,35 @@ function CalendarSyncButton({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the Google Calendar to sync this trip&apos;s events to.
+              Select the {providerLabel}{" "}to sync this trip&apos;s events to.
             </DialogDescription>
           </DialogHeader>
+          {showProviderPicker && (
+            <div className="space-y-2">
+              <p className="text-kicker text-muted-foreground">Account</p>
+              <div className="flex gap-2" role="radiogroup" aria-label="Calendar account">
+                {connectedProviders.map((p) => (
+                  <Button
+                    key={p}
+                    type="button"
+                    variant={selectedProvider === p ? "default" : "outline"}
+                    size="sm"
+                    className="flex-1"
+                    role="radio"
+                    aria-checked={selectedProvider === p}
+                    onClick={() => onProviderChange(p)}
+                  >
+                    {calendarProviderLabel(p)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           {loadingCalendars ? (
             <p className="py-2 text-sm text-muted-foreground">Loading calendars…</p>
           ) : calendars && calendars.length > 0 ? (
             <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
-              <SelectTrigger>
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -808,7 +869,28 @@ function CalendarSyncButton({
               </SelectContent>
             </Select>
           ) : (
-            <p className="py-2 text-sm text-muted-foreground">No writable calendars found.</p>
+            // An empty calendar list almost always means the connection
+            // can't authenticate against the provider — Google
+            // sometimes doesn't return a refresh_token on reconnect
+            // (see #306), and Graph 401s when the access token has
+            // expired with nothing to refresh from. In both cases the
+            // capability row looks "active" in /settings/account but
+            // the listCalendars call comes back empty. Point the user
+            // at a fix instead of a dead-end string.
+            <div className="space-y-2 py-2 text-sm text-muted-foreground">
+              <p>No writable calendars found.</p>
+              <p>
+                Your {providerLabel} connection may have expired.{" "}
+                <Link
+                  href="/settings/account"
+                  className="font-medium text-foreground underline underline-offset-2"
+                  onClick={() => setDialog(null)}
+                >
+                  Reconnect from Settings
+                </Link>
+                {" "}to re-grant calendar access.
+              </p>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
@@ -825,7 +907,7 @@ function CalendarSyncButton({
           {removeStep !== "confirm" ? (
             <>
               <DialogHeader>
-                <DialogTitle>Google Calendar sync</DialogTitle>
+                <DialogTitle>{providerLabel} sync</DialogTitle>
                 <DialogDescription>
                   {syncedCount} event{syncedCount !== 1 ? "s" : ""} synced
                   {syncedCalendarName ? ` to ${syncedCalendarName}` : ""}.
@@ -866,7 +948,7 @@ function CalendarSyncButton({
                     className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium">Delete from Google Calendar</p>
+                    <p className="text-sm font-medium">Delete from {providerLabel}</p>
                     <p className="text-xs text-muted-foreground">Remove all synced events from your calendar.</p>
                   </div>
                 </label>
@@ -880,7 +962,7 @@ function CalendarSyncButton({
                     className="mt-0.5"
                   />
                   <div>
-                    <p className="text-sm font-medium">Keep in Google Calendar</p>
+                    <p className="text-sm font-medium">Keep in {providerLabel}</p>
                     <p className="text-xs text-muted-foreground">Events stay in your calendar but won&apos;t be updated by this app.</p>
                   </div>
                 </label>
@@ -896,6 +978,7 @@ function CalendarSyncButton({
     </>
   );
 }
+
 
 type Tab = "itinerary" | "timeline" | "map" | "costs" | "todos" | "history";
 

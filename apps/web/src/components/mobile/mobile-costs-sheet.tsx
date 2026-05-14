@@ -1,7 +1,7 @@
 "use client";
 
-import { useCostSummary } from "@travel-app/api-client";
-import { costCategoryLabel, formatCurrency } from "@travel-app/shared";
+import { useCostSummary } from "@itinly/api-client";
+import { costCategoryLabel, formatCurrency } from "@itinly/shared";
 import { AlertCircle, X } from "lucide-react";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 

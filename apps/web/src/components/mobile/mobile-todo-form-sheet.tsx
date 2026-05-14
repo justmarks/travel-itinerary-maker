@@ -5,8 +5,8 @@ import {
   useCreateTodo,
   useDeleteTodo,
   useUpdateTodo,
-} from "@travel-app/api-client";
-import type { Todo, TodoCategory } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { Todo, TodoCategory } from "@itinly/shared";
 import { Briefcase, MapPin, Search, Trash2, Utensils, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toastMutationError } from "@/lib/api-error";

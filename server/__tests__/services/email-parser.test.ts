@@ -313,6 +313,43 @@ describe("EmailParser.parseEmail", () => {
     expect(result.segments).toHaveLength(0);
   });
 
+  it("silently skips placeholder-date items (TBD / non-ISO free-form)", async () => {
+    // Disney Cruise Line "Placeholder Reservation" emails return a
+    // cruise segment with date="TBD" — there's no embarkation date
+    // pinned yet. Pre-fix: these counted as invalid → email marked
+    // `failed` → retried on every subsequent scan, burning tokens.
+    // Now they drop silently so the email lands in `skipped` (no
+    // travel content) and stays out of the retry queue.
+    mockCreate.mockReturnValueOnce(
+      aiResponse(
+        JSON.stringify([
+          {
+            type: "cruise",
+            title: "Disney Cruise — Placeholder",
+            date: "TBD",
+            departureCity: "TBD",
+            arrivalCity: "TBD",
+            confidence: "high",
+          },
+          {
+            type: "cruise",
+            title: "Disney Cruise — Open Date",
+            date: "Spring 2027",
+            confidence: "high",
+          },
+        ]),
+      ),
+    );
+    const result = await parser.parseEmail({
+      subject: "Enchantment awaits.",
+      from: "DisneyCruiseLine@disney.com",
+      body: "Embark Date: TBD",
+    });
+    expect(result.invalidCount).toBe(0);
+    expect(result.rawItemCount).toBe(2);
+    expect(result.segments).toHaveLength(0);
+  });
+
   it("handles Claude output wrapped in a markdown code block", async () => {
     const segment = {
       type: "flight",
@@ -554,6 +591,14 @@ describe("EmailParser.htmlToText", () => {
     const html = "<p>Smith &amp; Sons &mdash; &ldquo;luxury&rdquo;</p>";
     const out = EmailParser.htmlToText(html);
     expect(out).toBe("Smith & Sons \u2014 \u201cluxury\u201d");
+  });
+
+  it("decodes uppercase / mixed-case named entities", () => {
+    // Older / hand-written vendor templates emit `&NBSP;` and `&AMP;`;
+    // the regex is `gi` so it matches, but the lookup must normalise.
+    const html = "<p>Smith&AMP;Sons&NBSP;&mdash;&NBSP;welcome</p>";
+    const out = EmailParser.htmlToText(html);
+    expect(out).toBe("Smith&Sons \u2014 welcome");
   });
 
   it("decodes numeric decimal entities", () => {

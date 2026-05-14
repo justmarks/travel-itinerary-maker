@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUpdateTodo, useDeleteTodo } from "@travel-app/api-client";
-import type { Todo, TodoCategory } from "@travel-app/shared";
+import { useUpdateTodo, useDeleteTodo } from "@itinly/api-client";
+import type { Todo, TodoCategory } from "@itinly/shared";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import {

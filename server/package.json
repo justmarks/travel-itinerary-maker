@@ -1,5 +1,5 @@
 {
-  "name": "@travel-app/server",
+  "name": "@itinly/server",
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",
@@ -11,6 +11,7 @@
     "test:watch": "jest --watch",
     "test:integration": "jest --config jest.integration.config.ts",
     "bench:routes": "ts-node --transpile-only scripts/bench-routes.ts",
+    "bench:routes:postgres": "ts-node --transpile-only scripts/bench-routes.ts --postgres",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -19,7 +20,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.93.0",
     "@sentry/node": "^10.51.0",
-    "@travel-app/shared": "workspace:*",
+    "@itinly/shared": "workspace:*",
     "@upstash/redis": "^1.37.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
@@ -30,6 +31,7 @@
     "express-rate-limit": "^8.5.0",
     "googleapis": "^171.4.0",
     "html-to-text": "^9.0.5",
+    "jose": "^5.10.0",
     "mailparser": "^3.9.8",
     "nanoid": "^5.1.11",
     "node-cron": "^4.2.1",

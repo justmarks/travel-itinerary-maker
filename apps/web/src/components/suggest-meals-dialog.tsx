@@ -7,8 +7,8 @@ import {
   type MealSuggestion,
   type Todo,
   type TripDay,
-} from "@travel-app/shared";
-import { useCreateTodo } from "@travel-app/api-client";
+} from "@itinly/shared";
+import { useCreateTodo } from "@itinly/api-client";
 import {
   Dialog,
   DialogContent,

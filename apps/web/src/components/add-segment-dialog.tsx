@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useCreateSegment } from "@travel-app/api-client";
-import type { SegmentType } from "@travel-app/shared";
+import { useCreateSegment } from "@itinly/api-client";
+import type { SegmentType } from "@itinly/shared";
 import { toastMutationError } from "@/lib/api-error";
 import {
   Dialog,

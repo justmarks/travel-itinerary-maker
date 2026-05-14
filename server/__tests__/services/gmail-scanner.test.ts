@@ -3,6 +3,7 @@ import {
   decodeBase64Url,
   extractBody,
   htmlToText,
+  parseReceivedAt,
   resolveLabelId,
   type GmailLabelSummary,
 } from "../../src/services/gmail-scanner";
@@ -232,5 +233,29 @@ describe("htmlToText", () => {
     const html = `<p>${"a".repeat(500)}</p>`;
     const out = htmlToText(html);
     expect(out.split("\n")[0]!.length).toBeGreaterThanOrEqual(500);
+  });
+});
+
+describe("parseReceivedAt", () => {
+  it("returns an ISO string for a valid RFC 2822 Date header", () => {
+    const out = parseReceivedAt("Tue, 12 May 2026 19:02:24 +0000");
+    expect(out).toBe("2026-05-12T19:02:24.000Z");
+  });
+
+  it("falls back to now when the header is missing", () => {
+    const before = Date.now();
+    const out = Date.parse(parseReceivedAt(undefined));
+    const after = Date.now();
+    expect(out).toBeGreaterThanOrEqual(before);
+    expect(out).toBeLessThanOrEqual(after);
+  });
+
+  it("falls back to now when the header is unparseable instead of throwing", () => {
+    // Real-world: forwarded messages sometimes carry a localised /
+    // truncated Date string that `new Date()` returns Invalid Date for.
+    // Previously this threw RangeError and dropped the whole email.
+    expect(() => parseReceivedAt("not a real date")).not.toThrow();
+    const out = Date.parse(parseReceivedAt("not a real date"));
+    expect(Number.isFinite(out)).toBe(true);
   });
 });

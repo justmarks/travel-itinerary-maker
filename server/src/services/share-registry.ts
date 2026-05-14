@@ -1,23 +1,35 @@
 /**
- * Maps share tokens to trip-owner info. Lives in two layers:
+ * Maps share tokens to trip-owner info. Phase 2 of the Drive→Supabase
+ * migration moves persistence from Redis to Postgres; the public API is
+ * unchanged.
  *
  *   1. In-memory `Map<shareToken, ShareEntry>` — primary read path,
  *      fast and synchronous. A secondary `Map<email, Set<token>>` index
  *      is rebuilt from the primary on hydrate so we don't need a second
- *      Redis hash.
- *   2. Optional Redis hash (`shares` field per token) — write-through
- *      persistence so entries survive process restarts. When the env
- *      vars aren't set, the registry behaves as pure in-memory.
+ *      query.
+ *   2. Optional Postgres `trip_shares` table — write-through persistence
+ *      so entries survive process restarts. When no `dbClient` is
+ *      provided the registry behaves as pure in-memory (dev/test path,
+ *      and the legacy run-without-Postgres fallback before the cutover
+ *      is complete).
  *
  * The token index is used by the public `/shared/:token` route to
- * resolve which user's Drive contains a shared trip. The email index
+ * resolve which user's storage holds the shared trip. The email index
  * powers the contributor flow: a logged-in user's trip list includes
  * every trip whose share was issued to `thisUser.email`, and read /
  * write access is gated through the same lookup.
+ *
+ * Why keep the in-memory cache when Postgres is durable: `lookupByEmail`
+ * fires on every authed `/trips` list. Round-tripping to Postgres on
+ * every request would add 10-30ms × N requests of network latency
+ * (Railway↔Supabase). The cache stays the hot read path; durability
+ * comes free from the write-through.
  */
 
-import type { SharePermission } from "@travel-app/shared";
-import type { RedisStore } from "./redis-store";
+import { eq } from "drizzle-orm";
+import type { SharePermission } from "@itinly/shared";
+import type { Db, DbClient } from "../db/client";
+import { tripShares } from "../db/schema";
 
 export interface ShareEntry {
   shareToken: string;
@@ -40,8 +52,6 @@ export interface ShareEntry {
   createdAt: string;
 }
 
-const REDIS_HASH = "shares";
-
 function normalizeEmail(email: string | undefined): string | undefined {
   if (!email) return undefined;
   const trimmed = email.trim().toLowerCase();
@@ -51,37 +61,37 @@ function normalizeEmail(email: string | undefined): string | undefined {
 export class ShareRegistry {
   private entries: Map<string, ShareEntry> = new Map();
   private byEmail: Map<string, Set<string>> = new Map();
-  private redis: RedisStore | null;
+  private db: Db | null;
 
-  constructor(redis: RedisStore | null = null) {
-    this.redis = redis;
+  constructor(dbClient: DbClient | null = null) {
+    this.db = dbClient?.db ?? null;
   }
 
   /**
    * Pull every persisted entry into the in-memory map. No-op when
-   * Redis isn't configured. Call once at server startup.
+   * Postgres isn't configured. Call once at server startup.
    */
   async hydrate(): Promise<void> {
-    if (!this.redis) return;
+    if (!this.db) return;
     try {
-      const all = await this.redis.hgetall<ShareEntry>(REDIS_HASH);
-      for (const [token, entry] of Object.entries(all)) {
-        // Defensive: pre-PR-B entries on disk lack `permission` —
-        // default to "view" so the legacy data still resolves cleanly.
-        // Pre-cost/todo-flag entries default to fully-visible (matches
-        // the historical /shared/<token> behaviour).
-        const normalized: ShareEntry = {
-          ...entry,
-          permission: entry.permission ?? "view",
-          sharedWithEmail: normalizeEmail(entry.sharedWithEmail),
-          showCosts: entry.showCosts ?? true,
-          showTodos: entry.showTodos ?? true,
+      const rows = await this.db.select().from(tripShares);
+      for (const row of rows) {
+        const entry: ShareEntry = {
+          shareToken: row.shareToken,
+          tripId: row.tripId,
+          ownerUserId: row.ownerUserId,
+          ownerEmail: row.ownerEmail ?? undefined,
+          sharedWithEmail: normalizeEmail(row.sharedWithEmail ?? undefined),
+          permission: row.permission as SharePermission,
+          showCosts: row.showCosts,
+          showTodos: row.showTodos,
+          createdAt: row.createdAt.toISOString(),
         };
-        this.entries.set(token, normalized);
-        this.indexByEmail(normalized);
+        this.entries.set(entry.shareToken, entry);
+        this.indexByEmail(entry);
       }
       console.log(
-        `[share-registry] hydrated ${this.entries.size} entr${this.entries.size === 1 ? "y" : "ies"} from Redis`,
+        `[share-registry] hydrated ${this.entries.size} entr${this.entries.size === 1 ? "y" : "ies"} from Postgres`,
       );
     } catch (err) {
       console.warn(
@@ -121,14 +131,7 @@ export class ShareRegistry {
     this.entries.set(entry.shareToken, entry);
     this.indexByEmail(entry);
 
-    this.redis
-      ?.hset(REDIS_HASH, entry.shareToken, entry)
-      .catch((err) =>
-        console.warn(
-          `[share-registry] redis hset failed for ${entry.shareToken.slice(0, 6)}…:`,
-          err instanceof Error ? err.message : err,
-        ),
-      );
+    this.persist(entry);
   }
 
   /** Look up a share by its token. */
@@ -158,14 +161,17 @@ export class ShareRegistry {
   remove(shareToken: string): void {
     this.unindexByEmail(shareToken);
     this.entries.delete(shareToken);
-    this.redis
-      ?.hdel(REDIS_HASH, shareToken)
-      .catch((err) =>
-        console.warn(
-          `[share-registry] redis hdel failed for ${shareToken.slice(0, 6)}…:`,
-          err instanceof Error ? err.message : err,
-        ),
-      );
+    if (this.db) {
+      this.db
+        .delete(tripShares)
+        .where(eq(tripShares.shareToken, shareToken))
+        .catch((err) =>
+          console.warn(
+            `[share-registry] db delete failed for ${shareToken.slice(0, 6)}…:`,
+            err instanceof Error ? err.message : err,
+          ),
+        );
+    }
   }
 
   /** Remove all shares for a given trip. */
@@ -177,10 +183,49 @@ export class ShareRegistry {
     }
   }
 
-  /** Clear all entries (for testing). Does NOT touch Redis. */
+  /** Clear all entries (for testing). Does NOT touch Postgres. */
   clear(): void {
     this.entries.clear();
     this.byEmail.clear();
+  }
+
+  private persist(entry: ShareEntry): void {
+    if (!this.db) return;
+    // Write-through upsert. Fire-and-forget matches the existing
+    // pattern: in-memory state is correct synchronously, durability
+    // failures degrade silently to "lost on next restart" rather than
+    // blocking the route handler.
+    this.db
+      .insert(tripShares)
+      .values({
+        shareToken: entry.shareToken,
+        tripId: entry.tripId,
+        ownerUserId: entry.ownerUserId,
+        ownerEmail: entry.ownerEmail ?? null,
+        sharedWithEmail: entry.sharedWithEmail ?? null,
+        permission: entry.permission,
+        showCosts: entry.showCosts,
+        showTodos: entry.showTodos,
+        createdAt: new Date(entry.createdAt),
+      })
+      .onConflictDoUpdate({
+        target: tripShares.shareToken,
+        set: {
+          tripId: entry.tripId,
+          ownerUserId: entry.ownerUserId,
+          ownerEmail: entry.ownerEmail ?? null,
+          sharedWithEmail: entry.sharedWithEmail ?? null,
+          permission: entry.permission,
+          showCosts: entry.showCosts,
+          showTodos: entry.showTodos,
+        },
+      })
+      .catch((err) =>
+        console.warn(
+          `[share-registry] db upsert failed for ${entry.shareToken.slice(0, 6)}…:`,
+          err instanceof Error ? err.message : err,
+        ),
+      );
   }
 
   private indexByEmail(entry: ShareEntry): void {

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { NotificationToggleMenu } from "@/components/notification-toggle";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   Download,
   LogIn,
@@ -24,7 +25,7 @@ import {
   Monitor,
   Repeat,
   Share,
-  User,
+  UserCog,
 } from "lucide-react";
 
 export function MobileUserMenu({
@@ -92,17 +93,12 @@ export function MobileUserMenu({
           className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted"
           aria-label="Account menu"
         >
-          {user.picture ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.picture}
-              alt=""
-              className="h-7 w-7 rounded-full"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <User className="h-4 w-4" />
-          )}
+          <UserAvatar
+            picture={user.picture}
+            name={user.name}
+            email={user.email}
+            size="md"
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
@@ -157,6 +153,12 @@ export function MobileUserMenu({
         </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
+        <DropdownMenuItem asChild>
+          <Link href="/m/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

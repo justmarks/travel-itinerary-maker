@@ -1,4 +1,4 @@
-import type { TripShareRule } from "@travel-app/shared";
+import type { TripShareRule } from "@itinly/shared";
 import { InMemoryStorage } from "../../src/services/storage";
 import { runStorageProviderContract } from "./contract";
 

@@ -145,3 +145,5 @@ export {
   SEGMENT_TOKEN_FAMILY,
   costCategoryLabel,
 } from "./segment-config";
+
+export { sortByPrimaryEmail } from "./utils/sort-by-primary-email";

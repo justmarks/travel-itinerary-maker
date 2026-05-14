@@ -1,6 +1,6 @@
 "use client";
 
-import type { TripHistoryEntry, TripHistoryKind } from "@travel-app/shared";
+import type { TripHistoryEntry, TripHistoryKind } from "@itinly/shared";
 import {
   Plus,
   Pencil,

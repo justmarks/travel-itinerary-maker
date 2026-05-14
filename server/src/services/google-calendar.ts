@@ -1,5 +1,5 @@
 import { google, type calendar_v3 } from "googleapis";
-import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
+import type { Trip, TripDay, Segment, SegmentType } from "@itinly/shared";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
@@ -7,7 +7,7 @@ import {
   getAirportTimezone,
   lookupAirport,
   SEGMENT_LABELS,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface CalendarSyncResult {
   created: number;
@@ -61,8 +61,13 @@ function addHoursToTime(time: string, hours: number): string {
 }
 
 function addDays(isoDate: string, days: number): string {
-  const d = new Date(isoDate + "T00:00:00");
-  d.setDate(d.getDate() + days);
+  // Anchor the parse at UTC midnight (`T00:00:00Z`) so `setUTCDate`
+  // + `toISOString` round-trip cleanly. The previous form parsed at
+  // local midnight and read UTC date parts on the way out, which
+  // shifts by one day on non-UTC hosts (Railway and Vercel default
+  // to UTC so prod was fine; dev on a non-UTC laptop wasn't).
+  const d = new Date(isoDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 

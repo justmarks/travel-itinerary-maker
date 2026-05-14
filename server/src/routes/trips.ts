@@ -20,8 +20,8 @@ import {
   type Trip,
   type TripDay,
   type Segment,
-} from "@travel-app/shared";
-import type { SharePermission } from "@travel-app/shared";
+} from "@itinly/shared";
+import type { SharePermission } from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ShareSnapshotStore } from "../services/share-snapshot-store";
@@ -48,7 +48,6 @@ import {
   summariseSegmentChanges,
 } from "../services/trip-history";
 import { applyShareToTrip, applyShareRulesToNewTrip } from "../services/share-fanout";
-import { isInsufficientScopeError } from "../services/google-drive/drive-error";
 
 export interface TripRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -170,24 +169,12 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     try {
       const storage = getStorage(req);
 
-      // listTrips() may fail with `insufficientPermissions` when the
-      // signed-in user unticked Drive on the consent screen. Don't let
-      // that take down the whole endpoint — degrade to "no owned trips"
-      // so any trips that have been *shared* with this user still
-      // surface. The dashboard's banner gates on `hasScope(DRIVE_SCOPE)`
-      // so the user gets a clear "re-grant Drive" prompt either way.
-      let ownedTrips: Trip[] = [];
-      let listTripsMs = 0;
-      try {
-        const t0 = Date.now();
-        ownedTrips = await storage.listTrips();
-        listTripsMs = Date.now() - t0;
-      } catch (err) {
-        if (!isInsufficientScopeError(err)) throw err;
-        console.warn(
-          `${listPrefix} listTrips skipped — Drive scope not granted; serving shared trips only.`,
-        );
-      }
+      // Postgres-backed listTrips doesn't fail on auth state (the
+      // user has already passed `requireAuth`), so this is a simple
+      // call now.
+      const t0 = Date.now();
+      const ownedTrips: Trip[] = await storage.listTrips();
+      const listTripsMs = Date.now() - t0;
       const ownedIds = new Set(ownedTrips.map((t) => t.id));
 
       // Pull every trip shared with this user (in addition to the ones
@@ -1310,10 +1297,6 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         removedShare.sharedWithEmail.toLowerCase() === req.userEmail.toLowerCase();
       if (!isOwner && !isSelfLeave) return denyOwnerOnly(res);
 
-      // Remove from share registry / snapshot store
-      if (shareRegistry) shareRegistry.remove(removedShare.shareToken);
-      if (shareSnapshotStore) shareSnapshotStore.delete(removedShare.shareToken);
-
       trip.shares.splice(idx, 1);
       trip.updatedAt = new Date().toISOString();
 
@@ -1337,7 +1320,21 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         );
       }
 
+      // Persist the trip FIRST. If `saveTrip` throws, the in-memory
+      // mutation rolls back when the handler returns (caller hits
+      // the express error path); clearing the share registry /
+      // snapshot store before the save would otherwise leave the
+      // share-token unreachable while the trip's `shares` row still
+      // claims it — a `/shared/<token>` lookup would 404 against a
+      // share the trip says exists.
       await storage.saveTrip(trip);
+
+      // Clear the share-token caches now that storage agrees the
+      // share is gone. Fire-and-forget — same shape as the existing
+      // registry / snapshot writes.
+      if (shareRegistry) shareRegistry.remove(removedShare.shareToken);
+      if (shareSnapshotStore) shareSnapshotStore.delete(removedShare.shareToken);
+
       res.status(204).send();
 
       // Push notification — fire-and-forget. The audience flips between
@@ -1400,7 +1397,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     async (req: Request, res: Response) => {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
-      const { tripToMarkdown } = await import("@travel-app/shared");
+      const { tripToMarkdown } = await import("@itinly/shared");
       const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
@@ -1425,7 +1422,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
     async (req: Request, res: Response) => {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
-      const { tripToOneNoteHtml } = await import("@travel-app/shared");
+      const { tripToOneNoteHtml } = await import("@itinly/shared");
       const { trip } = access;
 
       const excludeCosts = req.query.exclude?.toString().includes("costs");
@@ -1451,7 +1448,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       const access = await accessTrip(req, req.params.tripId as string, "view");
       if (!access.ok) return denyAccess(res, access);
       const [{ tripToIcal }, { resolveTripTimezones }] = await Promise.all([
-        import("@travel-app/shared"),
+        import("@itinly/shared"),
         import("../utils/timezone-lookup"),
       ]);
       const { trip } = access;

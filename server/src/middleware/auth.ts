@@ -2,6 +2,10 @@ import type { Request, Response, NextFunction } from "express";
 import { google } from "googleapis";
 import { config } from "../config/env";
 import type { TokenStore } from "../services/token-store";
+import {
+  looksLikeJwt,
+  type SupabaseJwtValidator,
+} from "../services/supabase-auth";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -16,13 +20,68 @@ declare global {
        * routes leave this undefined.
        */
       gmailAccessToken?: string;
+      /**
+       * Authentication path that validated this request. Lets routes
+       * surface "you're on the new auth flow, provider tokens come from
+       * connections" vs "you're on legacy and req.accessToken is your
+       * Google token" without re-running validation.
+       */
+      authSource?: "supabase" | "google-legacy";
     }
   }
 }
 
 /**
- * Middleware that validates Google OAuth2 access tokens.
- * Extracts user info and attaches to request.
+ * Module-level Supabase validator, set by `configureAuth` at app boot
+ * when SUPABASE_URL is configured. `requireAuth` checks it first for
+ * JWT-shaped tokens, falling back to the legacy Google access-token
+ * path for opaque tokens or JWT-validation failures.
+ *
+ * Module-level rather than per-middleware-factory because that's how
+ * the existing code imports `requireAuth` directly. Tests that need
+ * deterministic state can call `configureAuth({ ... })` themselves.
+ */
+let supabaseValidator: SupabaseJwtValidator | undefined;
+
+export function configureAuth(opts: {
+  supabaseValidator?: SupabaseJwtValidator;
+}): void {
+  supabaseValidator = opts.supabaseValidator;
+}
+
+/**
+ * Test helper. Restore module state to "no Supabase validator" so
+ * tests don't bleed into each other.
+ */
+export function _resetAuthForTests(): void {
+  supabaseValidator = undefined;
+}
+
+/**
+ * Middleware that authenticates a Bearer-token request.
+ *
+ * Phase 3: accepts EITHER a Supabase Auth JWT (new path, configured
+ * via `configureAuth` at startup) OR a Google OAuth2 access token
+ * (legacy path, what every signed-in client passed before phase 3).
+ * On success, sets `req.userId`, `req.userEmail`, and either
+ * `req.accessToken` (legacy) or `req.authSource = "supabase"` so
+ * downstream handlers can branch on the auth path.
+ *
+ * Routing logic:
+ *   1. No Authorization header → 401.
+ *   2. Token looks JWT-shaped AND we have a Supabase validator: try
+ *      Supabase JWT validation. On success, set request fields and
+ *      next().
+ *   3. Otherwise (or on JWT failure): try Google userinfo. On
+ *      success, set request fields and next().
+ *   4. Both fail → 401.
+ *
+ * The fall-through from JWT failure to Google validation is
+ * defensive — in practice Google tokens (`ya29.*`) never satisfy
+ * `looksLikeJwt`, so a JWT-shaped token that fails Supabase
+ * validation is genuinely invalid and the Google path will also
+ * reject it. The fallback exists so a future provider with
+ * JWT-shaped opaque tokens doesn't immediately break.
  */
 export async function requireAuth(
   req: Request,
@@ -31,38 +90,67 @@ export async function requireAuth(
 ): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
-    // Don't log at error level — this fires on OPTIONS preflight and other unauthenticated requests
     res.status(401).json({ error: "Missing or invalid Authorization header" });
     return;
   }
 
-  const accessToken = authHeader.slice(7);
+  const token = authHeader.slice(7);
 
+  // Phase 3 path: try Supabase JWT first when configured.
+  if (supabaseValidator && looksLikeJwt(token)) {
+    try {
+      const claims = await supabaseValidator(token);
+      req.userId = claims.sub;
+      req.userEmail = claims.email;
+      req.authSource = "supabase";
+      // Note: req.accessToken intentionally NOT set. Supabase users
+      // fetch provider tokens from `connections` rather than passing
+      // them on the request — routes that need a Google access token
+      // (Drive / Gmail / Calendar) will need a Phase 4 lookup path.
+      next();
+      return;
+    } catch (err) {
+      // Defensive fall-through: see top comment. This fires on every
+      // legacy Google access token (which doesn't have Supabase JWT
+      // shape) AND on expired Supabase JWTs waiting for the client
+      // SDK to refresh. Both are routine; routing to stdout (not
+      // stderr) keeps Railway from styling it as an error. Phrasing
+      // chosen so a future operator reading the log knows this is
+      // expected coexistence behaviour, not an attack signal.
+      console.log(
+        "[auth] supabase token not used (legacy access token or expired JWT), trying legacy validator:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  // Legacy path — Google OAuth2 access token via userinfo endpoint.
   try {
     const oauth2Client = new google.auth.OAuth2(
       config.google.clientId,
       config.google.clientSecret,
     );
-    oauth2Client.setCredentials({ access_token: accessToken });
+    oauth2Client.setCredentials({ access_token: token });
 
     const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
     req.userId = userInfo.data.id!;
     req.userEmail = userInfo.data.email!;
-    req.accessToken = accessToken;
+    req.accessToken = token;
+    req.authSource = "google-legacy";
 
     next();
   } catch (err) {
-    // A 401 from Google means the access token is expired/revoked/invalid — the
-    // expected failure mode, not worth logging. Anything else (network failure,
-    // 5xx, quota, etc.) is unexpected and worth surfacing.
     const status =
       (err as { response?: { status?: number } })?.response?.status ??
       (err as { code?: number | string })?.code;
     const isExpectedAuthFailure = status === 401 || status === "401";
     if (!isExpectedAuthFailure) {
-      console.error("Auth: token validation failed:", err instanceof Error ? err.message : err);
+      console.error(
+        "Auth: token validation failed:",
+        err instanceof Error ? err.message : err,
+      );
     }
     res.status(401).json({ error: "Invalid or expired access token" });
   }
@@ -93,6 +181,18 @@ export function requireGmailAuth(tokenStore: TokenStore) {
       // requireAuth must have run first; this is a wiring bug, not a
       // user-facing error.
       res.status(500).json({ error: "requireGmailAuth requires requireAuth" });
+      return;
+    }
+    // Phase 4c: Supabase-authed users keep their Gmail link in the
+    // `connections` table, NOT TokenStore. The route's connector
+    // resolver (resolveEmailConnector) refreshes from `connections`
+    // and constructs the right connector class. Pass through here
+    // so the resolver gets a chance — checking TokenStore for a
+    // Supabase user would always 403 with GMAIL_SCOPE_REQUIRED and
+    // the frontend would mis-route them to the legacy Connect
+    // Gmail UI even when they're correctly linked via the new flow.
+    if (req.authSource === "supabase") {
+      next();
       return;
     }
 

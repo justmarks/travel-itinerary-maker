@@ -3,10 +3,10 @@ import { CURRENT_TRIP_SCHEMA_VERSION, type Trip } from "../types/trip";
 /**
  * Normalise a loaded Trip JSON document to the current schema version.
  *
- * Storage layers (InMemoryStorage, DriveStorage) call this on every read
- * so in-memory trips always conform to the current type. Migrations are
- * small, incremental steps between adjacent versions — bump the version
- * and append a branch here when the Trip shape changes.
+ * Storage layers (InMemoryStorage, SupabaseStorage) call this on every
+ * read so in-memory trips always conform to the current type.
+ * Migrations are small, incremental steps between adjacent versions —
+ * bump the version and append a branch here when the Trip shape changes.
  *
  * The input is deliberately typed as `unknown` because it comes from
  * deserialised JSON that may predate the current type. The return value

@@ -5,8 +5,8 @@ import {
   useCreateShare,
   useDeleteShare,
   useShares,
-} from "@travel-app/api-client";
-import type { TripShare } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { TripShare } from "@itinly/shared";
 import {
   AlertCircle,
   Check,
@@ -289,7 +289,7 @@ export function MobileShareSheet({
   const handleCreate = async () => {
     setError(null);
     if (permission === "edit" && !trimmedEmail) {
-      setError("Add the contributor's Gmail address.");
+      setError("Add the contributor's email address.");
       return;
     }
     if (!emailValid) {
