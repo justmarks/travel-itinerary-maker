@@ -755,6 +755,8 @@ function TripFrame({
         <MobileTodosSheet
           tripId={trip.id}
           todos={trip.todos}
+          days={trip.days}
+          canEdit={permission.canEdit}
           open={todosOpen}
           onClose={onCloseTodos}
         />
