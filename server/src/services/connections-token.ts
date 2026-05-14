@@ -99,10 +99,16 @@ export async function getActiveAccessToken(
   // gmail-personal + gmail-work) Phase 4c will surface a picker;
   // today we deterministically pick the most recent.
   //
-  // `store.listForUser` already filters by `status='active'`, so we
-  // only need to narrow by provider + capability here.
+  // `store.listForUser` already filters by `status='active'` — the
+  // duplicate filter here is intentional defense-in-depth so that
+  // if the store's contract is ever relaxed (e.g. a future variant
+  // returns revoked rows for an audit view), this resolver still
+  // refuses to mint tokens from revoked rows.
   const candidates = (await store.listForUser(userId)).filter(
-    (c) => c.provider === provider && c.capability === capability,
+    (c) =>
+      c.provider === provider &&
+      c.capability === capability &&
+      c.status === "active",
   );
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
