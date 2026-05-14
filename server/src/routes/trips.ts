@@ -1299,10 +1299,6 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         removedShare.sharedWithEmail.toLowerCase() === req.userEmail.toLowerCase();
       if (!isOwner && !isSelfLeave) return denyOwnerOnly(res);
 
-      // Remove from share registry / snapshot store
-      if (shareRegistry) shareRegistry.remove(removedShare.shareToken);
-      if (shareSnapshotStore) shareSnapshotStore.delete(removedShare.shareToken);
-
       trip.shares.splice(idx, 1);
       trip.updatedAt = new Date().toISOString();
 
@@ -1326,7 +1322,21 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
         );
       }
 
+      // Persist the trip FIRST. If `saveTrip` throws, the in-memory
+      // mutation rolls back when the handler returns (caller hits
+      // the express error path); clearing the share registry /
+      // snapshot store before the save would otherwise leave the
+      // share-token unreachable while the trip's `shares` row still
+      // claims it — a `/shared/<token>` lookup would 404 against a
+      // share the trip says exists.
       await storage.saveTrip(trip);
+
+      // Clear the share-token caches now that storage agrees the
+      // share is gone. Fire-and-forget — same shape as the existing
+      // registry / snapshot writes.
+      if (shareRegistry) shareRegistry.remove(removedShare.shareToken);
+      if (shareSnapshotStore) shareSnapshotStore.delete(removedShare.shareToken);
+
       res.status(204).send();
 
       // Push notification — fire-and-forget. The audience flips between
