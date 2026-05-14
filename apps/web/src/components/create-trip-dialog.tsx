@@ -4,9 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCreateTrip } from "@travel-app/api-client";
 import { ApiError } from "@travel-app/api-client";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
+import { toastMutationError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
@@ -93,9 +92,7 @@ export function CreateTripDialog({
               return;
             }
           }
-          toast.error("Couldn't create trip", {
-            description: describeError(error),
-          });
+          toastMutationError("create trip")(error);
         },
       },
     );

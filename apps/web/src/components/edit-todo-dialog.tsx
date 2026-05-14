@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { useUpdateTodo, useDeleteTodo } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import {
   Dialog,
@@ -81,11 +80,7 @@ export function EditTodoDialog({
           category === NO_CATEGORY ? undefined : (category as TodoCategory),
       },
       {
-        onError: (err) => {
-          toast.error("Couldn't save to-do", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("save to-do"),
       },
     );
     onOpenChange(false);
@@ -99,11 +94,7 @@ export function EditTodoDialog({
     });
     if (!ok) return;
     deleteTodo.mutate(todo.id, {
-      onError: (err) => {
-        toast.error("Couldn't delete to-do", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("delete to-do"),
     });
     onOpenChange(false);
   };

@@ -11,8 +11,7 @@ import {
 } from "@travel-app/api-client";
 import type { Segment, SegmentType, Trip } from "@travel-app/shared";
 import { Loader2, Trash2, X } from "lucide-react";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import {
   EMPTY_FORM_STATE,
@@ -268,11 +267,7 @@ function SegmentFormBody({
             if (dayCityUpdate) updateDay.mutate(dayCityUpdate);
             onClose();
           },
-          onError: (err) => {
-            toast.error("Couldn't add segment", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("add segment"),
         },
       );
       return;
@@ -384,11 +379,7 @@ function SegmentFormBody({
           if (dayCityUpdate) updateDay.mutate(dayCityUpdate);
           onClose();
         },
-        onError: (err) => {
-          toast.error("Couldn't save segment", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("save segment"),
       },
     );
   };
@@ -403,11 +394,7 @@ function SegmentFormBody({
     if (!ok) return;
     deleteSegment.mutate(target.segment.id, {
       onSuccess: onClose,
-      onError: (err) => {
-        toast.error("Couldn't delete segment", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("delete segment"),
     });
   };
 

@@ -4,6 +4,8 @@ import {
   formatCurrency,
   sumByCurrency,
   formatFlightLabel,
+  SEGMENT_LABELS,
+  costCategoryLabel,
 } from "@travel-app/shared";
 
 interface PdfOptions {
@@ -58,7 +60,7 @@ export function sanitizeForPdf(s: string): string {
 export function formatCostItemDescription(
   item: Pick<CostSummaryItem, "category" | "city" | "description">,
 ): { primary: string; subtitle: string } {
-  const catLabel = SEGMENT_LABELS[item.category] ?? item.category;
+  const catLabel = costCategoryLabel(item.category);
   const primary = item.city ? `${item.city}: ${catLabel}` : catLabel;
   const subtitle =
     item.description &&
@@ -69,22 +71,6 @@ export function formatCostItemDescription(
 }
 
 // ─── Segment formatting ──────────────────────────────────────────────────────
-
-const SEGMENT_LABELS: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
-  car_service: "Car Service",
-  other_transport: "Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-  tour: "Tour",
-  cruise: "Cruise",
-};
 
 function formatSegmentDetails(segment: Segment): string {
   const parts: string[] = [];
@@ -325,7 +311,7 @@ export function generateTripPdf(
       );
       sorted.forEach((seg, i) => {
         ensureSpace(doc, 20);
-        const typeLabel = SEGMENT_LABELS[seg.type] ?? seg.type;
+        const typeLabel = SEGMENT_LABELS[seg.type];
         const details = formatSegmentDetails(seg);
         const costStr = seg.cost
           ? formatCurrency(seg.cost.amount, seg.cost.currency)

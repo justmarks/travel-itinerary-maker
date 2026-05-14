@@ -228,13 +228,16 @@ describe("formatCostItemDescription", () => {
     ).toEqual({ primary: "Paris: Activity", subtitle: "" });
   });
 
-  it("falls back to the raw category string when no label is registered", () => {
+  it("titlecases unknown snake_case categories as a graceful fallback", () => {
+    // Mirrors the on-screen costs panels (desktop `trip-costs.tsx` and
+    // mobile `mobile-costs-sheet.tsx`) which both route through the same
+    // `costCategoryLabel` helper in `@travel-app/shared`.
     expect(
       formatCostItemDescription({
         category: "unknown_type",
         city: "Nowhere",
         description: "Something",
       }),
-    ).toEqual({ primary: "Nowhere: unknown_type", subtitle: "Something" });
+    ).toEqual({ primary: "Nowhere: Unknown Type", subtitle: "Something" });
   });
 });

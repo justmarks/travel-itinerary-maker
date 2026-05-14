@@ -1,4 +1,5 @@
 import { ApiError } from "@travel-app/api-client";
+import { toast } from "sonner";
 
 /**
  * Extracts a human-readable message from a thrown error. ApiError bodies are
@@ -22,4 +23,19 @@ export function describeError(err: unknown): string {
   }
   if (err instanceof Error) return err.message;
   return "Unknown error";
+}
+
+/**
+ * React-Query `onError` handler that shows the canonical
+ * `"Couldn't <verb>"` Sonner toast with `describeError` as the
+ * description. Use this at every mutation call site so the failure
+ * copy and the server-message extraction stay aligned — the CLAUDE.md
+ * error-surfacing table mandates both.
+ *
+ *   useDeleteSegment().mutate(id, { onError: toastMutationError("delete segment") })
+ */
+export function toastMutationError(verb: string): (err: unknown) => void {
+  return (err) => {
+    toast.error(`Couldn't ${verb}`, { description: describeError(err) });
+  };
 }

@@ -140,3 +140,8 @@ export {
   NEW_TRIP_PREFIX,
 } from "./utils/new-trip-proposals";
 export type { NewTripProposal } from "./utils/new-trip-proposals";
+export {
+  SEGMENT_LABELS,
+  SEGMENT_TOKEN_FAMILY,
+  costCategoryLabel,
+} from "./segment-config";

@@ -127,6 +127,7 @@ cd apps/web && pnpm lint
 
 - **Every UX change must land in both the desktop site (`apps/web/src/app/trips/...` and the shared `components/`) and the mobile site at `apps/web/src/app/m/...`.** Hiding an action, adding a permission gate, surfacing a new piece of metadata, etc. — make the matching change on both sides in the same PR. Pulling a derivation into a hook (`useTripPermission`, `useShareLinkOwnerRedirect`) or a pure helper module (`lib/trip-buckets.ts` for the Now/Upcoming/Past trip-list grouping) is the easiest way to keep them in sync; if neither can be reused, mirror the prop / state contract at minimum.
 - The mobile shell at `/m` is part of the same Next.js bundle, not a separate app. Don't ship an affordance to one and forget the other.
+- **See [`docs/parity-contract.md`](docs/parity-contract.md)** for the standing inventory of desktop ↔ mobile file pairs by surface, the shared modules that prevent drift, and the known intentional gaps. Update it when adding a new parallel surface.
 
 ### Action feedback (toasts + responsiveness)
 

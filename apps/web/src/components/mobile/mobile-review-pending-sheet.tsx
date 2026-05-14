@@ -8,7 +8,7 @@ import {
 import type { Segment, Trip } from "@travel-app/shared";
 import { AlertCircle, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -73,10 +73,7 @@ export function MobileReviewPendingSheet({
   const handleConfirmAll = () => {
     confirmAll.mutate(undefined, {
       onSuccess: onClose,
-      onError: (err) =>
-        toast.error("Couldn't confirm all", {
-          description: describeError(err),
-        }),
+      onError: toastMutationError("confirm all"),
     });
   };
 

@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { useSubscribePush } from "@travel-app/api-client";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { dismissHint, isHintDismissed } from "@/lib/onboarding-hints";
 import {
   getNotificationPermission,
@@ -74,9 +74,7 @@ export function useShareNotificationsHint(): {
               "We'll ping you when someone opens or edits this trip.",
           });
         } catch (err) {
-          toast.error("Couldn't turn on notifications", {
-            description: describeError(err),
-          });
+          toastMutationError("turn on notifications")(err);
         }
       };
 

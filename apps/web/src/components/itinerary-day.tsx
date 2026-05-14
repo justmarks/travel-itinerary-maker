@@ -1,15 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { formatFlightLabel, formatFlightEndpoint } from "@travel-app/shared";
-import type { TripDay, Segment } from "@travel-app/shared";
+import {
+  formatFlightLabel,
+  formatFlightEndpoint,
+  SEGMENT_LABELS,
+  SEGMENT_TOKEN_FAMILY,
+} from "@travel-app/shared";
+import type { SegmentType, TripDay, Segment } from "@travel-app/shared";
 import {
   useDeleteSegment,
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
@@ -72,6 +76,26 @@ function formatCost(cost?: { amount: number; currency: string; details?: string 
   return `${sym}${cost.amount.toLocaleString()}`;
 }
 
+// Icon-only map — labels and token families live in `@travel-app/shared` so
+// the desktop and mobile surfaces can't drift. Adding a new SegmentType
+// requires extending this map (TypeScript enforces the Record shape).
+const SEGMENT_ICON: Record<SegmentType, React.ComponentType<{ className?: string }>> = {
+  flight: Plane,
+  train: Train,
+  car_rental: Car,
+  car_service: Car,
+  other_transport: Navigation,
+  hotel: BedDouble,
+  activity: MapPin,
+  show: Ticket,
+  restaurant_breakfast: UtensilsCrossed,
+  restaurant_brunch: UtensilsCrossed,
+  restaurant_lunch: UtensilsCrossed,
+  restaurant_dinner: UtensilsCrossed,
+  tour: Camera,
+  cruise: Ship,
+};
+
 type SegmentConfig = {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
@@ -81,22 +105,16 @@ type SegmentConfig = {
   token: string;
 };
 
-const SEGMENT_CONFIG: Record<string, SegmentConfig> = {
-  flight:                 { icon: Plane,           label: "Flight",      token: "flight"    },
-  train:                  { icon: Train,           label: "Train",       token: "train"     },
-  car_rental:             { icon: Car,             label: "Car Rental",  token: "car"       },
-  car_service:            { icon: Car,             label: "Car Service", token: "car"       },
-  other_transport:        { icon: Navigation,      label: "Transport",   token: "transport" },
-  hotel:                  { icon: BedDouble,       label: "Hotel",       token: "hotel"     },
-  activity:               { icon: MapPin,          label: "Activity",    token: "activity"  },
-  show:                   { icon: Ticket,          label: "Show",        token: "show"      },
-  restaurant_breakfast:   { icon: UtensilsCrossed, label: "Breakfast",   token: "breakfast" },
-  restaurant_brunch:      { icon: UtensilsCrossed, label: "Brunch",      token: "brunch"    },
-  restaurant_lunch:       { icon: UtensilsCrossed, label: "Lunch",       token: "lunch"     },
-  restaurant_dinner:      { icon: UtensilsCrossed, label: "Dinner",      token: "dinner"    },
-  tour:                   { icon: Camera,          label: "Tour",        token: "tour"      },
-  cruise:                 { icon: Ship,            label: "Cruise",      token: "cruise"    },
-};
+const SEGMENT_CONFIG: Record<SegmentType, SegmentConfig> = Object.fromEntries(
+  (Object.keys(SEGMENT_ICON) as SegmentType[]).map((type) => [
+    type,
+    {
+      icon: SEGMENT_ICON[type],
+      label: SEGMENT_LABELS[type],
+      token: SEGMENT_TOKEN_FAMILY[type],
+    },
+  ]),
+) as Record<SegmentType, SegmentConfig>;
 
 /**
  * Trio style for a segment type. Used to paint the left rail, the
@@ -403,11 +421,7 @@ function SegmentRow({
                 title="Confirm"
                 onClick={() =>
                   confirmSegment.mutate(segment.id, {
-                    onError: (err) => {
-                      toast.error("Couldn't confirm segment", {
-                        description: describeError(err),
-                      });
-                    },
+                    onError: toastMutationError("confirm segment"),
                   })
                 }
                 disabled={confirmSegment.isPending}
@@ -437,11 +451,7 @@ function SegmentRow({
                 });
                 if (ok)
                   deleteSegment.mutate(segment.id, {
-                    onError: (err) => {
-                      toast.error("Couldn't delete segment", {
-                        description: describeError(err),
-                      });
-                    },
+                    onError: toastMutationError("delete segment"),
                   });
               }}
               disabled={deleteSegment.isPending}
@@ -481,11 +491,7 @@ function EditableCity({
       updateDay.mutate(
         { date, city: value },
         {
-          onError: (err) => {
-            toast.error("Couldn't update city", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("update city"),
         },
       );
     }

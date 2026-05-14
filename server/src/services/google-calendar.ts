@@ -1,11 +1,12 @@
 import { google, type calendar_v3 } from "googleapis";
-import type { Trip, TripDay, Segment } from "@travel-app/shared";
+import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
 import {
   formatFlightLabel,
   formatFlightEndpoint,
   getCityTimezone,
   getAirportTimezone,
   lookupAirport,
+  SEGMENT_LABELS,
 } from "@travel-app/shared";
 
 export interface CalendarSyncResult {
@@ -122,29 +123,23 @@ function dateTime(
 
 // ─── Segment → Calendar Event ─────────────────────────────────────────────────
 
-const TYPE_LABELS: Record<string, string> = {
-  flight: "Flight",
-  train: "Train",
-  car_rental: "Car Rental",
+// Calendar event titles use a slightly more compact label set than the rest
+// of the UI — `car_service` becomes "Car" so the event title doesn't bloat
+// in the user's calendar. Mirrors the override in `ical-generator.ts`.
+const TYPE_LABEL_OVERRIDES: Partial<Record<SegmentType, string>> = {
   car_service: "Car",
-  other_transport: "Transport",
-  hotel: "Hotel",
-  activity: "Activity",
-  show: "Show",
-  restaurant_breakfast: "Breakfast",
-  restaurant_brunch: "Brunch",
-  restaurant_lunch: "Lunch",
-  restaurant_dinner: "Dinner",
-  tour: "Tour",
-  cruise: "Cruise",
 };
+
+function typeLabel(type: SegmentType): string {
+  return TYPE_LABEL_OVERRIDES[type] ?? SEGMENT_LABELS[type];
+}
 
 export function segmentToEvent(
   segment: Segment,
   day: TripDay,
   tripTitle: string,
 ): calendar_v3.Schema$Event {
-  const label = TYPE_LABELS[segment.type] ?? segment.type;
+  const label = typeLabel(segment.type);
   let summary: string;
   let description: string;
   let location: string | undefined;
