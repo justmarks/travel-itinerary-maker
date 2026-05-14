@@ -41,7 +41,6 @@ import {
   useDelayedLoadingHint,
 } from "@/components/trip-card-skeleton";
 import { AppLogo } from "@/components/app-logo";
-import { DriveScopeBanner } from "@/components/drive-scope-banner";
 import {
   daysUntil,
   flagEmoji,
@@ -491,9 +490,6 @@ function MobileHomeContent(): React.JSX.Element {
         />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
-        <div className="pt-3">
-          <DriveScopeBanner variant="mobile" />
-        </div>
         <MobileTripList onCreateTrip={() => setCreateOpen(true)} />
       </div>
       <MobileCreateTripSheet

@@ -38,11 +38,11 @@ export default function ReleaseNotesPage(): React.JSX.Element {
 
             <p>
               A year of work, dozens of releases, and a few hundred PRs later
-              — itinly hits <strong>1.0</strong>. Sign in with Google, point
-              it at a Gmail label, and get a clean day-by-day itinerary back
-              in seconds. Your data lives in your own Google Drive, the
-              mobile site installs as a PWA and reads offline, and you can
-              sync the whole trip to Google Calendar with one tap.
+              — itinly hits <strong>1.0</strong>. Sign in with Google or
+              Microsoft, point it at your Gmail or Outlook inbox, and get a
+              clean day-by-day itinerary back in seconds. The mobile site
+              installs as a PWA and reads offline, and you can sync the
+              whole trip to Google or Outlook Calendar with one tap.
             </p>
 
             <Subsection title="Plan a trip">
@@ -210,8 +210,8 @@ export default function ReleaseNotesPage(): React.JSX.Element {
                   frontend
                 </li>
                 <li>
-                  Express 5 + TypeScript on the backend; storage abstraction
-                  with Google Drive in production
+                  Express 5 + TypeScript on the backend; managed Postgres
+                  (Supabase) for trip data with per-user row-level security
                 </li>
                 <li>
                   Claude API (

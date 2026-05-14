@@ -1,12 +1,7 @@
 /**
  * Reusable behavioural contract for `StorageProvider`. Every backend
- * (`InMemoryStorage`, future `SupabaseStorage`, transitional
- * `DriveStorage`) is parameterised through this suite so they're held
- * to identical semantics.
- *
- * Phase 0: only `InMemoryStorage` plugs in. Phase 1 adds `SupabaseStorage`
- * by re-using this exact suite — that's the contract that gates the
- * Drive→Supabase switch.
+ * (`InMemoryStorage`, `SupabaseStorage`) is parameterised through this
+ * suite so they're held to identical semantics.
  */
 import {
   CURRENT_TRIP_SCHEMA_VERSION,

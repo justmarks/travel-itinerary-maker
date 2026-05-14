@@ -4,14 +4,15 @@ import { createSharedRoutes } from "../../src/routes/shared";
 import { InMemoryStorage } from "../../src/services/storage";
 import type { Trip } from "@itinly/shared";
 
-// DriveStorage is imported by shared.ts but only instantiated when shareRegistry
-// provides an owner userId — not exercised in these tests.
+// `googleapis` is pulled in transitively by shared.ts but its OAuth2
+// constructor only runs when shareRegistry hands us an owner userId
+// to mint per-owner credentials — not exercised in these tests, but
+// jest still needs the symbol resolvable.
 jest.mock("googleapis", () => ({
   google: {
     auth: {
       OAuth2: jest.fn().mockImplementation(() => ({ setCredentials: jest.fn() })),
     },
-    drive: jest.fn(),
   },
 }));
 

@@ -23,7 +23,7 @@ export default function PrivacyPage(): React.JSX.Element {
           <header className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Privacy Policy</h1>
             <p className="text-sm text-muted-foreground">
-              Effective Date: May 1, 2026
+              Effective Date: May 13, 2026
             </p>
           </header>
 
@@ -40,74 +40,93 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              1. Google Account Data We Access
+              1. Account Data We Access
             </h2>
             <p>
-              When you sign in with Google, the Service requests the following
-              OAuth scopes. We ask for each one for a single, narrow purpose,
-              and we do not use Google user data for advertising, model
-              training, resale, or any purpose other than providing the
-              Service&apos;s core features to you.
+              When you sign in (with Google or Microsoft), the Service
+              requests the following OAuth scopes. We ask for each one for
+              a single, narrow purpose, and we do not use the data for
+              advertising, model training, resale, or any purpose other
+              than providing the Service&apos;s core features to you.
+              Every sign-in flow forces the account picker, so you never
+              get silently authenticated as a different identity than the
+              one you intended.
             </p>
             <ul className="list-disc space-y-2 pl-6">
               <li>
                 <strong>Basic profile (openid, email, profile)</strong> — to
                 identify your account, display your name and avatar inside the
-                app, and contact you about the Service.
+                app, and contact you about the Service. For Microsoft sign-in
+                we additionally call Microsoft Graph&apos;s <code>/me/photo</code>{" "}
+                endpoint to render your avatar; if you have no photo, we fall
+                back to your initials.
               </li>
               <li>
-                <strong>Gmail read-only (gmail.readonly)</strong> — used only
-                when you initiate an email scan. We search your inbox for
-                messages that look like travel confirmations (flights, hotels,
+                <strong>Gmail / Outlook read-only</strong> (
+                <code>gmail.readonly</code> for Google,{" "}
+                <code>Mail.Read</code> for Microsoft) — used only when you
+                initiate an email scan. We search your inbox for messages
+                that look like travel confirmations (flights, hotels,
                 rentals, reservations) and read those messages so we can
-                extract trip details. We do not read mail outside the queries
-                you trigger, and we never send mail on your behalf.
+                extract trip details. We do not read mail outside the
+                queries you trigger, and we never send mail on your
+                behalf.
               </li>
               <li>
-                <strong>Drive per-file access (drive.file)</strong> — used to
-                create and update files in a single app-managed folder
-                (&quot;Itinly&quot;, renamed from
-                &quot;TravelItineraryMaker&quot; for accounts created before
-                the rebrand) inside <em>your</em> Google Drive. This scope
-                only grants access to files the app itself creates; it does{" "}
-                <em>not</em> grant the Service access to any other file in
-                your Drive.
-              </li>
-              <li>
-                <strong>Google Calendar (calendar)</strong> — used only when
-                you choose to sync a trip to your calendar. We create or update
-                events corresponding to your itinerary segments. We do not
-                read or modify unrelated events.
+                <strong>Google Calendar / Outlook Calendar</strong> (
+                <code>calendar</code> for Google,{" "}
+                <code>Calendars.ReadWrite</code> for Microsoft) — used
+                only when you choose to sync a trip to your calendar. We
+                create or update events corresponding to your itinerary
+                segments. We do not read or modify unrelated events.
               </li>
             </ul>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              2. Where Your Data Is Stored
+              2. Linking Multiple Providers
             </h2>
             <p>
-              <strong>Your trip data lives in your own Google Drive.</strong>{" "}
-              Itineraries, segments, todo lists, settings, and the metadata
-              we keep about which emails you have already imported are written
-              as JSON files inside the <code>Itinly</code> folder in your
-              Drive (older accounts may still see this folder named{" "}
-              <code>TravelItineraryMaker</code> until the next sign-in, when
-              the app renames it in place). We do not maintain a separate
-              copy of your trip data on our servers. If you delete that
-              folder, your data is gone from the Service.
+              A single itinly account can hold one Google identity and one
+              Microsoft identity at the same time, plus separate Mail and
+              Calendar capability connections per provider. This lets you
+              scan a Gmail confirmation and sync the resulting trip to
+              Outlook Calendar (or any other combination) without
+              maintaining two accounts. Linked identities and capability
+              connections are visible at{" "}
+              <code>/settings/account</code>, where you can disconnect any
+              single integration. Disconnecting an identity also removes
+              its Mail and Calendar capability rows.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">
+              3. Where Your Data Is Stored
+            </h2>
+            <p>
+              <strong>Your trip data is stored on itinly&apos;s servers in a
+              managed Postgres database (Supabase).</strong> Itineraries,
+              segments, todo lists, settings, and the metadata we keep about
+              which emails you have already imported are written to per-user
+              rows in that database. Access is gated by row-level security
+              policies keyed on your authenticated user ID, so other users
+              cannot read your rows.
             </p>
             <p>
-              <strong>Server-side data is limited to what is required to
-              keep your session and shared links working.</strong> Specifically:
+              <strong>Other server-side data is limited to what is required
+              to keep your sessions, integrations, and shared links
+              working.</strong> Specifically:
             </p>
             <ul className="list-disc space-y-2 pl-6">
               <li>
-                <strong>Encrypted Google refresh tokens.</strong> When you
-                sign in we store an encrypted refresh token so that recipients
-                of share links you create can read the shared trip from your
-                Drive even when you are offline. Refresh tokens are encrypted
-                at rest with AES-256-GCM using a server-held key.
+                <strong>Encrypted refresh tokens for connected integrations.</strong>{" "}
+                When you connect Gmail, Outlook, Google Calendar, or
+                Outlook Calendar, we store an encrypted refresh token for
+                that integration so background tasks (e.g. resolving share
+                links while you&apos;re offline) can run. Refresh tokens are
+                encrypted at rest with AES-256-GCM using a server-held key.
               </li>
               <li>
                 <strong>A share registry.</strong> When you create a share
@@ -127,7 +146,7 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              3. Email Parsing and Anthropic
+              4. Email Parsing and Anthropic
             </h2>
             <p>
               When you trigger an email scan, the Service sends the contents
@@ -136,14 +155,14 @@ export default function PrivacyPage(): React.JSX.Element {
               data. We do this only on emails identified as likely travel
               confirmations, and only at your request. Anthropic processes
               these requests under its own commercial API terms and does not
-              use API inputs to train its models. The structured result is
-              written to your Drive; the raw email is not stored on our
-              servers.
+              use API inputs to train its models. Only the structured result
+              is persisted to our database; the raw email is not stored on
+              our servers.
             </p>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">4. Third-Party Services</h2>
+            <h2 className="text-xl font-semibold">5. Third-Party Services</h2>
             <p>
               The Service relies on the following sub-processors. We share
               with them only what is necessary to operate the relevant
@@ -152,7 +171,15 @@ export default function PrivacyPage(): React.JSX.Element {
             <ul className="list-disc space-y-2 pl-6">
               <li>
                 <strong>Google</strong> — authentication (Sign-In with
-                Google), Drive storage, Gmail access, Calendar sync.
+                Google), Gmail access, Calendar sync.
+              </li>
+              <li>
+                <strong>Microsoft</strong> — authentication (Sign-In with
+                Microsoft), Outlook mail access, Outlook calendar sync.
+              </li>
+              <li>
+                <strong>Supabase</strong> — authentication broker and managed
+                Postgres database where your trip data is stored.
               </li>
               <li>
                 <strong>Anthropic</strong> — email parsing via the Claude API
@@ -163,7 +190,8 @@ export default function PrivacyPage(): React.JSX.Element {
               </li>
               <li>
                 <strong>Upstash (Redis)</strong> — storage of encrypted
-                refresh tokens and the share registry.
+                refresh tokens for connected integrations and the share
+                registry.
               </li>
               <li>
                 <strong>Sentry</strong> — error reporting (when configured).
@@ -176,7 +204,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">5. Cookies and Tracking</h2>
+            <h2 className="text-xl font-semibold">6. Cookies and Tracking</h2>
             <p>
               The Service uses only the cookies and local-storage entries
               necessary to keep you signed in (for example, OAuth state and
@@ -187,7 +215,7 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              6. Your Rights and Choices
+              7. Your Rights and Choices
             </h2>
             <ul className="list-disc space-y-2 pl-6">
               <li>
@@ -202,32 +230,26 @@ export default function PrivacyPage(): React.JSX.Element {
                 >
                   myaccount.google.com/permissions
                 </a>
-                ). Revoking access invalidates the refresh token we hold for
-                you.
+                ) or from your Microsoft account&apos;s &quot;Apps and
+                services that can access your data&quot; page. Revoking
+                access invalidates the refresh tokens we hold for you.
               </li>
               <li>
-                <strong>Delete your data</strong> by deleting the{" "}
-                <code>Itinly</code> folder from your Google Drive (or, on
-                older accounts, <code>TravelItineraryMaker</code> if it has
-                not yet been renamed by the app). This removes all
-                itineraries, segments, todos, and processed-email metadata.
+                <strong>Disconnect a single integration</strong> from
+                Settings → Account inside the app. This deletes the
+                corresponding refresh token from our servers.
               </li>
               <li>
-                <strong>Request server-side deletion</strong> of your
-                encrypted refresh token and share-registry entries by
-                contacting us at the address below.
-              </li>
-              <li>
-                <strong>Disconnect a single feature</strong> (for example,
-                stop using calendar sync) by simply not invoking it; no data
-                is sent to that feature&apos;s sub-processor unless you use
-                it.
+                <strong>Delete your trip data and account</strong> by
+                contacting us at the address below. We will purge your
+                itinerary rows, processed-email metadata, refresh tokens,
+                and share-registry entries.
               </li>
             </ul>
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">7. Children</h2>
+            <h2 className="text-xl font-semibold">8. Children</h2>
             <p>
               The Service is not directed to children under 13, and we do not
               knowingly collect personal information from them.
@@ -235,7 +257,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">8. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold">9. Changes to This Policy</h2>
             <p>
               We may update this policy from time to time. The &quot;Effective
               Date&quot; at the top of this page reflects the most recent
@@ -245,7 +267,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">9. Contact</h2>
+            <h2 className="text-xl font-semibold">10. Contact</h2>
             <p>
               Questions, deletion requests, or concerns about this policy can
               be sent to{" "}

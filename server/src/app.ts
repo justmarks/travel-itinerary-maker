@@ -39,10 +39,6 @@ export interface AppOptions {
    * - "memory": Use a shared in-memory storage (dev/test).
    * - "postgres": Use Supabase Postgres for every authenticated user
    *   (production).
-   *
-   * The pre-Phase-6 "drive" mode (per-user Google Drive storage) was
-   * removed once the migration finished — see
-   * `docs/backend-migration-plan.md`.
    */
   mode: "memory" | "postgres";
   /**
@@ -228,9 +224,9 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     configureAuth({ supabaseValidator: undefined });
   }
 
-  // Authenticated modes are `drive` and `postgres` — both attach
-  // `req.userId` via the auth middleware before route handlers run.
-  // Memory mode skips auth and uses a shared singleton storage.
+  // `postgres` mode attaches `req.userId` via the auth middleware
+  // before route handlers run. Memory mode skips auth and uses a
+  // shared singleton storage.
   const requiresAuth = mode === "postgres";
 
   // Validate cross-option requirements that the type system can't

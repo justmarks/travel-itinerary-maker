@@ -2,10 +2,6 @@
  * Domain type for an email scanned by the email-parse pipeline.
  * Stored alongside trip data so a future scan can dedupe against
  * earlier results.
- *
- * Previously co-located with `DriveStorage` (which originally
- * defined it); split out here when Phase 6 retired the Drive storage
- * backend so the type didn't disappear with the class.
  */
 export interface ProcessedEmail {
   gmailMessageId: string;

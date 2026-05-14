@@ -171,9 +171,7 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
 
       // Postgres-backed listTrips doesn't fail on auth state (the
       // user has already passed `requireAuth`), so this is a simple
-      // call now. Pre-Phase-6 we wrapped it in a try/catch for the
-      // Drive `insufficientPermissions` 403 — that branch is gone
-      // along with `DriveStorage`.
+      // call now.
       const t0 = Date.now();
       const ownedTrips: Trip[] = await storage.listTrips();
       const listTripsMs = Date.now() - t0;

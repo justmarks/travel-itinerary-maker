@@ -23,7 +23,7 @@ export default function TermsPage(): React.JSX.Element {
           <header className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Terms of Service</h1>
             <p className="text-sm text-muted-foreground">
-              Effective Date: May 1, 2026
+              Effective Date: May 13, 2026
             </p>
           </header>
 
@@ -32,19 +32,20 @@ export default function TermsPage(): React.JSX.Element {
               These Terms of Service (&quot;Terms&quot;) govern your access to
               and use of itinly (&quot;the Service,&quot; &quot;we,&quot; or
               &quot;us&quot;), a travel-itinerary application that turns
-              trip-confirmation emails from your Gmail inbox into structured
-              itineraries stored in your own Google Drive. By signing in or
-              otherwise using the Service, you agree to these Terms.
+              trip-confirmation emails from your Gmail or Outlook inbox into
+              structured itineraries you can view, edit, share, and sync to
+              your calendar. By signing in or otherwise using the Service,
+              you agree to these Terms.
             </p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">1. Eligibility</h2>
             <p>
-              You must be at least 13 years old, have a valid Google account,
-              and be permitted to enter into a binding agreement under the
-              laws of your jurisdiction. By using the Service you represent
-              that you meet these requirements.
+              You must be at least 13 years old, have a valid Google or
+              Microsoft account, and be permitted to enter into a binding
+              agreement under the laws of your jurisdiction. By using the
+              Service you represent that you meet these requirements.
             </p>
           </section>
 
@@ -52,11 +53,16 @@ export default function TermsPage(): React.JSX.Element {
             <h2 className="text-xl font-semibold">2. The Service</h2>
             <p>
               The Service reads travel-confirmation emails you ask it to
-              scan, parses them into itinerary data, and writes that data to
-              an app-managed folder in your Google Drive. You may also choose
-              to sync itineraries to your Google Calendar or share an
-              itinerary with another person via a share link. Detailed data
-              practices are described in our{" "}
+              scan, parses them into itinerary data, and stores that data
+              in itinly&apos;s managed database under your account. You
+              may also choose to sync itineraries to Google Calendar or
+              Outlook Calendar, or share an itinerary with another person
+              via a share link. A single itinly account can hold one
+              Google identity and one Microsoft identity at the same
+              time, plus separate Mail and Calendar capability
+              connections per provider; you can manage and disconnect
+              these from <code>/settings/account</code> inside the app.
+              Detailed data practices are described in our{" "}
               <Link
                 href="/privacy"
                 className="underline underline-offset-4 hover:opacity-80"
@@ -70,10 +76,13 @@ export default function TermsPage(): React.JSX.Element {
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">3. Your Account and Data</h2>
             <p>
-              You are responsible for safeguarding your Google account
-              credentials and for all activity that occurs under your access
-              to the Service. Your trip data is stored in your own Google
-              Drive; you can revoke the Service&apos;s access at any time at{" "}
+              You are responsible for safeguarding your Google and/or
+              Microsoft account credentials and for all activity that
+              occurs under your access to the Service. Your trip data is
+              stored in itinly&apos;s managed database under your
+              account. You can manage linked identities and per-provider
+              integrations at <code>/settings/account</code>, revoke the
+              Service&apos;s access from your Google account at{" "}
               <a
                 href="https://myaccount.google.com/permissions"
                 target="_blank"
@@ -82,10 +91,9 @@ export default function TermsPage(): React.JSX.Element {
               >
                 myaccount.google.com/permissions
               </a>{" "}
-              and delete your trip data by removing the{" "}
-              <code>Itinly</code> folder from your Drive (or{" "}
-              <code>TravelItineraryMaker</code> on older accounts that have
-              not yet been renamed by the app).
+              (or the equivalent page in your Microsoft account), and
+              request deletion of your stored trip data by contacting
+              support at the address in Section 11.
             </p>
           </section>
 
@@ -138,11 +146,12 @@ export default function TermsPage(): React.JSX.Element {
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">6. Third-Party Services</h2>
             <p>
-              The Service depends on third-party providers, including Google,
-              Anthropic, Vercel, Upstash, and Sentry. Their respective terms
-              and privacy policies apply to your use of their portions of the
-              Service. We are not responsible for the availability or conduct
-              of these third parties.
+              The Service depends on third-party providers, including
+              Google, Microsoft, Supabase, Anthropic, Vercel, Upstash, and
+              Sentry. Their respective terms and privacy policies apply to
+              your use of their portions of the Service. We are not
+              responsible for the availability or conduct of these third
+              parties.
             </p>
           </section>
 
@@ -178,10 +187,10 @@ export default function TermsPage(): React.JSX.Element {
             <h2 className="text-xl font-semibold">9. Termination</h2>
             <p>
               You may stop using the Service at any time and revoke its
-              access to your Google account. We may suspend or terminate
-              access to the Service at our discretion, particularly in
-              response to violations of these Terms or to protect the
-              security of the Service or its users.
+              access to your Google or Microsoft account. We may suspend
+              or terminate access to the Service at our discretion,
+              particularly in response to violations of these Terms or to
+              protect the security of the Service or its users.
             </p>
           </section>
 
