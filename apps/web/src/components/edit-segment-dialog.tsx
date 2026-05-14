@@ -279,17 +279,23 @@ export function EditSegmentDialog({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
+          {/* `min-h-0` lets the scroll area shrink within the dialog's
+              max-height so long forms (More options expanded with many
+              advanced fields) scroll cleanly. `overflow-y-auto` engages
+              only when content overflows — short forms keep their
+              natural height and the footer sits right below the last
+              row, no empty gap.
+
+              The earlier sticky-bottom gradient that hinted "more
+              content below" has been removed: now that the form
+              collapses to a short default the hint was misleading
+              (nothing below) and the overlay made the Cancel button
+              feel un-clickable. */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}
               idPrefix="edit"
-            />
-            {/* Bottom-fade scroll indicator —
-                see add-segment-dialog.tsx for the rationale. */}
-            <div
-              aria-hidden
-              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
             />
           </div>
 
