@@ -4,7 +4,7 @@ import { InMemoryStorage } from "../../src/services/storage";
 import { ShareRegistry } from "../../src/services/share-registry";
 import { createShareRuleRoutes } from "../../src/routes/share-rules";
 import { createTripRoutes } from "../../src/routes/trips";
-import type { Trip } from "@travel-app/shared";
+import type { Trip } from "@itinly/shared";
 
 const OWNER_ID = "owner-uid";
 const OWNER_EMAIL = "owner@example.com";

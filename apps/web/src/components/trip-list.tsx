@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useTrips } from "@travel-app/api-client";
-import type { TripSummary } from "@travel-app/api-client";
+import { useTrips } from "@itinly/api-client";
+import type { TripSummary } from "@itinly/api-client";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { TripCard } from "./trip-card";
 import {

@@ -12,10 +12,13 @@ import {
   type SegmentMatch,
   type SegmentFieldDiff,
   type Trip,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider, StorageResolver } from "../services/storage";
-import type { ProcessedEmail } from "../services/google-drive/drive-storage";
-import { GmailScanner } from "../services/gmail-scanner";
+import type { ProcessedEmail } from "../services/processed-email";
+import {
+  createConnectorResolvers,
+  type ConnectorResolvers,
+} from "../connectors/resolve";
 import { EmailParser } from "../services/email-parser";
 import { createEmailScanRateLimiter } from "../middleware/rate-limit";
 import { recordParseFailure } from "../services/email-telemetry";
@@ -26,6 +29,21 @@ import { config } from "../config/env";
 import { requireGmailAuth } from "../middleware/auth";
 import type { TokenStore } from "../services/token-store";
 import type { RequestHandler } from "express";
+import type { ConnectionProvider } from "../services/connections-store";
+
+/**
+ * Parses an optional `?provider=google|microsoft` query param so the
+ * UI can pick which mailbox to scan when both providers are
+ * connected. Identical helper to the calendar route's version —
+ * kept inline rather than shared because the two route files have
+ * no other overlap. Unknown values resolve to undefined, preserving
+ * the default Microsoft-first auto-pick.
+ */
+function parseEmailProviderQuery(req: Request): ConnectionProvider | undefined {
+  const raw = req.query.provider;
+  if (raw === "google" || raw === "microsoft") return raw;
+  return undefined;
+}
 
 export interface EmailRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -36,6 +54,13 @@ export interface EmailRoutesOptions {
    * the Gmail flow. The other routes (storage-only) work without it.
    */
   tokenStore?: TokenStore;
+  /**
+   * Phase 4b-2: pre-built connector resolvers bound to the
+   * ConnectionsStore. When omitted (tests, memory mode), falls back
+   * to a default factory with no store — every request takes the
+   * legacy Gmail-via-`req.gmailAccessToken` path.
+   */
+  connectorResolvers?: ConnectorResolvers;
 }
 
 /**
@@ -126,6 +151,82 @@ function normStr(s: string | undefined): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Lowercase alphanumeric word tokens, dropping empties. */
+function tokens(s: string | undefined): Set<string> {
+  if (!s) return new Set();
+  return new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .filter((t) => t.length > 0),
+  );
+}
+
+/**
+ * Looser sibling of `normStr` equality used for names/titles/addresses where
+ * one side often carries extra qualifier words ("Villa Fiorita Hotel" vs
+ * "Villa Fiorita Boutique Hotel"), formatting decoration ("SEA → CDG" vs
+ * "SEA → CDG (Air France 337)"), or a longer postal form of the same address
+ * ("Via San Marco, 40, Calatabiano" vs "Via San Marco, 40, 95011 Calatabiano,
+ * Italy"). One side being a token subset of the other is the easy case —
+ * that's free enrichment, never a conflict. Falls back to Jaccard ≥ 0.6 to
+ * catch near-misses where each side has a unique word (e.g. "di" appearing
+ * in one Italian hotel name but not the other) without merging clearly
+ * different bookings like "Sightseeing tour" and "Dinner at X" (0 token
+ * overlap → no match).
+ */
+function fuzzyTextMatch(
+  a: string | undefined,
+  b: string | undefined,
+): boolean {
+  if (!a || !b) return false;
+  if (normStr(a) === normStr(b)) return true;
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+  let intersection = 0;
+  for (const t of ta) if (tb.has(t)) intersection++;
+  if (intersection === 0) return false;
+  // Token subset (one side fully contained in the other) → match.
+  if (intersection === ta.size || intersection === tb.size) return true;
+  // Jaccard similarity — 0.6 is high enough that 3-of-4 word matches but
+  // 2-of-5 doesn't.
+  const union = ta.size + tb.size - intersection;
+  return intersection / union >= 0.6;
+}
+
+/**
+ * Segment types that all represent "a scheduled experience at a venue".
+ * Claude's parser and a human entering segments manually frequently disagree
+ * on the precise subtype here — a Broadway booking might land in the trip as
+ * `activity` (manual) while the confirmation email parses as `show`; a wine
+ * tasting at a vineyard might be `activity` one way and `tour` the other;
+ * a dinner reservation might be `activity` (manual) vs `restaurant_dinner`
+ * (parsed). Letting matches cross within this cluster avoids surfacing
+ * those as duplicate "New" rows just because the type label differs.
+ */
+const EXPERIENCE_TYPES = new Set<string>([
+  "activity",
+  "tour",
+  "show",
+  "restaurant_breakfast",
+  "restaurant_brunch",
+  "restaurant_lunch",
+  "restaurant_dinner",
+]);
+
+/**
+ * The meal-of-day subtypes are intentionally NOT cross-matched against each
+ * other. A `restaurant_lunch` and a `restaurant_dinner` at the same venue on
+ * the same day are real distinct bookings the user would not want collapsed.
+ */
+const RESTAURANT_TYPES = new Set<string>([
+  "restaurant_breakfast",
+  "restaurant_brunch",
+  "restaurant_lunch",
+  "restaurant_dinner",
+]);
+
 /**
  * Fields compared between a parsed segment and an existing itinerary segment.
  * Keys with meaningful values on either side drive the enrichment/conflict logic.
@@ -159,6 +260,17 @@ const COMPARABLE_FIELDS = [
 
 type ComparableField = (typeof COMPARABLE_FIELDS)[number];
 
+/**
+ * Fields where one side legitimately carries extra qualifier words / postal
+ * formatting / display decoration that shouldn't be flagged as a conflict.
+ * See `fuzzyTextMatch` for the rule (subset OR Jaccard ≥ 0.6).
+ */
+const FUZZY_TEXT_FIELDS = new Set<ComparableField>([
+  "title",
+  "venueName",
+  "address",
+]);
+
 /** Decide if two field values should be considered "the same". */
 function fieldValuesEqual(
   field: ComparableField,
@@ -173,6 +285,9 @@ function fieldValuesEqual(
       // Compare HH:MM portion only, regardless of seconds
       return a.slice(0, 5) === b.slice(0, 5);
     }
+    if (FUZZY_TEXT_FIELDS.has(field)) {
+      return fuzzyTextMatch(a, b);
+    }
     return normStr(a) === normStr(b);
   }
   return false;
@@ -180,11 +295,25 @@ function fieldValuesEqual(
 
 /** Does this existing segment look like the same booking as the parsed one? */
 function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate: string): boolean {
-  // Must be same type
-  if (existing.type !== parsed.type) return false;
+  // Type must match, OR both types must sit in the EXPERIENCE_TYPES cluster
+  // (activity/tour/show/restaurant_*) — see the comment on EXPERIENCE_TYPES
+  // for why. Cross-matching between two restaurant_* meal subtypes is
+  // explicitly disallowed: a lunch and a dinner at the same venue on the
+  // same day are real distinct bookings.
+  if (existing.type !== parsed.type) {
+    if (!EXPERIENCE_TYPES.has(existing.type) || !EXPERIENCE_TYPES.has(parsed.type)) return false;
+    if (RESTAURANT_TYPES.has(existing.type) && RESTAURANT_TYPES.has(parsed.type)) return false;
+  }
 
-  // Confirmation code match is strongest signal, regardless of date/title.
+  // Confirmation code match is the strongest signal for non-flight types,
+  // where one PNR/confirmation = one booking. Flights are different: a
+  // round-trip PNR is shared across both legs (and a multi-city PNR across
+  // every leg), so a confirmation-code-only match would collapse e.g. the
+  // outbound SEA→ONT leg onto the return ONT→SEA leg. For flights, we
+  // fall through to the date + route/city checks below; a matching PNR on
+  // the same date with the same direction will naturally satisfy them.
   if (
+    parsed.type !== "flight" &&
     parsed.confirmationCode &&
     existing.confirmationCode &&
     normStr(parsed.confirmationCode) === normStr(existing.confirmationCode)
@@ -216,10 +345,11 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
   }
 
   // Hotels: match by venueName (fuzzy). Date may differ because parsed uses
-  // check-in and existing could be stored on any of the nights.
+  // check-in and existing could be stored on any of the nights. fuzzyTextMatch
+  // tolerates extra qualifier words ("Boutique") and case/punct differences
+  // ("Castello di San Marco" vs "Castello San Marco").
   if (parsed.type === "hotel") {
-    if (!parsed.venueName || !existing.venueName) return false;
-    return normStr(parsed.venueName) === normStr(existing.venueName);
+    return fuzzyTextMatch(parsed.venueName, existing.venueName);
   }
 
   // Car rentals: match by provider + date (pickup OR dropoff day).
@@ -233,19 +363,51 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
       return true;
     }
     // Fallback: same title (e.g. "National - Lihue")
-    return normStr(parsed.title) === normStr(existing.title);
+    return fuzzyTextMatch(parsed.title, existing.title);
   }
 
-  // Restaurants / activities / tours: same date + fuzzy venue or title.
+  // Restaurants / activities / tours / shows: same date + fuzzy venue or title.
   if (existingDate !== parsed.date) return false;
   if (
     parsed.venueName &&
     existing.venueName &&
-    normStr(parsed.venueName) === normStr(existing.venueName)
+    fuzzyTextMatch(parsed.venueName, existing.venueName)
   ) {
     return true;
   }
-  return normStr(parsed.title) === normStr(existing.title);
+  return fuzzyTextMatch(parsed.title, existing.title);
+}
+
+/**
+ * Pick which existing trip a parsed segment should suggest based on its date.
+ *
+ * `hintedTripId` is the trip-scoped scan hint — the user opened the scan from
+ * a specific trip's page and we should prefer that trip. But the user's inbox
+ * isn't partitioned by trip: a scan launched from "Sicily 2026" still surfaces
+ * any travel email with a date in some other trip's window. Forcing the hint
+ * onto every segment was the old behaviour; it silently dropped out-of-range
+ * segments at apply time (now a 400 from the apply guard) and prevented the
+ * UI from offering a new-trip proposal.
+ *
+ * The new rule: honor the hint only if the segment date actually falls inside
+ * the hinted trip. Otherwise fall through to a date-range search across all
+ * trips — and if no trip covers that date, return undefined so the caller
+ * leaves `suggestedTripId` blank and the UI can route the segment through the
+ * "create a new trip" proposal flow.
+ */
+function pickMatchingTrip(
+  date: string,
+  hintedTripId: string | undefined,
+  trips: Trip[],
+  tripsById: Map<string, Trip>,
+): Trip | undefined {
+  if (hintedTripId) {
+    const hinted = tripsById.get(hintedTripId);
+    if (hinted && isDateInRange(date, hinted.startDate, hinted.endDate)) {
+      return hinted;
+    }
+  }
+  return trips.find((t) => isDateInRange(date, t.startDate, t.endDate));
 }
 
 /**
@@ -504,6 +666,8 @@ function emailLogPrefix(
 
 export function createEmailRoutes(options: EmailRoutesOptions): Router {
   const { resolveStorage, tokenStore } = options;
+  const resolvers =
+    options.connectorResolvers ?? createConnectorResolvers({});
 
   const getStorage: StorageResolver =
     typeof resolveStorage === "function"
@@ -518,8 +682,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   // result as `req.gmailAccessToken`. When no TokenStore is wired up
   // (memory-mode tests / local dev without persistence), the guard
   // becomes a pass-through — the GmailScanner is mocked in tests, and
-  // memory-mode dev doesn't exercise the real Gmail API anyway. The
-  // Gmail-link / refresh path is wired up only in `mode: "drive"`.
+  // memory-mode dev doesn't exercise the real Gmail API anyway.
   const gmailGuard: RequestHandler = tokenStore
     ? requireGmailAuth(tokenStore)
     : (_req, _res, next) => next();
@@ -530,8 +693,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
    */
   router.get("/labels", gmailGuard, async (req: Request, res: Response) => {
     try {
-      const scanner = new GmailScanner(req.gmailAccessToken || "");
-      const labels = await scanner.listLabels();
+      const resolved = await resolvers.resolveEmailConnector(
+        req,
+        parseEmailProviderQuery(req),
+      );
+      if (!resolved) {
+        res.status(401).json({
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
+      const labels = await resolved.connector.listLabels();
 
       // Return user labels + useful system labels
       const useful = labels.filter(
@@ -578,12 +751,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       // Reconstruct EmailScanResult from stored data, re-matching trip suggestions
       // and re-classifying against current itinerary state.
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
       const results: EmailScanResult[] = pendingEmails.map((pe) => {
         const stored = pe.rawParseResult as EmailScanResult;
         const rematchedSegments = stored.parsedSegments.map((seg) => {
-          const matchingTrip = trips.find((t) =>
-            isDateInRange(seg.date, t.startDate, t.endDate),
-          );
+          const matchingTrip = pickMatchingTrip(seg.date, undefined, trips, tripsById);
           if (!matchingTrip) {
             return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
           }
@@ -622,7 +794,14 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         return;
       }
 
-      const { tripId, labelFilter, maxResults, newerThanDays, forceRescan } = parsed.data;
+      const {
+        tripId,
+        labelFilter,
+        maxResults,
+        newerThanDays,
+        forceRescan,
+        provider: preferProvider,
+      } = parsed.data;
       const storage = getStorage(req);
       console.log(
         `${scanPrefix} Starting scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
@@ -643,9 +822,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           const stored = pe.rawParseResult as EmailScanResult;
           // Re-match trip suggestions + re-classify against current itinerary
           const rematchedSegments = stored.parsedSegments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
             }
@@ -656,10 +833,24 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         }
       }
 
-      // Scan Gmail for new emails
-      const scanner = new GmailScanner(req.gmailAccessToken || "");
+      // Scan via the provider-agnostic resolver — picks Google or
+      // Microsoft based on the user's `connections` (phase 4b-2),
+      // with the legacy `req.gmailAccessToken` fallback for users
+      // still on the pre-Supabase auth path. Capture the provider +
+      // account metadata so we can stamp each ProcessedEmail with
+      // it — helps observability + supports a future multi-mailbox
+      // picker.
+      const resolved = await resolvers.resolveEmailConnector(req, preferProvider);
+      if (!resolved) {
+        res.status(401).json({
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
+      const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await scanner.scanEmails({
+      const rawEmails = await connector.scanEmails({
         labelFilter,
         maxResults: effectiveMaxResults,
         newerThanDays: newerThanDays ?? 365,
@@ -667,7 +858,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       });
 
       console.log(
-        `${scanPrefix} Gmail returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
       );
       if (rawEmails.length >= effectiveMaxResults) {
         console.warn(
@@ -766,7 +957,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const noTravelResults: EmailScanResult[] = []; // for UI display only
       const newProcessedEmails: ProcessedEmail[] = [];
 
-      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from Gmail, ${pendingResults.length} pending)`);
+      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from mailbox, ${pendingResults.length} pending)`);
 
       for (const email of newEmails) {
         try {
@@ -824,9 +1015,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           // Auto-match segments to trips by date, then classify against itinerary
           const matchedSegments = segments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, match: { status: "new" as const } };
             }
@@ -882,6 +1071,8 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
                 ? "failed"
                 : "skipped",
             rawParseResult: hasTravel ? scanResult : undefined,
+            provider: emailProvider,
+            accountEmail,
             createdAt: new Date().toISOString(),
           });
         } catch (err: unknown) {
@@ -900,12 +1091,23 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             errMsg.includes("authentication") ||
             errMsg.includes("invalid x-api-key") ||
             errMsg.includes("api_key");
+          // 429 rate_limit_error is treated like overloaded: same
+          // "transient, try again later" UX, same halt-and-return-
+          // partial-results behaviour. Anthropic's SDK does its own
+          // internal retries for 429 before throwing, so if we see
+          // one here the user is genuinely over a TPM/RPM budget for
+          // the moment and hammering more email parses just digs
+          // the hole deeper.
           const isOverloadedError =
             errStatus === 529 ||
             errStatus === 503 ||
+            errStatus === 429 ||
             errType === "overloaded_error" ||
+            errType === "rate_limit_error" ||
             errMsg.includes("overloaded") ||
-            errMsg.includes("Overloaded");
+            errMsg.includes("Overloaded") ||
+            errMsg.includes("rate_limit") ||
+            errMsg.includes("rate limit");
 
           // Overloaded errors are transient — log a short message, not the full stack
           if (isOverloadedError) {
@@ -1026,6 +1228,453 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   });
 
   /**
+   * POST /emails/scan/stream
+   * Same scan + parse pipeline as POST /emails/scan, but streamed as
+   * Server-Sent Events so the UI can render progress while parsing
+   * is in flight (which can take minutes for a multi-dozen-email
+   * mailbox). Event types:
+   *   - `found`  { total }                 — once `connector.scanEmails()`
+   *                                          returns, before any parse work.
+   *   - `plan`   { newCount, pendingCount } — after filtering already-
+   *                                          processed emails out.
+   *   - `progress` { parsed, total,
+   *                  subject, from }       — emitted BEFORE each parse so
+   *                                          the user sees movement.
+   *   - `done`   { results, pendingCount,
+   *                newCount, message? }    — final state, identical shape
+   *                                          to the JSON /scan response.
+   *   - `error`  { status, error, code?,
+   *                emailsFound?, results? } — corresponds to a non-2xx
+   *                                          JSON response; the client
+   *                                          should branch on `code`
+   *                                          (same handling as /scan).
+   *
+   * Auth/connector/rate-limit guards mirror /scan exactly.
+   */
+  router.post("/scan/stream", scanRateLimiter, gmailGuard, async (req: Request, res: Response) => {
+    const scanPrefix = emailLogPrefix("email-scan", req.userEmail);
+
+    // Validate before opening the SSE stream — once headers are sent
+    // we can't return a 400 JSON body, so do the cheap check first.
+    const parsed = emailScanRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+
+    // SSE setup. `X-Accel-Buffering: no` disables buffering on Nginx/
+    // proxies (Railway's edge included) so events flush promptly
+    // instead of pooling in a transport buffer.
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    let clientClosed = false;
+    req.on("close", () => {
+      clientClosed = true;
+    });
+
+    // Heartbeat keeps idle proxies from severing the connection during
+    // long Claude parses (per-email can take 10–20 s; an unbuffered
+    // intermediary may time out after 30–60 s of silence).
+    const heartbeat = setInterval(() => {
+      if (clientClosed) return;
+      res.write(`: ping\n\n`);
+    }, 15000);
+
+    const emit = (event: string, data: Record<string, unknown>): void => {
+      if (clientClosed) return;
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const {
+        tripId,
+        labelFilter,
+        maxResults,
+        newerThanDays,
+        forceRescan,
+        provider: preferProvider,
+      } = parsed.data;
+      const storage = getStorage(req);
+      console.log(
+        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+      );
+
+      const processedEmails = await storage.getProcessedEmails();
+      const processedMap = new Map(processedEmails.map((e) => [e.gmailMessageId, e]));
+      const trips = await storage.listTrips();
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
+
+      const pendingResults: EmailScanResult[] = [];
+      for (const pe of processedEmails) {
+        if (pe.parseStatus === "parsed" && pe.rawParseResult) {
+          const stored = pe.rawParseResult as EmailScanResult;
+          const rematchedSegments = stored.parsedSegments.map((seg) => {
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
+            if (!matchingTrip) {
+              return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
+          });
+          pendingResults.push({ ...stored, parsedSegments: rematchedSegments });
+        }
+      }
+
+      const resolved = await resolvers.resolveEmailConnector(req);
+      if (!resolved) {
+        emit("error", {
+          status: 401,
+          error: "Email not connected",
+          code: "EMAIL_NOT_CONNECTED",
+        });
+        return;
+      }
+      const { connector, provider: emailProvider, accountEmail } = resolved;
+      const effectiveMaxResults = maxResults ?? 100;
+      const rawEmails = await connector.scanEmails({
+        labelFilter,
+        maxResults: effectiveMaxResults,
+        newerThanDays: newerThanDays ?? 365,
+        logPrefix: scanPrefix,
+      });
+
+      console.log(
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+      );
+      emit("found", { total: rawEmails.length });
+      if (rawEmails.length >= effectiveMaxResults) {
+        console.warn(
+          `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
+        );
+      }
+
+      const mappedTripStillExists = (prior: ProcessedEmail): boolean =>
+        prior.parseStatus === "mapped" &&
+        !!prior.tripId &&
+        tripsById.has(prior.tripId);
+
+      const newEmails = rawEmails.filter((e) => {
+        const prior = processedMap.get(e.id);
+        if (!prior) return true;
+        if (forceRescan) {
+          console.log(`${scanPrefix} Retrying "${e.subject}" (forceRescan, prior=${prior.parseStatus})`);
+          return true;
+        }
+        if (prior.parseStatus === "failed") {
+          console.log(`${scanPrefix} Retrying "${e.subject}" (previously failed — retrying)`);
+          return true;
+        }
+        if (prior.parseStatus === "mapped" && !mappedTripStillExists(prior)) {
+          console.log(`${scanPrefix} Re-parsing "${e.subject}" (was applied to trip ${prior.tripId ?? "?"}, but that trip no longer exists)`);
+          return true;
+        }
+        const reason =
+          prior.parseStatus === "mapped"
+            ? "already applied to a trip"
+            : prior.parseStatus === "skipped"
+              ? "previously dismissed / no travel content"
+              : prior.parseStatus === "parsed"
+                ? "already parsed, pending review"
+                : `already processed (${prior.parseStatus})`;
+        console.log(`${scanPrefix} Skipped "${e.subject}" (${reason})`);
+        return false;
+      });
+
+      emit("plan", { newCount: newEmails.length, pendingCount: pendingResults.length });
+
+      if (newEmails.length === 0) {
+        if (pendingResults.length > 0) {
+          console.log(`${scanPrefix} Done: 0 new, ${pendingResults.length} pending result(s) returned`);
+          emit("done", { results: pendingResults, pendingCount: pendingResults.length, newCount: 0 });
+        } else {
+          console.log(`${scanPrefix} Done: 0 new emails to process`);
+          emit("done", { results: [], message: "No new emails to process" });
+        }
+        return;
+      }
+
+      if (!config.anthropic.apiKey) {
+        emit("error", { status: 500, error: "Anthropic API key not configured" });
+        return;
+      }
+
+      const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
+      const newResults: EmailScanResult[] = [];
+      const noTravelResults: EmailScanResult[] = [];
+      const newProcessedEmails: ProcessedEmail[] = [];
+
+      console.log(`${scanPrefix} Parsing ${newEmails.length} new email(s) (${rawEmails.length} total from mailbox, ${pendingResults.length} pending)`);
+
+      for (let i = 0; i < newEmails.length; i++) {
+        if (clientClosed) {
+          console.log(`${scanPrefix} Client disconnected mid-scan — stopping after ${i}/${newEmails.length}`);
+          break;
+        }
+        const email = newEmails[i];
+        emit("progress", {
+          parsed: i,
+          total: newEmails.length,
+          subject: email.subject,
+          from: email.from,
+        });
+        try {
+          console.log(`${scanPrefix} Parsing "${email.subject}" from ${email.from} (body: ${email.bodyText.length} chars)`);
+          const { segments, invalidCount, rawItemCount } = await parser.parseEmail({
+            subject: email.subject,
+            from: email.from,
+            body: email.bodyText,
+            receivedAt: email.receivedAt,
+          });
+
+          const hasTravel = segments.length > 0;
+          const validationFailedEverything =
+            !hasTravel && rawItemCount > 0 && invalidCount > 0;
+
+          if (hasTravel) {
+            console.log(
+              `${scanPrefix} Parsed "${email.subject}" → ${segments.length} segment(s)${invalidCount > 0 ? ` (${invalidCount} invalid item(s) dropped)` : ""}`,
+            );
+            if (invalidCount > 0) {
+              recordParseFailure({
+                outcome: "parsed_with_invalid",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                rawItemCount,
+                invalidCount,
+              });
+            }
+          } else if (validationFailedEverything) {
+            console.warn(
+              `${scanPrefix} Parse failure for "${email.subject}" — Claude returned ${rawItemCount} item(s) but all ${invalidCount} failed Zod validation. Marking as "failed" so it will be retried on the next scan.`,
+            );
+            recordParseFailure({
+              outcome: "failed",
+              source: "gmail_scan",
+              subject: email.subject,
+              from: email.from,
+              receivedAt: email.receivedAt,
+              bodyLength: email.bodyText.length,
+              rawItemCount,
+              invalidCount,
+            });
+          } else {
+            // No-travel-content is an expected outcome — don't fire Sentry
+            // telemetry for it (per PR #276). Still emit the local log line
+            // so operators can grep Railway when triaging a specific scan.
+            console.log(`${scanPrefix} Skipped "${email.subject}" (no travel content detected)`);
+          }
+
+          const matchedSegments = segments.map((seg) => {
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
+            if (!matchingTrip) {
+              return { ...seg, match: { status: "new" as const } };
+            }
+            const match = matchParsedAgainstTrip(seg, matchingTrip);
+            return { ...seg, suggestedTripId: matchingTrip.id, match };
+          });
+
+          const scanResult: EmailScanResult = {
+            emailId: email.id,
+            subject: email.subject,
+            from: email.from,
+            receivedAt: email.receivedAt,
+            parsedSegments: matchedSegments,
+            parseStatus: hasTravel
+              ? "success"
+              : validationFailedEverything
+                ? "failed"
+                : "no_travel_content",
+            ...(validationFailedEverything
+              ? {
+                  error: `Claude returned ${rawItemCount} item(s) but none passed schema validation. See server logs for details.`,
+                }
+              : {}),
+          };
+
+          if (hasTravel) {
+            newResults.push(scanResult);
+          } else if (validationFailedEverything) {
+            newResults.push(scanResult);
+          } else {
+            noTravelResults.push(scanResult);
+          }
+
+          const idx = processedEmails.findIndex((p) => p.gmailMessageId === email.id);
+          if (idx !== -1) processedEmails.splice(idx, 1);
+
+          newProcessedEmails.push({
+            gmailMessageId: email.id,
+            gmailThreadId: email.threadId,
+            subject: email.subject,
+            fromAddress: email.from,
+            receivedAt: email.receivedAt,
+            parsedType: hasTravel ? segments[0].type : undefined,
+            parseStatus: hasTravel
+              ? "parsed"
+              : validationFailedEverything
+                ? "failed"
+                : "skipped",
+            rawParseResult: hasTravel ? scanResult : undefined,
+            provider: emailProvider,
+            accountEmail,
+            createdAt: new Date().toISOString(),
+          });
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const errObj = err as Record<string, unknown>;
+          const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
+          const errType = typeof errObj.type === "string" ? errObj.type : "";
+          const isBillingError =
+            errMsg.includes("credit balance") ||
+            errMsg.includes("billing") ||
+            errMsg.includes("too low") ||
+            (errStatus === 400 && errMsg.includes("credit"));
+          const isAuthError =
+            errStatus === 401 ||
+            errMsg.includes("authentication") ||
+            errMsg.includes("invalid x-api-key") ||
+            errMsg.includes("api_key");
+          // 429 rate_limit_error is treated like overloaded: same
+          // "transient, try again later" UX, same halt-and-return-
+          // partial-results behaviour. Anthropic's SDK does its own
+          // internal retries for 429 before throwing, so if we see
+          // one here the user is genuinely over a TPM/RPM budget for
+          // the moment and hammering more email parses just digs
+          // the hole deeper.
+          const isOverloadedError =
+            errStatus === 529 ||
+            errStatus === 503 ||
+            errStatus === 429 ||
+            errType === "overloaded_error" ||
+            errType === "rate_limit_error" ||
+            errMsg.includes("overloaded") ||
+            errMsg.includes("Overloaded") ||
+            errMsg.includes("rate_limit") ||
+            errMsg.includes("rate limit");
+
+          if (isOverloadedError) {
+            console.warn(
+              `${scanPrefix} AI service overloaded — halting scan. Email "${email.subject}" will be retried on next scan.`,
+            );
+          } else {
+            console.error(`${scanPrefix} Failed to parse "${email.subject}" (${email.id}):`, err);
+            if (!isBillingError && !isAuthError) {
+              recordParseFailure({
+                outcome: "exception",
+                source: "gmail_scan",
+                subject: email.subject,
+                from: email.from,
+                receivedAt: email.receivedAt,
+                bodyLength: email.bodyText.length,
+                errorMessage: errMsg,
+              });
+              reportError(err, {
+                emailId: email.id,
+                source: "gmail_scan",
+              });
+            }
+          }
+
+          if (isBillingError || isAuthError || isOverloadedError) {
+            const code = isBillingError
+              ? "ANTHROPIC_BILLING"
+              : isAuthError
+                ? "ANTHROPIC_AUTH"
+                : "ANTHROPIC_OVERLOADED";
+            const userMessage = isBillingError
+              ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
+              : isAuthError
+                ? "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY."
+                : "The AI service is temporarily overloaded. Please try scanning again in a few minutes.";
+            const httpStatus = isBillingError ? 402 : isAuthError ? 401 : 503;
+
+            if (newProcessedEmails.length > 0) {
+              await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
+            }
+
+            const allResults = [...pendingResults, ...newResults];
+            emit("error", {
+              status: httpStatus,
+              error: userMessage,
+              code,
+              emailsFound: newEmails.length,
+              results: allResults.length > 0 ? allResults : undefined,
+            });
+            return;
+          }
+
+          newResults.push({
+            emailId: email.id,
+            subject: email.subject,
+            from: email.from,
+            receivedAt: email.receivedAt,
+            parsedSegments: [],
+            parseStatus: "failed",
+            error: errMsg,
+          });
+        }
+      }
+
+      // Final progress tick so the UI shows "Parsed N of N" before
+      // flipping to the review screen — without this the last email's
+      // name lingers as if still in-flight.
+      emit("progress", {
+        parsed: newEmails.length,
+        total: newEmails.length,
+      });
+
+      const allResults = [...pendingResults, ...newResults];
+      deduplicateResults(allResults);
+      allResults.push(...noTravelResults);
+
+      await storage.saveProcessedEmails([...processedEmails, ...newProcessedEmails]);
+
+      if (labelFilter) {
+        const settings = await storage.getSettings();
+        if (settings.gmailLabelFilter !== labelFilter) {
+          settings.gmailLabelFilter = labelFilter;
+          await storage.saveSettings(settings);
+        }
+      }
+
+      const parsedCount = newProcessedEmails.filter((p) => p.parseStatus === "parsed").length;
+      const noTravelCount = newProcessedEmails.filter((p) => p.parseStatus === "skipped").length;
+      const failedCount = newProcessedEmails.filter((p) => p.parseStatus === "failed").length;
+      console.log(
+        `${scanPrefix} Done: ${parsedCount} parsed, ${noTravelCount} no-travel, ${failedCount} failed (${pendingResults.length} pending result(s) carried over)`,
+      );
+
+      emit("done", {
+        results: allResults,
+        pendingCount: pendingResults.length,
+        newCount: newResults.length,
+      });
+    } catch (err) {
+      console.error(`${scanPrefix} POST /emails/scan/stream error:`, err);
+      const message = err instanceof Error ? err.message : "Scan failed";
+      if (message.includes("insufficient") || message.includes("scope")) {
+        emit("error", {
+          status: 403,
+          error: "Gmail access not granted",
+          code: "GMAIL_SCOPE_REQUIRED",
+        });
+      } else {
+        emit("error", { status: 500, error: message });
+      }
+    } finally {
+      clearInterval(heartbeat);
+      if (!clientClosed) res.end();
+    }
+  });
+
+  /**
    * POST /emails/import-html
    * Import a raw HTML email (e.g. a saved `.html` file or pasted HTML source),
    * run it through the same Claude parser used for Gmail scanning, and drop
@@ -1117,12 +1766,18 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           errMsg.includes("authentication") ||
           errMsg.includes("invalid x-api-key") ||
           errMsg.includes("api_key");
+        // 429 rate_limit_error is treated like overloaded — see the
+        // matching block in the scan handlers for rationale.
         const isOverloadedError =
           errStatus === 529 ||
           errStatus === 503 ||
+          errStatus === 429 ||
           errType === "overloaded_error" ||
+          errType === "rate_limit_error" ||
           errMsg.includes("overloaded") ||
-          errMsg.includes("Overloaded");
+          errMsg.includes("Overloaded") ||
+          errMsg.includes("rate_limit") ||
+          errMsg.includes("rate limit");
 
         if (isBillingError || isAuthError || isOverloadedError) {
           const code = isBillingError
@@ -1159,9 +1814,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const trips = await storage.listTrips();
       const tripsById = new Map(trips.map((t) => [t.id, t]));
       const matchedSegments = segments.map((seg) => {
-        const matchingTrip = tripId
-          ? tripsById.get(tripId)
-          : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+        const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
         if (!matchingTrip) {
           return { ...seg, match: { status: "new" as const } };
         }
@@ -1282,8 +1935,69 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         byTrip.set(seg.tripId, list);
       }
 
+      // Upfront date-range validation. A `create` action with a date outside
+      // the chosen trip's startDate..endDate window is a user mistake — the
+      // segment can't land on a day that doesn't exist, and we used to
+      // silently drop it (the email got marked `mapped` but no segment was
+      // created, so the booking just vanished). Reject the whole request so
+      // the UI can surface a specific message and let the user either pick
+      // a different trip or fix the date. Merge / replace actions target an
+      // existing segment that's already on a real day, so `seg.date` is
+      // irrelevant for them and they're skipped here.
+      const outOfRange: Array<{
+        tripId: string;
+        tripTitle: string;
+        tripStartDate: string;
+        tripEndDate: string;
+        emailId: string;
+        title: string;
+        date: string;
+      }> = [];
+      const tripsForApply = new Map<string, Trip>();
       for (const [tid, segs] of byTrip) {
         const trip = await storage.getTrip(tid);
+        if (!trip) continue; // surfaced as a per-trip warning + skip below
+        tripsForApply.set(tid, trip);
+        for (const seg of segs) {
+          const action = seg.action ?? "create";
+          if (action !== "create") continue;
+          if (!isDateInRange(seg.date, trip.startDate, trip.endDate)) {
+            outOfRange.push({
+              tripId: tid,
+              tripTitle: trip.title,
+              tripStartDate: trip.startDate,
+              tripEndDate: trip.endDate,
+              emailId: seg.emailId,
+              title: seg.title,
+              date: seg.date,
+            });
+          }
+        }
+      }
+      if (outOfRange.length > 0) {
+        const first = outOfRange[0];
+        const message =
+          outOfRange.length === 1
+            ? `"${first.title}" on ${first.date} is outside "${first.tripTitle}" (${first.tripStartDate} – ${first.tripEndDate}). Pick a different trip or fix the date.`
+            : `${outOfRange.length} segments fall outside the selected trip's date range. Pick a different trip or fix the date.`;
+        console.warn(
+          `${applyPrefix} Rejecting apply: ${outOfRange.length} segment(s) out of range — ${outOfRange
+            .map(
+              (o) =>
+                `"${o.title}" ${o.date} not in "${o.tripTitle}" ${o.tripStartDate}..${o.tripEndDate}`,
+            )
+            .join("; ")}`,
+        );
+        res.status(400).json({
+          error: message,
+          code: "OUT_OF_RANGE",
+          segments: outOfRange,
+        });
+        return;
+      }
+
+      for (const [tid, segs] of byTrip) {
+        const trip = tripsForApply.get(tid);
         if (!trip) {
           console.warn(`${applyPrefix} Trip ${tid} not found, skipping ${segs.length} segment(s)`);
           continue;
@@ -1394,13 +2108,34 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         };
         for (const day of trip.days) {
           if (day.city) continue;
-          let best: { city: string; priority: number; title: string } | null = null;
+          // Pick the day's city by precedence + recency:
+          //   - Lower priority value wins outright (activities/hotels
+          //     beat flights beat cars — non-transport is the strongest
+          //     "where are you THIS day" signal).
+          //   - Same priority → later startTime wins. This is what
+          //     makes a layover flight (MIA→LAX 8am, LAX→SEA noon)
+          //     report Seattle as the day's city instead of LAX,
+          //     regardless of the order segments were inserted into
+          //     `day.segments`. Same rule covers the "two dinners in
+          //     two cities" edge case — the later one is where the
+          //     traveler ends the day.
+          let best: {
+            city: string;
+            priority: number;
+            startTime: string;
+            title: string;
+          } | null = null;
           for (const seg of day.segments) {
             const segCity = seg.type === "flight" ? seg.arrivalCity : seg.city;
             if (!segCity) continue;
             const priority = cityPriority[seg.type];
-            if (best === null || priority < best.priority) {
-              best = { city: segCity, priority, title: seg.title };
+            const startTime = seg.startTime ?? "";
+            const wins =
+              best === null ||
+              priority < best.priority ||
+              (priority === best.priority && startTime > best.startTime);
+            if (wins) {
+              best = { city: segCity, priority, startTime, title: seg.title };
             }
           }
           if (best) {

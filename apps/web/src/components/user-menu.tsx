@@ -17,7 +17,8 @@ import {
 import { ThemeToggleMenu } from "@/components/theme-toggle";
 import { NotificationToggleMenu } from "@/components/notification-toggle";
 import { AutoShareRulesDialog } from "@/components/auto-share-rules-panel";
-import { LogIn, LogOut, Repeat, Smartphone, User } from "lucide-react";
+import { UserAvatar } from "@/components/user-avatar";
+import { LogIn, LogOut, Repeat, Smartphone, UserCog } from "lucide-react";
 
 export function UserMenu(): React.JSX.Element | null {
   const { user, isAuthenticated, logout } = useAuth();
@@ -51,21 +52,12 @@ export function UserMenu(): React.JSX.Element | null {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-2">
-          {user.picture ? (
-            // Google OAuth avatar — a tiny 24px image from an arbitrary
-            // Google CDN host. Next/Image would require whitelisting
-            // lh*.googleusercontent.com in next.config and provides
-            // negligible benefit at this size.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={user.picture}
-              alt=""
-              className="h-6 w-6 rounded-full"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <User className="h-4 w-4" />
-          )}
+          <UserAvatar
+            picture={user.picture}
+            name={user.name}
+            email={user.email}
+            size="sm"
+          />
           <span className="hidden sm:inline">{user.name}</span>
         </Button>
       </DropdownMenuTrigger>
@@ -84,6 +76,12 @@ export function UserMenu(): React.JSX.Element | null {
         </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
+        <DropdownMenuItem asChild>
+          <Link href="/settings/account">
+            <UserCog className="mr-2 h-4 w-4" />
+            Account
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           Sign out

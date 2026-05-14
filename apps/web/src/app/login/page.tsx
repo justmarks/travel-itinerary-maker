@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { startGoogleSignIn } from "@/lib/oauth";
+import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { AppWordmark } from "@/components/app-wordmark";
 import { AlertCircle, Info } from "lucide-react";
@@ -113,14 +113,48 @@ export default function LoginPage(): React.JSX.Element {
             </span>
           </div>
         )}
+        {/*
+          Both Google and Microsoft sign-in route through Supabase
+          Auth. The provider does the OAuth dance and bounces the
+          user back to `/auth/callback`, where the callback page
+          sets up the session and POSTs the provider tokens to
+          /api/v1/connections.
+        */}
         <Button
           size="lg"
           className="w-full"
           disabled={apiAvailable === false}
-          onClick={() => {
+          onClick={async () => {
             setLoginError(null);
             try {
-              startGoogleSignIn("/");
+              const supabase = getSupabaseClient();
+              if (!supabase) {
+                setLoginError("Sign-in is not configured.");
+                return;
+              }
+              const { error } = await supabase.auth.signInWithOAuth({
+                provider: "google",
+                options: {
+                  redirectTo: `${window.location.origin}/auth/callback`,
+                  // Minimum scope set: identity only. Mail / Calendar
+                  // capabilities are granted on-demand via the
+                  // explicit Connect buttons on /settings/account so
+                  // we don't ask for permissions until the user has
+                  // signalled they want the feature.
+                  //
+                  // `prompt=select_account` forces Google to show the
+                  // account picker rather than auto-signing in with
+                  // whichever account is currently active in the
+                  // browser. Users with multiple Google accounts
+                  // otherwise have no way to choose between them on
+                  // the sign-in screen.
+                  queryParams: {
+                    prompt: "select_account",
+                  },
+                },
+              });
+              if (error) throw error;
+              // Supabase fires the redirect; nothing else to do.
             } catch (err) {
               setLoginError(
                 err instanceof Error ? err.message : "Sign-in is not configured.",
@@ -147,6 +181,71 @@ export default function LoginPage(): React.JSX.Element {
             />
           </svg>
           Sign in with Google
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          className="w-full"
+          disabled={apiAvailable === false}
+          onClick={async () => {
+            setLoginError(null);
+            try {
+              const supabase = getSupabaseClient();
+              if (!supabase) {
+                setLoginError("Sign-in is not configured.");
+                return;
+              }
+              const { error } = await supabase.auth.signInWithOAuth({
+                // "azure" is the Supabase identifier for the
+                // Microsoft / Azure AD provider — they registered it
+                // before "microsoft" was a common alias.
+                provider: "azure",
+                options: {
+                  redirectTo: `${window.location.origin}/auth/callback`,
+                  // `offline_access` is required to receive a
+                  // refresh token from Microsoft; the Azure app
+                  // registration must include it in delegated
+                  // permissions (see docs/supabase-auth-setup.md).
+                  // `User.Read` is the Microsoft Graph delegated
+                  // permission needed for `/me/photo/$value` (the
+                  // profile photo fetch in `lib/auth.tsx`). Default
+                  // Azure app registrations include it as a delegated
+                  // permission, so users see no extra consent prompt.
+                  //
+                  // Mail.Read / Calendars.ReadWrite are NOT requested
+                  // here — the user hasn't asked for those features
+                  // yet. Connect buttons on /settings/account gate
+                  // those scope grants so we never ask for permissions
+                  // until the user has signalled they want the feature.
+                  scopes: "openid email profile offline_access User.Read",
+                  // `prompt=select_account` forces Microsoft to show
+                  // the account picker rather than silently signing
+                  // the user in with whichever account is currently
+                  // active in the browser. Users with multiple work /
+                  // personal Microsoft accounts otherwise have no way
+                  // to choose between them on the sign-in screen.
+                  queryParams: {
+                    prompt: "select_account",
+                  },
+                },
+              });
+              if (error) throw error;
+            } catch (err) {
+              setLoginError(
+                err instanceof Error
+                  ? err.message
+                  : "Sign-in is not configured.",
+              );
+            }
+          }}
+        >
+          <svg className="mr-2 h-5 w-5" viewBox="0 0 23 23">
+            <path fill="#f25022" d="M1 1h10v10H1z" />
+            <path fill="#7fba00" d="M12 1h10v10H12z" />
+            <path fill="#00a4ef" d="M1 12h10v10H1z" />
+            <path fill="#ffb900" d="M12 12h10v10H12z" />
+          </svg>
+          Sign in with Microsoft
         </Button>
         {/*
           Plain <a> tag (not next/link) on purpose: we want a full page

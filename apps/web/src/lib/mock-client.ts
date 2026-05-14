@@ -1,15 +1,15 @@
-import { ApiClient } from "@travel-app/api-client";
+import { ApiClient } from "@itinly/api-client";
 import {
   convertToUsd,
   applyCruisePortsToDayCities,
   primaryLocationFor,
   CURRENT_TRIP_SCHEMA_VERSION,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
   XlsxImportResponse,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import type {
   Trip,
   Segment,
@@ -31,7 +31,7 @@ import type {
   HtmlImportRequest,
   ApplyParsedSegmentsInput,
   XlsxImportRequest,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -1363,12 +1363,17 @@ export class MockApiClient extends ApiClient {
     // Generate days between startDate and endDate
     const days: TripDay[] = [];
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const start = new Date(startDate + "T00:00:00");
-    const end = new Date(endDate + "T00:00:00");
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    // UTC midnight + UTC date arithmetic so the loop and the
+    // resulting `toISOString().slice(0, 10)` agree on the date
+    // regardless of the browser's TZ — the previous form parsed
+    // local and serialised UTC, which dropped a day on
+    // UTC-east browsers.
+    const start = new Date(startDate + "T00:00:00Z");
+    const end = new Date(endDate + "T00:00:00Z");
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       days.push({
         date: d.toISOString().slice(0, 10),
-        dayOfWeek: DAY_NAMES[d.getDay()],
+        dayOfWeek: DAY_NAMES[d.getUTCDay()],
         city: "",
         segments: [],
       });
@@ -2056,6 +2061,41 @@ export class MockApiClient extends ApiClient {
     });
   }
 
+  override async streamScanEmails(
+    input: EmailScanRequest | undefined,
+    callbacks: {
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (
+        parsed: number,
+        total: number,
+        current?: { subject: string; from: string },
+      ) => void;
+    },
+  ): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
+    // Simulate the streaming cadence in demo mode so the spinner +
+    // progress UI exercise their real states. The non-streaming
+    // scanEmails returns 2 fake results — we replay the same shape
+    // through the SSE-style callbacks for the demo.
+    const scan = await this.scanEmails(input);
+    const total = scan.results.length;
+    callbacks.onFound?.(total);
+    await new Promise((r) => setTimeout(r, 200));
+    callbacks.onPlan?.(total, 0);
+    for (let i = 0; i < total; i++) {
+      const r = scan.results[i];
+      callbacks.onProgress?.(i, total, { subject: r.subject, from: r.from });
+      await new Promise((res) => setTimeout(res, 400));
+    }
+    callbacks.onProgress?.(total, total);
+    return {
+      results: scan.results,
+      pendingCount: 0,
+      newCount: total,
+      message: scan.message,
+    };
+  }
+
   override importHtmlEmail(
     _input: HtmlImportRequest,
   ): Promise<{ result: EmailScanResult }> {
@@ -2155,21 +2195,21 @@ export class MockApiClient extends ApiClient {
   override async exportMarkdown(tripId: string): Promise<string> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToMarkdown } = await import("@travel-app/shared");
+    const { tripToMarkdown } = await import("@itinly/shared");
     return tripToMarkdown(trip, { includeCosts: true, includeTodos: true });
   }
 
   override async exportOneNote(tripId: string): Promise<string> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToOneNoteHtml } = await import("@travel-app/shared");
+    const { tripToOneNoteHtml } = await import("@itinly/shared");
     return tripToOneNoteHtml(trip, { includeCosts: true, includeTodos: true });
   }
 
   override async exportIcal(tripId: string): Promise<Blob> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToIcal } = await import("@travel-app/shared");
+    const { tripToIcal } = await import("@itinly/shared");
     const ics = tripToIcal(trip);
     return new Blob([ics], { type: "text/calendar; charset=utf-8" });
   }
@@ -2177,7 +2217,7 @@ export class MockApiClient extends ApiClient {
   override async exportPdf(tripId: string): Promise<Blob> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
-    const { tripToOneNoteHtml } = await import("@travel-app/shared");
+    const { tripToOneNoteHtml } = await import("@itinly/shared");
     const html = tripToOneNoteHtml(trip, {
       includeCosts: true,
       includeTodos: true,

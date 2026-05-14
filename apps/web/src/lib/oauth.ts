@@ -51,21 +51,17 @@ const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 
 /**
  * Scopes requested at first sign-in against the *primary* OAuth client.
- * Kept minimal so most users see the shortest possible Google consent
- * screen — Drive is the only Google API the app needs to function
- * (trips live in the user's Drive). Calendar is added on demand via
- * `requestAdditionalScopes` when the user opts into calendar sync.
+ * Kept minimal — only the identity scopes needed to authenticate the
+ * user. Trip data lives in Supabase Postgres now (Phase 6 of the
+ * backend-migration plan), so no Google data scope is needed at sign-in.
+ * Calendar is added on demand via `requestAdditionalScopes` when the
+ * user opts into calendar sync.
  *
  * `gmail.readonly` is NOT in this list — Gmail uses a separate OAuth
  * client (see `startGmailLink`) so the primary client doesn't have to
  * carry the restricted scope and trigger Google's CASA assessment.
  */
-export const INITIAL_SCOPES = [
-  "openid",
-  "email",
-  "profile",
-  "https://www.googleapis.com/auth/drive.file",
-];
+export const INITIAL_SCOPES = ["openid", "email", "profile"];
 
 /**
  * Scopes requested when the user opts into email scanning. Granted by
@@ -85,17 +81,6 @@ export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
 /** Scope required to push trip events to Google Calendar. */
 export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
-
-/**
- * Per-file Drive scope. The app's storage layer reads/writes trips into
- * a hidden app folder in the user's Drive; without this the user can
- * sign in but every owner-side trip operation fails. We request it as
- * part of the initial consent screen, but Google lets users untick
- * individual scopes — a user who unticks Drive lands "signed-in-but-
- * broken", which the dashboard detects via `hasScope(DRIVE_SCOPE)` and
- * recovers from by calling `requestAdditionalScopes([DRIVE_SCOPE], …)`.
- */
-export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
 /** Parses Google's space-separated `scope` response into an array. */
 export function parseScopeString(scope: string | null | undefined): string[] {
@@ -268,10 +253,11 @@ interface BuildAuthUrlOptions {
   /**
    * Whether to ask Google to extend the access token with previously
    * granted scopes. We set this for the *primary* client (so an
-   * incremental Calendar grant doesn't drop the original Drive grant)
-   * but NOT for the Gmail client — the Gmail flow stands alone, has no
-   * prior grants on the same client, and `include_granted_scopes` only
-   * unions within a single client anyway.
+   * incremental Calendar grant doesn't drop earlier identity scopes
+   * or a prior Calendar grant on the same client) but NOT for the
+   * Gmail client — the Gmail flow stands alone, has no prior grants
+   * on the same client, and `include_granted_scopes` only unions
+   * within a single client anyway.
    */
   includeGrantedScopes: boolean;
 }
@@ -340,20 +326,10 @@ export function isGmailLinkConfigured(): boolean {
   return !!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID_GMAIL;
 }
 
-export function startGoogleSignIn(returnTo: string): void {
-  window.location.href = buildAuthUrl({
-    clientId: getPrimaryClientId(),
-    scopes: INITIAL_SCOPES,
-    returnTo,
-    flow: "primary",
-    includeGrantedScopes: true,
-  });
-}
-
 /**
  * Re-runs the OAuth redirect to add scopes to the user's *primary*
- * client grant. Used for Calendar — the user's already signed in with
- * Drive, then opts into Calendar sync, and we ask Google for the extra
+ * client grant. Used for Calendar — the user's already signed in,
+ * then opts into Calendar sync, and we ask Google for the extra
  * scope on the same client.
  *
  * Pairs with `include_granted_scopes=true`: Google's consent screen

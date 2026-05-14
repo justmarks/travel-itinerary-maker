@@ -10,7 +10,7 @@ import {
   useMap,
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
-import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
+import type { Trip, TripDay, Segment, SegmentType } from "@itinly/shared";
 import { ExternalLink, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCategoryPinColors } from "@/lib/category-pin-colors";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useUpdateDay } from "@travel-app/api-client";
+import { useUpdateDay } from "@itinly/api-client";
 import { Check, MapPin, Pencil, X } from "lucide-react";
 import { toastMutationError } from "@/lib/api-error";
 

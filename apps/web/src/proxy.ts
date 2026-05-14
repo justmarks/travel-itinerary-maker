@@ -109,6 +109,21 @@ function buildCsp(nonce: string): string {
       "https://upload.wikimedia.org",
       "https://*.ingest.sentry.io",
       "https://*.vercel-insights.com",
+      // Supabase Auth (phase 3b): the `@supabase/supabase-js` client
+      // calls `https://<project-ref>.supabase.co/auth/v1/...` for the
+      // PKCE code exchange, session refresh, sign-out, and identity-
+      // linking calls. Wildcarding `*.supabase.co` covers any project
+      // ref without needing to thread the exact URL through the
+      // middleware (which runs at the edge and can't easily read
+      // `NEXT_PUBLIC_SUPABASE_URL`).
+      "https://*.supabase.co",
+      // Microsoft Graph: `auth.tsx` fetches the signed-in Microsoft
+      // user's profile photo from `/v1.0/me/photo/$value` using the
+      // provider_token Supabase surfaces post-sign-in. Microsoft
+      // doesn't expose the photo URL via standard OIDC claims, so a
+      // direct Graph call is the only path. Read-only, scoped to the
+      // signed-in user via the bearer token.
+      "https://graph.microsoft.com",
     ],
     "worker-src": ["'self'"],
     "manifest-src": ["'self'"],

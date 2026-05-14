@@ -15,7 +15,7 @@
  */
 
 import webpush, { type SendResult, type WebPushError } from "web-push";
-import type { PushSubscription as SharedPushSubscription } from "@travel-app/shared";
+import type { PushSubscription as SharedPushSubscription } from "@itinly/shared";
 import { config } from "../config/env";
 import type { PushSubscriptionStore } from "./push-subscription-store";
 

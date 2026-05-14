@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { useDeleteShare, useTrips } from "@travel-app/api-client";
-import type { TripSummary } from "@travel-app/api-client";
+import { useDeleteShare, useTrips } from "@itinly/api-client";
+import type { TripSummary } from "@itinly/api-client";
 import {
   AlertCircle,
   Calendar,
@@ -41,7 +41,6 @@ import {
   useDelayedLoadingHint,
 } from "@/components/trip-card-skeleton";
 import { AppLogo } from "@/components/app-logo";
-import { DriveScopeBanner } from "@/components/drive-scope-banner";
 import {
   daysUntil,
   flagEmoji,
@@ -487,9 +486,6 @@ function MobileHomeContent(): React.JSX.Element {
         />
       </header>
       <div className="flex-1 overflow-y-auto pb-6">
-        <div className="pt-3">
-          <DriveScopeBanner variant="mobile" />
-        </div>
         <MobileTripList onCreateTrip={() => setCreateOpen(true)} />
       </div>
       <MobileCreateTripSheet

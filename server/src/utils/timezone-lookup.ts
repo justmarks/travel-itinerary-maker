@@ -9,10 +9,30 @@
  *   - timeapi.io: https://timeapi.io
  */
 
-import { getCityTimezone, preloadCityTimezone } from "@travel-app/shared";
-import type { Trip } from "@travel-app/shared";
+import { getCityTimezone, preloadCityTimezone } from "@itinly/shared";
+import type { Trip } from "@itinly/shared";
+import { isTimezoneDebugEnabled } from "./debug-log";
 
+// Bounded cache. Misspelled / one-off city strings (user typos,
+// "John's place in Paris") would otherwise accumulate forever and
+// each entry is a string pair, but with millions of trips × dozens
+// of segments the upper bound matters. JS Maps preserve insertion
+// order, so when we hit the cap we drop the oldest entry — same
+// shape as an LRU but without tracking access order (each entry's
+// useful lifetime is a single trip's resolve cycle anyway).
+const CACHE_MAX_SIZE = 5000;
 const resolvedCache = new Map<string, string>();
+
+function cacheSet(city: string, tz: string): void {
+  // Refresh ordering for an existing key by deleting + re-inserting.
+  if (resolvedCache.has(city)) resolvedCache.delete(city);
+  resolvedCache.set(city, tz);
+  while (resolvedCache.size > CACHE_MAX_SIZE) {
+    const firstKey = resolvedCache.keys().next().value;
+    if (firstKey === undefined) break;
+    resolvedCache.delete(firstKey);
+  }
+}
 
 async function fetchTimezoneForCity(city: string): Promise<string | undefined> {
   try {
@@ -75,10 +95,17 @@ export async function resolveTripTimezones(trip: Trip): Promise<void> {
       }
       const tz = await fetchTimezoneForCity(city);
       if (tz) {
-        console.log(`[timezone-lookup] Resolved "${city}" → ${tz}`);
-        resolvedCache.set(city, tz);
+        // City strings are user-controlled and may contain PII
+        // ("John's flat in Paris"). Gate the verbose echo behind
+        // DEBUG_TIMEZONES=1 so production Railway logs don't carry
+        // it. The aggregate resolve-count is the only signal ops
+        // actually needs day-to-day.
+        if (isTimezoneDebugEnabled()) {
+          console.log(`[timezone-lookup] Resolved "${city}" → ${tz}`);
+        }
+        cacheSet(city, tz);
         preloadCityTimezone(city, tz);
-      } else {
+      } else if (isTimezoneDebugEnabled()) {
         console.warn(`[timezone-lookup] Could not resolve timezone for: "${city}"`);
       }
     }),

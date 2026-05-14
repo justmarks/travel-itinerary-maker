@@ -8,8 +8,8 @@ import {
   useDeleteSegment,
   useUpdateDay,
   useUpdateSegment,
-} from "@travel-app/api-client";
-import type { Segment, SegmentType, Trip } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { Segment, SegmentType, Trip } from "@itinly/shared";
 import { Loader2, Trash2, X } from "lucide-react";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";

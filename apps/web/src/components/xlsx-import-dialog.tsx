@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useImportXlsxTrip, ApiError } from "@travel-app/api-client";
+import { useImportXlsxTrip, ApiError } from "@itinly/api-client";
 import {
   Dialog,
   DialogContent,

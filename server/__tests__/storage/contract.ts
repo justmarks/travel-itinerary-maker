@@ -1,21 +1,16 @@
 /**
  * Reusable behavioural contract for `StorageProvider`. Every backend
- * (`InMemoryStorage`, future `SupabaseStorage`, transitional
- * `DriveStorage`) is parameterised through this suite so they're held
- * to identical semantics.
- *
- * Phase 0: only `InMemoryStorage` plugs in. Phase 1 adds `SupabaseStorage`
- * by re-using this exact suite — that's the contract that gates the
- * Drive→Supabase switch.
+ * (`InMemoryStorage`, `SupabaseStorage`) is parameterised through this
+ * suite so they're held to identical semantics.
  */
 import {
   CURRENT_TRIP_SCHEMA_VERSION,
   type Trip,
   type TripShareRule,
   type UserSettings,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import type { StorageProvider } from "../../src/services/storage";
-import type { ProcessedEmail } from "../../src/services/google-drive/drive-storage";
+import type { ProcessedEmail } from "../../src/services/processed-email";
 
 export interface ContractHarness {
   /**
@@ -62,6 +57,14 @@ const makeRule = (overrides: Partial<TripShareRule> = {}): TripShareRule => ({
 const makeEmail = (overrides: Partial<ProcessedEmail> = {}): ProcessedEmail => ({
   gmailMessageId: "msg-1",
   parseStatus: "parsed",
+  // The Supabase storage layer always stamps provider + accountEmail
+  // on writes (defaults at the schema level; explicit values for
+  // multi-account / Microsoft scans). The contract fixture includes
+  // them so round-trip equality holds against both InMemoryStorage
+  // (which echoes the input verbatim) and SupabaseStorage (which
+  // reads them back from the DB row).
+  provider: "google",
+  accountEmail: "test@example.com",
   createdAt: "2026-05-09T10:00:00.000Z",
   ...overrides,
 });
@@ -227,11 +230,24 @@ export function runStorageProviderContract(harness: ContractHarness): void {
     });
 
     it("saves and lists rules sorted by createdAt", async () => {
+      // Distinct recipients so the persisted layer's
+      // (owner, recipient) uniqueness invariant doesn't reject the
+      // second insert. Earlier versions of this test reused the
+      // default recipient — an InMemoryStorage hole that the
+      // SupabaseStorage Postgres unique index correctly catches.
       await storage.saveShareRule(
-        makeRule({ id: "rule-b", createdAt: "2026-05-09T11:00:00.000Z" }),
+        makeRule({
+          id: "rule-b",
+          sharedWithEmail: "guest-b@example.com",
+          createdAt: "2026-05-09T11:00:00.000Z",
+        }),
       );
       await storage.saveShareRule(
-        makeRule({ id: "rule-a", createdAt: "2026-05-09T10:00:00.000Z" }),
+        makeRule({
+          id: "rule-a",
+          sharedWithEmail: "guest-a@example.com",
+          createdAt: "2026-05-09T10:00:00.000Z",
+        }),
       );
       const rules = await storage.listShareRules();
       expect(rules.map((r) => r.id)).toEqual(["rule-a", "rule-b"]);

@@ -5,11 +5,14 @@
  * each is a distinct endpoint. The send path fans out to every endpoint
  * the user has registered.
  *
- * Two-layer design mirrors `TokenStore` / `ShareRegistry`:
+ * Phase 2 of the Drive→Supabase migration moves persistence from Redis
+ * to Postgres. Public API is unchanged — sync reads, the write-through
+ * pattern, hydrate-at-startup — only the durable backing swaps.
+ *
  *   1. In-memory `Map<userId, PushEntry[]>` — primary read path.
- *   2. Optional Redis hash (`push-subs` field per user) — write-through
- *      so subscriptions survive process restarts. When Redis isn't
- *      configured the store behaves as pure in-memory.
+ *   2. Optional Postgres `push_subscriptions` table — write-through so
+ *      subscriptions survive process restarts. When no `dbClient` is
+ *      provided the store behaves as pure in-memory (dev / test path).
  *
  * Subscriptions are also indexed by email so the share-creation flow
  * can look up "every device the invited recipient is signed in on"
@@ -18,8 +21,10 @@
  * on the recipient having ever logged in to *this* server.
  */
 
-import type { PushSubscription } from "@travel-app/shared";
-import type { RedisStore } from "./redis-store";
+import { eq } from "drizzle-orm";
+import type { PushSubscription } from "@itinly/shared";
+import type { Db, DbClient } from "../db/client";
+import { pushSubscriptions } from "../db/schema";
 
 export interface PushEntry {
   /** Google user ID — primary owner key. */
@@ -32,8 +37,6 @@ export interface PushEntry {
   createdAt: string;
 }
 
-const REDIS_HASH = "push-subs";
-
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -41,24 +44,38 @@ function normalizeEmail(email: string): string {
 export class PushSubscriptionStore {
   private byUser: Map<string, PushEntry[]> = new Map();
   private byEmail: Map<string, Set<string>> = new Map();
-  private redis: RedisStore | null;
+  private db: Db | null;
 
-  constructor(redis: RedisStore | null = null) {
-    this.redis = redis;
+  constructor(dbClient: DbClient | null = null) {
+    this.db = dbClient?.db ?? null;
   }
 
   async hydrate(): Promise<void> {
-    if (!this.redis) return;
+    if (!this.db) return;
     try {
-      const all = await this.redis.hgetall<PushEntry[]>(REDIS_HASH);
-      for (const [userId, entries] of Object.entries(all)) {
-        const list = Array.isArray(entries) ? entries : [];
-        this.byUser.set(userId, list);
-        for (const entry of list) this.indexEmail(entry);
+      const rows = await this.db.select().from(pushSubscriptions);
+      for (const row of rows) {
+        const entry: PushEntry = {
+          userId: row.userId,
+          email: row.email,
+          subscription: {
+            endpoint: row.endpoint,
+            keys: { p256dh: row.p256dh, auth: row.auth },
+          },
+          userAgent: row.userAgent ?? undefined,
+          createdAt: row.createdAt.toISOString(),
+        };
+        const list = this.byUser.get(entry.userId) ?? [];
+        list.push(entry);
+        this.byUser.set(entry.userId, list);
+        this.indexEmail(entry);
       }
-      const total = Array.from(this.byUser.values()).reduce((n, list) => n + list.length, 0);
+      const total = Array.from(this.byUser.values()).reduce(
+        (n, list) => n + list.length,
+        0,
+      );
       console.log(
-        `[push-subs] hydrated ${total} subscription${total === 1 ? "" : "s"} for ${this.byUser.size} user${this.byUser.size === 1 ? "" : "s"} from Redis`,
+        `[push-subs] hydrated ${total} subscription${total === 1 ? "" : "s"} for ${this.byUser.size} user${this.byUser.size === 1 ? "" : "s"} from Postgres`,
       );
     } catch (err) {
       console.warn(
@@ -93,8 +110,9 @@ export class PushSubscriptionStore {
       subscription: args.subscription,
       userAgent: args.userAgent,
       createdAt:
-        existingIdx >= 0 ? (list[existingIdx]?.createdAt ?? new Date().toISOString())
-                         : new Date().toISOString(),
+        existingIdx >= 0
+          ? (list[existingIdx]?.createdAt ?? new Date().toISOString())
+          : new Date().toISOString(),
     };
     if (existingIdx >= 0) {
       list[existingIdx] = entry;
@@ -103,7 +121,7 @@ export class PushSubscriptionStore {
     }
     this.byUser.set(args.userId, list);
     this.indexEmail(entry);
-    this.persist(args.userId, list);
+    this.persistUpsert(entry);
   }
 
   /** Remove a subscription by endpoint. Used when the browser unsubscribes. */
@@ -117,7 +135,7 @@ export class PushSubscriptionStore {
     if (list.length === 0) {
       this.byUser.delete(userId);
     }
-    this.persist(userId, list);
+    this.persistDelete(endpoint);
     return true;
   }
 
@@ -131,11 +149,12 @@ export class PushSubscriptionStore {
       const idx = list.findIndex((e) => e.subscription.endpoint === endpoint);
       if (idx < 0) continue;
       const [removed] = list.splice(idx, 1);
-      if (removed) this.unindexEmail(removed.email, removed.subscription.endpoint);
+      if (removed)
+        this.unindexEmail(removed.email, removed.subscription.endpoint);
       if (list.length === 0) {
         this.byUser.delete(userId);
       }
-      this.persist(userId, list);
+      this.persistDelete(endpoint);
       return;
     }
   }
@@ -163,23 +182,77 @@ export class PushSubscriptionStore {
     return result;
   }
 
-  /** Test helper. Does NOT touch Redis. */
+  /** Test helper. Does NOT touch Postgres. */
   clear(): void {
     this.byUser.clear();
     this.byEmail.clear();
   }
 
-  private persist(userId: string, list: PushEntry[]): void {
-    if (!this.redis) return;
-    const op = list.length === 0
-      ? this.redis.hdel(REDIS_HASH, userId)
-      : this.redis.hset(REDIS_HASH, userId, list);
-    op.catch((err) =>
-      console.warn(
-        `[push-subs] redis write failed for ${userId}:`,
-        err instanceof Error ? err.message : err,
-      ),
-    );
+  /**
+   * Hard-delete every subscription for `userId` from both the in-memory
+   * index and the Postgres table. Used by the account-deletion route;
+   * irreversible.
+   */
+  async deleteAllForUser(userId: string): Promise<void> {
+    const list = this.byUser.get(userId);
+    if (list) {
+      for (const entry of list) {
+        this.unindexEmail(entry.email, entry.subscription.endpoint);
+      }
+      this.byUser.delete(userId);
+    }
+    if (this.db) {
+      await this.db
+        .delete(pushSubscriptions)
+        .where(eq(pushSubscriptions.userId, userId));
+    }
+  }
+
+  private persistUpsert(entry: PushEntry): void {
+    if (!this.db) return;
+    // Endpoint is the PK; same browser re-registering updates the row.
+    // Fire-and-forget matches the existing pattern: in-memory state is
+    // correct synchronously; durability failures degrade silently.
+    this.db
+      .insert(pushSubscriptions)
+      .values({
+        endpoint: entry.subscription.endpoint,
+        userId: entry.userId,
+        email: entry.email,
+        p256dh: entry.subscription.keys.p256dh,
+        auth: entry.subscription.keys.auth,
+        userAgent: entry.userAgent ?? null,
+        createdAt: new Date(entry.createdAt),
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          userId: entry.userId,
+          email: entry.email,
+          p256dh: entry.subscription.keys.p256dh,
+          auth: entry.subscription.keys.auth,
+          userAgent: entry.userAgent ?? null,
+        },
+      })
+      .catch((err) =>
+        console.warn(
+          "[push-subs] db upsert failed:",
+          err instanceof Error ? err.message : err,
+        ),
+      );
+  }
+
+  private persistDelete(endpoint: string): void {
+    if (!this.db) return;
+    this.db
+      .delete(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .catch((err) =>
+        console.warn(
+          "[push-subs] db delete failed:",
+          err instanceof Error ? err.message : err,
+        ),
+      );
   }
 
   private indexEmail(entry: PushEntry): void {

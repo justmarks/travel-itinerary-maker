@@ -13,8 +13,8 @@ import {
 import {
   SEGMENT_LABELS,
   SEGMENT_TOKEN_FAMILY,
-} from "@travel-app/shared";
-import type { SegmentType } from "@travel-app/shared";
+} from "@itinly/shared";
+import type { SegmentType } from "@itinly/shared";
 
 /**
  * Per-segment-type icon component + design tokens used by every mobile

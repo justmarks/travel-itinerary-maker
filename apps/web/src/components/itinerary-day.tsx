@@ -6,13 +6,13 @@ import {
   formatFlightEndpoint,
   SEGMENT_LABELS,
   SEGMENT_TOKEN_FAMILY,
-} from "@travel-app/shared";
-import type { SegmentType, TripDay, Segment } from "@travel-app/shared";
+} from "@itinly/shared";
+import type { SegmentType, TripDay, Segment } from "@itinly/shared";
 import {
   useDeleteSegment,
   useConfirmSegment,
   useUpdateDay,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";

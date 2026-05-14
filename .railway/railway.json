@@ -2,14 +2,21 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @travel-app/shared build && pnpm --filter @travel-app/server build",
+    "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @itinly/shared build && pnpm --filter @itinly/server build",
     "watchPatterns": [
-      "server/**"
+      "server/**",
+      "packages/shared/**",
+      "pnpm-lock.yaml",
+      "package.json",
+      "pnpm-workspace.yaml",
+      "tsconfig.base.json",
+      ".railway/railway.json"
     ]
   },
   "deploy": {
     "runtime": "V2",
     "numReplicas": 1,
+    "preDeployCommand": "node server/dist/db/migrate.js",
     "startCommand": "node server/dist/index.js",
     "sleepApplication": false,
     "useLegacyStacker": false,

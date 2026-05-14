@@ -1,4 +1,4 @@
-import type { GmailLabel } from "@travel-app/shared";
+import type { GmailLabel } from "@itinly/shared";
 
 /**
  * Gmail's labels API returns a flat list where nested labels carry

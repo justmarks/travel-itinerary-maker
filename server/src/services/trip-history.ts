@@ -7,7 +7,7 @@ import {
   type Trip,
   type TripHistoryEntry,
   type TripHistoryKind,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface RecordHistoryOptions {
   details?: string;
@@ -139,7 +139,25 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   if (a === null || b === null) return false;
   if (typeof a !== typeof b) return false;
   if (typeof a === "object") {
-    return JSON.stringify(a) === JSON.stringify(b);
+    // `JSON.stringify` is insertion-order-sensitive. A cost object
+    // re-saved with `{currency, amount}` vs `{amount, currency}`
+    // would otherwise show as "changed" in the history audit log
+    // even though the values are identical — noise that drowns
+    // real edits. Serialise with a stable key order so the compare
+    // reflects content, not key insertion order.
+    return stableStringify(a) === stableStringify(b);
   }
   return false;
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(value, (_key, v: unknown) => {
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const obj = v as Record<string, unknown>;
+      const sorted: Record<string, unknown> = {};
+      for (const k of Object.keys(obj).sort()) sorted[k] = obj[k];
+      return sorted;
+    }
+    return v;
+  });
 }

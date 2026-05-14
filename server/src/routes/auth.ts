@@ -1,11 +1,11 @@
 import { Router, type Request, type Response } from "express";
 import { google } from "googleapis";
+import { generateId as generateConnectionId } from "@itinly/shared";
 import { config } from "../config/env";
 import { requireAuth } from "../middleware/auth";
 import { createAuthRateLimiter } from "../middleware/rate-limit";
 import type { TokenStore } from "../services/token-store";
 import type { ShareRegistry } from "../services/share-registry";
-import { rebuildRegistryForUser } from "../services/registry-rebuild";
 
 export interface AuthRoutesOptions {
   tokenStore?: TokenStore;
@@ -16,6 +16,16 @@ export interface AuthRoutesOptions {
    * once any owner logs back in.
    */
   shareRegistry?: ShareRegistry;
+  /**
+   * Phase 4c: when provided, Supabase-authed users completing the
+   * Gmail-link flow get a `connections` row (provider=google,
+   * capability=email) instead of (or in addition to) a `TokenStore`
+   * entry. Without it, only legacy Google-authed users can link
+   * Gmail. The two paths coexist throughout phase 4 — Supabase users
+   * route their email-scan through the `connections`-backed
+   * resolver from phase 4b-2; legacy users keep using TokenStore.
+   */
+  connectionsStore?: import("../services/connections-store").ConnectionsStore;
 }
 
 /**
@@ -73,7 +83,7 @@ async function fetchTokenScopes(
 }
 
 export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
-  const { tokenStore, shareRegistry } = options;
+  const { tokenStore, shareRegistry, connectionsStore } = options;
   const router = Router();
   // Build the limiter once and apply per-route below; building it
   // in the route registration line would create a fresh in-memory
@@ -162,34 +172,12 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
           grantedScopes,
         );
 
-        // Pre-warm the share registry: walk this user's trips and
-        // re-register every share entry. After a server restart the
-        // registry is empty, but as soon as any owner logs back in
-        // their share links start working again. Fire-and-forget so the
-        // login response isn't gated on a Drive scan.
-        if (shareRegistry) {
-          // Match the request-log shape used by `[trips <email>] <ACTION>
-          // → ...` so a Railway tail can be filtered by user.
-          const tag = `[auth ${userInfo.data.email || "anon"}]`;
-          rebuildRegistryForUser(
-            userInfo.data.id,
-            shareRegistry,
-            tokenStore,
-          )
-            .then((result) => {
-              if (result && result.registered > 0) {
-                console.log(
-                  `${tag} pre-warm-registry → registered=${result.registered}`,
-                );
-              }
-            })
-            .catch((err) => {
-              console.warn(
-                `${tag} pre-warm-registry failed:`,
-                err instanceof Error ? err.message : err,
-              );
-            });
-        }
+        // Phase 2: ShareRegistry persists durably to Postgres
+        // (`trip_shares` table), so the prior "rebuild on login by
+        // scanning Drive" pre-warm is no longer needed. The registry
+        // hydrates from Postgres at server startup; per-login
+        // rescanning Drive is just wasted quota and latency once the
+        // durable backing exists.
       }
 
       // Surface any existing Gmail link on the response so the frontend
@@ -265,14 +253,19 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         res.status(400).json({ error: "Authorization code is required" });
         return;
       }
-      if (!tokenStore) {
+      if (!req.userId) {
+        res.status(401).json({ error: "Primary auth is required" });
+        return;
+      }
+      // Need at least one storage backend. Supabase-authed users go
+      // to ConnectionsStore (Postgres); legacy users go to TokenStore
+      // (Redis). One must be available for the route to be useful.
+      const useConnections =
+        req.authSource === "supabase" && !!connectionsStore;
+      if (!useConnections && !tokenStore) {
         res.status(503).json({
           error: "Token persistence is not configured on this server",
         });
-        return;
-      }
-      if (!req.userId) {
-        res.status(401).json({ error: "Primary auth is required" });
         return;
       }
 
@@ -297,18 +290,35 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
         const gmailUserInfo = await oauth2.userinfo.get();
 
+        // Legacy Google-authed users: `req.userId` *is* the Google sub.
         // Refuse to attach a Gmail link from a different Google account
         // than the one that owns the primary session. Without this, a
         // user who hits "Choose another account" on the Gmail consent
         // screen could silently link account B's inbox to account A's
         // trip data.
-        if (gmailUserInfo.data.id !== req.userId) {
-          res.status(400).json({
-            error:
-              "Gmail authorization is for a different Google account than your sign-in. Please re-try and choose the same account.",
-            code: "GMAIL_ACCOUNT_MISMATCH",
-          });
-          return;
+        //
+        // Supabase-authed users (cross-provider case): the Supabase user
+        // may have signed in with Microsoft and is intentionally linking
+        // a Gmail mailbox — the Gmail account's email won't match the
+        // Supabase user's email, and forcing them equal blocks the
+        // common "Microsoft-primary + Gmail capability" combination.
+        // The connection row records `accountEmail = gmailUserInfo.email`
+        // (see below), so even a same-provider Supabase user who picked
+        // a *different* Google account on the consent screen ends up
+        // with that account stored on the row, not the Supabase email.
+        // The user picked the account in the OAuth screen explicitly,
+        // and they can disconnect from /settings/account if they made
+        // a mistake — no silent cross-account leakage.
+        if (req.authSource !== "supabase") {
+          const gmailAccountMatches = gmailUserInfo.data.id === req.userId;
+          if (!gmailAccountMatches) {
+            res.status(400).json({
+              error:
+                "Gmail authorization is for a different Google account than your sign-in. Please re-try and choose the same account.",
+              code: "GMAIL_ACCOUNT_MISMATCH",
+            });
+            return;
+          }
         }
 
         if (!tokens.refresh_token) {
@@ -332,24 +342,66 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
           tokens.scope,
         );
 
-        const linked = tokenStore.setGmail(
-          req.userId,
-          tokens.refresh_token,
-          gmailScopesResult.scopes,
-        );
-        if (!linked) {
-          res.status(409).json({
-            error:
-              "No primary entry found for this user — sign in first, then link Gmail.",
+        // Storage routing:
+        //   - Supabase user → write to `connections` table (Phase 4c
+        //     migration target). The email-scan path reads from
+        //     here via the Phase 4b-2 resolver.
+        //   - Legacy Google user → write to TokenStore (Redis). The
+        //     existing `requireGmailAuth` middleware reads from
+        //     here and mints a per-request access token.
+        let linkedAt: string | null = null;
+        if (useConnections && connectionsStore && req.authSource === "supabase") {
+          // The mailbox's own email goes on the connection row — that's
+          // the account whose inbox we'll scan, not necessarily the
+          // user's Supabase sign-in email (the cross-provider case
+          // above relies on this).
+          const accountEmail = gmailUserInfo.data.email ?? req.userEmail ?? "";
+          const expiresAt = tokens.expiry_date
+            ? new Date(tokens.expiry_date)
+            : undefined;
+          // Find an existing row to preserve its id across re-link.
+          const existing = await connectionsStore.findByKey({
+            userId: req.userId,
+            provider: "google",
+            capability: "email",
+            accountEmail,
           });
-          return;
+          const upserted = await connectionsStore.upsert({
+            id: existing?.id ?? generateConnectionId(),
+            userId: req.userId,
+            provider: "google",
+            capability: "email",
+            accountEmail,
+            refreshToken: tokens.refresh_token,
+            accessToken: tokens.access_token ?? undefined,
+            expiresAt,
+            scopes: gmailScopesResult.scopes,
+          });
+          linkedAt = upserted.updatedAt.toISOString();
+        } else {
+          if (!tokenStore) {
+            res.status(503).json({
+              error: "Token persistence is not configured on this server",
+            });
+            return;
+          }
+          const linked = tokenStore.setGmail(
+            req.userId,
+            tokens.refresh_token,
+            gmailScopesResult.scopes,
+          );
+          if (!linked) {
+            res.status(409).json({
+              error:
+                "No primary entry found for this user — sign in first, then link Gmail.",
+            });
+            return;
+          }
+          const stored = tokenStore.get(req.userId);
+          linkedAt = stored?.gmailUpdatedAt ?? null;
         }
 
-        const stored = tokenStore.get(req.userId);
-        res.json({
-          scopes: gmailScopesResult.scopes,
-          linkedAt: stored?.gmailUpdatedAt ?? null,
-        });
+        res.json({ scopes: gmailScopesResult.scopes, linkedAt });
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Gmail authentication failed";

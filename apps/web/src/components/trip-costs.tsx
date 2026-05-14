@@ -1,7 +1,7 @@
 "use client";
 
-import { useCostSummary } from "@travel-app/api-client";
-import { costCategoryLabel, formatCurrency } from "@travel-app/shared";
+import { useCostSummary } from "@itinly/api-client";
+import { costCategoryLabel, formatCurrency } from "@itinly/shared";
 
 function fmtUsd(amount: number) {
   return `$${amount.toLocaleString("en-US", {

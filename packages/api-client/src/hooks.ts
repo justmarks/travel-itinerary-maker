@@ -25,8 +25,8 @@ import type {
   EmailScanRequest,
   HtmlImportRequest,
   XlsxImportRequest,
-} from "@travel-app/shared";
-import { generateId } from "@travel-app/shared";
+} from "@itinly/shared";
+import { generateId } from "@itinly/shared";
 import type {
   TripSummary,
   CostSummaryResponse,
@@ -47,6 +47,7 @@ export const queryKeys = {
   shareRules: ["share-rules"] as const,
   shared: (token: string) => ["shared", token] as const,
   gmailLabels: ["gmail", "labels"] as const,
+  connections: ["connections"] as const,
   processedEmails: ["emails", "processed"] as const,
   pushConfig: ["push", "config"] as const,
   pushStatus: (endpoint?: string) =>
@@ -694,7 +695,40 @@ export function useCreateShareRule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateShareRuleInput) => client.createShareRule(input),
-    onSuccess: () => {
+    // Optimistic add: per CLAUDE.md, user-triggered actions update
+    // the cache via `onMutate` so the rule appears in the list the
+    // moment the user clicks "Auto-share". The server's response
+    // settles the canonical row via `onSettled` invalidate.
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.shareRules });
+      const previous = queryClient.getQueryData<TripShareRule[]>(
+        queryKeys.shareRules,
+      );
+      const now = new Date().toISOString();
+      const optimistic: TripShareRule = {
+        id: `temp_${generateId()}`,
+        ownerUserId: "self",
+        sharedWithEmail: input.sharedWithEmail,
+        permission: input.permission,
+        showCosts: input.showCosts,
+        showTodos: input.showTodos,
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (previous) {
+        queryClient.setQueryData<TripShareRule[]>(queryKeys.shareRules, [
+          ...previous,
+          optimistic,
+        ]);
+      }
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(queryKeys.shareRules, ctx.previous);
+      }
+    },
+    onSettled: () => {
       // Spawned shares mean every trip's `shares` list may have changed
       // (and the trip-list summary too if it surfaces share counts).
       queryClient.invalidateQueries({ queryKey: queryKeys.shareRules });
@@ -821,11 +855,31 @@ export function usePendingEmails(enabled = true) {
   });
 }
 
-export function useGmailLabels(enabled = true) {
+export function useGmailLabels(
+  enabled = true,
+  provider?: "google" | "microsoft",
+) {
   const client = useApiClient();
   return useQuery({
-    queryKey: queryKeys.gmailLabels,
-    queryFn: () => client.getGmailLabels(),
+    queryKey: provider
+      ? [...queryKeys.gmailLabels, provider]
+      : queryKeys.gmailLabels,
+    queryFn: () => client.getGmailLabels(provider),
+    enabled,
+  });
+}
+
+/**
+ * Lists the user's active OAuth connections. Drives feature gating
+ * decisions ("does the user have any email link?", "should the
+ * calendar-sync button render?"). Skipped in demo mode by callers
+ * (mirrors the `useGmailLabels` pattern).
+ */
+export function useConnections(enabled = true) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.connections,
+    queryFn: () => client.listConnections(),
     enabled,
   });
 }
@@ -835,6 +889,43 @@ export function useScanEmails() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input?: EmailScanRequest) => client.scanEmails(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
+/**
+ * Streaming variant of `useScanEmails`. Same input + result shape as
+ * the non-streaming mutation, but takes progress callbacks so the UI
+ * can render "Found N", "Parsing 12 of 89: Subject…" while the
+ * server works through the mailbox. Callbacks fire on the React
+ * event loop, so it's safe to call `setState` directly from them.
+ */
+export function useStreamingScanEmails() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (vars: {
+      input?: EmailScanRequest;
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (
+        parsed: number,
+        total: number,
+        current?: { subject: string; from: string },
+      ) => void;
+      signal?: AbortSignal;
+    }) =>
+      client.streamScanEmails(
+        vars.input,
+        {
+          onFound: vars.onFound,
+          onPlan: vars.onPlan,
+          onProgress: vars.onProgress,
+        },
+        vars.signal,
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
     },

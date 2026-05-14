@@ -7,11 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Trip, Segment } from "@travel-app/shared";
+import type { Trip, Segment } from "@itinly/shared";
 import {
   formatTripDateRange,
   tripDestinationCities,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import {
   ChevronLeft,
   ChevronRight,

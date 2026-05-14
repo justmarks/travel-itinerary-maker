@@ -54,7 +54,7 @@ describe("POST /auth/google", () => {
         refresh_token: "refresh-xyz",
         expiry_date: 9_999_999_999_999,
         scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file",
+          "openid email profile https://www.googleapis.com/auth/calendar",
       },
     });
     mockUserinfoGet.mockResolvedValueOnce({
@@ -68,7 +68,7 @@ describe("POST /auth/google", () => {
     mockTokeninfo.mockResolvedValueOnce({
       data: {
         scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file",
+          "openid email profile https://www.googleapis.com/auth/calendar",
       },
     });
 
@@ -82,7 +82,7 @@ describe("POST /auth/google", () => {
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
   });
 
@@ -92,7 +92,7 @@ describe("POST /auth/google", () => {
         access_token: "acc",
         refresh_token: "ref",
         expiry_date: 0,
-        scope: "openid https://www.googleapis.com/auth/drive.file",
+        scope: "openid https://www.googleapis.com/auth/calendar",
       },
     });
     mockUserinfoGet.mockResolvedValueOnce({
@@ -105,7 +105,7 @@ describe("POST /auth/google", () => {
     expect(res.status).toBe(200);
     expect(res.body.scopes).toEqual([
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
     warn.mockRestore();
   });
@@ -136,7 +136,7 @@ describe("POST /auth/google", () => {
         refresh_token: "ref-token",
         expiry_date: 0,
         scope:
-          "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly",
       },
     });
     mockUserinfoGet.mockResolvedValueOnce({
@@ -145,7 +145,7 @@ describe("POST /auth/google", () => {
     mockTokeninfo.mockResolvedValueOnce({
       data: {
         scope:
-          "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
+          "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly",
       },
     });
 
@@ -154,31 +154,31 @@ describe("POST /auth/google", () => {
     const stored = tokenStore.get("u2");
     expect(stored?.refreshToken).toBe("ref-token");
     expect(stored?.scopes).toEqual([
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
       "https://www.googleapis.com/auth/gmail.readonly",
     ]);
   });
 
   it("drops stale scopes when the user revoked them in Google Account (revoke-and-resign)", async () => {
-    // Pre-seed a user who previously granted Drive + Calendar, then
-    // went into Google Account → "Apps with access" and revoked the
-    // app entirely. Google forgot all their consents.
+    // Pre-seed a user who previously granted Calendar, then went into
+    // Google Account → "Apps with access" and revoked the app
+    // entirely. Google forgot all their consents.
     const tokenStore = new TokenStore();
     tokenStore.set("u-revoke", "old-refresh", "u-revoke@test.com", [
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "email",
+      "profile",
       "https://www.googleapis.com/auth/calendar",
     ]);
 
     // User signs in fresh — primary client requests only INITIAL_SCOPES
-    // (drive + identity, not calendar). tokeninfo returns just those.
+    // (identity, not calendar). tokeninfo returns just those.
     mockGetToken.mockResolvedValueOnce({
       tokens: {
         access_token: "acc-fresh",
         refresh_token: "ref-fresh",
         expiry_date: 0,
-        scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file",
+        scope: "openid email profile",
       },
     });
     mockUserinfoGet.mockResolvedValueOnce({
@@ -186,8 +186,7 @@ describe("POST /auth/google", () => {
     });
     mockTokeninfo.mockResolvedValueOnce({
       data: {
-        scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file",
+        scope: "openid email profile",
       },
     });
 
@@ -198,12 +197,7 @@ describe("POST /auth/google", () => {
     // The stale `calendar` scope must be dropped — otherwise the UI
     // would gate the Calendar feature on a phantom permission.
     expect(res.status).toBe(200);
-    expect(res.body.scopes).toEqual([
-      "openid",
-      "email",
-      "profile",
-      "https://www.googleapis.com/auth/drive.file",
-    ]);
+    expect(res.body.scopes).toEqual(["openid", "email", "profile"]);
     expect(res.body.scopes).not.toContain(
       "https://www.googleapis.com/auth/calendar",
     );
@@ -219,7 +213,6 @@ describe("POST /auth/google", () => {
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/drive.file",
     ]);
 
     mockGetToken.mockResolvedValueOnce({
@@ -249,7 +242,6 @@ describe("POST /auth/google", () => {
         "openid",
         "email",
         "profile",
-        "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/calendar",
       ]),
     );
@@ -262,7 +254,7 @@ describe("POST /auth/google", () => {
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
 
     // Now they incrementally grant gmail.readonly. Google's code-exchange
@@ -282,7 +274,7 @@ describe("POST /auth/google", () => {
     mockTokeninfo.mockResolvedValueOnce({
       data: {
         scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
+          "openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly",
       },
     });
 
@@ -295,7 +287,7 @@ describe("POST /auth/google", () => {
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
       "https://www.googleapis.com/auth/gmail.readonly",
     ]);
     expect(tokenStore.get("u-incr")?.scopes).toEqual(res.body.scopes);
@@ -340,7 +332,7 @@ describe("GET /auth/scopes", () => {
     mockTokeninfo.mockResolvedValueOnce({
       data: {
         scope:
-          "openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.readonly",
+          "openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.readonly",
       },
     });
 
@@ -353,7 +345,7 @@ describe("GET /auth/scopes", () => {
       "openid",
       "email",
       "profile",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
       "https://www.googleapis.com/auth/gmail.readonly",
     ]);
   });
@@ -368,8 +360,7 @@ describe("GET /auth/scopes", () => {
     });
     mockTokeninfo.mockResolvedValueOnce({
       data: {
-        scope:
-          "openid https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar",
+        scope: "openid https://www.googleapis.com/auth/calendar",
       },
     });
 
@@ -380,7 +371,6 @@ describe("GET /auth/scopes", () => {
     expect(res.status).toBe(200);
     expect(tokenStore.get("u-legacy")?.scopes).toEqual([
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
       "https://www.googleapis.com/auth/calendar",
     ]);
   });
@@ -433,7 +423,7 @@ describe("POST /auth/google response — gmail block", () => {
       data: { id: "u-fresh", email: "fresh@test.com", name: "F", picture: null },
     });
     mockTokeninfo.mockResolvedValueOnce({
-      data: { scope: "openid https://www.googleapis.com/auth/drive.file" },
+      data: { scope: "openid https://www.googleapis.com/auth/calendar" },
     });
 
     const res = await request(makeApp(tokenStore)).post("/auth/google").send({
@@ -459,7 +449,7 @@ describe("POST /auth/google response — gmail block", () => {
       data: { id: "u-linked", email: "linked@test.com", name: "L", picture: null },
     });
     mockTokeninfo.mockResolvedValueOnce({
-      data: { scope: "openid https://www.googleapis.com/auth/drive.file" },
+      data: { scope: "openid https://www.googleapis.com/auth/calendar" },
     });
 
     const res = await request(makeApp(tokenStore)).post("/auth/google").send({
@@ -482,7 +472,7 @@ describe("POST /auth/google/gmail", () => {
   function seedPrimary(tokenStore: TokenStore, userId = "u-primary") {
     tokenStore.set(userId, "primary-refresh", `${userId}@test.com`, [
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
     return userId;
   }

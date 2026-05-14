@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@travel-app/api-client";
+import { queryKeys } from "@itinly/api-client";
 
 /**
  * Returns the set of trip IDs that currently have data in the React Query

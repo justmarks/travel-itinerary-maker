@@ -1,7 +1,7 @@
 "use client";
 
-import { formatFlightLabel, formatFlightEndpoint, convertToUsd } from "@travel-app/shared";
-import type { Segment } from "@travel-app/shared";
+import { formatFlightLabel, formatFlightEndpoint, convertToUsd } from "@itinly/shared";
+import type { Segment } from "@itinly/shared";
 import {
   CheckCircle2,
   AlertCircle,

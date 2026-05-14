@@ -6,7 +6,7 @@ import {
   type Trip,
   type TripShare,
   type TripShareRule,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 import { generateShareToken } from "../utils/share-token";
 import { recordHistory } from "./trip-history";
 import type { StorageProvider } from "./storage";

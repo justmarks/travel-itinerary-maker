@@ -1,21 +1,24 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type {
   EmailScanResult,
   ParsedSegment,
   SegmentMatchStatus,
   ApplyAction,
-} from "@travel-app/shared";
+  NewTripProposal,
+} from "@itinly/shared";
+import { proposeNewTrips } from "@itinly/shared";
+import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
 import {
-  useScanEmails,
+  useStreamingScanEmails,
   useApplyParsedSegments,
   useDismissEmail,
   useGmailLabels,
   usePendingEmails,
   useTrips,
   useCreateTrip,
-} from "@travel-app/api-client";
+} from "@itinly/api-client";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +37,6 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import {
   Mail,
   Loader2,
@@ -43,7 +45,6 @@ import {
   MinusCircle,
   AlertCircle,
   Check,
-  X,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -53,9 +54,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { ParseReportReason } from "@travel-app/shared";
+import type { ParseReportReason } from "@itinly/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
-import { useAuth } from "@/lib/auth";
+import {
+  useActiveEmailProvider,
+  useConnectedEmailProviders,
+  emailLabelNoun,
+  emailProviderLabel,
+  type EmailProvider,
+} from "@/lib/use-active-provider";
 import { describeError, toastMutationError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import {
@@ -63,6 +70,7 @@ import {
   indentedLabel,
 } from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
+import { NotConnectedNotice } from "@/components/not-connected-notice";
 
 // Each badge maps to a `--status-*` token trio. Pulling the colors
 // from the design system rather than hand-rolling Tailwind 50/700
@@ -123,6 +131,7 @@ interface SegmentSelection extends ParsedSegment {
 type ScanStep =
   | "loading"
   | "needs-scope"
+  | "not-connected"
   | "config"
   | "scanning"
   | "results"
@@ -156,29 +165,71 @@ export function EmailScanDialog({
     reason: ParseReportReason;
   } | null>(null);
 
-  // Inline new-trip creation
-  const [showNewTripForm, setShowNewTripForm] = useState(false);
-  const [newTripTitle, setNewTripTitle] = useState("");
-  const [newTripStart, setNewTripStart] = useState("");
-  const [newTripEnd, setNewTripEnd] = useState("");
-  const [creatingTrip, setCreatingTrip] = useState(false);
+  // Auto-clustered new-trip proposals (mirrors mobile). Each
+  // unassigned segment is bound to a proposal sentinel id of the form
+  // `__new__N` so the trip picker can show "Create Maui April 2026"
+  // alongside existing trips. Sentinels are resolved into real trip
+  // ids in `handleApply` via sequential `createTrip` mutations before
+  // the segments are applied. The user can also pick an existing trip
+  // from the dropdown, drop the proposal entirely.
+  const [proposals, setProposals] = useState<NewTripProposal[]>([]);
 
-  const { hasGmailLink } = useAuth();
   const isDemo = useDemoMode();
-  // Demo mode bypasses real Google APIs via MockApiClient, so we treat
-  // every feature as "granted" there. For real users, gate Gmail
-  // network calls on the user having linked their Gmail OAuth client
-  // (a separate Google Cloud Console client from the primary one — see
-  // `lib/oauth.ts`). The gate also drives the "Connect Gmail" prompt
-  // below.
-  const gmailGranted = isDemo || hasGmailLink;
+  // Resolve the active email provider across both auth paths:
+  //   - Supabase user with an `email` connection → google or microsoft
+  //   - Legacy Gmail-linked user → google
+  //   - Demo mode → google
+  //   - Nothing linked → null → render the "not-connected" step
+  // The gate also drives the "Connect Gmail / Outlook" prompt below.
+  const { provider: autoProvider } = useActiveEmailProvider(open);
+  const { providers: connectedEmailProviders } = useConnectedEmailProviders(open);
+  const emailGranted = isDemo || autoProvider !== null;
 
-  const { data: labels, error: labelsError } = useGmailLabels(open && gmailGranted);
+  // Per-user mailbox picker — defaults to the last choice from
+  // localStorage if it's still a linked provider, else the resolver's
+  // Microsoft-first auto-pick. Switching here re-keys the labels query
+  // and threads `provider` into the scan request.
+  const [selectedProvider, setSelectedProviderState] =
+    useState<EmailProvider | null>(() => {
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem("itinly:email-provider");
+      return raw === "google" || raw === "microsoft" ? raw : null;
+    });
+  // Fall back to the auto-pick if the stored choice is no longer
+  // connected (e.g. user disconnected Outlook after last using it).
+  const effectiveProvider: EmailProvider | null =
+    selectedProvider && connectedEmailProviders.includes(selectedProvider)
+      ? selectedProvider
+      : autoProvider;
+  const setSelectedProvider = (next: EmailProvider) => {
+    setSelectedProviderState(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("itinly:email-provider", next);
+    }
+  };
+  const activeEmailProvider = effectiveProvider;
+  const showProviderPicker = connectedEmailProviders.length > 1;
+
+  const { data: labels, error: labelsError } = useGmailLabels(
+    open && emailGranted,
+    effectiveProvider ?? undefined,
+  );
   const { data: pendingData, isLoading: pendingLoading } = usePendingEmails(
-    open && gmailGranted,
+    open && emailGranted,
   );
   const { data: trips } = useTrips();
-  const scanEmails = useScanEmails();
+  const scanEmails = useStreamingScanEmails();
+  // Live progress while the SSE stream is in flight. `total` is the
+  // count of *new* (unprocessed) emails we'll actually run through
+  // Claude — `foundTotal` is the raw mailbox count including those
+  // we'll skip. Both are useful: foundTotal frames "we looked at N",
+  // total frames "we're parsing M of those."
+  const [scanProgress, setScanProgress] = useState<{
+    foundTotal: number | null;
+    parsed: number;
+    total: number;
+    current: { subject: string; from: string } | null;
+  }>({ foundTotal: null, parsed: 0, total: 0, current: null });
   const applySegments = useApplyParsedSegments();
   const dismissEmail = useDismissEmail();
   const createTrip = useCreateTrip();
@@ -187,24 +238,28 @@ export function EmailScanDialog({
     setStep("loading");
     setResults([]);
     setSelections([]);
+    setProposals([]);
     setErrorMessage("");
     setAppliedCount(0);
     setShowLowConfidence(false);
-    setShowNewTripForm(false);
-    setNewTripTitle("");
-    setNewTripStart("");
-    setNewTripEnd("");
-    setCreatingTrip(false);
   }, []);
 
-  // When dialog opens, check for pending results
+  // When dialog opens, check for pending results and pick the initial
+  // step. Gate on `step === "loading"` so this only runs ONCE per
+  // dialog session — without it, the apply mutation invalidates the
+  // `pendingEmails` query, which retriggers this effect and slams the
+  // user back to "config" right after the apply succeeds. The done
+  // screen is supposed to persist until the user closes the dialog,
+  // at which point `reset()` flips step back to "loading" and we
+  // re-initialize fresh on the next open.
   useEffect(() => {
     if (!open) return;
+    if (step !== "loading") return;
 
-    // Gmail scope hasn't been granted yet — show the connect CTA
-    // instead of trying to load anything from Google.
-    if (!gmailGranted) {
-      setStep("needs-scope");
+    // No email provider linked — show the provider-agnostic
+    // not-connected notice pointing at /settings/account.
+    if (!emailGranted) {
+      setStep("not-connected");
       return;
     }
 
@@ -217,7 +272,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, gmailGranted, pendingLoading, pendingData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, emailGranted, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(
@@ -230,85 +285,84 @@ export function EmailScanDialog({
           // Default selection: skip duplicates + low-confidence. User can opt in.
           const defaultSelected =
             matchStatus !== "duplicate" && seg.confidence !== "low";
+          // Trust the server's suggestedTripId: a trip-scoped scan still
+          // sends `tripId` to the backend, and the backend honors that
+          // hint only when the segment date is inside that trip's
+          // window. Segments outside the active trip's range come back
+          // with `suggestedTripId` either pointing at the trip that
+          // actually covers the date or undefined — those flow into
+          // proposeNewTrips below for the "create a trip for it" UX,
+          // just like an account-level scan from the trips homepage.
           sels.push({
             ...seg,
             emailId: result.emailId,
             selected: defaultSelected,
-            assignedTripId: seg.suggestedTripId || tripId || "",
+            assignedTripId: seg.suggestedTripId ?? "",
             action: defaultActionFor(matchStatus),
             existingSegmentId: seg.match?.existingSegmentId,
           });
         }
       }
+
+      // Cluster items that still have no trip into proposed new trips
+      // by date-gap. Each proposal carries a sentinel id of the form
+      // `__new__N`; we bind those ids onto the unassigned selections
+      // so the picker defaults to "Create <proposal title>".
+      const unassigned = sels
+        .map((s, idx) => ({ idx, seg: s }))
+        .filter(({ seg }) => !seg.assignedTripId);
+      const next = proposeNewTrips(
+        unassigned.map(({ idx, seg }) => ({
+          key: String(idx),
+          segment: seg,
+        })),
+      );
+      for (const proposal of next) {
+        for (const key of proposal.segmentKeys) {
+          const idx = parseInt(key, 10);
+          if (Number.isNaN(idx)) continue;
+          sels[idx].assignedTripId = proposal.id;
+        }
+      }
       setSelections(sels);
+      setProposals(next);
     },
-    [tripId],
+    [],
   );
 
-  // Compute date range from ALL scanned segments for new trip defaults.
-  // Uses every segment regardless of selection or assignment — the goal is
-  // to suggest the full travel date span so the trip covers everything.
-  const scannedDateRange = useMemo(() => {
-    const dates = selections.map((s) => s.date).sort();
-    if (dates.length === 0) return null;
-    return { start: dates[0], end: dates[dates.length - 1] };
-  }, [selections]);
-
-  // Suggest a trip name from segment destinations + year
-  const suggestedTripName = useMemo(() => {
-    if (selections.length === 0) return "";
-    // Collect destination cities: prefer flight arrivalCity, then segment city
-    const cities: string[] = [];
-    for (const s of selections) {
-      if (s.type === "flight" && s.arrivalCity) {
-        cities.push(s.arrivalCity);
-      } else if (s.city) {
-        cities.push(s.city);
-      }
-    }
-    if (cities.length === 0) return "";
-    // Count occurrences and pick the most common destination
-    const counts = new Map<string, number>();
-    for (const c of cities) {
-      counts.set(c, (counts.get(c) || 0) + 1);
-    }
-    const topCity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    // Get year from the earliest segment date
-    const year = selections[0]?.date?.slice(0, 4) || "";
-    return year ? `${topCity} ${year}` : topCity;
-  }, [selections]);
-
-  // Check if any selected segment is unassigned (no trip match)
+  // True when a selected segment has no assigned trip AND isn't bound
+  // to one of the auto-clustered proposals. With proposeNewTrips
+  // pre-binding sentinels, the only way this is true is if the user
+  // explicitly cleared the trip picker on a segment — used as the
+  // "Apply is disabled" guard.
   const hasUnassignedSegments = selections.some((s) => s.selected && !s.assignedTripId);
-
-  // Auto-show the new trip form when there are unassigned segments and no existing trips match
-  useEffect(() => {
-    if (step === "results" && hasUnassignedSegments && !showNewTripForm) {
-      if (!trips || trips.length === 0) {
-        setShowNewTripForm(true);
-      }
-    }
-  }, [step, hasUnassignedSegments, trips]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-populate new trip name and dates from scanned segments
-  useEffect(() => {
-    if (!showNewTripForm) return;
-    if (!newTripTitle && suggestedTripName) setNewTripTitle(suggestedTripName);
-    if (!newTripStart && scannedDateRange) setNewTripStart(scannedDateRange.start);
-    if (!newTripEnd && scannedDateRange) setNewTripEnd(scannedDateRange.end);
-  }, [showNewTripForm, scannedDateRange, suggestedTripName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleScan = async () => {
     setStep("scanning");
     setErrorMessage("");
+    setScanProgress({ foundTotal: null, parsed: 0, total: 0, current: null });
 
     try {
       const input: Record<string, unknown> = {};
       if (tripId) input.tripId = tripId;
       if (selectedLabel && selectedLabel !== "__all__") input.labelFilter = selectedLabel;
       if (forceRescan) input.forceRescan = true;
+      if (effectiveProvider) input.provider = effectiveProvider;
 
-      const res = await scanEmails.mutateAsync(input);
+      const res = await scanEmails.mutateAsync({
+        input,
+        onFound: (total) =>
+          setScanProgress((p) => ({ ...p, foundTotal: total })),
+        onPlan: (newCount) =>
+          setScanProgress((p) => ({ ...p, total: newCount })),
+        onProgress: (parsed, total, current) =>
+          setScanProgress((p) => ({
+            ...p,
+            parsed,
+            total,
+            current: current ?? p.current,
+          })),
+      });
 
       if (!res.results || res.results.length === 0) {
         setResults([]);
@@ -348,6 +402,14 @@ export function EmailScanDialog({
         // Gmail OAuth flow.
         setStep("needs-scope");
         return;
+      } else if (status === 401 && body?.code === "EMAIL_NOT_CONNECTED") {
+        // Phase 4b-2 returns this for Supabase-authed users with no
+        // email connection. Different from GMAIL_SCOPE_REQUIRED
+        // (which is the legacy Gmail-token-revoked case): the user
+        // might want to connect Gmail OR Outlook, so route them to
+        // /settings/account instead of forcing the Gmail flow.
+        setStep("not-connected");
+        return;
       } else if (status === 503 && body?.code === "ANTHROPIC_OVERLOADED") {
         setErrorMessage(
           "The AI service is temporarily overloaded. Please try scanning again in a few minutes.",
@@ -386,40 +448,6 @@ export function EmailScanDialog({
     );
   };
 
-  /** Create a new trip and auto-assign all unassigned segments within its date range */
-  const handleCreateTrip = async () => {
-    if (!newTripTitle || !newTripStart || !newTripEnd) return;
-
-    setCreatingTrip(true);
-    try {
-      const trip = await createTrip.mutateAsync({
-        title: newTripTitle,
-        startDate: newTripStart,
-        endDate: newTripEnd,
-      });
-
-      // Auto-assign all selected but unassigned segments whose dates fall in range
-      setSelections((prev) =>
-        prev.map((s) => {
-          if (s.selected && !s.assignedTripId && s.date >= newTripStart && s.date <= newTripEnd) {
-            return { ...s, assignedTripId: trip.id };
-          }
-          return s;
-        }),
-      );
-
-      setShowNewTripForm(false);
-      setNewTripTitle("");
-      setNewTripStart("");
-      setNewTripEnd("");
-    } catch (err) {
-      setErrorMessage(describeError(err));
-      toastMutationError("create trip")(err);
-    } finally {
-      setCreatingTrip(false);
-    }
-  };
-
   const handleApply = async () => {
     const toApply = selections.filter((s) => s.selected && s.assignedTripId);
     if (!toApply.length) return;
@@ -427,6 +455,20 @@ export function EmailScanDialog({
     setStep("applying");
 
     try {
+      // Turn proposal sentinels (`__new__N`) into real trip ids by
+      // creating each used proposal. Shared with the mobile sheet via
+      // `resolveProposalSentinels` so both surfaces handle the subtle
+      // date-range expansion identically.
+      const sentinelToRealId = await resolveProposalSentinels(
+        toApply.map((s) => ({
+          tripId: s.assignedTripId,
+          startDate: s.date,
+          endDate: s.endDate,
+        })),
+        proposals,
+        createTrip.mutateAsync,
+      );
+
       const resolvedSegments = toApply.map((s) => ({
         type: s.type,
         title: s.title,
@@ -457,7 +499,7 @@ export function EmailScanDialog({
         contactName: s.contactName,
         cost: s.cost,
         confidence: s.confidence,
-        tripId: s.assignedTripId,
+        tripId: sentinelToRealId.get(s.assignedTripId) ?? s.assignedTripId,
         emailId: s.emailId,
         action: s.action,
         existingSegmentId:
@@ -566,7 +608,7 @@ export function EmailScanDialog({
             Scan Emails
           </DialogTitle>
           <DialogDescription>
-            Search Gmail for travel confirmations and add them to your itinerary.
+            Search your mailbox for travel confirmations and add them to your itinerary.
           </DialogDescription>
         </DialogHeader>
 
@@ -647,16 +689,55 @@ export function EmailScanDialog({
           </>
         )}
 
+        {/* ── Step: Not connected (Supabase user with no email link) ── */}
+        {step === "not-connected" && (
+          <>
+            <div className="flex flex-1 flex-col gap-3 py-2">
+              <NotConnectedNotice capability="email" />
+            </div>
+            <DialogFooter className="flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
         {/* ── Step: Config ── */}
         {step === "config" && (
           <>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+              {showProviderPicker && (
+                <div className="space-y-2">
+                  <p className="text-kicker text-muted-foreground">Mailbox</p>
+                  <div
+                    className="flex gap-2"
+                    role="radiogroup"
+                    aria-label="Mailbox account"
+                  >
+                    {connectedEmailProviders.map((p) => (
+                      <Button
+                        key={p}
+                        type="button"
+                        variant={effectiveProvider === p ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1"
+                        role="radio"
+                        aria-checked={effectiveProvider === p}
+                        onClick={() => setSelectedProvider(p)}
+                      >
+                        {emailProviderLabel(p)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <label
                   htmlFor="email-scan-label"
                   className="text-sm font-medium"
                 >
-                  Gmail Label (optional)
+                  {`${emailProviderLabel(activeEmailProvider)} ${emailLabelNoun(activeEmailProvider)} (optional)`}
                 </label>
                 {/* Dropdown tree — labels are flat with `/`-delimited
                     paths, so we sort + tag-with-depth and render with
@@ -677,7 +758,7 @@ export function EmailScanDialog({
                   </SelectTrigger>
                   <SelectContent position="popper">
                     <SelectItem value="__all__">
-                      All mail (no label filter)
+                      All mail (no {emailLabelNoun(activeEmailProvider)} filter)
                     </SelectItem>
                     {buildGmailLabelTree(labels ?? []).map((node) => (
                       <SelectItem key={node.label.id} value={node.label.name}>
@@ -698,9 +779,16 @@ export function EmailScanDialog({
                   style={statusBadgeStyle("warn")}
                 >
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <p>
-                    Could not load labels. You may need to sign out and back in for Gmail access.
-                  </p>
+                  <div className="space-y-1">
+                    <p>
+                      Could not load {emailLabelNoun(activeEmailProvider)}s for{" "}
+                      {emailProviderLabel(activeEmailProvider)}. Try
+                      reconnecting in Settings if the problem persists.
+                    </p>
+                    <p className="opacity-75">
+                      {describeError(labelsError)}
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -737,10 +825,51 @@ export function EmailScanDialog({
         {step === "scanning" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-            <p className="font-medium">Scanning emails...</p>
-            <p className="text-sm text-muted-foreground">
-              Searching Gmail and parsing with AI.
-            </p>
+            {scanProgress.foundTotal === null ? (
+              <>
+                <p className="font-medium">Scanning emails...</p>
+                <p className="text-sm text-muted-foreground">
+                  Searching {emailProviderLabel(activeEmailProvider)}.
+                </p>
+              </>
+            ) : scanProgress.total === 0 ? (
+              <>
+                <p className="font-medium">
+                  Found {scanProgress.foundTotal} email
+                  {scanProgress.foundTotal === 1 ? "" : "s"}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Checking which need parsing…
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium">
+                  Parsing {Math.min(scanProgress.parsed + 1, scanProgress.total)} of{" "}
+                  {scanProgress.total}
+                </p>
+                <p className="max-w-md truncate text-sm text-muted-foreground">
+                  {scanProgress.current?.subject ?? "Reading with Claude…"}
+                </p>
+                <div
+                  className="mt-2 h-1.5 w-48 overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={scanProgress.parsed}
+                  aria-valuemin={0}
+                  aria-valuemax={scanProgress.total}
+                >
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${Math.round(
+                        (scanProgress.parsed / Math.max(scanProgress.total, 1)) *
+                          100,
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -759,6 +888,14 @@ export function EmailScanDialog({
               <>
                 {/* Summary bar */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  {activeEmailProvider && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                      title={`Scanned from ${emailProviderLabel(activeEmailProvider)}`}
+                    >
+                      {emailProviderLabel(activeEmailProvider)}
+                    </span>
+                  )}
                   {matchCounts.new > 0 && (
                     <span
                       className="flex items-center gap-1.5"
@@ -810,88 +947,21 @@ export function EmailScanDialog({
 
                 {/* Scrollable content area */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  {/* New Trip Creation — inline at top when segments are unassigned */}
-                  {hasUnassignedSegments && !showNewTripForm && (
+                  {/* Auto-clustered new-trip proposals get surfaced in the
+                      per-segment trip picker as "Create <title>" options.
+                      A leftover unassigned segment (user manually
+                      cleared the picker) shows a warning banner so they
+                      can't miss it before tapping Apply. */}
+                  {hasUnassignedSegments && (
                     <div
                       className="mb-3 rounded-lg border p-2.5"
                       style={statusBadgeStyle("warn")}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs">
-                          Some segments don&apos;t match any trip.
-                        </p>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 shrink-0 bg-card text-xs"
-                          onClick={() => setShowNewTripForm(true)}
-                        >
-                          <Plus className="mr-1 h-3 w-3" />
-                          Create Trip
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {showNewTripForm && (
-                    <div
-                      className="mb-3 rounded-lg border p-3 space-y-2"
-                      style={statusBadgeStyle("info")}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium flex items-center gap-1.5">
-                          <Plus className="h-4 w-4" />
-                          Create New Trip
-                        </p>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => setShowNewTripForm(false)}
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                      <Input
-                        value={newTripTitle}
-                        onChange={(e) => setNewTripTitle(e.target.value)}
-                        placeholder="Trip name (e.g. Hawaii 2026)"
-                        className="h-8 text-sm bg-background"
-                        autoFocus
-                      />
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>Start date</label>
-                          <Input
-                            type="date"
-                            value={newTripStart}
-                            onChange={(e) => setNewTripStart(e.target.value)}
-                            className="h-8 text-sm bg-background"
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px]" style={{ color: "var(--status-info-fg)" }}>End date</label>
-                          <Input
-                            type="date"
-                            value={newTripEnd}
-                            onChange={(e) => setNewTripEnd(e.target.value)}
-                            className="h-8 text-sm bg-background"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="w-full h-8 text-xs"
-                        onClick={handleCreateTrip}
-                        disabled={creatingTrip || !newTripTitle || !newTripStart || !newTripEnd}
-                      >
-                        {creatingTrip ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        {creatingTrip ? "Creating..." : "Create & Assign Matching Segments"}
-                      </Button>
+                      <p className="text-xs">
+                        Some segments don&apos;t have a trip assigned. Pick one
+                        below or check the &quot;Create&quot; option in the
+                        trip dropdown.
+                      </p>
                     </div>
                   )}
 
@@ -913,7 +983,7 @@ export function EmailScanDialog({
                             onToggle={toggleSelection}
                             onSetTrip={setTripForSegment}
                             onSetAction={setActionForSegment}
-                            onRequestNewTrip={() => setShowNewTripForm(true)}
+                            proposals={proposals}
                           />
                         );
                       })}
@@ -952,7 +1022,7 @@ export function EmailScanDialog({
                                 onToggle={toggleSelection}
                                 onSetTrip={setTripForSegment}
                                 onSetAction={setActionForSegment}
-                                onRequestNewTrip={() => setShowNewTripForm(true)}
+                                proposals={proposals}
                               />
                             );
                           })}
@@ -1093,19 +1163,19 @@ function SegmentCard({
   index,
   results,
   trips,
+  proposals,
   onToggle,
   onSetTrip,
   onSetAction,
-  onRequestNewTrip,
 }: {
   seg: SegmentSelection;
   index: number;
   results: EmailScanResult[];
   trips: Array<{ id: string; title: string; startDate: string }>;
+  proposals: NewTripProposal[];
   onToggle: (idx: number) => void;
   onSetTrip: (idx: number, tripId: string) => void;
   onSetAction: (idx: number, action: ApplyAction) => void;
-  onRequestNewTrip: () => void;
 }) {
   const email = results.find((r) => r.emailId === seg.emailId);
   const matchStatus: SegmentMatchStatus = seg.match?.status ?? "new";
@@ -1113,7 +1183,7 @@ function SegmentCard({
 
   const handleTripChange = (value: string) => {
     if (value === "__create_new__") {
-      onRequestNewTrip();
+      onSetTrip(index, "");
     } else {
       onSetTrip(index, value);
     }
@@ -1250,15 +1320,17 @@ function SegmentCard({
                       {t.title} ({t.startDate})
                     </SelectItem>
                   ))}
-                  <SelectItem value="__create_new__">
-                    <span
-                      className="flex items-center gap-1.5"
-                      style={{ color: "var(--status-info-fg)" }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Create new trip...
-                    </span>
-                  </SelectItem>
+                  {proposals.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span
+                        className="flex items-center gap-1.5"
+                        style={{ color: "var(--status-info-fg)" }}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Create {p.title} ({p.startDate})
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {!seg.assignedTripId && (

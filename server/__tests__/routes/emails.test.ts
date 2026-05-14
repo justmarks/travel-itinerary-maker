@@ -114,6 +114,122 @@ jest.mock("../../src/services/email-parser", () => {
         rawItemCount: 1,
       });
     }
+    if (email.subject.includes("ONT return")) {
+      // Round-trip regression case: the return leg of a PNR the trip
+      // already has the outbound for. Same confirmationCode (a single
+      // PNR covers both legs of a round trip), different date, opposite
+      // direction. The matcher must NOT treat this as a duplicate of
+      // the outbound leg just because the PNRs match.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "flight",
+            title: "ONT → SEA",
+            date: "2026-06-21",
+            startTime: "14:09",
+            endTime: "16:51",
+            carrier: "AS",
+            routeCode: "AS567",
+            departureCity: "Ontario",
+            arrivalCity: "Seattle",
+            departureAirport: "ONT",
+            arrivalAirport: "SEA",
+            seatNumber: "12C, 12D, 12E, 12F",
+            confirmationCode: "ITHZXM",
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Air France")) {
+      // Used by the flight-title regression test: Claude returns the bare
+      // route ("SEA → CDG") with carrier+routeCode in dedicated fields, while
+      // the existing trip segment has them baked into the title.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "flight",
+            title: "SEA → CDG",
+            date: "2026-06-26",
+            startTime: "13:30",
+            carrier: "Air France",
+            routeCode: "337",
+            departureCity: "Seattle",
+            arrivalCity: "Paris",
+            departureAirport: "SEA",
+            arrivalAirport: "CDG",
+            confirmationCode: "CC4GJZ",
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Villa Fiorita")) {
+      // Used by the hotel-venueName regression test: parsed name lacks the
+      // "Boutique" qualifier that's in the existing trip segment.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "hotel",
+            title: "Villa Fiorita Hotel",
+            date: "2026-06-29",
+            venueName: "Villa Fiorita Hotel",
+            city: "Taormina",
+            confirmationCode: "405140584",
+            cost: { amount: 492, currency: "EUR" },
+            confidence: "medium",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Castello di San Marco")) {
+      // Used by the hotel-venueName regression test: parsed name has "di"
+      // that the existing trip segment omits; address is a postal superset
+      // of the existing one.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "hotel",
+            title: "Castello di San Marco Charming Hotel & Spa",
+            date: "2026-06-30",
+            venueName: "Castello di San Marco Charming Hotel & Spa",
+            address: "Via San Marco, 40, 95011 Calatabiano, Italy",
+            city: "Calatabiano",
+            confirmationCode: "SIMP_2026032847229268",
+            cost: { amount: 319, currency: "EUR" },
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
+    if (email.subject.includes("Principe Cerami")) {
+      // Used by the cross-type-matching regression test: parsed type is
+      // restaurant_dinner while existing trip segment is `activity`.
+      return Promise.resolve({
+        segments: [
+          {
+            type: "restaurant_dinner",
+            title: "Dinner at Principe Cerami",
+            date: "2026-06-29",
+            startTime: "20:00",
+            venueName: "Principe Cerami",
+            city: "Taormina",
+            confirmationCode: "58514",
+            confidence: "high",
+          },
+        ],
+        invalidCount: 0,
+        rawItemCount: 1,
+      });
+    }
     if (email.subject.includes("Invalid")) {
       // Used by HTML import tests — pretend Claude returned items but all
       // failed Zod validation, so we can verify the "failed" status path.
@@ -704,6 +820,185 @@ describe("Email Routes", () => {
       expect(flight.match?.existingSegmentId).toBeUndefined();
     });
 
+    it("does not merge a return flight onto the outbound leg of the same PNR", async () => {
+      // Regression: a round-trip airline ticket reuses one PNR across
+      // both legs. Previously, isCandidateMatch short-circuited on a
+      // confirmation-code match before checking date/direction, so an
+      // ONT→SEA return leg parsed from email would collapse onto the
+      // existing SEA→ONT outbound leg and the UI would propose flipping
+      // every field (cities, times, route code, seats). The fix: skip
+      // the confirmation-code-only shortcut for flights and fall through
+      // to the date + route/city check below it.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Palm Desert 2026",
+        startDate: "2026-06-18",
+        endDate: "2026-06-21",
+      });
+      const tripId = tripRes.body.id;
+
+      // Pre-add the outbound leg with the round-trip PNR.
+      await addSegment(tripId, "2026-06-18", {
+        type: "flight",
+        title: "SEA → ONT",
+        startTime: "10:30",
+        endTime: "13:13",
+        carrier: "AS",
+        routeCode: "AS565",
+        departureCity: "Seattle",
+        arrivalCity: "Ontario",
+        departureAirport: "SEA",
+        arrivalAirport: "ONT",
+        seatNumber: "11A, 11B, 11C, 11D",
+        confirmationCode: "ITHZXM",
+      });
+
+      // Import the return-leg email (same PNR, different date/direction).
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>ONT return</p>",
+          subject: "ONT return flight confirmation",
+        });
+      expect(res.status).toBe(201);
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.suggestedTripId).toBe(tripId);
+      // The fix: parser-extracted return leg must NOT be matched to the
+      // outbound segment just because the PNR is shared.
+      expect(seg.match?.status).toBe("new");
+      expect(seg.match?.existingSegmentId).toBeUndefined();
+    });
+
+    it("does not flag the flight title as a conflict when the existing title carries a carrier suffix", async () => {
+      // Regression: existing flight stored as "SEA → CDG (Air France 337)"
+      // (the trip-detail display format with carrier+routeCode baked in);
+      // parser returns the bare route "SEA → CDG" with the carrier/routeCode
+      // in dedicated fields. Previously these normalized differently and the
+      // matcher surfaced a meaningless "title conflict". The route, carrier,
+      // and routeCode all match, so the parsed segment should classify as
+      // `duplicate` (or `enrichment` if it brings new fields).
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      await addSegment(tripRes.body.id, "2026-06-26", {
+        type: "flight",
+        title: "SEA → CDG (Air France 337)",
+        startTime: "13:30",
+        carrier: "Air France",
+        routeCode: "337",
+        departureCity: "Seattle",
+        arrivalCity: "Paris",
+        departureAirport: "SEA",
+        arrivalAirport: "CDG",
+        confirmationCode: "CC4GJZ",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Air France itinerary</p>",
+          subject: "Air France booking confirmation",
+        });
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.match?.status).not.toBe("new");
+      expect(
+        seg.match?.conflictFields?.find(
+          (d: { field: string }) => d.field === "title",
+        ),
+      ).toBeUndefined();
+    });
+
+    it("matches a hotel even when one venueName has an extra qualifier word", async () => {
+      // Regression: parsed "Villa Fiorita Hotel" should still match the
+      // existing "Villa Fiorita Boutique Hotel". Token-subset overlap is the
+      // signal — the parsed booking is the same property under a slightly
+      // shorter name.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      await addSegment(tripRes.body.id, "2026-06-29", {
+        type: "hotel",
+        title: "Villa Fiorita Boutique Hotel",
+        venueName: "Villa Fiorita Boutique Hotel",
+        city: "Taormina",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Villa Fiorita booking</p>",
+          subject: "Villa Fiorita confirmation",
+        });
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.match?.status).not.toBe("new");
+      expect(seg.match?.existingSegmentId).toBeDefined();
+    });
+
+    it("matches a hotel across minor name variants and does not flag a postal-superset address", async () => {
+      // Regression: parsed venueName "Castello di San Marco Charming Hotel
+      // & Spa" should match existing "Castello San Marco Charming Hotel &
+      // SPA" (Jaccard ≥ 0.6 — only the word "di" differs). The parsed
+      // address is the same street with postal code + country tacked on, so
+      // it should be treated as a superset (no conflict).
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      await addSegment(tripRes.body.id, "2026-06-30", {
+        type: "hotel",
+        title: "Castello San Marco Charming Hotel & SPA",
+        venueName: "Castello San Marco Charming Hotel & SPA",
+        address: "Via San Marco, 40, Calatabiano",
+        city: "Calatabiano",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Castello booking</p>",
+          subject: "Castello di San Marco booking",
+        });
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.match?.status).not.toBe("new");
+      expect(
+        seg.match?.conflictFields?.find(
+          (d: { field: string }) => d.field === "address",
+        ),
+      ).toBeUndefined();
+    });
+
+    it("cross-matches a parsed restaurant_dinner against an existing activity at the same venue", async () => {
+      // Regression: when the user manually adds a dinner reservation as
+      // `activity`, the email parser later classifies the same booking as
+      // `restaurant_dinner`. Same date, same venueName — the matcher should
+      // collapse them so the parsed copy doesn't show as "New".
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      await addSegment(tripRes.body.id, "2026-06-29", {
+        type: "activity",
+        title: "Dinner at Principe Cerami",
+        startTime: "20:00",
+        venueName: "Principe Cerami",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Cerami reservation</p>",
+          subject: "Principe Cerami reservation",
+        });
+      const seg = res.body.result.parsedSegments[0];
+      expect(seg.match?.status).not.toBe("new");
+      expect(seg.match?.existingSegmentId).toBeDefined();
+    });
+
     it("merge action fills empty fields on existing segment without overwriting", async () => {
       const tripId = await createJapanTrip();
       const existing = await addSegment(tripId, "2026-06-26", {
@@ -782,6 +1077,139 @@ describe("Email Routes", () => {
       expect(day.segments).toHaveLength(1);
       expect(day.segments[0].title).toBe("SEA → NRT");
       expect(day.segments[0].startTime).toBe("10:30");
+    });
+
+    it("rejects an apply when a segment's date falls outside the selected trip's range", async () => {
+      // Regression: previously the apply route silently `continue`d past
+      // any segment whose date didn't match a trip.days[] entry, AND still
+      // marked the source email as `mapped`. The booking effectively
+      // vanished — no segment created, no error surfaced, and the email
+      // never reappeared in pending. Now the whole request is rejected
+      // with a specific 400 so the UI can tell the user to either pick a
+      // different trip or fix the date.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const res = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "hotel",
+              title: "Villa Fiorita",
+              date: "2026-03-29", // outside the trip window
+              confidence: "medium",
+              tripId: tripRes.body.id,
+              emailId: "msg-out-of-range",
+              action: "create",
+            },
+          ],
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("OUT_OF_RANGE");
+      expect(res.body.error).toContain("Villa Fiorita");
+      expect(res.body.error).toContain("2026-03-29");
+      expect(res.body.segments).toHaveLength(1);
+      expect(res.body.segments[0].date).toBe("2026-03-29");
+      expect(res.body.segments[0].tripStartDate).toBe("2026-06-25");
+
+      // No segment was created and the source email was NOT marked as
+      // mapped — the user can fix the date and retry.
+      const tripCheck = await request(app).get(`/api/v1/trips/${tripRes.body.id}`);
+      const totalSegments = tripCheck.body.days.reduce(
+        (n: number, d: { segments: unknown[] }) => n + d.segments.length,
+        0,
+      );
+      expect(totalSegments).toBe(0);
+      const processed = await storage.getProcessedEmails();
+      const sourceEmail = processed.find(
+        (p) => p.gmailMessageId === "msg-out-of-range",
+      );
+      expect(sourceEmail?.parseStatus).not.toBe("mapped");
+    });
+
+    it("rejects a partially out-of-range apply atomically — does not create the in-range segments either", async () => {
+      // If we created the in-range segments and only flagged the out-of-
+      // range one, the user would lose the parsed copy of the rejected
+      // segment (it'd be gone from the email-scan review UI but never
+      // make it to the trip). All-or-nothing keeps the review state
+      // consistent and lets the user retry after fixing the bad row.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const res = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "activity",
+              title: "Wine tasting",
+              date: "2026-06-28", // in-range
+              confidence: "high",
+              tripId: tripRes.body.id,
+              emailId: "msg-good",
+              action: "create",
+            },
+            {
+              type: "hotel",
+              title: "Villa Fiorita",
+              date: "2026-03-29", // out-of-range
+              confidence: "medium",
+              tripId: tripRes.body.id,
+              emailId: "msg-bad",
+              action: "create",
+            },
+          ],
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("OUT_OF_RANGE");
+
+      const tripCheck = await request(app).get(`/api/v1/trips/${tripRes.body.id}`);
+      const totalSegments = tripCheck.body.days.reduce(
+        (n: number, d: { segments: unknown[] }) => n + d.segments.length,
+        0,
+      );
+      expect(totalSegments).toBe(0);
+    });
+
+    it("does not block merge/replace actions on dates that drift outside the trip range", async () => {
+      // Merge/replace target an existing segment by id, not by date — the
+      // segment is already on a real day in the trip, so `seg.date` is
+      // irrelevant. A parser that pulls a slightly-off date shouldn't
+      // block the user from updating the existing booking.
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const existing = await addSegment(tripRes.body.id, "2026-06-29", {
+        type: "hotel",
+        title: "Villa Fiorita Boutique Hotel",
+        venueName: "Villa Fiorita Boutique Hotel",
+      });
+
+      const res = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: "hotel",
+              title: "Villa Fiorita Hotel",
+              date: "2026-03-29", // outside the trip — but merge targets the existing day
+              confidence: "medium",
+              tripId: tripRes.body.id,
+              emailId: "msg-merge",
+              action: "merge",
+              existingSegmentId: existing.id,
+            },
+          ],
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.updated).toHaveLength(1);
     });
 
     it("create action still adds a new segment even when existingSegmentId is present", async () => {
@@ -918,32 +1346,56 @@ describe("Email Routes", () => {
       expect(seg.match?.status).toBe("new");
     });
 
-    it("honors an explicit tripId hint from the caller", async () => {
-      // Trip A's dates overlap the parsed segment; trip B's do not. With
-      // auto-matching the segment would be suggested for trip A, but the
-      // caller can override by passing tripId=trip-B.
-      const a = await request(app).post("/api/v1/trips").send({
-        title: "Trip A",
+    it("ignores a tripId hint whose range doesn't cover the parsed date and falls back to date-based search", async () => {
+      // Regression: scanning emails from a specific trip's page used to
+      // force every parsed segment onto that trip via the tripId hint,
+      // even when the date pointed somewhere else. The hint should be
+      // a soft suggestion — when it's out of range the matcher needs to
+      // fall through to a date-range search so the UI can route the
+      // segment to the right trip instead of trapping it on the wrong
+      // one (where the apply guard would then 400).
+      const sicily = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const palermoEarly = await request(app).post("/api/v1/trips").send({
+        title: "Palermo trip",
         startDate: "2026-06-10",
         endDate: "2026-06-20",
       });
-      const b = await request(app).post("/api/v1/trips").send({
-        title: "Trip B",
-        startDate: "2026-08-01",
-        endDate: "2026-08-10",
-      });
 
+      // Parsed date 2026-06-15 falls in Palermo trip's window, not Sicily's.
       const res = await request(app)
         .post("/api/v1/emails/import-html")
         .send({
           html: "<p>Palazzo</p>",
           subject: "Palazzo Natoli confirmation",
-          tripId: b.body.id,
+          tripId: sicily.body.id,
         });
-      expect(res.status).toBe(201);
-      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(b.body.id);
-      // Sanity check: trip A exists and has overlapping dates
-      expect(a.body.id).toBeDefined();
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(
+        palermoEarly.body.id,
+      );
+    });
+
+    it("leaves suggestedTripId blank in a trip-scoped scan when no trip covers the parsed date", async () => {
+      // Same fix as above, but with no other trip to fall back to —
+      // the server hands the segment back unmatched so the client can
+      // offer a new-trip proposal (the "create a trip for it" UX) the
+      // user gets when scanning from the trips homepage.
+      const sicily = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo</p>",
+          subject: "Palazzo Natoli confirmation",
+          tripId: sicily.body.id,
+        });
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBeUndefined();
     });
 
     it("returns no_travel_content when the HTML has nothing to extract", async () => {

@@ -31,6 +31,27 @@ if (
   );
 }
 
+// Phase 3b: Supabase Auth is now the only sign-in path. A build
+// missing these vars would render the login pages with disabled
+// buttons and a misleading "Sign-in is not configured" toast for
+// every user, with no signal to operators that the build was the
+// problem. Failing the build is the durable fix — same shape as
+// the `NEXT_PUBLIC_API_URL` guard above.
+if (
+  process.env.VERCEL === "1" &&
+  (vercelEnv === "production" || vercelEnv === "preview") &&
+  (!process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+) {
+  throw new Error(
+    `[itinly] NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY ` +
+      `must both be set on this Vercel ${vercelEnv} build. Without them the ` +
+      `Supabase client is null and sign-in is dead. Set both on Vercel → ` +
+      `Settings → Environment Variables for the ${vercelEnv} scope and ` +
+      `redeploy. See docs/supabase-auth-setup.md §6.`,
+  );
+}
+
 // ── Security headers ────────────────────────────────────────────
 //
 // **CSP lives in `src/proxy.ts`**, not here. The CSP needs a
@@ -152,7 +173,7 @@ const nextConfig: NextConfig = {
     // Unsplash and don't need transforming.
     unoptimized: true,
   },
-  transpilePackages: ["@travel-app/shared", "@travel-app/api-client"],
+  transpilePackages: ["@itinly/shared", "@itinly/api-client"],
   // Prevent Next.js from walking up to a parent lockfile (e.g. a global
   // package-lock.json in the user's home directory) and picking the wrong
   // workspace root. Explicitly anchor it to the monorepo root.

@@ -9,8 +9,8 @@ import {
   useDeleteShare,
   useDeleteTrip,
   useTrip,
-} from "@travel-app/api-client";
-import type { Segment, Trip } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { Segment, Trip } from "@itinly/shared";
 import { toast } from "sonner";
 import { describeError, toastMutationError } from "@/lib/api-error";
 import {
@@ -721,6 +721,8 @@ function TripFrame({
         <MobileTodosSheet
           tripId={trip.id}
           todos={trip.todos}
+          days={trip.days}
+          canEdit={permission.canEdit}
           open={todosOpen}
           onClose={onCloseTodos}
         />

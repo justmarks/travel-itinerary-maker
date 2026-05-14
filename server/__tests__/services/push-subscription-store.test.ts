@@ -1,5 +1,4 @@
 import { PushSubscriptionStore } from "../../src/services/push-subscription-store";
-import type { RedisStore } from "../../src/services/redis-store";
 
 const sub = (endpoint: string) => ({
   endpoint,
@@ -121,63 +120,8 @@ describe("PushSubscriptionStore", () => {
     expect(store.listForEmail("alice@example.com")).toEqual([]);
   });
 
-  describe("Redis persistence", () => {
-    let redis: RedisStore;
-    let hash: Record<string, unknown>;
-
-    beforeEach(() => {
-      hash = {};
-      redis = {
-        hgetall: async () => hash as Record<string, never>,
-        hset: async (_h: string, field: string, value: unknown) => {
-          hash[field] = value;
-        },
-        hdel: async (_h: string, field: string) => {
-          delete hash[field];
-        },
-      };
-    });
-
-    it("writes upserts through to redis", async () => {
-      const persistent = new PushSubscriptionStore(redis);
-      persistent.upsert({
-        userId: "user-1",
-        email: "alice@example.com",
-        subscription: sub("https://push.example/abc"),
-      });
-      // hset is async; let it flush.
-      await new Promise((r) => setImmediate(r));
-      expect(hash["user-1"]).toBeDefined();
-      const stored = hash["user-1"] as Array<{ subscription: { endpoint: string } }>;
-      expect(stored[0]!.subscription.endpoint).toBe("https://push.example/abc");
-    });
-
-    it("hydrates from redis on startup", async () => {
-      hash["user-1"] = [
-        {
-          userId: "user-1",
-          email: "alice@example.com",
-          subscription: sub("https://push.example/abc"),
-          createdAt: "2026-01-01T00:00:00.000Z",
-        },
-      ];
-      const persistent = new PushSubscriptionStore(redis);
-      await persistent.hydrate();
-      expect(persistent.listForUser("user-1")).toHaveLength(1);
-      expect(persistent.listForEmail("alice@example.com")).toHaveLength(1);
-    });
-
-    it("deletes the redis entry when a user's last subscription is removed", async () => {
-      const persistent = new PushSubscriptionStore(redis);
-      persistent.upsert({
-        userId: "user-1",
-        email: "alice@example.com",
-        subscription: sub("https://push.example/abc"),
-      });
-      await new Promise((r) => setImmediate(r));
-      persistent.remove("user-1", "https://push.example/abc");
-      await new Promise((r) => setImmediate(r));
-      expect(hash["user-1"]).toBeUndefined();
-    });
-  });
+  // Postgres persistence coverage (write-through, hydrate, delete, FK
+  // semantics) lives in
+  // `__tests__/integration/push-subscription-store.integration.test.ts`
+  // — needs a live Postgres so it sits in the integration suite.
 });

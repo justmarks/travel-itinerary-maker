@@ -21,7 +21,7 @@ import type {
   EmailScanRequest,
   HtmlImportRequest,
   XlsxImportRequest,
-} from "@travel-app/shared";
+} from "@itinly/shared";
 
 export interface PushStatusResponse {
   subscribed: boolean;
@@ -158,7 +158,21 @@ export class ApiClient {
 
     if (res.status === 204) return undefined as T;
 
-    const body = await res.json();
+    // Try to decode the body as JSON. Non-JSON error responses
+    // (HTML 502 from a load balancer, plain-text gateway timeouts)
+    // would otherwise throw `SyntaxError: Unexpected token '<'`
+    // and the user-facing toast would read "Unexpected token..."
+    // instead of "Request failed (502)". `describeError` lifts the
+    // ApiError shape's status into a friendlier default.
+    const text = await res.text();
+    let body: unknown = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { error: text.slice(0, 200) };
+      }
+    }
     if (!res.ok) throw new ApiError(res.status, body);
     return body as T;
   }
@@ -394,15 +408,22 @@ export class ApiClient {
 
   // ─── Calendar Sync ──────────────────────────────────────
 
-  listCalendars(): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
-    return this.request("/trips/calendar/list");
+  listCalendars(
+    provider?: "google" | "microsoft",
+  ): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
+    const qs = provider ? `?provider=${provider}` : "";
+    return this.request(`/trips/calendar/list${qs}`);
   }
 
   syncCalendar(
     tripId: string,
     calendarId?: string,
+    provider?: "google" | "microsoft",
   ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
-    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    const params = new URLSearchParams();
+    if (calendarId) params.set("calendarId", calendarId);
+    if (provider) params.set("provider", provider);
+    const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "POST" });
   }
 
@@ -410,18 +431,23 @@ export class ApiClient {
     tripId: string,
     segmentId: string,
     calendarId?: string,
+    provider?: "google" | "microsoft",
   ): Promise<{ created: number; updated: number; failed: number; eventId?: string }> {
-    const qs = calendarId ? `?calendarId=${encodeURIComponent(calendarId)}` : "";
+    const params = new URLSearchParams();
+    if (calendarId) params.set("calendarId", calendarId);
+    if (provider) params.set("provider", provider);
+    const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/segments/${segmentId}/calendar/sync${qs}`, { method: "POST" });
   }
 
   unsyncCalendar(
     tripId: string,
-    opts?: { calendarId?: string; deleteEvents?: boolean },
+    opts?: { calendarId?: string; deleteEvents?: boolean; provider?: "google" | "microsoft" },
   ): Promise<{ removed: number; failed: number }> {
     const params = new URLSearchParams();
     if (opts?.calendarId) params.set("calendarId", opts.calendarId);
     if (opts?.deleteEvents === false) params.set("deleteEvents", "false");
+    if (opts?.provider) params.set("provider", opts.provider);
     const qs = params.size ? `?${params}` : "";
     return this.request(`/trips/${tripId}/calendar/sync${qs}`, { method: "DELETE" });
   }
@@ -445,8 +471,32 @@ export class ApiClient {
 
   // ─── Email Scanning ─────────────────────────────────────
 
-  getGmailLabels(): Promise<GmailLabel[]> {
-    return this.request("/emails/labels");
+  getGmailLabels(provider?: "google" | "microsoft"): Promise<GmailLabel[]> {
+    const qs = provider ? `?provider=${provider}` : "";
+    return this.request(`/emails/labels${qs}`);
+  }
+
+  /**
+   * Lists the current user's active OAuth connections — the per-
+   * capability links written by the Phase 4c Connect flows.
+   * `identity` rows confirm sign-in via a provider; `email` /
+   * `calendar` rows back the feature-gating decisions in the UI
+   * (e.g. "should we offer the email-scan button at all?").
+   */
+  listConnections(): Promise<{
+    connections: Array<{
+      id: string;
+      provider: "google" | "microsoft";
+      capability: "identity" | "email" | "calendar";
+      accountEmail: string;
+      scopes: string[];
+      status: "active" | "revoked";
+      expiresAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }>;
+  }> {
+    return this.request("/connections");
   }
 
   getPendingEmails(): Promise<{ results: EmailScanResult[] }> {
@@ -458,6 +508,141 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(input ?? {}),
     });
+  }
+
+  /**
+   * Streaming variant of `scanEmails`. The server pushes Server-Sent
+   * Events as it works through the mailbox so the UI can render
+   * progress. Callbacks fire on:
+   *   - `onFound(total)`            — once the mailbox listing returns.
+   *   - `onPlan(newCount, pending)` — after dedup against the
+   *                                   already-processed set.
+   *   - `onProgress(parsed, total,  — emitted before each Claude
+   *                 subject, from)`   parse so the spinner can advance.
+   *
+   * Resolves with the same shape as the non-streaming `/emails/scan`
+   * endpoint once the server emits the terminal `done` event.
+   * Rejects with `ApiError(status, body)` if the server emits an
+   * `error` event (matches the JSON endpoint's failure semantics —
+   * `body.results` may be populated with partial parses on 402/503).
+   *
+   * Aborting the AbortSignal closes the stream; the server detects
+   * the disconnect and stops processing further emails on the next
+   * iteration.
+   */
+  async streamScanEmails(
+    input: EmailScanRequest | undefined,
+    callbacks: {
+      onFound?: (total: number) => void;
+      onPlan?: (newCount: number, pendingCount: number) => void;
+      onProgress?: (parsed: number, total: number, current?: { subject: string; from: string }) => void;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }> {
+    const token = this.getAccessToken?.();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    const res = await fetch(`${this.baseUrl}/emails/scan/stream`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(input ?? {}),
+      signal,
+    });
+
+    // Non-2xx responses (validation 400, missing-auth 401, etc.) come
+    // back as JSON, not SSE — the server returns those before opening
+    // the stream. Surface them as the existing ApiError so call sites
+    // can branch on `err.status` / `err.body.code` the same way they
+    // do for the JSON endpoint.
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, body);
+    }
+    if (!res.body) {
+      throw new ApiError(500, { error: "Stream not supported by runtime" });
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalPayload:
+      | { results: EmailScanResult[]; pendingCount?: number; newCount?: number; message?: string }
+      | undefined;
+    let errorPayload: { status?: number; [k: string]: unknown } | undefined;
+
+    const handleFrame = (frame: string) => {
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        // Comment lines (`: ping` heartbeats) are ignored per SSE spec.
+        if (line.startsWith(":") || line.length === 0) continue;
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data += (data ? "\n" : "") + line.slice(6);
+      }
+      if (!data) return;
+      let payload: Record<string, unknown>;
+      try {
+        payload = JSON.parse(data);
+      } catch {
+        return;
+      }
+      switch (event) {
+        case "found":
+          callbacks.onFound?.(payload.total as number);
+          break;
+        case "plan":
+          callbacks.onPlan?.(payload.newCount as number, payload.pendingCount as number);
+          break;
+        case "progress":
+          callbacks.onProgress?.(
+            payload.parsed as number,
+            payload.total as number,
+            payload.subject !== undefined
+              ? { subject: payload.subject as string, from: payload.from as string }
+              : undefined,
+          );
+          break;
+        case "done":
+          finalPayload = payload as typeof finalPayload;
+          break;
+        case "error":
+          errorPayload = payload as typeof errorPayload;
+          break;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (value) buffer += decoder.decode(value, { stream: true });
+      if (done) break;
+      let idx: number;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const frame = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 2);
+        handleFrame(frame);
+      }
+      if (errorPayload || finalPayload) {
+        // Server signalled terminal state — stop reading. The server
+        // will close the stream after writing the terminal event.
+        break;
+      }
+    }
+
+    if (errorPayload) {
+      const status = typeof errorPayload.status === "number" ? errorPayload.status : 500;
+      // Strip `status` from the body so call sites see the same shape
+      // as the JSON endpoint (which doesn't include status in the body).
+      const { status: _status, ...body } = errorPayload;
+      throw new ApiError(status, body);
+    }
+    if (!finalPayload) {
+      throw new ApiError(500, { error: "Stream ended without a result" });
+    }
+    return finalPayload;
   }
 
   importHtmlEmail(input: HtmlImportRequest): Promise<{ result: EmailScanResult }> {

@@ -30,13 +30,23 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package
-        run: pnpm --filter @travel-app/shared build
+        run: pnpm --filter @itinly/shared build
 
       - name: Run tests
         run: pnpm turbo run test
 
       - name: Type check
         run: pnpm turbo run build
+
+      # Cheap consistency gate: the README's "Current coverage: **N
+      # tests** across M test suites." line should match the actual
+      # totals. `--check` re-runs the suites and compares; fails the
+      # build when the line is stale so the maintainer remembers to
+      # run `pnpm update-test-count` before merging. The re-run hits
+      # the Turbo cache from the previous step so it's near-instant
+      # in CI.
+      - name: Check README test count is in sync
+        run: pnpm check-test-count
 
   # Integration tests run against a real Postgres so phase 1+ can plug
   # `SupabaseStorage` into the same `StorageProvider` contract suite the
@@ -76,7 +86,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared package
-        run: pnpm --filter @travel-app/shared build
+        run: pnpm --filter @itinly/shared build
 
       - name: Wait for Postgres
         run: |
@@ -90,4 +100,4 @@ jobs:
       - name: Run integration tests
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/itinly_test
-        run: pnpm --filter @travel-app/server test:integration
+        run: pnpm --filter @itinly/server test:integration

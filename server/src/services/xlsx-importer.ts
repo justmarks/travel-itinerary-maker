@@ -1,6 +1,6 @@
 import ExcelJS, { ValueType } from "exceljs";
-import type { SegmentType, SegmentCost } from "@travel-app/shared";
-import { lookupAirport } from "@travel-app/shared";
+import type { SegmentType, SegmentCost } from "@itinly/shared";
+import { lookupAirport } from "@itinly/shared";
 
 /**
  * A segment as parsed from the spreadsheet — a strict subset of the fields

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Trip, TripDay, Segment, SegmentType } from "@travel-app/shared";
-import { formatFlightEndpoint } from "@travel-app/shared";
+import type { Trip, TripDay, Segment, SegmentType } from "@itinly/shared";
+import { formatFlightEndpoint } from "@itinly/shared";
 import { cn } from "@/lib/utils";
 import {
   CATEGORY_TOKEN,

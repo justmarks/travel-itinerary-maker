@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import {
   useConfirmAllSegments,
   useConfirmSegment,
-} from "@travel-app/api-client";
-import type { Segment, Trip } from "@travel-app/shared";
+} from "@itinly/api-client";
+import type { Segment, Trip } from "@itinly/shared";
 import { AlertCircle, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { describeError, toastMutationError } from "@/lib/api-error";

@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { pushSubscriptionSchema } from "@travel-app/shared";
+import { pushSubscriptionSchema } from "@itinly/shared";
 import type { PushSubscriptionStore } from "../services/push-subscription-store";
 import { config } from "../config/env";
 

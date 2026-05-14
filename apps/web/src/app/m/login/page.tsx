@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { startGoogleSignIn } from "@/lib/oauth";
+import { getSupabaseClient } from "@/lib/supabase";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { AppWordmark } from "@/components/app-wordmark";
@@ -98,13 +98,31 @@ export default function MobileLoginPage(): React.JSX.Element {
             </div>
           )}
 
+          {/*
+            Both Google and Microsoft sign-in route through Supabase
+            Auth.
+          */}
           <button
             type="button"
             disabled={apiAvailable === false}
-            onClick={() => {
+            onClick={async () => {
               setLoginError(null);
               try {
-                startGoogleSignIn("/m");
+                const supabase = getSupabaseClient();
+                if (!supabase) {
+                  setLoginError("Sign-in is not configured.");
+                  return;
+                }
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                    // Identity-only at sign-in. Capability scopes
+                    // (Calendar / Gmail) granted on-demand via
+                    // /settings/account Connect buttons.
+                  },
+                });
+                if (error) throw error;
               } catch (err) {
                 setLoginError(
                   err instanceof Error ? err.message : "Sign-in is not configured.",
@@ -112,10 +130,6 @@ export default function MobileLoginPage(): React.JSX.Element {
               }
             }}
             className={cn(
-              // bg-primary / text-primary-foreground match the desktop
-              // login's <Button> default variant (the new cyan/azure
-              // brand action colour). The previous bg-foreground was
-              // navy body-text, not the primary CTA colour.
               "flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary text-base font-semibold text-primary-foreground transition-opacity",
               "active:opacity-90 disabled:opacity-40",
             )}
@@ -139,6 +153,50 @@ export default function MobileLoginPage(): React.JSX.Element {
               />
             </svg>
             Sign in with Google
+          </button>
+
+          <button
+            type="button"
+            disabled={apiAvailable === false}
+            onClick={async () => {
+              setLoginError(null);
+              try {
+                const supabase = getSupabaseClient();
+                if (!supabase) {
+                  setLoginError("Sign-in is not configured.");
+                  return;
+                }
+                const { error } = await supabase.auth.signInWithOAuth({
+                  provider: "azure",
+                  options: {
+                    redirectTo: `${window.location.origin}/auth/callback`,
+                    // Identity-only at sign-in. Capability scopes
+                    // (Mail.Read / Calendars.ReadWrite) granted on-
+                    // demand via /settings/account Connect buttons.
+                    scopes: "openid email profile offline_access User.Read",
+                  },
+                });
+                if (error) throw error;
+              } catch (err) {
+                setLoginError(
+                  err instanceof Error
+                    ? err.message
+                    : "Sign-in is not configured.",
+                );
+              }
+            }}
+            className={cn(
+              "flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-primary bg-background text-base font-semibold text-foreground transition-opacity",
+              "active:opacity-90 disabled:opacity-40",
+            )}
+          >
+            <svg className="h-5 w-5" viewBox="0 0 23 23" aria-hidden>
+              <path fill="#f25022" d="M1 1h10v10H1z" />
+              <path fill="#7fba00" d="M12 1h10v10H12z" />
+              <path fill="#00a4ef" d="M1 12h10v10H1z" />
+              <path fill="#ffb900" d="M12 12h10v10H12z" />
+            </svg>
+            Sign in with Microsoft
           </button>
 
           {/*

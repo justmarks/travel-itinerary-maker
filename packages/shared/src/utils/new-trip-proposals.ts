@@ -131,23 +131,27 @@ export function proposeNewTrips(
 }
 
 /**
- * Picks the most-common destination city across a cluster — for
- * flights / trains / transport that's `arrivalCity`, for hotel /
- * activity / restaurant that's `city`. When nothing usable is found
- * the title degrades to "Trip <Month> <Year>" so the user still sees
- * a sensible default they can rename later.
+ * Picks the destination city for a cluster's proposed title.
+ *
+ * Priority:
+ *  1. **Non-transport segments** (hotels, activities, restaurants):
+ *     count their `city` directly. A hotel is a strong destination
+ *     signal — you don't stay AT a layover.
+ *  2. **Transport-only fallback**: pick the *last* arrival city that
+ *     isn't the same as the first segment's departure city (treated
+ *     as "home"). Handles round-trips like `MIA → LAX → SEA → MIA`
+ *     where the simple "most frequent arrival" tied at 1 and the
+ *     first-inserted (layover) won — see the fix in #303 for the
+ *     mirror-image bug on `TripDay.city` derivation.
+ *
+ * When nothing usable is found the title degrades to "Trip <Month>
+ * <Year>" so the user still sees a sensible default to rename later.
  */
 function proposalTitle(
   segments: readonly ParsedSegment[],
   startDate: string,
 ): string {
-  const cities = new Map<string, number>();
-  for (const seg of segments) {
-    const city = destinationCity(seg);
-    if (!city) continue;
-    cities.set(city, (cities.get(city) ?? 0) + 1);
-  }
-  const top = [...cities.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const top = proposalDestination(segments);
 
   const date = new Date(startDate + "T00:00:00");
   const monthYear = isNaN(date.getTime())
@@ -158,10 +162,73 @@ function proposalTitle(
   return monthYear ? `${top} ${monthYear}` : top;
 }
 
-function destinationCity(seg: ParsedSegment): string | undefined {
-  if (seg.arrivalCity) return seg.arrivalCity.trim() || undefined;
-  if (seg.city) return seg.city.trim() || undefined;
-  if (seg.departureCity) return seg.departureCity.trim() || undefined;
+const TRANSPORT_TYPES = new Set<ParsedSegment["type"]>([
+  "flight",
+  "train",
+  "car_rental",
+  "car_service",
+  "other_transport",
+  "cruise",
+]);
+
+function isTransport(seg: ParsedSegment): boolean {
+  return TRANSPORT_TYPES.has(seg.type);
+}
+
+function proposalDestination(
+  segments: readonly ParsedSegment[],
+): string | undefined {
+  // Hotels / activities / restaurants pin you to a city — a Maui
+  // dinner is way more informative for the trip title than a flight
+  // arrival into Honolulu en route. Count these by frequency.
+  const nonTransportCounts = new Map<string, number>();
+  for (const seg of segments) {
+    if (isTransport(seg)) continue;
+    const city = seg.city?.trim();
+    if (city) {
+      nonTransportCounts.set(city, (nonTransportCounts.get(city) ?? 0) + 1);
+    }
+  }
+  if (nonTransportCounts.size > 0) {
+    return [...nonTransportCounts.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0][0];
+  }
+
+  // Transport-only cluster — pick the last non-home arrival in
+  // chronological order. The first segment's `departureCity` is the
+  // assumed "home" / starting point; on a round-trip its return leg
+  // arrives back home, which we ignore.
+  const transports = [...segments]
+    .filter(isTransport)
+    .sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return cmp;
+      const aStart = a.startTime ?? "00:00";
+      const bStart = b.startTime ?? "00:00";
+      return aStart.localeCompare(bStart);
+    });
+  if (transports.length === 0) return undefined;
+
+  const home = transports[0].departureCity?.trim() || undefined;
+  let lastNonHome: string | undefined;
+  for (const t of transports) {
+    const arrival = t.arrivalCity?.trim();
+    if (!arrival) continue;
+    if (arrival === home) continue;
+    lastNonHome = arrival;
+  }
+  if (lastNonHome) return lastNonHome;
+
+  // Pure single-leg / no-home-derivable case — fall back to the last
+  // arrival regardless, then to departure city, then nothing. Mirrors
+  // the prior `destinationCity` order.
+  for (let i = transports.length - 1; i >= 0; i--) {
+    const seg = transports[i];
+    if (seg.arrivalCity?.trim()) return seg.arrivalCity.trim();
+    if (seg.city?.trim()) return seg.city.trim();
+    if (seg.departureCity?.trim()) return seg.departureCity.trim();
+  }
   return undefined;
 }
 
