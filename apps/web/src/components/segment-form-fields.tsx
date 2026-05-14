@@ -533,6 +533,12 @@ function MoreOptionsSection({
 function advancedFilledCount(form: SegmentFormState): number {
   const flags = getTypeFlags(form.type);
   let n = 0;
+  // Booking metadata: confirmation #, cost amount, plus the cost
+  // details textarea. Currency on its own doesn't count — it always
+  // has a value (defaults to "USD"), so the user picking USD on an
+  // un-priced segment shouldn't read as "filled."
+  if (form.confirmationCode) n += 1;
+  if (form.costAmount && parseFloat(form.costAmount) > 0) n += 1;
   if (form.provider) n += 1;
   if (form.url) n += 1;
   if (form.costDetails) n += 1;
@@ -1179,64 +1185,71 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Common: Confirmation # + Cost ── */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-conf`}>Confirmation #</Label>
-          <Input
-            id={`${idPrefix}-conf`}
-            placeholder="Optional"
-            value={form.confirmationCode}
-            onChange={(e) => onChange({ confirmationCode: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor={`${idPrefix}-cost`}>
-            {isHotel ? "Room rate" : "Cost"}
-          </Label>
-          <Input
-            id={`${idPrefix}-cost`}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0.00"
-            value={form.costAmount}
-            onChange={(e) => onChange({ costAmount: e.target.value })}
-          />
-        </div>
-        <div className="col-span-2 space-y-2">
-          <Label>Currency</Label>
-          <Select
-            value={form.costCurrency}
-            onValueChange={(v) => onChange({ costCurrency: v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="GBP">GBP</SelectItem>
-              <SelectItem value="JPY">JPY</SelectItem>
-              <SelectItem value="points">Points</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
       {/* ── More options ── */}
       {/*
-        Single collapsible section that consolidates every advanced /
-        infrequently-used field, regardless of segment type. Each block
-        below is gated on the active type so only the relevant subset
-        renders. The section auto-expands when ANY of these fields
-        already has a value so editing an existing segment doesn't hide
-        data the user previously entered.
+        Single collapsible section that consolidates every booking
+        detail beyond the headline route / venue / time fields. Each
+        block below is gated on the active type so only the relevant
+        subset renders. Confirmation # and Cost live here too — they're
+        useful but most segments are filled in well before booking
+        details are known, and putting them up front gave the form an
+        intimidating first impression.
+
+        The button label gains a "N filled" pill when any of these
+        fields already has a value so an edit doesn't hide data
+        silently.
       */}
       <MoreOptionsSection filledCount={advancedFilledCount(form)}>
+        {/* Confirmation # + Cost — most commonly populated booking
+            metadata, surfaced at the top of the disclosure so they're
+            the first thing the user sees on expand. */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-conf`}>Confirmation #</Label>
+            <Input
+              id={`${idPrefix}-conf`}
+              placeholder="Optional"
+              value={form.confirmationCode}
+              onChange={(e) => onChange({ confirmationCode: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-4">
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor={`${idPrefix}-cost`}>
+              {isHotel ? "Room rate" : "Cost"}
+            </Label>
+            <Input
+              id={`${idPrefix}-cost`}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={form.costAmount}
+              onChange={(e) => onChange({ costAmount: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Currency</Label>
+            <Select
+              value={form.costCurrency}
+              onValueChange={(v) => onChange({ costCurrency: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD</SelectItem>
+                <SelectItem value="EUR">EUR</SelectItem>
+                <SelectItem value="GBP">GBP</SelectItem>
+                <SelectItem value="JPY">JPY</SelectItem>
+                <SelectItem value="points">Points</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {/* Flight-specific advanced fields */}
         {isFlight && (
           <>
