@@ -20,6 +20,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@itinly/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@itinly/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@sentry/browser':
         specifier: ^10.51.0
         version: 10.51.0
@@ -35,12 +41,6 @@ importers:
       '@tanstack/react-query-persist-client':
         specifier: ^5.100.9
         version: 5.100.9(@tanstack/react-query@5.100.9(react@19.2.5))(react@19.2.5)
-      '@itinly/api-client':
-        specifier: workspace:*
-        version: link:../../packages/api-client
-      '@itinly/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@upstash/redis':
         specifier: ^1.37.0
         version: 1.37.0
@@ -170,12 +170,12 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.93.0
         version: 0.93.0(zod@4.4.3)
-      '@sentry/node':
-        specifier: ^10.51.0
-        version: 10.51.0
       '@itinly/shared':
         specifier: workspace:*
         version: link:../packages/shared
+      '@sentry/node':
+        specifier: ^10.51.0
+        version: 10.51.0
       '@upstash/redis':
         specifier: ^1.37.0
         version: 1.37.0
@@ -273,6 +273,9 @@ importers:
       ts-jest:
         specifier: ^29.3.0
         version: 29.4.9(@babel/core@7.29.0)(@jest/transform@30.3.0)(@jest/types@30.3.0)(babel-jest@30.3.0(@babel/core@7.29.0))(jest-util@30.3.0)(jest@29.7.0(@types/node@25.6.0)(ts-node@10.9.2(@types/node@25.6.0)(typescript@5.9.3)))(typescript@5.9.3)
+      ts-node:
+        specifier: ^10.9.2
+        version: 10.9.2(@types/node@25.6.0)(typescript@5.9.3)
       ts-node-dev:
         specifier: ^2.0.0
         version: 2.0.0(@types/node@25.6.0)(typescript@5.9.3)
