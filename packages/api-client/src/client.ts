@@ -158,7 +158,21 @@ export class ApiClient {
 
     if (res.status === 204) return undefined as T;
 
-    const body = await res.json();
+    // Try to decode the body as JSON. Non-JSON error responses
+    // (HTML 502 from a load balancer, plain-text gateway timeouts)
+    // would otherwise throw `SyntaxError: Unexpected token '<'`
+    // and the user-facing toast would read "Unexpected token..."
+    // instead of "Request failed (502)". `describeError` lifts the
+    // ApiError shape's status into a friendlier default.
+    const text = await res.text();
+    let body: unknown = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { error: text.slice(0, 200) };
+      }
+    }
     if (!res.ok) throw new ApiError(res.status, body);
     return body as T;
   }
