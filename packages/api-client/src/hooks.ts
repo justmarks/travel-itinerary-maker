@@ -695,7 +695,40 @@ export function useCreateShareRule() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateShareRuleInput) => client.createShareRule(input),
-    onSuccess: () => {
+    // Optimistic add: per CLAUDE.md, user-triggered actions update
+    // the cache via `onMutate` so the rule appears in the list the
+    // moment the user clicks "Auto-share". The server's response
+    // settles the canonical row via `onSettled` invalidate.
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.shareRules });
+      const previous = queryClient.getQueryData<TripShareRule[]>(
+        queryKeys.shareRules,
+      );
+      const now = new Date().toISOString();
+      const optimistic: TripShareRule = {
+        id: `temp_${generateId()}`,
+        ownerUserId: "self",
+        sharedWithEmail: input.sharedWithEmail,
+        permission: input.permission,
+        showCosts: input.showCosts,
+        showTodos: input.showTodos,
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (previous) {
+        queryClient.setQueryData<TripShareRule[]>(queryKeys.shareRules, [
+          ...previous,
+          optimistic,
+        ]);
+      }
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(queryKeys.shareRules, ctx.previous);
+      }
+    },
+    onSettled: () => {
       // Spawned shares mean every trip's `shares` list may have changed
       // (and the trip-list summary too if it surfaces share counts).
       queryClient.invalidateQueries({ queryKey: queryKeys.shareRules });
