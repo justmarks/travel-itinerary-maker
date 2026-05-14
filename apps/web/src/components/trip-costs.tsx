@@ -26,6 +26,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   restaurant_dinner: "Dinner",
   tour: "Tour",
   cruise: "Cruise",
+  show: "Show",
 };
 
 function categoryLabel(category: string): string {
