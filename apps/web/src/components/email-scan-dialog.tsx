@@ -285,28 +285,23 @@ export function EmailScanDialog({
           // Default selection: skip duplicates + low-confidence. User can opt in.
           const defaultSelected =
             matchStatus !== "duplicate" && seg.confidence !== "low";
-          // Per-trip scans (the dialog was opened from a specific trip)
-          // pre-bind every segment to that trip. Otherwise prefer the
-          // server's suggestedTripId; if neither, we leave it blank
-          // and let proposeNewTrips cluster it below.
+          // Trust the server's suggestedTripId: a trip-scoped scan still
+          // sends `tripId` to the backend, and the backend honors that
+          // hint only when the segment date is inside that trip's
+          // window. Segments outside the active trip's range come back
+          // with `suggestedTripId` either pointing at the trip that
+          // actually covers the date or undefined — those flow into
+          // proposeNewTrips below for the "create a trip for it" UX,
+          // just like an account-level scan from the trips homepage.
           sels.push({
             ...seg,
             emailId: result.emailId,
             selected: defaultSelected,
-            assignedTripId: seg.suggestedTripId || tripId || "",
+            assignedTripId: seg.suggestedTripId ?? "",
             action: defaultActionFor(matchStatus),
             existingSegmentId: seg.match?.existingSegmentId,
           });
         }
-      }
-
-      // Per-trip scans never propose new trips — the user is targeting
-      // a specific existing one, so unassigned segments either belong
-      // there or get skipped. (Mirrors mobile's buildReviewItems.)
-      if (tripId) {
-        setSelections(sels);
-        setProposals([]);
-        return;
       }
 
       // Cluster items that still have no trip into proposed new trips
@@ -332,7 +327,7 @@ export function EmailScanDialog({
       setSelections(sels);
       setProposals(next);
     },
-    [tripId],
+    [],
   );
 
   // True when a selected segment has no assigned trip AND isn't bound
