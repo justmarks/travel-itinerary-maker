@@ -1,8 +1,21 @@
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+// Anchor every YYYY-MM-DD → Date parse at UTC midnight (`T00:00:00Z`)
+// rather than naked `T00:00:00` (local time). The previous form
+// parsed at local-time midnight then read `getUTCDay/Date`, which
+// only happened to be correct on UTC-zone servers — on UTC+N hosts
+// every "Y-M-D" was a day BEHIND UTC, so `getDayOfWeek("2026-05-14")`
+// returned Wed instead of Thu and `addDays(..., 1)` returned the
+// original date. Railway and Vercel default to UTC so prod never
+// hit it, but dev on a non-UTC host (or a future timezone-shifted
+// deployment) would have.
+function parseIsoDateUtc(isoDate: string): Date {
+  return new Date(`${isoDate}T00:00:00Z`);
+}
+
 /** Get short day-of-week name from an ISO date string */
 export function getDayOfWeek(isoDate: string): string {
-  const date = new Date(isoDate + "T00:00:00");
+  const date = parseIsoDateUtc(isoDate);
   return DAY_NAMES[date.getUTCDay()];
 }
 
@@ -13,7 +26,7 @@ export function getDayOfWeek(isoDate: string): string {
  */
 export function addDays(isoDate: string, days: number): string {
   if (!isoDate) return isoDate;
-  const d = new Date(isoDate + "T00:00:00");
+  const d = parseIsoDateUtc(isoDate);
   if (Number.isNaN(d.getTime())) return isoDate;
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().split("T")[0];
@@ -22,8 +35,8 @@ export function addDays(isoDate: string, days: number): string {
 /** Generate an array of ISO date strings between start and end (inclusive) */
 export function generateDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
-  const current = new Date(startDate + "T00:00:00");
-  const end = new Date(endDate + "T00:00:00");
+  const current = parseIsoDateUtc(startDate);
+  const end = parseIsoDateUtc(endDate);
 
   while (current <= end) {
     dates.push(current.toISOString().split("T")[0]);
