@@ -194,7 +194,27 @@ function SegmentRow({
           "cursor-pointer transition-colors hover:bg-muted/40 focus-within:bg-muted/40",
       )}
       style={segmentRowStyle(config.token)}
-      onClick={canEdit ? openEdit : undefined}
+      onClick={
+        canEdit
+          ? (e) => {
+              // React portals propagate events through the COMPONENT
+              // tree, not the DOM tree — so a click on the Cancel
+              // button inside the portaled EditSegmentDialog (which
+              // is a child component of this row) will bubble back
+              // here as if the user had clicked the row. Without
+              // this DOM-tree guard, Cancel / the close icon would
+              // close the dialog and immediately reopen it.
+              //
+              // `currentTarget.contains(target)` filters out exactly
+              // those portaled clicks: the row's DOM subtree doesn't
+              // include the portaled dialog content, so a click that
+              // originated there fails the check and is ignored.
+              const target = e.target as Node | null;
+              if (!target || !e.currentTarget.contains(target)) return;
+              openEdit();
+            }
+          : undefined
+      }
       onKeyDown={
         canEdit
           ? (e) => {
