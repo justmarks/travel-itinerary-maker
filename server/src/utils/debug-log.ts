@@ -10,6 +10,12 @@
  *                          (hits Google's tokeninfo endpoint with
  *                          the user's access token to dump what
  *                          scopes the token actually carries)
+ *   DEBUG_TIMEZONES=1    — verbose "Resolved <city> → <tz>" lines.
+ *                          City strings are user-controlled (may
+ *                          contain PII) so the echo is off by
+ *                          default; flip on when investigating
+ *                          why a specific trip's segment-card
+ *                          times look wrong on calendar export.
  *
  * `console.warn` / `console.error` calls are deliberately NOT gated
  * by these knobs — those flag real anomalies and should always
@@ -19,6 +25,7 @@
 const DEBUG_EMAIL_SCAN = process.env.DEBUG_EMAIL_SCAN === "1";
 const DEBUG_CONNECTIONS = process.env.DEBUG_CONNECTIONS === "1";
 const DEBUG_CALENDAR = process.env.DEBUG_CALENDAR === "1";
+const DEBUG_TIMEZONES = process.env.DEBUG_TIMEZONES === "1";
 
 export function debugEmailScan(...args: unknown[]): void {
   if (DEBUG_EMAIL_SCAN) {
@@ -58,4 +65,14 @@ export function isCalendarDebugEnabled(): boolean {
  */
 export function isConnectionsDebugEnabled(): boolean {
   return DEBUG_CONNECTIONS;
+}
+
+/**
+ * Returns true when DEBUG_TIMEZONES is set. Used by
+ * `timezone-lookup` to gate the per-city "Resolved <city> → <tz>"
+ * log — city strings are user-controlled and may carry PII, so the
+ * verbose echo stays off by default.
+ */
+export function isTimezoneDebugEnabled(): boolean {
+  return DEBUG_TIMEZONES;
 }
