@@ -32,6 +32,11 @@ import {
   fetchGoogleTokenScopes,
   GMAIL_READ_SCOPE,
 } from "../services/google-tokeninfo";
+import {
+  probeMicrosoftScope,
+  MAIL_READ_SCOPE,
+  CALENDARS_RW_SCOPE,
+} from "../services/microsoft-scope-probe";
 
 export interface ConnectionsRoutesOptions {
   store: ConnectionsStore;
@@ -273,6 +278,50 @@ export function createConnectionsRoutes(
         // (tokeninfo is authoritative) rather than what the client
         // claimed it asked for.
         scopes = granted;
+      }
+    }
+
+    // Microsoft email / calendar capability scope pre-flight. Same
+    // rationale as the Google branch: the auth-callback POSTs the
+    // *requested* scopes, not the *granted* ones, so a user who
+    // deselects Mail.Read or Calendars.ReadWrite on Microsoft's
+    // consent screen ends up with a row claiming scopes the token
+    // doesn't actually carry — every subsequent feature call 401s
+    // while Settings shows "Connected."
+    //
+    // The probe makes an authoritative read against Graph (one cheap
+    // `/me/mailFolders` or `/me/calendars` call) and watches the
+    // status. We deliberately do NOT parse the access token's `scp`
+    // claim: Microsoft documents Graph access tokens as opaque and
+    // reserves the right to change their format.
+    //
+    // - granted → keep the client-supplied scope list, write the row.
+    // - denied  → 400 with a typed `code` the UI surfaces inline.
+    // - unknown → fall through with a warn (timeout, network, 5xx,
+    //             401). Matches the Google "tokeninfo unreachable"
+    //             path; downstream Graph 401s on first real use
+    //             still backstop the access check.
+    if (provider === "microsoft" && accessToken && (capability === "email" || capability === "calendar")) {
+      const required = capability === "email" ? MAIL_READ_SCOPE : CALENDARS_RW_SCOPE;
+      const probe = await probeMicrosoftScope(accessToken, capability);
+      if (probe === "unknown") {
+        console.warn(
+          `[connections] graph scope probe inconclusive for microsoft/${capability} user=${req.userId} — proceeding with client-supplied scopes`,
+        );
+      } else if (probe === "denied") {
+        console.warn(
+          `[connections] rejecting microsoft/${capability} write for user=${req.userId} — graph probe says ${required} was not granted`,
+        );
+        const friendly =
+          capability === "email"
+            ? "Outlook mail access was not granted. Re-run Connect Outlook and make sure the mail permission box is checked on Microsoft's consent screen."
+            : "Outlook Calendar access was not granted. Re-run Connect Outlook Calendar and make sure the calendar permission box is checked on Microsoft's consent screen.";
+        const code =
+          capability === "email"
+            ? "MICROSOFT_MAIL_SCOPE_NOT_GRANTED"
+            : "MICROSOFT_CALENDAR_SCOPE_NOT_GRANTED";
+        res.status(400).json({ error: friendly, code });
+        return;
       }
     }
 

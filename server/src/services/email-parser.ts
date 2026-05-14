@@ -208,7 +208,15 @@ export class EmailParser {
       "&yen;": "¥",
       "&cent;": "¢",
     };
-    text = text.replace(/&[a-z]+;|&#39;/gi, (match) => entityMap[match] ?? match);
+    // Lowercase the match before lookup — the regex matches case-
+    // insensitively (`&NBSP;`, `&AMP;`, common in older vendor email
+    // templates) but `entityMap` keys are all lowercase. Without the
+    // normalisation those uppercase variants fall through to `match`
+    // and end up in the Claude prompt as literal "&NBSP;" strings.
+    text = text.replace(
+      /&[a-z]+;|&#39;/gi,
+      (match) => entityMap[match.toLowerCase()] ?? match,
+    );
     // Numeric entities (decimal + hex).
     text = text.replace(/&#(\d+);/g, (_m, code: string) =>
       String.fromCodePoint(parseInt(code, 10)),

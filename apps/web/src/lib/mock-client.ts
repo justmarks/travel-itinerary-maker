@@ -1363,12 +1363,17 @@ export class MockApiClient extends ApiClient {
     // Generate days between startDate and endDate
     const days: TripDay[] = [];
     const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const start = new Date(startDate + "T00:00:00");
-    const end = new Date(endDate + "T00:00:00");
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    // UTC midnight + UTC date arithmetic so the loop and the
+    // resulting `toISOString().slice(0, 10)` agree on the date
+    // regardless of the browser's TZ — the previous form parsed
+    // local and serialised UTC, which dropped a day on
+    // UTC-east browsers.
+    const start = new Date(startDate + "T00:00:00Z");
+    const end = new Date(endDate + "T00:00:00Z");
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       days.push({
         date: d.toISOString().slice(0, 10),
-        dayOfWeek: DAY_NAMES[d.getDay()],
+        dayOfWeek: DAY_NAMES[d.getUTCDay()],
         city: "",
         segments: [],
       });

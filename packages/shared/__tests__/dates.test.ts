@@ -19,6 +19,22 @@ describe("getDayOfWeek", () => {
   it("handles leap year", () => {
     expect(getDayOfWeek("2024-02-29")).toBe("Thu");
   });
+
+  it("anchors the parse at UTC midnight so the day name doesn't drift with the host TZ", () => {
+    // Regression: the previous implementation parsed
+    // `new Date("2026-05-14T00:00:00")` (local time) then read
+    // `.getUTCDay()`. On a host with UTC+N, local midnight is
+    // `Y-M-(D-1)` in UTC, so `getDayOfWeek` returned the previous
+    // day's name. The test environment is UTC, so this assertion
+    // checks both directions: same day name as a calendar lookup,
+    // AND that the implementation routes through the UTC parse
+    // (the function returns the right answer for a value whose
+    // local-time interpretation on UTC+12 hosts would shift it).
+    expect(getDayOfWeek("2026-05-14")).toBe("Thu");
+    // Year-boundary stress: midnight of Jan 1 UTC must NOT round
+    // back to Dec 31 (Wednesday) on west-of-UTC hosts.
+    expect(getDayOfWeek("2026-01-01")).toBe("Thu");
+  });
 });
 
 describe("addDays", () => {

@@ -185,6 +185,24 @@ describe("/api/v1/connections", () => {
   });
 
   describe("POST /api/v1/connections", () => {
+    // The microsoft scope check now hits Graph (`/me/mailFolders` or
+    // `/me/calendars`); without a global mock, CI's outbound network
+    // is blocked and returns 403, which the probe interprets as
+    // "scope denied" and rejects writes that should succeed. Default
+    // every fetch to a 200 "value: []" so the probe reads as
+    // "granted." Individual scope-validation tests below
+    // (mockTokeninfoScope, mockGraphProbe) override this for the
+    // specific upstream response shape they want to exercise.
+    let outerFetchSpy: jest.SpyInstance;
+    beforeEach(() => {
+      outerFetchSpy = jest.spyOn(global, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ value: [] }), { status: 200 }),
+      );
+    });
+    afterEach(() => {
+      outerFetchSpy.mockRestore();
+    });
+
     it("creates a new connection and returns it (without tokens)", async () => {
       const res = await request(app)
         .post("/api/v1/connections")
@@ -529,7 +547,21 @@ describe("/api/v1/connections", () => {
         ]);
       });
 
-      it("does not validate microsoft/email writes", async () => {
+      it("does not call Google's tokeninfo for microsoft writes", async () => {
+        // The microsoft branch calls Graph (`/me/mailFolders` or
+        // `/me/calendars`) to probe scope, NOT Google's tokeninfo —
+        // mock graph success so the request completes, and assert
+        // tokeninfo was never hit.
+        fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+          const url = typeof input === "string" ? input : input.toString();
+          if (url.startsWith("https://oauth2.googleapis.com/tokeninfo")) {
+            throw new Error("unexpected tokeninfo call for microsoft write");
+          }
+          return new Response(JSON.stringify({ value: [{ id: "x" }] }), {
+            status: 200,
+          });
+        });
+
         const res = await request(app)
           .post("/api/v1/connections")
           .set("x-test-user-id", USER_ID)
@@ -543,7 +575,11 @@ describe("/api/v1/connections", () => {
           })
           .expect(201);
 
-        expect(fetchSpy).not.toHaveBeenCalled();
+        const tokeninfoCalls = fetchSpy.mock.calls.filter((c) => {
+          const u = typeof c[0] === "string" ? c[0] : (c[0] as URL | Request).toString();
+          return u.startsWith("https://oauth2.googleapis.com/tokeninfo");
+        });
+        expect(tokeninfoCalls).toHaveLength(0);
         expect(res.body.connection.provider).toBe("microsoft");
       });
 
@@ -562,6 +598,170 @@ describe("/api/v1/connections", () => {
           .expect(201);
 
         expect(fetchSpy).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("Microsoft email/calendar scope validation (Graph probe)", () => {
+      // Mirrors the Google branch: the auth-callback POSTs the
+      // REQUESTED scope set (from sessionStorage), not the granted
+      // one. A user who deselected Mail.Read / Calendars.ReadWrite on
+      // Microsoft's consent screen previously ended up with a row
+      // claiming those scopes — the first Graph call then 401'd and
+      // the UX showed "Connected" while every feature failed.
+      //
+      // We now ask Graph authoritatively: `/me/mailFolders` for the
+      // email capability or `/me/calendars` for calendar. 200 →
+      // granted; 403 → denied (reject the write); 401/5xx/timeout →
+      // inconclusive (fall through with a warn, matching Google's
+      // "tokeninfo unreachable" path).
+      //
+      // We deliberately avoid parsing the access token: Microsoft
+      // documents Graph tokens as opaque and reserves the right to
+      // change the format.
+      let fetchSpy: jest.SpyInstance;
+
+      beforeEach(() => {
+        fetchSpy = jest.spyOn(global, "fetch");
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function mockGraphProbe(status: number, capability: "email" | "calendar"): void {
+        const expectedPath =
+          capability === "email" ? "/me/mailFolders" : "/me/calendars";
+        fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+          const url = typeof input === "string" ? input : input.toString();
+          if (url.startsWith("https://graph.microsoft.com/v1.0" + expectedPath)) {
+            const body = status >= 200 && status < 300
+              ? { value: [{ id: "x" }] }
+              : { error: { code: "ErrorAccessDenied", message: "denied" } };
+            return new Response(JSON.stringify(body), { status });
+          }
+          throw new Error(`unexpected fetch in test: ${url}`);
+        });
+      }
+
+      it("rejects microsoft/email writes when Graph returns 403", async () => {
+        mockGraphProbe(403, "email");
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "email",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Mail.Read"],
+          });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe("MICROSOFT_MAIL_SCOPE_NOT_GRANTED");
+        expect(res.body.error).toMatch(/Outlook/i);
+      });
+
+      it("rejects microsoft/calendar writes when Graph returns 403", async () => {
+        mockGraphProbe(403, "calendar");
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "calendar",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Calendars.ReadWrite"],
+          });
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe("MICROSOFT_CALENDAR_SCOPE_NOT_GRANTED");
+      });
+
+      it("accepts microsoft/email writes when Graph returns 200", async () => {
+        mockGraphProbe(200, "email");
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "email",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Mail.Read"],
+          })
+          .expect(201);
+        expect(res.body.connection.scopes).toEqual([
+          "offline_access",
+          "Mail.Read",
+        ]);
+      });
+
+      it("falls through with a warn when Graph returns 5xx (transient)", async () => {
+        mockGraphProbe(503, "email");
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "email",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Mail.Read"],
+          })
+          .expect(201);
+        expect(res.body.connection.scopes).toEqual([
+          "offline_access",
+          "Mail.Read",
+        ]);
+      });
+
+      it("falls through with a warn when Graph 401s (token issue, not scope)", async () => {
+        // A 401 means the token format is wrong / expired — not
+        // something a re-consent can fix. Treat as inconclusive
+        // and let the downstream Graph 401 on first real use
+        // surface the re-link UX.
+        mockGraphProbe(401, "email");
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "email",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+            scopes: ["offline_access", "Mail.Read"],
+          })
+          .expect(201);
+        expect(res.body.connection.scopes).toEqual([
+          "offline_access",
+          "Mail.Read",
+        ]);
+      });
+
+      it("does not probe microsoft/identity writes (no capability scope to check)", async () => {
+        fetchSpy.mockImplementation(async (input: RequestInfo | URL) => {
+          const url = typeof input === "string" ? input : input.toString();
+          if (url.startsWith("https://graph.microsoft.com")) {
+            throw new Error("identity writes should not probe graph");
+          }
+          throw new Error(`unexpected fetch in test: ${url}`);
+        });
+        const res = await request(app)
+          .post("/api/v1/connections")
+          .set("x-test-user-id", USER_ID)
+          .send({
+            provider: "microsoft",
+            capability: "identity",
+            accountEmail: "alice@outlook.com",
+            accessToken: "ms-at",
+            refreshToken: "ms-rt",
+          })
+          .expect(201);
+        expect(res.body.connection.provider).toBe("microsoft");
       });
     });
   });

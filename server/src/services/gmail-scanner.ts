@@ -268,9 +268,25 @@ export class GmailScanner {
       threadId: msg.threadId!,
       subject,
       from,
-      receivedAt: date ? new Date(date).toISOString() : new Date().toISOString(),
+      // Some forwarded / relayed messages carry a non-empty but
+      // unparseable Date header; `new Date(bad).toISOString()` throws
+      // RangeError and would drop the whole email from the scan.
+      // Fall back to "now" the same way an empty header does.
+      receivedAt: parseReceivedAt(date),
       bodyText: bodyText.slice(0, 10000), // Cap at 10k chars to control token usage
     };
   }
 
+}
+
+/**
+ * Parse a Gmail `Date:` header to an ISO string. Returns `now` when
+ * the header is missing or unparseable.
+ */
+export function parseReceivedAt(date: string | undefined | null): string {
+  if (date) {
+    const parsed = new Date(date);
+    if (Number.isFinite(parsed.getTime())) return parsed.toISOString();
+  }
+  return new Date().toISOString();
 }

@@ -230,7 +230,10 @@ export function HtmlImportDialog({
           setSubject(file.name.replace(/\.(html?|eml)$/i, ""));
         }
       } catch (err) {
-        console.error("Failed to read file:", err);
+        // `reportError` ships to Sentry and `setErrorMessage` surfaces
+        // it to the user — `console.error` would only duplicate the
+        // Sentry pathway (per CLAUDE.md's error-handling table) and
+        // clutter dev consoles.
         reportError(err, { context: "html-import:read-file" });
         setErrorMessage("Failed to read file");
       }
@@ -280,7 +283,6 @@ export function HtmlImportDialog({
       );
       setStep("results");
     } catch (err) {
-      console.error("HTML import failed:", err);
       reportError(err, { context: "html-import:import" });
       setErrorMessage(describeError(err));
       setStep("error");
@@ -453,7 +455,6 @@ export function HtmlImportDialog({
       setAppliedCount(res.created.length + (res.updated?.length ?? 0));
       setStep("done");
     } catch (err) {
-      console.error("Apply failed:", err);
       reportError(err, { context: "html-import:apply" });
       setErrorMessage(describeError(err));
       setStep("error");

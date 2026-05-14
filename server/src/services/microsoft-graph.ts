@@ -177,11 +177,29 @@ export async function graphPaginate<T>(
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const text = await res.text();
-    const parsed = text ? (JSON.parse(text) as {
+    // Graph normally returns JSON for both success and error
+    // responses, but the nextLink continuation can land on a proxy
+    // / CDN error page (502 from Azure Front Door, HTML interstitial
+    // from a corporate gateway). Bare `JSON.parse` would throw
+    // SyntaxError and the caller gets that instead of a GraphError
+    // — matches the try/catch the `graphRequest` initial-page path
+    // already does.
+    let parsed: {
       value?: T[];
       "@odata.nextLink"?: string;
       error?: { code?: string; message?: string };
-    }) : null;
+    } | null = null;
+    if (text) {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new GraphError(
+          res.status,
+          undefined,
+          `Microsoft Graph returned non-JSON on nextLink: ${text.slice(0, 200)}`,
+        );
+      }
+    }
     if (!res.ok) {
       if (res.status === 401) {
         console.warn(

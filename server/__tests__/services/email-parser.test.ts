@@ -593,6 +593,14 @@ describe("EmailParser.htmlToText", () => {
     expect(out).toBe("Smith & Sons \u2014 \u201cluxury\u201d");
   });
 
+  it("decodes uppercase / mixed-case named entities", () => {
+    // Older / hand-written vendor templates emit `&NBSP;` and `&AMP;`;
+    // the regex is `gi` so it matches, but the lookup must normalise.
+    const html = "<p>Smith&AMP;Sons&NBSP;&mdash;&NBSP;welcome</p>";
+    const out = EmailParser.htmlToText(html);
+    expect(out).toBe("Smith&Sons \u2014 welcome");
+  });
+
   it("decodes numeric decimal entities", () => {
     const html = "<p>&#8364;100.00</p>";
     const out = EmailParser.htmlToText(html);

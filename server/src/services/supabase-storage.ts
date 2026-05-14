@@ -498,8 +498,12 @@ function segmentFromRow(row: SegmentRow): Segment {
     needsReview: row.needsReview,
     sortOrder: row.sortOrder,
     calendarEventId: row.calendarEventId ?? undefined,
-    // Variant-specific fields live in `data` jsonb. Spread last so
-    // they don't overwrite the typed columns above by accident.
+    // Variant-specific fields live in `data` jsonb. Object-spread is
+    // last-wins, so any of the typed-column keys above would lose to
+    // a stale `data` entry — `segmentToRow` guarantees that doesn't
+    // happen by destructuring those keys out of `seg` before writing,
+    // so `data` only ever contains variant-specific keys. Don't widen
+    // the writer without revisiting this assumption.
     ...(data as Partial<Segment>),
   };
 }

@@ -82,8 +82,11 @@ function addHoursToTime(time: string, hours: number): string {
 }
 
 function addDays(isoDate: string, days: number): string {
-  const d = new Date(isoDate + "T00:00:00");
-  d.setDate(d.getDate() + days);
+  // UTC midnight + UTC date arithmetic. See note on the same fix in
+  // `dates.ts:addDays` — the local-time mix shifts by one day on
+  // non-UTC hosts.
+  const d = new Date(isoDate + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 

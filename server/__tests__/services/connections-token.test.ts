@@ -55,6 +55,10 @@ function makeConnection(overrides: Partial<Connection> = {}): Connection {
 }
 
 function mockStore(initial: Connection[]): jest.Mocked<ConnectionsStore> {
+  // Pass through whatever the test sets up. The resolver has its
+  // own `status === "active"` filter (defense-in-depth on top of
+  // the production store's filter), and the "skips revoked
+  // connections" test relies on that filter actually doing work.
   const list = jest.fn().mockResolvedValue(initial);
   const upsert = jest.fn().mockImplementation((input) =>
     Promise.resolve({
