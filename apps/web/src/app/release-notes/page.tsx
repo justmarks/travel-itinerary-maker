@@ -5,7 +5,7 @@ import { AppLogo } from "@/components/app-logo";
 export const metadata: Metadata = {
   title: "Release notes — itinly",
   description:
-    "What's new in itinly. Per-version release notes, starting with v1.0.0.",
+    "What's new in itinly. Per-version release notes, latest first.",
 };
 
 export default function ReleaseNotesPage(): React.JSX.Element {
@@ -27,6 +27,334 @@ export default function ReleaseNotesPage(): React.JSX.Element {
               What&apos;s new in itinly, latest first.
             </p>
           </header>
+
+          <section className="space-y-6">
+            <header className="space-y-1">
+              <h2 className="text-2xl font-semibold tracking-tight">
+                v1.1.0 — Microsoft + Outlook, end to end
+              </h2>
+              <p className="text-sm text-muted-foreground">May 10, 2026</p>
+            </header>
+
+            <p>
+              The 1.1 release is mostly <strong>plumbing under the
+              floorboards</strong> — but the floorboards are now sturdy enough
+              to support Outlook + Microsoft accounts as first-class citizens
+              alongside Google. Sign in with either provider, scan either
+              inbox, sync to either calendar, and link both to the same
+              account if you want to mix them.
+            </p>
+
+            <Subsection title="Multi-provider, end to end">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Sign in with Microsoft or Google</strong> via
+                  Supabase Auth. Both flows force the account picker so you
+                  never get silently signed in as the wrong identity.
+                </li>
+                <li>
+                  <strong>Outlook email scan</strong> alongside Gmail — point
+                  at a Mail folder (or nested folder like{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    Inbox &gt; Travel
+                  </code>
+                  ), the same Claude parser pulls flights, hotels, and
+                  reservations out. Inbox-only or all-mail toggle on both
+                  sides.
+                </li>
+                <li>
+                  <strong>Outlook Calendar sync</strong> alongside Google
+                  Calendar — push segments, all-day hotel blocks, IANA-typed
+                  flight events, and re-sync / unsync, with parity across
+                  desktop and mobile.
+                </li>
+                <li>
+                  <strong>Link multiple accounts</strong> on{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /settings/account
+                  </code>{" "}
+                  — one Google + one Microsoft identity, with separate Mail +
+                  Calendar capability rows per provider. Disconnect cascades
+                  cleanly: unlinking a sign-in identity also removes its
+                  Mail / Calendar rows after an &ldquo;are you sure&rdquo;
+                  confirm.
+                </li>
+                <li>
+                  <strong>Inline provider picker</strong> on calendar + email
+                  sync dialogs when you&apos;ve connected more than one —
+                  defaults to your most-recently-used and remembers
+                  per-feature.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Backend rebuilt on Supabase">
+              <p className="text-sm text-muted-foreground">
+                The product looks the same; underneath, it&apos;s a different
+                system.
+              </p>
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Storage moved from Google Drive to Supabase
+                  Postgres.</strong>{" "}
+                  Trips, segments, todos, history, share-link metadata, push
+                  subscriptions, and OAuth refresh tokens now live in
+                  row-level-security-gated Postgres tables — not in a per-user
+                  Drive folder.
+                </li>
+                <li>
+                  <strong>Token refresh on the server</strong> — short-lived
+                  access tokens for Gmail, Microsoft Graph, and both calendars
+                  are minted from encrypted refresh tokens on demand, so a
+                  long-tabbed-open session doesn&apos;t fall over silently.
+                </li>
+                <li>
+                  <strong>
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      InvalidAuthError
+                    </code>
+                  </strong>{" "}
+                  as a typed signal across every connector — a revoked-at-
+                  Google or scope-stripped token surfaces a specific 4xx that
+                  the UI maps to the right reconnect screen, not a generic
+                  500.
+                </li>
+                <li>
+                  <strong>Storage + connector contract tests</strong> —{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    SupabaseStorage
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    InMemoryStorage
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    GoogleCalendarConnector
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    MicrosoftCalendarConnector
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    GmailEmailConnector
+                  </code>
+                  , and{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    MicrosoftEmailConnector
+                  </code>{" "}
+                  all run the same shared test suites, so the two providers
+                  and the two storage backends can&apos;t drift apart.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Email scan polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Live progress</strong> — &ldquo;Found N emails →
+                  Parsing X of M&rdquo; as the scan runs, instead of a single
+                  spinner.
+                </li>
+                <li>
+                  <strong>Multi-trip auto-clustering</strong> on desktop —
+                  scanning an inbox that spans several trips now groups
+                  proposals by destination / dates instead of dumping a flat
+                  list.
+                </li>
+                <li>
+                  <strong>Better placeholder handling</strong> — TBD /
+                  open-date items are skipped silently instead of producing
+                  zero-day &ldquo;trips&rdquo;.
+                </li>
+                <li>
+                  <strong>Layover-aware titles</strong> — a SFO → NRT → BKK
+                  booking proposes &ldquo;Bangkok&rdquo;, not
+                  &ldquo;Tokyo&rdquo;.
+                </li>
+                <li>
+                  <strong>Provider + account stored on each parsed email</strong>{" "}
+                  so re-scans don&apos;t double-process the same thread across
+                  accounts.
+                </li>
+                <li>
+                  <strong>Per-folder Outlook listing</strong> including nested
+                  folders, so{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    Inbox &gt; Travel &gt; 2026
+                  </code>{" "}
+                  is reachable.
+                </li>
+                <li>
+                  <strong>Anthropic 429 + Microsoft{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      MailboxConcurrency
+                    </code>{" "}
+                    retry</strong>{" "}
+                  so a transient upstream blip doesn&apos;t fail the whole
+                  scan.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Calendar sync polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Provider-aware dialogs</strong> that survive the
+                  dropdown-menu closing, no overlap, no mid-flow remount.
+                </li>
+                <li>
+                  <strong>Orphaned-event reuse</strong> on Outlook — if a
+                  calendar event lost its segment link, the next sync rebinds
+                  instead of duplicating.
+                </li>
+                <li>
+                  <strong>Time-zone correctness</strong> verified by
+                  wire-format tests: flights carry per-endpoint IANA zones,
+                  hotels stay all-day, update-resync preserves the
+                  event&apos;s existing extended properties.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Mobile">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Microsoft + Outlook everywhere</strong> — mobile
+                  scan sheet, mobile calendar sync sheet, and the
+                  account-settings panel all carry the same multi-provider
+                  affordances as desktop.
+                </li>
+                <li>
+                  <strong>Email-scan sheet</strong> surfaces partial-results
+                  banners and stale-token recovery as step transitions, not
+                  silent failures.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Trust and polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Account settings page</strong> at{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /settings/account
+                  </code>{" "}
+                  — see linked identities + capability rows, with
+                  primary-email sort and live cross-panel state refresh.
+                </li>
+                <li>
+                  <strong>Initials avatar fallback</strong> for accounts
+                  without a provider photo; Microsoft Graph photo support
+                  added for Microsoft sign-in.
+                </li>
+                <li>
+                  <strong>Diagnostic logging gated behind{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      DEBUG_EMAIL_SCAN
+                    </code>{" "}
+                    /{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      DEBUG_CONNECTIONS
+                    </code>{" "}
+                    /{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      DEBUG_CALENDAR
+                    </code>
+                  </strong>{" "}
+                  — production Railway logs are quiet by default; real
+                  anomalies still always surface.
+                </li>
+                <li>
+                  <strong>Hardened token writes</strong> — the server now
+                  rejects a Google-shaped token written to a Microsoft row
+                  (and vice versa) instead of silently corrupting the
+                  connection.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Under the hood">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Workspace packages renamed</strong> from{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    @travel-app/*
+                  </code>{" "}
+                  →{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    @itinly/*
+                  </code>{" "}
+                  (shared, api-client, server, web) with a one-shot
+                  localStorage key migration so existing browser state copies
+                  forward.
+                </li>
+                <li>
+                  <strong>Node ≥ 22.13</strong> required (pnpm 11&apos;s
+                  loader depends on{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    node:sqlite
+                  </code>
+                  ).
+                </li>
+                <li>
+                  <strong>Vercel build config</strong> is now in a checked-in{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    vercel.json
+                  </code>{" "}
+                  instead of the dashboard UI.
+                </li>
+                <li>
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    pnpm update-test-count
+                  </code>{" "}
+                  keeps the README test count fresh;{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    pnpm check-test-count
+                  </code>{" "}
+                  runs in CI so it can&apos;t drift.
+                </li>
+                <li>
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    server/.env.example
+                  </code>{" "}
+                  audited + split — frontend-only{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    NEXT_PUBLIC_*
+                  </code>{" "}
+                  vars moved to{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    apps/web/.env.example
+                  </code>
+                  , the long-dead{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    STORAGE_BACKEND=drive
+                  </code>{" "}
+                  and{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    STORAGE_POSTGRES_USERS
+                  </code>{" "}
+                  paths removed.
+                </li>
+                <li>
+                  <strong>DriveStorage path fully removed</strong> (Phase 6 of
+                  the backend-migration plan) —{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    mode: &quot;drive&quot;
+                  </code>
+                  , the per-user Drive folder layout, and the partial Drive →
+                  Postgres importer are all gone from the tree.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Thanks">
+              <p>
+                The Drive era was good; the Postgres era is better. Onward.
+              </p>
+            </Subsection>
+          </section>
 
           <section className="space-y-6">
             <header className="space-y-1">
