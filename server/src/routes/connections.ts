@@ -33,10 +33,10 @@ import {
   GMAIL_READ_SCOPE,
 } from "../services/google-tokeninfo";
 import {
-  fetchMicrosoftTokenScopes,
+  probeMicrosoftScope,
   MAIL_READ_SCOPE,
   CALENDARS_RW_SCOPE,
-} from "../services/microsoft-tokeninfo";
+} from "../services/microsoft-scope-probe";
 
 export interface ConnectionsRoutesOptions {
   store: ConnectionsStore;
@@ -286,25 +286,31 @@ export function createConnectionsRoutes(
     // *requested* scopes, not the *granted* ones, so a user who
     // deselects Mail.Read or Calendars.ReadWrite on Microsoft's
     // consent screen ends up with a row claiming scopes the token
-    // doesn't actually carry. Validate against the `scp` claim on the
-    // access token (Microsoft v2 tokens are JWTs) and reject with a
-    // typed `code` so the UI can branch.
+    // doesn't actually carry — every subsequent feature call 401s
+    // while Settings shows "Connected."
     //
-    // Tokeninfo failures (MSA tokens — Personal Microsoft Accounts —
-    // aren't JWTs; some token shapes are opaque) fall through to the
-    // client-supplied scopes with a warn, matching the Google
-    // tokeninfo-unreachable path. Downstream Graph 401s still
-    // backstop the actual access check.
+    // The probe makes an authoritative read against Graph (one cheap
+    // `/me/mailFolders` or `/me/calendars` call) and watches the
+    // status. We deliberately do NOT parse the access token's `scp`
+    // claim: Microsoft documents Graph access tokens as opaque and
+    // reserves the right to change their format.
+    //
+    // - granted → keep the client-supplied scope list, write the row.
+    // - denied  → 400 with a typed `code` the UI surfaces inline.
+    // - unknown → fall through with a warn (timeout, network, 5xx,
+    //             401). Matches the Google "tokeninfo unreachable"
+    //             path; downstream Graph 401s on first real use
+    //             still backstop the access check.
     if (provider === "microsoft" && accessToken && (capability === "email" || capability === "calendar")) {
       const required = capability === "email" ? MAIL_READ_SCOPE : CALENDARS_RW_SCOPE;
-      const granted = fetchMicrosoftTokenScopes(accessToken);
-      if (granted === null) {
+      const probe = await probeMicrosoftScope(accessToken, capability);
+      if (probe === "unknown") {
         console.warn(
-          `[connections] could not read scp claim for microsoft/${capability} user=${req.userId} — proceeding with client-supplied scopes`,
+          `[connections] graph scope probe inconclusive for microsoft/${capability} user=${req.userId} — proceeding with client-supplied scopes`,
         );
-      } else if (!granted.includes(required)) {
+      } else if (probe === "denied") {
         console.warn(
-          `[connections] rejecting microsoft/${capability} write for user=${req.userId} — access token lacks ${required} (granted=[${granted.join(", ")}])`,
+          `[connections] rejecting microsoft/${capability} write for user=${req.userId} — graph probe says ${required} was not granted`,
         );
         const friendly =
           capability === "email"
@@ -316,10 +322,6 @@ export function createConnectionsRoutes(
             : "MICROSOFT_CALENDAR_SCOPE_NOT_GRANTED";
         res.status(400).json({ error: friendly, code });
         return;
-      } else {
-        // Granted set includes the required scope. Prefer the granted
-        // list (authoritative) over the client-supplied one.
-        scopes = granted;
       }
     }
 
