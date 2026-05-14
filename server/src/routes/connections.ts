@@ -32,6 +32,11 @@ import {
   fetchGoogleTokenScopes,
   GMAIL_READ_SCOPE,
 } from "../services/google-tokeninfo";
+import {
+  fetchMicrosoftTokenScopes,
+  MAIL_READ_SCOPE,
+  CALENDARS_RW_SCOPE,
+} from "../services/microsoft-tokeninfo";
 
 export interface ConnectionsRoutesOptions {
   store: ConnectionsStore;
@@ -272,6 +277,48 @@ export function createConnectionsRoutes(
         // Granted set includes gmail.readonly. Store the truthful set
         // (tokeninfo is authoritative) rather than what the client
         // claimed it asked for.
+        scopes = granted;
+      }
+    }
+
+    // Microsoft email / calendar capability scope pre-flight. Same
+    // rationale as the Google branch: the auth-callback POSTs the
+    // *requested* scopes, not the *granted* ones, so a user who
+    // deselects Mail.Read or Calendars.ReadWrite on Microsoft's
+    // consent screen ends up with a row claiming scopes the token
+    // doesn't actually carry. Validate against the `scp` claim on the
+    // access token (Microsoft v2 tokens are JWTs) and reject with a
+    // typed `code` so the UI can branch.
+    //
+    // Tokeninfo failures (MSA tokens — Personal Microsoft Accounts —
+    // aren't JWTs; some token shapes are opaque) fall through to the
+    // client-supplied scopes with a warn, matching the Google
+    // tokeninfo-unreachable path. Downstream Graph 401s still
+    // backstop the actual access check.
+    if (provider === "microsoft" && accessToken && (capability === "email" || capability === "calendar")) {
+      const required = capability === "email" ? MAIL_READ_SCOPE : CALENDARS_RW_SCOPE;
+      const granted = fetchMicrosoftTokenScopes(accessToken);
+      if (granted === null) {
+        console.warn(
+          `[connections] could not read scp claim for microsoft/${capability} user=${req.userId} — proceeding with client-supplied scopes`,
+        );
+      } else if (!granted.includes(required)) {
+        console.warn(
+          `[connections] rejecting microsoft/${capability} write for user=${req.userId} — access token lacks ${required} (granted=[${granted.join(", ")}])`,
+        );
+        const friendly =
+          capability === "email"
+            ? "Outlook mail access was not granted. Re-run Connect Outlook and make sure the mail permission box is checked on Microsoft's consent screen."
+            : "Outlook Calendar access was not granted. Re-run Connect Outlook Calendar and make sure the calendar permission box is checked on Microsoft's consent screen.";
+        const code =
+          capability === "email"
+            ? "MICROSOFT_MAIL_SCOPE_NOT_GRANTED"
+            : "MICROSOFT_CALENDAR_SCOPE_NOT_GRANTED";
+        res.status(400).json({ error: friendly, code });
+        return;
+      } else {
+        // Granted set includes the required scope. Prefer the granted
+        // list (authoritative) over the client-supplied one.
         scopes = granted;
       }
     }
