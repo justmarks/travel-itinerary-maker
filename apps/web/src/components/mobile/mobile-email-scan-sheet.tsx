@@ -30,7 +30,6 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 import {
@@ -39,6 +38,7 @@ import {
 } from "@/lib/gmail-labels";
 import { isGmailLinkConfigured, startGmailLink } from "@/lib/oauth";
 import { cn } from "@/lib/utils";
+import { toastMutationError } from "@/lib/api-error";
 import { fmt12h, SEGMENT_CONFIG } from "./mobile-segment-config";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -500,7 +500,7 @@ function ScanBody({
         }
       }
 
-      toast.error("Couldn't scan emails", { description: describeError(err) });
+      toastMutationError("scan emails")(err);
       setStep("config");
     }
   };
@@ -672,9 +672,7 @@ function ScanBody({
       setDismissedCount(dismissedCount);
       setStep("done");
     } catch (err) {
-      toast.error("Couldn't apply segments", {
-        description: describeError(err),
-      });
+      toastMutationError("apply segments")(err);
     } finally {
       // Clear the guard whether we landed on Done or stayed on
       // review after an error — either way the user might want to

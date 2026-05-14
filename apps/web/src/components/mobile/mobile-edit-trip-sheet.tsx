@@ -5,9 +5,8 @@ import { ApiError, useUpdateTrip } from "@travel-app/api-client";
 import type { Trip, TripStatus } from "@travel-app/shared";
 import { TRIP_STATUSES } from "@travel-app/shared";
 import { AlertCircle, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { toastMutationError } from "@/lib/api-error";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 interface OverlapInfo {
@@ -104,9 +103,7 @@ function EditTripBody({
             return;
           }
         }
-        toast.error("Couldn't save trip", {
-          description: describeError(err),
-        });
+        toastMutationError("save trip")(err);
       },
     });
   };

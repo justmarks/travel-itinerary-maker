@@ -15,9 +15,8 @@ import {
   Utensils,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { MarkdownText } from "@/components/markdown-text";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import {
@@ -113,11 +112,7 @@ function TodoRow({
               isCompleted: !todo.isCompleted,
             },
             {
-              onError: (err) => {
-                toast.error("Couldn't update to-do", {
-                  description: describeError(err),
-                });
-              },
+              onError: toastMutationError("update to-do"),
             },
           );
         }}

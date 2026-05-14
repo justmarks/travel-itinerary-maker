@@ -8,9 +8,8 @@ import {
 } from "@travel-app/api-client";
 import type { Todo, TodoCategory } from "@travel-app/shared";
 import { Briefcase, MapPin, Search, Trash2, Utensils, X } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
@@ -109,11 +108,7 @@ export function MobileTodoFormSheet({
         },
         {
           onSuccess: onClose,
-          onError: (err) => {
-            toast.error("Couldn't add to-do", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("add to-do"),
         },
       );
     } else if (isEdit) {
@@ -128,11 +123,7 @@ export function MobileTodoFormSheet({
         },
         {
           onSuccess: onClose,
-          onError: (err) => {
-            toast.error("Couldn't save to-do", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("save to-do"),
         },
       );
     }
@@ -148,11 +139,7 @@ export function MobileTodoFormSheet({
     if (!ok) return;
     deleteTodo.mutate(target.id, {
       onSuccess: onClose,
-      onError: (err) => {
-        toast.error("Couldn't delete to-do", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("delete to-do"),
     });
   };
 

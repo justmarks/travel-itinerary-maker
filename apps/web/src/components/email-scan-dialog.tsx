@@ -56,7 +56,7 @@ import { toast } from "sonner";
 import type { ParseReportReason } from "@travel-app/shared";
 import { EmailReportDialog } from "@/components/email-report-dialog";
 import { useAuth } from "@/lib/auth";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import {
   buildGmailLabelTree,
@@ -413,9 +413,8 @@ export function EmailScanDialog({
       setNewTripStart("");
       setNewTripEnd("");
     } catch (err) {
-      const message = describeError(err);
-      setErrorMessage(message);
-      toast.error("Couldn't create trip", { description: message });
+      setErrorMessage(describeError(err));
+      toastMutationError("create trip")(err);
     } finally {
       setCreatingTrip(false);
     }
@@ -488,9 +487,7 @@ export function EmailScanDialog({
           try {
             await dismissEmail.mutateAsync(r.emailId);
           } catch (err) {
-            toast.error("Couldn't dismiss email", {
-              description: describeError(err),
-            });
+            toastMutationError("dismiss email")(err);
           }
         }
       }

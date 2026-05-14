@@ -13,8 +13,7 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@travel-app/api-client";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";
 import {
@@ -422,11 +421,7 @@ function SegmentRow({
                 title="Confirm"
                 onClick={() =>
                   confirmSegment.mutate(segment.id, {
-                    onError: (err) => {
-                      toast.error("Couldn't confirm segment", {
-                        description: describeError(err),
-                      });
-                    },
+                    onError: toastMutationError("confirm segment"),
                   })
                 }
                 disabled={confirmSegment.isPending}
@@ -456,11 +451,7 @@ function SegmentRow({
                 });
                 if (ok)
                   deleteSegment.mutate(segment.id, {
-                    onError: (err) => {
-                      toast.error("Couldn't delete segment", {
-                        description: describeError(err),
-                      });
-                    },
+                    onError: toastMutationError("delete segment"),
                   });
               }}
               disabled={deleteSegment.isPending}
@@ -500,11 +491,7 @@ function EditableCity({
       updateDay.mutate(
         { date, city: value },
         {
-          onError: (err) => {
-            toast.error("Couldn't update city", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("update city"),
         },
       );
     }

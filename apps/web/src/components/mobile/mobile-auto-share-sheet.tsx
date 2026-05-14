@@ -9,7 +9,7 @@ import {
 } from "@travel-app/api-client";
 import type { TripShareRule } from "@travel-app/shared";
 import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -117,9 +117,7 @@ function CreateForm({
         },
         onError: (err) => {
           setError(describeError(err));
-          toast.error("Couldn't create auto-share rule", {
-            description: describeError(err),
-          });
+          toastMutationError("create auto-share rule")(err);
         },
       },
     );
@@ -184,11 +182,7 @@ function RuleRow({ rule, onDelete }: { rule: TripShareRule; onDelete: (rule: Tri
     updateRule.mutate(
       { ruleId: rule.id, input: { permission: next } },
       {
-        onError: (err) => {
-          toast.error("Couldn't update auto-share rule", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("update auto-share rule"),
       },
     );
   };
@@ -247,11 +241,7 @@ function DeleteRulePanel({
           );
           onCancel();
         },
-        onError: (err) => {
-          toast.error("Couldn't remove auto-share rule", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("remove auto-share rule"),
       },
     );
   };

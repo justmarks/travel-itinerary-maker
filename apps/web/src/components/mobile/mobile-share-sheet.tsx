@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { shareActivityLabel } from "@/lib/share-activity";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
@@ -470,10 +470,7 @@ export function MobileShareSheet({
                     if (!ok) return;
                     deleteShare.mutate(share.id, {
                       onSuccess: () => toast.success("Share link revoked"),
-                      onError: (err) =>
-                        toast.error("Couldn't revoke share link", {
-                          description: describeError(err),
-                        }),
+                      onError: toastMutationError("revoke share link"),
                     });
                   }}
                 />

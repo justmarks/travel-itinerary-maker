@@ -79,7 +79,7 @@ import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import { getTodayIso } from "@/lib/today";
 import { useTripPermission } from "@/lib/use-trip-permission";
@@ -138,11 +138,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
       updateTrip.mutate(
         { title: trimmed },
         {
-          onError: (err) => {
-            toast.error("Couldn't rename trip", {
-              description: describeError(err),
-            });
-          },
+          onError: toastMutationError("rename trip"),
         },
       );
     }
@@ -246,9 +242,7 @@ function EditableDates({
             return;
           }
         }
-        toast.error("Couldn't update trip dates", {
-          description: describeError(error),
-        });
+        toastMutationError("update trip dates")(error);
       },
     });
   };
@@ -415,11 +409,7 @@ function TripActionsMenu({
         // invalidation in the mutation hook.
         router.push("/");
       },
-      onError: (err) => {
-        toast.error("Couldn't delete trip", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("delete trip"),
     });
   };
 
@@ -583,11 +573,7 @@ function LeaveTripMenu({
         // dashboard avoids a 404 the moment the next GET fires.
         router.push("/");
       },
-      onError: (err) => {
-        toast.error("Couldn't leave trip", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("leave trip"),
     });
   };
 
@@ -656,11 +642,7 @@ function NeedsReviewBanner({
         }}
         onClick={() =>
           confirmAll.mutate(undefined, {
-            onError: (err) => {
-              toast.error("Couldn't confirm segments", {
-                description: describeError(err),
-              });
-            },
+            onError: toastMutationError("confirm segments"),
           })
         }
         disabled={confirmAll.isPending}
@@ -1131,11 +1113,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   updateTripStatus.mutate(
                     { status: nextTripStatus(trip.status) },
                     {
-                      onError: (err) => {
-                        toast.error("Couldn't update status", {
-                          description: describeError(err),
-                        });
-                      },
+                      onError: toastMutationError("update status"),
                     },
                   )
                 }

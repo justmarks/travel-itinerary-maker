@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useUpdateDay } from "@travel-app/api-client";
 import { Check, MapPin, Pencil, X } from "lucide-react";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 
 /**
  * Tap-to-edit affordance for a day's city on the mobile site. Mirrors
@@ -62,11 +61,7 @@ export function MobileEditableCity({
     updateDay.mutate(
       { date, city: trimmed },
       {
-        onError: (err) => {
-          toast.error("Couldn't update city", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("update city"),
       },
     );
   };

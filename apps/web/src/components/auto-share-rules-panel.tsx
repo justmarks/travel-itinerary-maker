@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -156,9 +156,7 @@ function CreateRuleDialog({
         },
         onError: (err) => {
           setError(describeError(err));
-          toast.error("Couldn't create auto-share rule", {
-            description: describeError(err),
-          });
+          toastMutationError("create auto-share rule")(err);
         },
       },
     );
@@ -272,11 +270,7 @@ function DeleteRuleDialog({
           );
           onClose();
         },
-        onError: (err) => {
-          toast.error("Couldn't remove auto-share rule", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("remove auto-share rule"),
       },
     );
   };
@@ -327,11 +321,7 @@ function RuleRow({
     updateRule.mutate(
       { ruleId: rule.id, input: { permission: next } },
       {
-        onError: (err) => {
-          toast.error("Couldn't update auto-share rule", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("update auto-share rule"),
       },
     );
   };

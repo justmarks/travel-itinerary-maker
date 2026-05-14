@@ -12,7 +12,7 @@ import {
 } from "@travel-app/api-client";
 import type { Segment, Trip } from "@travel-app/shared";
 import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import {
   AlertCircle,
   CalendarCheck,
@@ -139,11 +139,7 @@ function MobileTripOverflowMenu({
       onSuccess: () => {
         router.push(homeHref);
       },
-      onError: (err) => {
-        toast.error("Couldn't delete trip", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("delete trip"),
     });
   };
 
@@ -161,11 +157,7 @@ function MobileTripOverflowMenu({
       onSuccess: () => {
         router.push(homeHref);
       },
-      onError: (err) => {
-        toast.error("Couldn't leave trip", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("leave trip"),
     });
   };
 

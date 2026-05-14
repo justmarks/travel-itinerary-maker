@@ -14,8 +14,7 @@ import {
   X,
   Sparkles,
 } from "lucide-react";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -103,11 +102,7 @@ export function TripTodos({
         category: (newCategory as TodoCategory) || undefined,
       },
       {
-        onError: (err) => {
-          toast.error("Couldn't add to-do", {
-            description: describeError(err),
-          });
-        },
+        onError: toastMutationError("add to-do"),
       },
     );
     setNewText("");
@@ -127,11 +122,7 @@ export function TripTodos({
                 isCompleted: !todo.isCompleted,
               },
               {
-                onError: (err) => {
-                  toast.error("Couldn't update to-do", {
-                    description: describeError(err),
-                  });
-                },
+                onError: toastMutationError("update to-do"),
               },
             );
           }}

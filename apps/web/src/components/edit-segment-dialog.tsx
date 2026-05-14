@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useUpdateSegment } from "@travel-app/api-client";
 import type { Segment, SegmentType } from "@travel-app/shared";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import {
   Dialog,
   DialogContent,
@@ -231,11 +230,7 @@ export function EditSegmentDialog({
 
     onOpenChange(false);
     updateSegment.mutate(updates as Parameters<typeof updateSegment.mutate>[0], {
-      onError: (err) => {
-        toast.error("Couldn't save segment", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("save segment"),
     });
   };
 

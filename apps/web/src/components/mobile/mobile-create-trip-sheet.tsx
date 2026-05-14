@@ -4,9 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, useCreateTrip } from "@travel-app/api-client";
 import { AlertCircle, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
+import { toastMutationError } from "@/lib/api-error";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 interface OverlapInfo {
@@ -111,9 +110,7 @@ function CreateTripBody({ onClose }: { onClose: () => void }): React.JSX.Element
               return;
             }
           }
-          toast.error("Couldn't create trip", {
-            description: describeError(err),
-          });
+          toastMutationError("create trip")(err);
         },
       },
     );

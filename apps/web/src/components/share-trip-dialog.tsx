@@ -8,7 +8,7 @@ import {
 } from "@travel-app/api-client";
 import type { TripShare } from "@travel-app/shared";
 import { toast } from "sonner";
-import { describeError } from "@/lib/api-error";
+import { describeError, toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useShareNotificationsHint } from "@/lib/use-share-notifications-hint";
 import { AutoShareRulesDialog } from "@/components/auto-share-rules-panel";
@@ -499,10 +499,7 @@ export function ShareTripDialog({
                     // restores itself on error).
                     deleteShare.mutate(share.id, {
                       onSuccess: () => toast.success("Share link revoked"),
-                      onError: (err) =>
-                        toast.error("Couldn't revoke share link", {
-                          description: describeError(err),
-                        }),
+                      onError: toastMutationError("revoke share link"),
                     });
                   }}
                 />

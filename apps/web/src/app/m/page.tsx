@@ -25,7 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RequireAuth } from "@/components/require-auth";
-import { describeError } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoMode } from "@/lib/demo";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -169,11 +169,7 @@ function MobileTripCardLeaveMenu({
       onSuccess: () => {
         router.push("/m");
       },
-      onError: (err) => {
-        toast.error("Couldn't leave trip", {
-          description: describeError(err),
-        });
-      },
+      onError: toastMutationError("leave trip"),
     });
   };
 
