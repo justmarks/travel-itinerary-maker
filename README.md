@@ -126,7 +126,7 @@ cd packages/shared && pnpm test
 cd server && pnpm test -- --testPathPattern="trips.test"
 ```
 
-Current coverage: **935 tests** across 61 test suites.
+Current coverage: **946 tests** across 61 test suites.
 
 This line is kept fresh by `scripts/update-test-count.mjs`. Before opening a PR that materially changes the test count, run `pnpm update-test-count`. CI fails the build when the line is stale (`pnpm check-test-count`).
 
@@ -320,11 +320,7 @@ A mobile-first parallel experience focused on consuming a planned trip rather th
 - [x] **Phase 7 polish — new-trip proposals** — when an account-level scan parses segments that don't match any existing trip, cluster them by date proximity (gap > 14 days = separate trip; hotels / cruises bridge the gap via `endDate`) and propose one new trip per cluster. Default name `<Most-common destination> <Month> <Year>` ("Maui April 2026") with a fall-back to "Trip <Month> <Year>" when no city is detectable. Picker shows proposals under a "Create new trip" optgroup; on apply, `useCreateTrip` runs first (sequential, with date-range expansion to cover any manually-rebucketed segment) and the sentinel ids swap for real trip ids before `applyParsedSegments`. Shared util `proposeNewTrips` in `@itinly/shared` so the same clustering can be reused on desktop later
 - [x] **Phase 7 polish — server-side deprecation watch** — Anthropic returns model-deprecation warnings via response headers (`anthropic-deprecation-warning` and the standard `Warning: 299 ...`). The parser now surfaces those to Sentry as `warning`-level events with the model tagged, deduped per-process so a deprecated model doesn't generate one event per parsed email. Default model bumped from `claude-sonnet-4-20250514` (the one Anthropic flagged) to `claude-sonnet-4-6`
 - [x] **Phase 8 — Google Calendar sync on mobile** — `MobileCalendarSyncSheet` reachable from the trip-detail overflow menu mirrors the desktop dropdown's four states (connect-Calendar prompt, calendar picker, synced-info with refresh / remove, and a delete-from-Google vs unlink choice). Shares the `useCalendarSync` hook with desktop so toast copy and behavior stay identical, and the menu label flips to "Calendar synced (N)" once any segment carries a `calendarEventId`
-
-**Remaining mobile work:**
-
-- [ ] **Segment reorder** — drag-to-reorder within a day. Desktop has it via the segment row; mobile needs a long-press-to-grab gesture or a dedicated reorder mode
-- [ ] **Suggest meals** dialog — the AI meal-suggestion flow that exists on desktop
+- [x] **Phase 9 — "Send to itinly" share target** — the PWA registers as an OS-level share target via the manifest's `share_target` field, so picking "itinly" from any iOS / Android share sheet (Mail, Gmail, Safari, messaging apps) lands the user on `/m/share` with the selected `title` / `text` / `url`. The receiver feeds the payload through a new `POST /emails/import-shared` route — same `EmailParser` pipeline as the Gmail-scan and HTML-import paths — so a forwarded confirmation parses into segments without the Gmail-scan ceremony, and non-Gmail mailboxes are unblocked entirely. Shared URLs are server-fetched with SSRF guards (http(s) only, no loopback / RFC1918 / link-local hosts, no cloud-metadata names, 10s timeout, 1 MB cap, content-type filter); shared text bypasses HTML stripping and goes straight to the parser. The review UI mirrors the email-scan sheet (per-segment trip picker, new-trip proposals, action cycle), and the apply path reuses `useApplyParsedSegments` so segments land with `needsReview: true` and the existing Review-pill workflow takes over from there
 
 **Sharing:**
 
@@ -342,7 +338,6 @@ A trip's owner can publish a read-only or contributor-edit link; recipients open
 
 - [ ] **Email invites + notifications** — Resend-powered email when a share is created; notifications when a shared trip is updated
 - [ ] **Android native** — Expo SDK 55 + React Native; scaffold + Google auth shipped, offline/cached active trip view in progress (no push notifications in v1)
-- [ ] **Send to itinly (mobile share target)** — register the PWA as an OS share target so a confirmation email or booking page can be shared from any app (Mail, Gmail, Safari, …) straight into the parser, bypassing the Gmail-scan ceremony for one-off bookings and unblocking non-Gmail mailboxes on the go
 - [ ] **Scheduled / auto email import** — opt-in background Gmail scan (e.g. nightly) that parses new confirmations and drops segments into the right trip with `needsReview: true`, so the inbox stays in sync without the user having to remember to run a scan
 - [ ] **Places to go** — per-trip list of points-of-interest (shops, museums, viewpoints, neighbourhoods) that aren't tied to a date or time and aren't a todo. Pinnable on the Map tab, groupable by city, and a candidate source for later "schedule this" actions that promote a place into a real segment
 - [ ] **Trip overview page** — at-a-glance summary tab: hero image, dates, destinations + flag row, total spend by category, segment counts by type, open todos, pending-review count, share status, and a compact "what's next" card. Becomes the default landing tab on a trip in place of jumping straight to day 1

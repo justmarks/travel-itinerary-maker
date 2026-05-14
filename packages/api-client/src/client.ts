@@ -20,6 +20,7 @@ import type {
   ApplyParsedSegmentsInput,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   XlsxImportRequest,
 } from "@itinly/shared";
 
@@ -647,6 +648,20 @@ export class ApiClient {
 
   importHtmlEmail(input: HtmlImportRequest): Promise<{ result: EmailScanResult }> {
     return this.request("/emails/import-html", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  /**
+   * POST a PWA share-target intent (title/text/url) to the server,
+   * which feeds it through the same parser as Gmail-scanned emails
+   * and returns a single EmailScanResult ready for the review UI.
+   */
+  importSharedContent(
+    input: ImportSharedRequest,
+  ): Promise<{ result: EmailScanResult }> {
+    return this.request("/emails/import-shared", {
       method: "POST",
       body: JSON.stringify(input),
     });

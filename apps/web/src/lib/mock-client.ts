@@ -29,6 +29,7 @@ import type {
   EmailScanResult,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   ApplyParsedSegmentsInput,
   XlsxImportRequest,
 } from "@itinly/shared";
@@ -2107,6 +2108,24 @@ export class MockApiClient extends ApiClient {
         subject: _input.subject || "(HTML import — demo)",
         from: _input.from || "(unknown sender)",
         receivedAt: _input.receivedAt || now(),
+        parsedSegments: [],
+        parseStatus: "no_travel_content",
+      },
+    });
+  }
+
+  override importSharedContent(
+    _input: ImportSharedRequest,
+  ): Promise<{ result: EmailScanResult }> {
+    // Demo runs offline — the real endpoint hits Claude. Returning
+    // `no_travel_content` lets the share UI render its empty-state
+    // branch in the demo so the flow is still discoverable.
+    return Promise.resolve({
+      result: {
+        emailId: `share-import-demo-${uid()}`,
+        subject: _input.title || (_input.url ? "(Shared link)" : "(Shared text)"),
+        from: _input.url ? "(Shared from web)" : "(Shared content)",
+        receivedAt: now(),
         parsedSegments: [],
         parseStatus: "no_travel_content",
       },

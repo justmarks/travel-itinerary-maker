@@ -61,5 +61,29 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
     ],
+    // Register the installed PWA as an OS-level share target so users
+    // can hit Share in Mail / Gmail / Safari / messaging apps and pick
+    // "itinly" — that bypasses the Gmail-scan ceremony for one-off
+    // bookings and unblocks non-Gmail mailboxes on the go. The receiver
+    // page at /m/share reads the three query params below and feeds
+    // them through the same parser pipeline as the email-scan flow.
+    //
+    // GET (rather than POST + multipart) is sufficient for our needs —
+    // every meaningful share intent (selected email body as `text`, a
+    // confirmation page as `url`, the subject line as `title`) is
+    // representable as query params, and GET also keeps the SW's
+    // network-first navigation handler in play instead of needing a
+    // POST-specific fetch branch. File-based shares (e.g. forwarded
+    // .eml) are a follow-up.
+    share_target: {
+      action: "/m/share",
+      method: "GET",
+      enctype: "application/x-www-form-urlencoded",
+      params: {
+        title: "title",
+        text: "text",
+        url: "url",
+      },
+    },
   };
 }

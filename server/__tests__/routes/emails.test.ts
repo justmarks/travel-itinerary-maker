@@ -1576,4 +1576,193 @@ describe("Email Routes", () => {
       expect(record?.subject).toBe("Palazzo Natoli confirmation");
     });
   });
+
+  describe("POST /api/v1/emails/import-shared", () => {
+    it("rejects a request with neither text nor url", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({ title: "no body" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a non-http(s) URL", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({ url: "ftp://example.com/booking" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects a URL pointing at loopback", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({ url: "http://127.0.0.1/booking" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/private|loopback/i);
+    });
+
+    it("rejects a URL pointing at the AWS / GCE metadata host", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({ url: "http://169.254.169.254/latest/meta-data/" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/private|loopback/i);
+    });
+
+    it("parses shared text and returns extracted segments", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({
+          title: "Palazzo Natoli confirmation",
+          text: "Palazzo Natoli booking, check-in June 15, 2026.",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("success");
+      expect(res.body.result.parsedSegments).toHaveLength(1);
+      expect(res.body.result.parsedSegments[0].type).toBe("hotel");
+      expect(res.body.result.emailId).toMatch(/^share-import-/);
+    });
+
+    it("auto-matches a parsed share to a trip whose date range covers the segment", async () => {
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-10",
+        endDate: "2026-06-20",
+      });
+      const tripId = tripRes.body.id;
+
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({
+          title: "Palazzo Natoli confirmation",
+          text: "Palazzo booking",
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(tripId);
+    });
+
+    it("persists a synthetic processed-email record so /emails/apply can close it", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({
+          title: "Palazzo Natoli confirmation",
+          text: "Palazzo booking",
+        });
+      expect(res.status).toBe(201);
+      const emailId = res.body.result.emailId;
+
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record).toBeDefined();
+      expect(record?.parseStatus).toBe("parsed");
+    });
+
+    it("returns no_travel_content when the share has nothing to extract", async () => {
+      const res = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({
+          title: "Weekly Newsletter",
+          text: "Just a newsletter — no travel here.",
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.result.parseStatus).toBe("no_travel_content");
+      expect(res.body.result.parsedSegments).toHaveLength(0);
+    });
+
+    it("lets /emails/apply consume a shared import via its synthetic emailId", async () => {
+      const tripRes = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-10",
+        endDate: "2026-06-20",
+      });
+      const tripId = tripRes.body.id;
+
+      const importRes = await request(app)
+        .post("/api/v1/emails/import-shared")
+        .send({
+          title: "Palazzo Natoli confirmation",
+          text: "Palazzo booking",
+        });
+      const seg = importRes.body.result.parsedSegments[0];
+      const emailId = importRes.body.result.emailId;
+
+      const applyRes = await request(app)
+        .post("/api/v1/emails/apply")
+        .send({
+          segments: [
+            {
+              type: seg.type,
+              title: seg.title,
+              date: seg.date,
+              city: seg.city,
+              venueName: seg.venueName,
+              confirmationCode: seg.confirmationCode,
+              endDate: seg.endDate,
+              cost: seg.cost,
+              confidence: seg.confidence,
+              tripId,
+              emailId,
+            },
+          ],
+        });
+      expect(applyRes.status).toBe(201);
+      expect(applyRes.body.created).toHaveLength(1);
+
+      const processed = await storage.getProcessedEmails();
+      const record = processed.find((e) => e.gmailMessageId === emailId);
+      expect(record?.parseStatus).toBe("mapped");
+    });
+
+    it("fetches a shared URL and runs the page HTML through the parser", async () => {
+      const originalFetch = global.fetch;
+      const palazzoHtml =
+        "<html><body><h1>Palazzo Natoli booking</h1></body></html>";
+      const mockFetch = jest.fn().mockResolvedValue(
+        new Response(palazzoHtml, {
+          status: 200,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+      );
+      // @ts-expect-error overwriting the global for the duration of the test
+      global.fetch = mockFetch;
+      try {
+        const res = await request(app)
+          .post("/api/v1/emails/import-shared")
+          .send({
+            title: "Palazzo Natoli confirmation",
+            url: "https://booking.example.com/palazzo",
+          });
+        expect(res.status).toBe(201);
+        expect(res.body.result.parseStatus).toBe("success");
+        expect(res.body.result.parsedSegments[0].type).toBe("hotel");
+        expect(mockFetch).toHaveBeenCalledWith(
+          "https://booking.example.com/palazzo",
+          expect.objectContaining({ method: "GET" }),
+        );
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it("returns 400 when the shared URL responds with a non-text content type", async () => {
+      const originalFetch = global.fetch;
+      const mockFetch = jest.fn().mockResolvedValue(
+        new Response("not html", {
+          status: 200,
+          headers: { "content-type": "application/octet-stream" },
+        }),
+      );
+      // @ts-expect-error overwriting the global for the duration of the test
+      global.fetch = mockFetch;
+      try {
+        const res = await request(app)
+          .post("/api/v1/emails/import-shared")
+          .send({ url: "https://booking.example.com/binary" });
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/HTML|content type/i);
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+  });
 });

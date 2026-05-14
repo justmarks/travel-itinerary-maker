@@ -24,6 +24,7 @@ import type {
   ApplyParsedSegmentsInput,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   XlsxImportRequest,
 } from "@itinly/shared";
 import { generateId } from "@itinly/shared";
@@ -937,6 +938,22 @@ export function useImportHtmlEmail() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: HtmlImportRequest) => client.importHtmlEmail(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
+/**
+ * PWA "Send to itinly" share-target intent → parsed segments.
+ * Backed by POST /emails/import-shared.
+ */
+export function useImportSharedContent() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportSharedRequest) =>
+      client.importSharedContent(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
     },

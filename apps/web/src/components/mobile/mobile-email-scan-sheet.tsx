@@ -14,11 +14,18 @@ import {
 import type {
   EmailScanResult,
   NewTripProposal,
-  ParsedSegment,
   SegmentMatchStatus,
 } from "@itinly/shared";
-import { proposeNewTrips } from "@itinly/shared";
 import { resolveProposalSentinels } from "@/lib/scan-proposal-apply";
+import {
+  buildReviewItems,
+  dayShort,
+  fmtTripRange,
+  STATUS_LABEL,
+  STATUS_TOKEN,
+  type ApplyAction,
+  type ReviewItem,
+} from "@/lib/email-scan-review";
 import {
   AlertCircle,
   Check,
@@ -77,145 +84,6 @@ type Step =
   | "scanning"
   | "review"
   | "done";
-
-type ApplyAction = "create" | "merge" | "replace" | "skip";
-
-interface ReviewItem {
-  emailId: string;
-  emailSubject: string;
-  segment: ParsedSegment;
-  /** Local UI state — selected to apply, with a chosen action + trip. */
-  selected: boolean;
-  action: ApplyAction;
-  /**
-   * Either a real existing trip id OR a new-trip-proposal sentinel
-   * (`__new__N`). Sentinels are swapped for real ids in `handleApply`
-   * after `useCreateTrip` resolves. Empty string means "unassigned —
-   * Apply will refuse to send this segment."
-   */
-  tripId: string;
-}
-
-// ── Helpers ────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<SegmentMatchStatus, string> = {
-  new: "New",
-  enrichment: "Enrich",
-  conflict: "Conflict",
-  duplicate: "Duplicate",
-};
-
-const STATUS_TOKEN: Record<SegmentMatchStatus, string> = {
-  new: "ok",
-  enrichment: "info",
-  conflict: "warn",
-  duplicate: "muted",
-};
-
-function defaultActionFor(status: SegmentMatchStatus | undefined): ApplyAction {
-  if (status === "duplicate") return "skip";
-  if (status === "enrichment") return "merge";
-  if (status === "conflict") return "merge";
-  return "create";
-}
-
-/**
- * What to default `selected` to. Skip duplicates AND low-confidence
- * segments — the user can opt them in if they want, but a half-confident
- * parse silently overwriting their itinerary is the wrong default. This
- * matches desktop's `defaultSelected` rule.
- */
-function defaultSelectedFor(seg: ParsedSegment): boolean {
-  const status = seg.match?.status ?? "new";
-  return status !== "duplicate" && seg.confidence !== "low";
-}
-
-function dayShort(date: string) {
-  return new Date(date + "T00:00:00").toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/**
- * Formats a trip's date range for the trip-picker dropdown:
- * `"Mar 5 – Mar 12"` (same year) or `"Dec 28 2026 – Jan 3 2027"` when
- * the range crosses calendar years. Compact enough to fit alongside
- * a trip title even on narrow phone widths.
- */
-function fmtTripRange(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const sameYear = s.getFullYear() === e.getFullYear();
-  const opts: Intl.DateTimeFormatOptions = sameYear
-    ? { month: "short", day: "numeric" }
-    : { month: "short", day: "numeric", year: "numeric" };
-  const fmt = (d: Date) => d.toLocaleDateString("en-US", opts);
-  return `${fmt(s)} – ${fmt(e)}`;
-}
-
-/**
- * Build the review-step state from a scan response. Returns both
- * `items` and the `proposals` derived from items that didn't match
- * an existing trip — each unassigned item is pre-bound to its
- * proposal's sentinel id so the picker shows "Create Maui April
- * 2026" as the default.
- *
- * `tripIdFilter` is forwarded to the backend scan request as the
- * `tripId` hint; the backend honors it only when a parsed segment's
- * date falls inside that trip's window. Out-of-range segments either
- * route to whichever trip actually covers the date (server-side date
- * match) or come back with no `suggestedTripId`, in which case the
- * `proposeNewTrips` clustering below offers a "create new trip"
- * option — same UX as an account-level scan launched from the
- * trips homepage.
- */
-function buildReviewItems(
-  results: readonly EmailScanResult[],
-  _tripIdFilter: string | undefined,
-): { items: ReviewItem[]; proposals: NewTripProposal[] } {
-  const items: ReviewItem[] = [];
-  for (const res of results) {
-    if (res.parseStatus !== "success") continue;
-    for (const seg of res.parsedSegments) {
-      const tripId = seg.suggestedTripId ?? "";
-      const action = defaultActionFor(seg.match?.status);
-      // Two reasons to start unselected: (a) duplicate / skip default,
-      // (b) low-confidence parse — same rule desktop uses.
-      const selected = action !== "skip" && defaultSelectedFor(seg);
-      items.push({
-        emailId: res.emailId,
-        emailSubject: res.subject,
-        segment: seg,
-        selected,
-        action,
-        tripId,
-      });
-    }
-  }
-
-  // Cluster items that still have no trip into proposed new trips,
-  // and bind each item to its proposal's sentinel id so the picker
-  // shows "Create <name>" as that item's default selection.
-  const unassigned = items
-    .map((it, idx) => ({ idx, it }))
-    .filter(({ it }) => !it.tripId);
-  const proposals = proposeNewTrips(
-    unassigned.map(({ idx, it }) => ({
-      key: String(idx),
-      segment: it.segment,
-    })),
-  );
-  for (const proposal of proposals) {
-    for (const key of proposal.segmentKeys) {
-      const idx = parseInt(key, 10);
-      if (Number.isNaN(idx)) continue;
-      items[idx].tripId = proposal.id;
-    }
-  }
-  return { items, proposals };
-}
 
 // ── Component ──────────────────────────────────────────────
 
@@ -441,7 +309,7 @@ function ScanBody({
     if (labelsLoading || pendingLoading) return;
     const pending = pendingData?.results;
     if (pending && pending.length > 0) {
-      const built = buildReviewItems(pending, tripId);
+      const built = buildReviewItems(pending);
       if (built.items.length > 0) {
         setResults(pending);
         setItems(built.items);
@@ -508,7 +376,7 @@ function ScanBody({
             current: current ?? p.current,
           })),
       });
-      const built = buildReviewItems(response.results, tripId);
+      const built = buildReviewItems(response.results);
       setResults(response.results);
       setItems(built.items);
       setProposals(built.proposals);
@@ -544,7 +412,7 @@ function ScanBody({
           err.status === 503 || body?.code === "ANTHROPIC_OVERLOADED";
         const partial = body?.results;
         if ((isBilling || isOverloaded) && partial && partial.length > 0) {
-          const built = buildReviewItems(partial, tripId);
+          const built = buildReviewItems(partial);
           setResults(partial);
           setItems(built.items);
           setProposals(built.proposals);
