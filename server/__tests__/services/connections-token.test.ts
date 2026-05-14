@@ -55,7 +55,13 @@ function makeConnection(overrides: Partial<Connection> = {}): Connection {
 }
 
 function mockStore(initial: Connection[]): jest.Mocked<ConnectionsStore> {
-  const list = jest.fn().mockResolvedValue(initial);
+  // Mirror the real ConnectionsStore.listForUser contract: it filters
+  // by `status='active'`. Tests pass revoked rows to verify the
+  // resolver doesn't surface them; without this filter the mock
+  // would leak revoked rows that the production store wouldn't.
+  const list = jest
+    .fn()
+    .mockResolvedValue(initial.filter((c) => c.status === "active"));
   const upsert = jest.fn().mockImplementation((input) =>
     Promise.resolve({
       ...initial[0],

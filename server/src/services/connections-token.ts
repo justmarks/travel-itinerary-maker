@@ -98,11 +98,11 @@ export async function getActiveAccessToken(
   // (user, provider, capability). For multi-account users (e.g.
   // gmail-personal + gmail-work) Phase 4c will surface a picker;
   // today we deterministically pick the most recent.
+  //
+  // `store.listForUser` already filters by `status='active'`, so we
+  // only need to narrow by provider + capability here.
   const candidates = (await store.listForUser(userId)).filter(
-    (c) =>
-      c.provider === provider &&
-      c.capability === capability &&
-      c.status === "active",
+    (c) => c.provider === provider && c.capability === capability,
   );
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
