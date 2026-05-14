@@ -485,15 +485,7 @@ function assembleTrip(
 
 function segmentFromRow(row: SegmentRow): Segment {
   const data = (row.data ?? {}) as Record<string, unknown>;
-  // Spread `data` FIRST so the typed columns below always win on overlap.
-  // `segmentToRow` destructures the typed-column keys out of `seg` before
-  // writing to `data`, so today the overlap is empty — but spreading data
-  // last (the previous order) would let a stale jsonb `id`/`type`/`title`
-  // from a hand-written migration silently clobber the canonical columns.
-  // Object-spread is last-wins; make the safety explicit rather than rely
-  // on the writer's destructure.
   return {
-    ...(data as Partial<Segment>),
     id: row.id,
     type: row.type as Segment["type"],
     title: row.title,
@@ -506,6 +498,13 @@ function segmentFromRow(row: SegmentRow): Segment {
     needsReview: row.needsReview,
     sortOrder: row.sortOrder,
     calendarEventId: row.calendarEventId ?? undefined,
+    // Variant-specific fields live in `data` jsonb. Object-spread is
+    // last-wins, so any of the typed-column keys above would lose to
+    // a stale `data` entry — `segmentToRow` guarantees that doesn't
+    // happen by destructuring those keys out of `seg` before writing,
+    // so `data` only ever contains variant-specific keys. Don't widen
+    // the writer without revisiting this assumption.
+    ...(data as Partial<Segment>),
   };
 }
 
