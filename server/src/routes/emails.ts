@@ -151,6 +151,82 @@ function normStr(s: string | undefined): string {
   return (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Lowercase alphanumeric word tokens, dropping empties. */
+function tokens(s: string | undefined): Set<string> {
+  if (!s) return new Set();
+  return new Set(
+    s
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .filter((t) => t.length > 0),
+  );
+}
+
+/**
+ * Looser sibling of `normStr` equality used for names/titles/addresses where
+ * one side often carries extra qualifier words ("Villa Fiorita Hotel" vs
+ * "Villa Fiorita Boutique Hotel"), formatting decoration ("SEA → CDG" vs
+ * "SEA → CDG (Air France 337)"), or a longer postal form of the same address
+ * ("Via San Marco, 40, Calatabiano" vs "Via San Marco, 40, 95011 Calatabiano,
+ * Italy"). One side being a token subset of the other is the easy case —
+ * that's free enrichment, never a conflict. Falls back to Jaccard ≥ 0.6 to
+ * catch near-misses where each side has a unique word (e.g. "di" appearing
+ * in one Italian hotel name but not the other) without merging clearly
+ * different bookings like "Sightseeing tour" and "Dinner at X" (0 token
+ * overlap → no match).
+ */
+function fuzzyTextMatch(
+  a: string | undefined,
+  b: string | undefined,
+): boolean {
+  if (!a || !b) return false;
+  if (normStr(a) === normStr(b)) return true;
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (ta.size === 0 || tb.size === 0) return false;
+  let intersection = 0;
+  for (const t of ta) if (tb.has(t)) intersection++;
+  if (intersection === 0) return false;
+  // Token subset (one side fully contained in the other) → match.
+  if (intersection === ta.size || intersection === tb.size) return true;
+  // Jaccard similarity — 0.6 is high enough that 3-of-4 word matches but
+  // 2-of-5 doesn't.
+  const union = ta.size + tb.size - intersection;
+  return intersection / union >= 0.6;
+}
+
+/**
+ * Segment types that all represent "a scheduled experience at a venue".
+ * Claude's parser and a human entering segments manually frequently disagree
+ * on the precise subtype here — a Broadway booking might land in the trip as
+ * `activity` (manual) while the confirmation email parses as `show`; a wine
+ * tasting at a vineyard might be `activity` one way and `tour` the other;
+ * a dinner reservation might be `activity` (manual) vs `restaurant_dinner`
+ * (parsed). Letting matches cross within this cluster avoids surfacing
+ * those as duplicate "New" rows just because the type label differs.
+ */
+const EXPERIENCE_TYPES = new Set<string>([
+  "activity",
+  "tour",
+  "show",
+  "restaurant_breakfast",
+  "restaurant_brunch",
+  "restaurant_lunch",
+  "restaurant_dinner",
+]);
+
+/**
+ * The meal-of-day subtypes are intentionally NOT cross-matched against each
+ * other. A `restaurant_lunch` and a `restaurant_dinner` at the same venue on
+ * the same day are real distinct bookings the user would not want collapsed.
+ */
+const RESTAURANT_TYPES = new Set<string>([
+  "restaurant_breakfast",
+  "restaurant_brunch",
+  "restaurant_lunch",
+  "restaurant_dinner",
+]);
+
 /**
  * Fields compared between a parsed segment and an existing itinerary segment.
  * Keys with meaningful values on either side drive the enrichment/conflict logic.
@@ -184,6 +260,17 @@ const COMPARABLE_FIELDS = [
 
 type ComparableField = (typeof COMPARABLE_FIELDS)[number];
 
+/**
+ * Fields where one side legitimately carries extra qualifier words / postal
+ * formatting / display decoration that shouldn't be flagged as a conflict.
+ * See `fuzzyTextMatch` for the rule (subset OR Jaccard ≥ 0.6).
+ */
+const FUZZY_TEXT_FIELDS = new Set<ComparableField>([
+  "title",
+  "venueName",
+  "address",
+]);
+
 /** Decide if two field values should be considered "the same". */
 function fieldValuesEqual(
   field: ComparableField,
@@ -198,6 +285,9 @@ function fieldValuesEqual(
       // Compare HH:MM portion only, regardless of seconds
       return a.slice(0, 5) === b.slice(0, 5);
     }
+    if (FUZZY_TEXT_FIELDS.has(field)) {
+      return fuzzyTextMatch(a, b);
+    }
     return normStr(a) === normStr(b);
   }
   return false;
@@ -205,8 +295,15 @@ function fieldValuesEqual(
 
 /** Does this existing segment look like the same booking as the parsed one? */
 function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate: string): boolean {
-  // Must be same type
-  if (existing.type !== parsed.type) return false;
+  // Type must match, OR both types must sit in the EXPERIENCE_TYPES cluster
+  // (activity/tour/show/restaurant_*) — see the comment on EXPERIENCE_TYPES
+  // for why. Cross-matching between two restaurant_* meal subtypes is
+  // explicitly disallowed: a lunch and a dinner at the same venue on the
+  // same day are real distinct bookings.
+  if (existing.type !== parsed.type) {
+    if (!EXPERIENCE_TYPES.has(existing.type) || !EXPERIENCE_TYPES.has(parsed.type)) return false;
+    if (RESTAURANT_TYPES.has(existing.type) && RESTAURANT_TYPES.has(parsed.type)) return false;
+  }
 
   // Confirmation code match is the strongest signal for non-flight types,
   // where one PNR/confirmation = one booking. Flights are different: a
@@ -248,10 +345,11 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
   }
 
   // Hotels: match by venueName (fuzzy). Date may differ because parsed uses
-  // check-in and existing could be stored on any of the nights.
+  // check-in and existing could be stored on any of the nights. fuzzyTextMatch
+  // tolerates extra qualifier words ("Boutique") and case/punct differences
+  // ("Castello di San Marco" vs "Castello San Marco").
   if (parsed.type === "hotel") {
-    if (!parsed.venueName || !existing.venueName) return false;
-    return normStr(parsed.venueName) === normStr(existing.venueName);
+    return fuzzyTextMatch(parsed.venueName, existing.venueName);
   }
 
   // Car rentals: match by provider + date (pickup OR dropoff day).
@@ -265,19 +363,19 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
       return true;
     }
     // Fallback: same title (e.g. "National - Lihue")
-    return normStr(parsed.title) === normStr(existing.title);
+    return fuzzyTextMatch(parsed.title, existing.title);
   }
 
-  // Restaurants / activities / tours: same date + fuzzy venue or title.
+  // Restaurants / activities / tours / shows: same date + fuzzy venue or title.
   if (existingDate !== parsed.date) return false;
   if (
     parsed.venueName &&
     existing.venueName &&
-    normStr(parsed.venueName) === normStr(existing.venueName)
+    fuzzyTextMatch(parsed.venueName, existing.venueName)
   ) {
     return true;
   }
-  return normStr(parsed.title) === normStr(existing.title);
+  return fuzzyTextMatch(parsed.title, existing.title);
 }
 
 /**
@@ -1844,8 +1942,69 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         byTrip.set(seg.tripId, list);
       }
 
+      // Upfront date-range validation. A `create` action with a date outside
+      // the chosen trip's startDate..endDate window is a user mistake — the
+      // segment can't land on a day that doesn't exist, and we used to
+      // silently drop it (the email got marked `mapped` but no segment was
+      // created, so the booking just vanished). Reject the whole request so
+      // the UI can surface a specific message and let the user either pick
+      // a different trip or fix the date. Merge / replace actions target an
+      // existing segment that's already on a real day, so `seg.date` is
+      // irrelevant for them and they're skipped here.
+      const outOfRange: Array<{
+        tripId: string;
+        tripTitle: string;
+        tripStartDate: string;
+        tripEndDate: string;
+        emailId: string;
+        title: string;
+        date: string;
+      }> = [];
+      const tripsForApply = new Map<string, Trip>();
       for (const [tid, segs] of byTrip) {
         const trip = await storage.getTrip(tid);
+        if (!trip) continue; // surfaced as a per-trip warning + skip below
+        tripsForApply.set(tid, trip);
+        for (const seg of segs) {
+          const action = seg.action ?? "create";
+          if (action !== "create") continue;
+          if (!isDateInRange(seg.date, trip.startDate, trip.endDate)) {
+            outOfRange.push({
+              tripId: tid,
+              tripTitle: trip.title,
+              tripStartDate: trip.startDate,
+              tripEndDate: trip.endDate,
+              emailId: seg.emailId,
+              title: seg.title,
+              date: seg.date,
+            });
+          }
+        }
+      }
+      if (outOfRange.length > 0) {
+        const first = outOfRange[0];
+        const message =
+          outOfRange.length === 1
+            ? `"${first.title}" on ${first.date} is outside "${first.tripTitle}" (${first.tripStartDate} – ${first.tripEndDate}). Pick a different trip or fix the date.`
+            : `${outOfRange.length} segments fall outside the selected trip's date range. Pick a different trip or fix the date.`;
+        console.warn(
+          `${applyPrefix} Rejecting apply: ${outOfRange.length} segment(s) out of range — ${outOfRange
+            .map(
+              (o) =>
+                `"${o.title}" ${o.date} not in "${o.tripTitle}" ${o.tripStartDate}..${o.tripEndDate}`,
+            )
+            .join("; ")}`,
+        );
+        res.status(400).json({
+          error: message,
+          code: "OUT_OF_RANGE",
+          segments: outOfRange,
+        });
+        return;
+      }
+
+      for (const [tid, segs] of byTrip) {
+        const trip = tripsForApply.get(tid);
         if (!trip) {
           console.warn(`${applyPrefix} Trip ${tid} not found, skipping ${segs.length} segment(s)`);
           continue;
