@@ -161,28 +161,24 @@ function fmtTripRange(start: string, end: string): string {
  * proposal's sentinel id so the picker shows "Create Maui April
  * 2026" as the default.
  *
- * `tripIdFilter` is set when the sheet was opened from a specific
- * trip's overflow menu — segments outside that trip are dropped so
- * the user only sees the relevant ones. In that mode, no proposals
- * are generated (the user is targeting a known trip).
+ * `tripIdFilter` is forwarded to the backend scan request as the
+ * `tripId` hint; the backend honors it only when a parsed segment's
+ * date falls inside that trip's window. Out-of-range segments either
+ * route to whichever trip actually covers the date (server-side date
+ * match) or come back with no `suggestedTripId`, in which case the
+ * `proposeNewTrips` clustering below offers a "create new trip"
+ * option — same UX as an account-level scan launched from the
+ * trips homepage.
  */
 function buildReviewItems(
   results: readonly EmailScanResult[],
-  tripIdFilter: string | undefined,
+  _tripIdFilter: string | undefined,
 ): { items: ReviewItem[]; proposals: NewTripProposal[] } {
   const items: ReviewItem[] = [];
   for (const res of results) {
     if (res.parseStatus !== "success") continue;
     for (const seg of res.parsedSegments) {
-      // When opened from a specific trip, only surface segments
-      // suggested for that trip — keeps the review focused.
-      if (tripIdFilter && seg.suggestedTripId && seg.suggestedTripId !== tripIdFilter) {
-        continue;
-      }
-      // Per-trip scans default unassigned items to the active trip;
-      // account-level scans leave them empty here and we fill them in
-      // below from the proposal clustering.
-      const tripId = seg.suggestedTripId ?? tripIdFilter ?? "";
+      const tripId = seg.suggestedTripId ?? "";
       const action = defaultActionFor(seg.match?.status);
       // Two reasons to start unselected: (a) duplicate / skip default,
       // (b) low-confidence parse — same rule desktop uses.
@@ -197,11 +193,6 @@ function buildReviewItems(
       });
     }
   }
-
-  // Per-trip scans never propose new trips — the user is targeting
-  // a specific existing one, so unassigned segments either belong
-  // there or get skipped.
-  if (tripIdFilter) return { items, proposals: [] };
 
   // Cluster items that still have no trip into proposed new trips,
   // and bind each item to its proposal's sentinel id so the picker
@@ -1132,7 +1123,6 @@ function ScanBody({
                     endDate: t.endDate,
                   }))}
                   proposals={proposals}
-                  showTripPicker={!tripId}
                   onToggleSelected={() => toggleSelected(idx)}
                   onCycleAction={() => cycleAction(idx)}
                   onChangeTrip={(next) => setTripId(idx, next)}
@@ -1369,7 +1359,6 @@ function ReviewCard({
   item,
   trips,
   proposals,
-  showTripPicker,
   onToggleSelected,
   onCycleAction,
   onChangeTrip,
@@ -1379,11 +1368,10 @@ function ReviewCard({
   /**
    * Proposed-new-trip clusters surfaced as picker options. Each one
    * has a sentinel `id` (`__new__N`) that the apply handler swaps for
-   * a real trip id after `useCreateTrip` resolves. Empty for per-trip
-   * scans (the user is targeting a specific existing trip).
+   * a real trip id after `useCreateTrip` resolves. Empty when every
+   * parsed segment auto-matched an existing trip.
    */
   proposals: NewTripProposal[];
-  showTripPicker: boolean;
   onToggleSelected: () => void;
   onCycleAction: () => void;
   onChangeTrip: (next: string) => void;
@@ -1436,45 +1424,43 @@ function ReviewCard({
         </span>
       </div>
 
-      {showTripPicker && (
-        <div className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Trip</span>
-          <select
-            value={item.tripId}
-            onChange={(e) => onChangeTrip(e.target.value)}
-            className="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
-          >
-            {trips.length === 0 && proposals.length === 0 && (
-              <option value="">(no trips)</option>
-            )}
-            {/* Proposed new trips (rendered first as the more common
-                target on a fresh scan with no auto-matches). The
-                sentinel id is swapped for a real one in handleApply
-                via `useCreateTrip`. */}
-            {proposals.length > 0 && (
-              <optgroup label="Create new trip">
-                {proposals.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    + {p.title} ({fmtTripRange(p.startDate, p.endDate)})
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {trips.length > 0 && (
-              <optgroup label="Existing trips">
-                {trips.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {/* Suffix the date range so a phone-only user can
-                        distinguish two trips with similar names — e.g.
-                        "Tokyo Apr 2026" vs "Tokyo Sep 2026". */}
-                    {t.title} ({fmtTripRange(t.startDate, t.endDate)})
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </div>
-      )}
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-muted-foreground">Trip</span>
+        <select
+          value={item.tripId}
+          onChange={(e) => onChangeTrip(e.target.value)}
+          className="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+        >
+          {trips.length === 0 && proposals.length === 0 && (
+            <option value="">(no trips)</option>
+          )}
+          {/* Proposed new trips (rendered first as the more common
+              target on a fresh scan with no auto-matches). The
+              sentinel id is swapped for a real one in handleApply
+              via `useCreateTrip`. */}
+          {proposals.length > 0 && (
+            <optgroup label="Create new trip">
+              {proposals.map((p) => (
+                <option key={p.id} value={p.id}>
+                  + {p.title} ({fmtTripRange(p.startDate, p.endDate)})
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {trips.length > 0 && (
+            <optgroup label="Existing trips">
+              {trips.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {/* Suffix the date range so a phone-only user can
+                      distinguish two trips with similar names — e.g.
+                      "Tokyo Apr 2026" vs "Tokyo Sep 2026". */}
+                  {t.title} ({fmtTripRange(t.startDate, t.endDate)})
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </div>
 
       <div className="flex items-center gap-2">
         <button

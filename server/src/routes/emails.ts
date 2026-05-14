@@ -379,6 +379,38 @@ function isCandidateMatch(existing: Segment, parsed: ParsedSegment, existingDate
 }
 
 /**
+ * Pick which existing trip a parsed segment should suggest based on its date.
+ *
+ * `hintedTripId` is the trip-scoped scan hint — the user opened the scan from
+ * a specific trip's page and we should prefer that trip. But the user's inbox
+ * isn't partitioned by trip: a scan launched from "Sicily 2026" still surfaces
+ * any travel email with a date in some other trip's window. Forcing the hint
+ * onto every segment was the old behaviour; it silently dropped out-of-range
+ * segments at apply time (now a 400 from the apply guard) and prevented the
+ * UI from offering a new-trip proposal.
+ *
+ * The new rule: honor the hint only if the segment date actually falls inside
+ * the hinted trip. Otherwise fall through to a date-range search across all
+ * trips — and if no trip covers that date, return undefined so the caller
+ * leaves `suggestedTripId` blank and the UI can route the segment through the
+ * "create a new trip" proposal flow.
+ */
+function pickMatchingTrip(
+  date: string,
+  hintedTripId: string | undefined,
+  trips: Trip[],
+  tripsById: Map<string, Trip>,
+): Trip | undefined {
+  if (hintedTripId) {
+    const hinted = tripsById.get(hintedTripId);
+    if (hinted && isDateInRange(date, hinted.startDate, hinted.endDate)) {
+      return hinted;
+    }
+  }
+  return trips.find((t) => isDateInRange(date, t.startDate, t.endDate));
+}
+
+/**
  * Match a parsed segment against the existing segments in a trip.
  * Returns a classification (new/duplicate/enrichment/conflict) + diffs.
  */
@@ -720,12 +752,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
       // Reconstruct EmailScanResult from stored data, re-matching trip suggestions
       // and re-classifying against current itinerary state.
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
       const results: EmailScanResult[] = pendingEmails.map((pe) => {
         const stored = pe.rawParseResult as EmailScanResult;
         const rematchedSegments = stored.parsedSegments.map((seg) => {
-          const matchingTrip = trips.find((t) =>
-            isDateInRange(seg.date, t.startDate, t.endDate),
-          );
+          const matchingTrip = pickMatchingTrip(seg.date, undefined, trips, tripsById);
           if (!matchingTrip) {
             return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
           }
@@ -792,9 +823,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           const stored = pe.rawParseResult as EmailScanResult;
           // Re-match trip suggestions + re-classify against current itinerary
           const rematchedSegments = stored.parsedSegments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
             }
@@ -997,9 +1026,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
 
           // Auto-match segments to trips by date, then classify against itinerary
           const matchedSegments = segments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, match: { status: "new" as const } };
             }
@@ -1297,9 +1324,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         if (pe.parseStatus === "parsed" && pe.rawParseResult) {
           const stored = pe.rawParseResult as EmailScanResult;
           const rematchedSegments = stored.parsedSegments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, suggestedTripId: undefined, match: { status: "new" as const } };
             }
@@ -1465,9 +1490,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
           }
 
           const matchedSegments = segments.map((seg) => {
-            const matchingTrip = tripId
-              ? tripsById.get(tripId)
-              : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+            const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
             if (!matchingTrip) {
               return { ...seg, match: { status: "new" as const } };
             }
@@ -1809,9 +1832,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       const trips = await storage.listTrips();
       const tripsById = new Map(trips.map((t) => [t.id, t]));
       const matchedSegments = segments.map((seg) => {
-        const matchingTrip = tripId
-          ? tripsById.get(tripId)
-          : trips.find((t) => isDateInRange(seg.date, t.startDate, t.endDate));
+        const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
         if (!matchingTrip) {
           return { ...seg, match: { status: "new" as const } };
         }

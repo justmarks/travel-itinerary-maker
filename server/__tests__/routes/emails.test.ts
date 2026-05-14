@@ -1346,32 +1346,56 @@ describe("Email Routes", () => {
       expect(seg.match?.status).toBe("new");
     });
 
-    it("honors an explicit tripId hint from the caller", async () => {
-      // Trip A's dates overlap the parsed segment; trip B's do not. With
-      // auto-matching the segment would be suggested for trip A, but the
-      // caller can override by passing tripId=trip-B.
-      const a = await request(app).post("/api/v1/trips").send({
-        title: "Trip A",
+    it("ignores a tripId hint whose range doesn't cover the parsed date and falls back to date-based search", async () => {
+      // Regression: scanning emails from a specific trip's page used to
+      // force every parsed segment onto that trip via the tripId hint,
+      // even when the date pointed somewhere else. The hint should be
+      // a soft suggestion — when it's out of range the matcher needs to
+      // fall through to a date-range search so the UI can route the
+      // segment to the right trip instead of trapping it on the wrong
+      // one (where the apply guard would then 400).
+      const sicily = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const palermoEarly = await request(app).post("/api/v1/trips").send({
+        title: "Palermo trip",
         startDate: "2026-06-10",
         endDate: "2026-06-20",
       });
-      const b = await request(app).post("/api/v1/trips").send({
-        title: "Trip B",
-        startDate: "2026-08-01",
-        endDate: "2026-08-10",
-      });
 
+      // Parsed date 2026-06-15 falls in Palermo trip's window, not Sicily's.
       const res = await request(app)
         .post("/api/v1/emails/import-html")
         .send({
           html: "<p>Palazzo</p>",
           subject: "Palazzo Natoli confirmation",
-          tripId: b.body.id,
+          tripId: sicily.body.id,
         });
-      expect(res.status).toBe(201);
-      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(b.body.id);
-      // Sanity check: trip A exists and has overlapping dates
-      expect(a.body.id).toBeDefined();
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBe(
+        palermoEarly.body.id,
+      );
+    });
+
+    it("leaves suggestedTripId blank in a trip-scoped scan when no trip covers the parsed date", async () => {
+      // Same fix as above, but with no other trip to fall back to —
+      // the server hands the segment back unmatched so the client can
+      // offer a new-trip proposal (the "create a trip for it" UX) the
+      // user gets when scanning from the trips homepage.
+      const sicily = await request(app).post("/api/v1/trips").send({
+        title: "Sicily 2026",
+        startDate: "2026-06-25",
+        endDate: "2026-07-05",
+      });
+      const res = await request(app)
+        .post("/api/v1/emails/import-html")
+        .send({
+          html: "<p>Palazzo</p>",
+          subject: "Palazzo Natoli confirmation",
+          tripId: sicily.body.id,
+        });
+      expect(res.body.result.parsedSegments[0].suggestedTripId).toBeUndefined();
     });
 
     it("returns no_travel_content when the HTML has nothing to extract", async () => {
