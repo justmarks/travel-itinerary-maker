@@ -23,7 +23,7 @@ export default function PrivacyPage(): React.JSX.Element {
           <header className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Privacy Policy</h1>
             <p className="text-sm text-muted-foreground">
-              Effective Date: May 1, 2026
+              Effective Date: May 13, 2026
             </p>
           </header>
 
@@ -48,23 +48,34 @@ export default function PrivacyPage(): React.JSX.Element {
               a single, narrow purpose, and we do not use the data for
               advertising, model training, resale, or any purpose other
               than providing the Service&apos;s core features to you.
+              Every sign-in flow forces the account picker, so you never
+              get silently authenticated as a different identity than the
+              one you intended.
             </p>
             <ul className="list-disc space-y-2 pl-6">
               <li>
                 <strong>Basic profile (openid, email, profile)</strong> — to
                 identify your account, display your name and avatar inside the
-                app, and contact you about the Service.
+                app, and contact you about the Service. For Microsoft sign-in
+                we additionally call Microsoft Graph&apos;s <code>/me/photo</code>{" "}
+                endpoint to render your avatar; if you have no photo, we fall
+                back to your initials.
               </li>
               <li>
-                <strong>Gmail / Outlook read-only</strong> — used only when
-                you initiate an email scan. We search your inbox for messages
+                <strong>Gmail / Outlook read-only</strong> (
+                <code>gmail.readonly</code> for Google,{" "}
+                <code>Mail.Read</code> for Microsoft) — used only when you
+                initiate an email scan. We search your inbox for messages
                 that look like travel confirmations (flights, hotels,
                 rentals, reservations) and read those messages so we can
-                extract trip details. We do not read mail outside the queries
-                you trigger, and we never send mail on your behalf.
+                extract trip details. We do not read mail outside the
+                queries you trigger, and we never send mail on your
+                behalf.
               </li>
               <li>
-                <strong>Google Calendar / Outlook Calendar</strong> — used
+                <strong>Google Calendar / Outlook Calendar</strong> (
+                <code>calendar</code> for Google,{" "}
+                <code>Calendars.ReadWrite</code> for Microsoft) — used
                 only when you choose to sync a trip to your calendar. We
                 create or update events corresponding to your itinerary
                 segments. We do not read or modify unrelated events.
@@ -74,7 +85,25 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              2. Where Your Data Is Stored
+              2. Linking Multiple Providers
+            </h2>
+            <p>
+              A single itinly account can hold one Google identity and one
+              Microsoft identity at the same time, plus separate Mail and
+              Calendar capability connections per provider. This lets you
+              scan a Gmail confirmation and sync the resulting trip to
+              Outlook Calendar (or any other combination) without
+              maintaining two accounts. Linked identities and capability
+              connections are visible at{" "}
+              <code>/settings/account</code>, where you can disconnect any
+              single integration. Disconnecting an identity also removes
+              its Mail and Calendar capability rows.
+            </p>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">
+              3. Where Your Data Is Stored
             </h2>
             <p>
               <strong>Your trip data is stored on itinly&apos;s servers in a
@@ -117,7 +146,7 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              3. Email Parsing and Anthropic
+              4. Email Parsing and Anthropic
             </h2>
             <p>
               When you trigger an email scan, the Service sends the contents
@@ -133,7 +162,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">4. Third-Party Services</h2>
+            <h2 className="text-xl font-semibold">5. Third-Party Services</h2>
             <p>
               The Service relies on the following sub-processors. We share
               with them only what is necessary to operate the relevant
@@ -175,7 +204,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">5. Cookies and Tracking</h2>
+            <h2 className="text-xl font-semibold">6. Cookies and Tracking</h2>
             <p>
               The Service uses only the cookies and local-storage entries
               necessary to keep you signed in (for example, OAuth state and
@@ -186,7 +215,7 @@ export default function PrivacyPage(): React.JSX.Element {
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">
-              6. Your Rights and Choices
+              7. Your Rights and Choices
             </h2>
             <ul className="list-disc space-y-2 pl-6">
               <li>
@@ -220,7 +249,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">7. Children</h2>
+            <h2 className="text-xl font-semibold">8. Children</h2>
             <p>
               The Service is not directed to children under 13, and we do not
               knowingly collect personal information from them.
@@ -228,7 +257,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">8. Changes to This Policy</h2>
+            <h2 className="text-xl font-semibold">9. Changes to This Policy</h2>
             <p>
               We may update this policy from time to time. The &quot;Effective
               Date&quot; at the top of this page reflects the most recent
@@ -238,7 +267,7 @@ export default function PrivacyPage(): React.JSX.Element {
           </section>
 
           <section className="space-y-3">
-            <h2 className="text-xl font-semibold">9. Contact</h2>
+            <h2 className="text-xl font-semibold">10. Contact</h2>
             <p>
               Questions, deletion requests, or concerns about this policy can
               be sent to{" "}

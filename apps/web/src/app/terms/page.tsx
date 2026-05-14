@@ -23,7 +23,7 @@ export default function TermsPage(): React.JSX.Element {
           <header className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Terms of Service</h1>
             <p className="text-sm text-muted-foreground">
-              Effective Date: May 1, 2026
+              Effective Date: May 13, 2026
             </p>
           </header>
 
@@ -54,11 +54,15 @@ export default function TermsPage(): React.JSX.Element {
             <p>
               The Service reads travel-confirmation emails you ask it to
               scan, parses them into itinerary data, and stores that data
-              in itinly&apos;s managed database under your account. You may
-              also choose to sync itineraries to your Google Calendar or
+              in itinly&apos;s managed database under your account. You
+              may also choose to sync itineraries to Google Calendar or
               Outlook Calendar, or share an itinerary with another person
-              via a share link. Detailed data practices are described in
-              our{" "}
+              via a share link. A single itinly account can hold one
+              Google identity and one Microsoft identity at the same
+              time, plus separate Mail and Calendar capability
+              connections per provider; you can manage and disconnect
+              these from <code>/settings/account</code> inside the app.
+              Detailed data practices are described in our{" "}
               <Link
                 href="/privacy"
                 className="underline underline-offset-4 hover:opacity-80"
@@ -72,11 +76,13 @@ export default function TermsPage(): React.JSX.Element {
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">3. Your Account and Data</h2>
             <p>
-              You are responsible for safeguarding your Google or Microsoft
-              account credentials and for all activity that occurs under
-              your access to the Service. Your trip data is stored in
-              itinly&apos;s managed database under your account; you can
-              revoke the Service&apos;s access to your Google account at{" "}
+              You are responsible for safeguarding your Google and/or
+              Microsoft account credentials and for all activity that
+              occurs under your access to the Service. Your trip data is
+              stored in itinly&apos;s managed database under your
+              account. You can manage linked identities and per-provider
+              integrations at <code>/settings/account</code>, revoke the
+              Service&apos;s access from your Google account at{" "}
               <a
                 href="https://myaccount.google.com/permissions"
                 target="_blank"
