@@ -6,9 +6,6 @@
     "watchPatterns": [
       "server/**",
       "packages/shared/**",
-      "pnpm-lock.yaml",
-      "package.json",
-      "pnpm-workspace.yaml",
       "tsconfig.base.json",
       ".railway/railway.json"
     ]
