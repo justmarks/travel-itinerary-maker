@@ -39,11 +39,11 @@ describe("TokenStore", () => {
   it("persists granted scopes when provided", () => {
     store.set("user-1", "refresh-token-abc", "user@example.com", [
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
     expect(store.get("user-1")!.scopes).toEqual([
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
   });
 
@@ -87,7 +87,7 @@ describe("TokenStore — Gmail link", () => {
   it("setGmail attaches gmail fields to an existing primary entry", () => {
     store.set("user-1", "primary-refresh", "user@example.com", [
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
 
     const ok = store.setGmail("user-1", "gmail-refresh", [
@@ -107,7 +107,7 @@ describe("TokenStore — Gmail link", () => {
     // Primary scopes should be untouched.
     expect(entry.scopes).toEqual([
       "openid",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar",
     ]);
   });
 

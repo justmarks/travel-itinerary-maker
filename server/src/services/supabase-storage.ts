@@ -1,13 +1,12 @@
 /**
- * Postgres-backed `StorageProvider` impl. Phase 1 of the
- * Drive→Supabase migration: a third backend alongside `InMemoryStorage`
- * and `DriveStorage`, satisfying the same contract test suite. Wired
- * into `app.ts` behind a per-user feature flag in commit 4.
+ * Postgres-backed `StorageProvider` impl. The production backend
+ * alongside `InMemoryStorage` (dev/test); both satisfy the same
+ * contract test suite.
  *
  * Per-user scoping: this class is constructed with a `userId` and
- * filters every query by it. Mirrors `DriveStorage`'s "one instance per
- * user" pattern, so the routing layer (`resolveStorage(req)`) can swap
- * backends without changing route handlers.
+ * filters every query by it, so the routing layer
+ * (`resolveStorage(req)`) returns a fresh per-request instance scoped
+ * to the authenticated user without changing route handlers.
  *
  * Reads use a 4-query batch strategy (one query per child table for
  * the trip set, grouped in JS). Writes wrap in a single transaction

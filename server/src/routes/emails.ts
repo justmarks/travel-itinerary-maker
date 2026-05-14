@@ -682,8 +682,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   // result as `req.gmailAccessToken`. When no TokenStore is wired up
   // (memory-mode tests / local dev without persistence), the guard
   // becomes a pass-through — the GmailScanner is mocked in tests, and
-  // memory-mode dev doesn't exercise the real Gmail API anyway. The
-  // Gmail-link / refresh path is wired up only in `mode: "drive"`.
+  // memory-mode dev doesn't exercise the real Gmail API anyway.
   const gmailGuard: RequestHandler = tokenStore
     ? requireGmailAuth(tokenStore)
     : (_req, _res, next) => next();

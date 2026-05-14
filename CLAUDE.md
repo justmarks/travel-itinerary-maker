@@ -239,7 +239,7 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 - `StorageProvider` interface in `server/src/services/storage.ts` abstracts persistence.
 - **InMemoryStorage** is used in development and all tests.
 - **SupabaseStorage** (`server/src/services/supabase-storage.ts`) is the production backend — every authenticated user's trips/segments/todos/history live in Postgres tables, scoped by `userId`.
-- The pre-Phase-6 **DriveStorage** path has been removed (see `docs/backend-migration-plan.md` Phase 6); both impls share the same `StorageProvider` contract test suite at `server/__tests__/storage/contract.ts`.
+- Both impls share the same `StorageProvider` contract test suite at `server/__tests__/storage/contract.ts`.
 - Tests call `storage.clear()` in `beforeEach` to reset state.
 
 ### Naming

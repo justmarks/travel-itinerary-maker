@@ -39,7 +39,8 @@ export interface StorageProvider {
 /**
  * Factory function that resolves a StorageProvider from a request.
  * In development, returns a shared InMemoryStorage.
- * In production, creates a per-user DriveStorage from the request's access token.
+ * In production, creates a per-user SupabaseStorage scoped to the
+ * authenticated user from the request.
  */
 export type StorageResolver = (req: Request) => StorageProvider;
 

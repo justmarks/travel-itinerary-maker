@@ -18,7 +18,7 @@ import { AppWordmark } from "@/components/app-wordmark";
 export const metadata: Metadata = {
   title: "itinly — your travel emails, finally an itinerary",
   description:
-    "itinly scans your Gmail for flight, hotel, and reservation confirmations and builds a clean day-by-day itinerary, stored in your own Google Drive.",
+    "itinly scans your Gmail or Outlook inbox for flight, hotel, and reservation confirmations and builds a clean day-by-day itinerary you can share and sync to your calendar.",
 };
 
 // "Try it free" CTAs point at /login; the login page handles the
@@ -97,10 +97,10 @@ function Hero(): React.JSX.Element {
             <span className="text-[var(--brand)]">finally an itinerary.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Sign in with Google. itinly scans your inbox for flight, hotel, and
-            reservation confirmations, parses them into structured trip data,
-            and builds a clean day-by-day itinerary you can share — all stored
-            in your own Google Drive.
+            Sign in with Google or Microsoft. itinly scans your inbox for
+            flight, hotel, and reservation confirmations, parses them into
+            structured trip data, and builds a clean day-by-day itinerary
+            you can share and sync to your calendar.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
             <a
@@ -118,7 +118,7 @@ function Hero(): React.JSX.Element {
             </a>
           </div>
           <p className="mt-4 text-sm text-muted-foreground">
-            No credit card. Sign in with your Google account.
+            No credit card. Sign in with Google or Microsoft.
           </p>
         </div>
 
@@ -180,7 +180,7 @@ function HeroPreview(): React.JSX.Element {
         <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <FolderLock className="h-3.5 w-3.5" />
-            Saved to your Google Drive
+            Synced across your devices
           </span>
           <span>4 segments</span>
         </div>
@@ -249,21 +249,21 @@ function HowItWorks(): React.JSX.Element {
   const steps = [
     {
       n: "01",
-      title: "Sign in with Google",
+      title: "Sign in with Google or Microsoft",
       body:
-        "One click. itinly only requests the scopes it needs to read travel emails, write to a single Drive folder, and (optionally) sync your calendar.",
+        "One click. itinly only requests the scopes it needs to read travel emails and (optionally) sync your calendar.",
     },
     {
       n: "02",
       title: "Run a scan",
       body:
-        "itinly searches your inbox for flight, hotel, train, and reservation confirmations, then sends just those messages to Claude for parsing.",
+        "itinly searches your Gmail or Outlook inbox for flight, hotel, train, and reservation confirmations, then sends just those messages to Claude for parsing.",
     },
     {
       n: "03",
       title: "Get your itinerary",
       body:
-        "Trips appear as a clean day-by-day timeline. Edit segments, add to-dos, share with the family, and push to Google Calendar in one tap.",
+        "Trips appear as a clean day-by-day timeline. Edit segments, add to-dos, share with the family, and push to Google or Outlook Calendar in one tap.",
     },
   ];
   return (
@@ -309,13 +309,13 @@ function Features(): React.JSX.Element {
       icon: ScanLine,
       title: "Scan & import from email",
       body:
-        "Connect Gmail and Claude reads flight, hotel, train, and reservation confirmations — PDFs, HTML, plain text — from any airline or booking site. New emails keep your trips updated automatically. No Gmail? Paste an email's HTML or upload an XLSX export and itinly parses it the same way.",
+        "Connect Gmail or Outlook and Claude reads flight, hotel, train, and reservation confirmations — PDFs, HTML, plain text — from any airline or booking site. New emails keep your trips updated automatically. No mailbox connected? Paste an email's HTML or upload an XLSX export and itinly parses it the same way.",
     },
     {
       icon: CalendarDays,
       title: "Calendar sync",
       body:
-        "Push every segment to Google Calendar with the right time zone, so your phone shows the right times wherever you land. Re-syncing keeps the calendar in step as plans change.",
+        "Push every segment to Google Calendar or Outlook Calendar with the right time zone, so your phone shows the right times wherever you land. Re-syncing keeps the calendar in step as plans change.",
     },
     {
       icon: Share2,
@@ -331,9 +331,9 @@ function Features(): React.JSX.Element {
     },
     {
       icon: FolderLock,
-      title: "Your Drive, your data",
+      title: "Privacy you can audit",
       body:
-        "Every trip is a JSON file in a single folder in your Google Drive. Cancel itinly anytime; your itineraries stay where you can read them.",
+        "itinly only requests the OAuth scopes it needs, never reads mail outside the scans you trigger, and stores nothing for advertising or model training. Revoke or export anytime.",
     },
     {
       icon: Plane,
@@ -387,14 +387,14 @@ function PrivacyCallout(): React.JSX.Element {
             </div>
             <div>
               <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                We don&apos;t copy your data.
+                We don&apos;t monetize your data.
               </h2>
               <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-                Trip data lives in a single folder in your own Google Drive. We
-                hold an encrypted refresh token so share links keep working
-                while you&apos;re offline — that&apos;s the only piece of you
-                on our servers. No tracking pixels, no ad partners, no resale
-                of your data, ever.
+                Trip data is stored under your account in itinly&apos;s
+                managed database, gated by per-user row-level security. We
+                hold encrypted refresh tokens only for the integrations
+                you&apos;ve explicitly connected. No tracking pixels, no ad
+                partners, no resale of your data, ever.
               </p>
               <Link
                 href="/privacy"
@@ -419,7 +419,7 @@ function BottomCta(): React.JSX.Element {
           Stop copy-pasting flight times.
         </h2>
         <p className="mt-4 text-lg text-muted-foreground">
-          Sign in with Google and let itinly build the trip for you.
+          Sign in with Google or Microsoft and let itinly build the trip for you.
         </p>
         <a
           href={SIGN_IN_URL}
