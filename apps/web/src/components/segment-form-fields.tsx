@@ -473,18 +473,23 @@ export function NativeSegmentTypeSelect({
 // disclosure at the bottom so the default view is short enough to fit
 // without scrolling on a phone.
 //
-// When EDITING an existing segment, the section auto-expands if any of
-// its fields already have a value so the user doesn't have to hunt for
-// data they previously entered.
+// The section ALWAYS starts collapsed, even when editing a segment
+// that already has values in those fields. A previous iteration auto-
+// expanded on edit, but that defeated the simplification — the most
+// common case (editing a parsed flight or hotel) would still render
+// the full form. To keep the user aware that there's data behind the
+// disclosure, we suffix the button label with the count of populated
+// advanced fields ("More options · 3 filled"). The user can click to
+// see / edit those fields when they want.
 
 function MoreOptionsSection({
-  defaultExpanded,
+  filledCount,
   children,
 }: {
-  defaultExpanded: boolean;
+  filledCount: number;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expanded, setExpanded] = useState(false);
   return (
     <div className="pt-1">
       <button
@@ -499,6 +504,11 @@ function MoreOptionsSection({
           <ChevronRight className="h-4 w-4" />
         )}
         More options
+        {filledCount > 0 && (
+          <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/70">
+            {filledCount} filled
+          </span>
+        )}
       </button>
       {expanded && <div className="mt-3 space-y-4">{children}</div>}
     </div>
@@ -506,56 +516,49 @@ function MoreOptionsSection({
 }
 
 /**
- * Returns true when at least one "advanced" field on the form already
- * has a value worth surfacing. Drives the initial expanded state of
- * `MoreOptionsSection` on edit so a user editing a segment they
- * previously enriched (cabin class, hotel breakfast, restaurant phone,
- * etc.) sees those fields immediately instead of having to click to
- * reveal them.
+ * Counts how many of the form's "advanced" fields have a value.
+ * Drives the "N filled" hint on the More options button so users
+ * editing a segment they previously enriched still see a signal that
+ * there's data behind the disclosure without having to expand it.
  *
- * The set is type-aware so a hotel's `coach` field (which it doesn't
- * use) doesn't accidentally trigger expansion, and so the common
- * advanced fields (provider, url, costDetails) factor in for every
- * type.
+ * Type-aware so a hotel's `coach` field (which it doesn't use)
+ * doesn't accidentally count. The common advanced fields (provider,
+ * url, costDetails) factor in for every type.
  */
-function hasAdvancedSegmentValues(form: SegmentFormState): boolean {
+function advancedFilledCount(form: SegmentFormState): number {
   const flags = getTypeFlags(form.type);
-  const common =
-    Boolean(form.provider) ||
-    Boolean(form.url) ||
-    Boolean(form.costDetails);
-  if (common) return true;
+  let n = 0;
+  if (form.provider) n += 1;
+  if (form.url) n += 1;
+  if (form.costDetails) n += 1;
+
   if (flags.isFlight) {
-    return Boolean(form.cabinClass) || Boolean(form.seatNumber) || Boolean(form.baggageInfo);
+    if (form.cabinClass) n += 1;
+    if (form.seatNumber) n += 1;
+    if (form.baggageInfo) n += 1;
+  } else if (flags.isTrain) {
+    if (form.coach) n += 1;
+    if (form.seatNumber) n += 1;
+  } else if (flags.isHotel) {
+    if (form.address) n += 1;
+    // Hotel check-in / out times default to 15:00 / 11:00; only count
+    // them as "filled" when the user changed them.
+    if (form.startTime && form.startTime !== "15:00") n += 1;
+    if (form.endTime && form.endTime !== "11:00") n += 1;
+    if (form.breakfastIncluded) n += 1;
+  } else if (flags.isCarService) {
+    if (form.contactName) n += 1;
+    if (form.phone) n += 1;
+  } else if (flags.isRestaurant) {
+    if (form.address) n += 1;
+    if (form.phone) n += 1;
+    if (form.creditCardHold) n += 1;
+  } else if (form.address) {
+    // Activity / show / tour / cruise / car_rental / other_transport.
+    n += 1;
   }
-  if (flags.isTrain) {
-    return Boolean(form.coach) || Boolean(form.seatNumber);
-  }
-  if (flags.isHotel) {
-    // The hotel check-in/out times default to 15:00 / 11:00; treat the
-    // defaults as "not advanced data" so a freshly-typed hotel doesn't
-    // pop the section open unnecessarily.
-    const nonDefaultStart =
-      Boolean(form.startTime) && form.startTime !== "15:00";
-    const nonDefaultEnd =
-      Boolean(form.endTime) && form.endTime !== "11:00";
-    return (
-      Boolean(form.address) ||
-      nonDefaultStart ||
-      nonDefaultEnd ||
-      form.breakfastIncluded
-    );
-  }
-  if (flags.isCarService) {
-    return Boolean(form.contactName) || Boolean(form.phone);
-  }
-  if (flags.isRestaurant) {
-    return Boolean(form.address) || Boolean(form.phone) || form.creditCardHold;
-  }
-  // Activity / show / tour / cruise / car_rental / other_transport:
-  // address is the only type-specific advanced field; cabin/seats
-  // don't apply.
-  return Boolean(form.address);
+
+  return n;
 }
 
 // ─── Form fields component ──────────────────────────────────────────────────
@@ -1228,7 +1231,7 @@ export function SegmentFormFields({
         already has a value so editing an existing segment doesn't hide
         data the user previously entered.
       */}
-      <MoreOptionsSection defaultExpanded={hasAdvancedSegmentValues(form)}>
+      <MoreOptionsSection filledCount={advancedFilledCount(form)}>
         {/* Flight-specific advanced fields */}
         {isFlight && (
           <>
