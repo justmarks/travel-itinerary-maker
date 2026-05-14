@@ -29,14 +29,22 @@
  * caches get evicted on activate.
  */
 
-// Bumped to v8 to land the `/auth/*` bypass — previous versions
-// re-issued the OAuth callback navigation via `fetch(req)` inside the
-// SW, which (a) cached the URL containing the single-use `code` and
-// (b) made the request look like an SW retry to Vercel's DDoS
-// mitigation, contributing to firewall denials on the callback round
-// trip. Eviction also drops any previously-cached `/auth/callback`
-// HTML carrying a stale `code` query string.
-const SW_VERSION = "v8";
+// Bumped to v9 to ship the PWA app-icon badge (Badging API). The
+// push handler now bumps an IDB-backed unread counter on every
+// incoming notification and calls `navigator.setAppBadge(N)` so the
+// installed PWA icon shows a numeric badge — the same affordance
+// native apps use for unread mail / messages. Cleared when the user
+// brings the app to the foreground (page posts a BADGE_CLEAR
+// message; we reset the counter + clearAppBadge from the SW).
+//
+// Previous v8 reason kept here for posterity: landed the `/auth/*`
+// bypass — earlier versions re-issued the OAuth callback navigation
+// via `fetch(req)` inside the SW, which (a) cached the URL containing
+// the single-use `code` and (b) made the request look like an SW
+// retry to Vercel's DDoS mitigation, contributing to firewall denials
+// on the callback round trip. Eviction also drops any previously-
+// cached `/auth/callback` HTML carrying a stale `code` query string.
+const SW_VERSION = "v9";
 const SHELL_CACHE = `itinly-shell-${SW_VERSION}`;
 const RUNTIME_CACHE = `itinly-runtime-${SW_VERSION}`;
 const TRIP_API_CACHE = `itinly-trip-api-${SW_VERSION}`;
@@ -137,7 +145,19 @@ self.addEventListener("activate", (event) => {
  * call from the registrar.
  */
 self.addEventListener("message", (event) => {
-  if (event.data === "SKIP_WAITING") self.skipWaiting();
+  // SKIP_WAITING is sent as a plain string by `sw-register.tsx` after
+  // it detects a new SW version waiting; everything else uses a
+  // structured `{ type, ... }` payload.
+  if (event.data === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+  if (event.data && event.data.type === "BADGE_CLEAR") {
+    // Page sends this on app visible / focus / mount. Reset the
+    // IDB counter + clear the OS badge. waitUntil keeps the SW
+    // alive until both finish.
+    event.waitUntil(clearBadge());
+  }
 });
 
 self.addEventListener("fetch", (event) => {
@@ -363,6 +383,92 @@ async function trimCache(cacheName, maxEntries) {
   await Promise.all(keys.slice(0, keys.length - maxEntries).map((k) => cache.delete(k)));
 }
 
+// ─── PWA badge counter (IDB-backed) ─────────────────────────────────────────
+//
+// The Badging API (`navigator.setAppBadge(N)`) draws a numeric badge on
+// the installed PWA icon — the same affordance native apps use for
+// unread mail / messages. We persist the counter in IndexedDB so the
+// number survives SW restarts (the SW can't reach `localStorage`).
+//
+// Increment on every incoming push so the badge reflects the count of
+// pending notifications the user hasn't acknowledged. Reset when the
+// page sends a `BADGE_CLEAR` message (fired on app visible / focus /
+// notificationclick → tab focus), which is when the user has had a
+// chance to actually see the activity.
+const BADGE_DB = "itinly-badge";
+const BADGE_STORE = "state";
+const BADGE_KEY = "unread";
+
+function openBadgeDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BADGE_DB, 1);
+    req.onupgradeneeded = () => {
+      // First-open: create the only object store we use. Keyed on
+      // string keys (we only store one value, `unread`).
+      req.result.createObjectStore(BADGE_STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function readBadgeCount() {
+  try {
+    const db = await openBadgeDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(BADGE_STORE, "readonly");
+      const req = tx.objectStore(BADGE_STORE).get(BADGE_KEY);
+      req.onsuccess = () => resolve(typeof req.result === "number" ? req.result : 0);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return 0;
+  }
+}
+
+async function writeBadgeCount(n) {
+  try {
+    const db = await openBadgeDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(BADGE_STORE, "readwrite");
+      tx.objectStore(BADGE_STORE).put(n, BADGE_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // IDB failure is best-effort — losing the count is annoying but
+    // not catastrophic; the next push will start fresh from 0+1.
+  }
+}
+
+async function bumpBadge() {
+  const next = (await readBadgeCount()) + 1;
+  await writeBadgeCount(next);
+  // setAppBadge is unsupported on Firefox + Safari < 16.4. Feature-
+  // detect so the SW doesn't throw a SecurityError that aborts the
+  // push event before showNotification runs (Chrome would then revoke
+  // the subscription on the next push).
+  if ("setAppBadge" in self.navigator) {
+    try {
+      await self.navigator.setAppBadge(next);
+    } catch {
+      // Permission revoked or platform refused — silent.
+    }
+  }
+}
+
+async function clearBadge() {
+  await writeBadgeCount(0);
+  if ("clearAppBadge" in self.navigator) {
+    try {
+      await self.navigator.clearAppBadge();
+    } catch {
+      // Same rationale as bumpBadge — feature-detected but the call
+      // can still refuse on some platforms; silently ignore.
+    }
+  }
+}
+
 // ─── Web Push ────────────────────────────────────────────────────────────────
 //
 // Payload shape (server-controlled, see NotificationSender):
@@ -410,7 +516,17 @@ self.addEventListener("push", (event) => {
     data: { url: payload.url || "/", ...(payload.data || {}) },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Show the notification AND bump the app-icon badge. Both run inside
+  // `waitUntil` so the SW stays alive until they finish. `bumpBadge`
+  // is best-effort — if IDB or setAppBadge errors, the catch inside
+  // those helpers swallows so the notification still fires (revoking
+  // the subscription would be a worse outcome than a missing badge).
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      bumpBadge(),
+    ]),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -419,6 +535,12 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     (async () => {
+      // Tapping a notification is an explicit "I saw it" gesture, so
+      // wipe the badge even before the tab focuses. The page-side
+      // visibilitychange listener will redundantly clear again on
+      // focus, which is fine — clearBadge is idempotent.
+      await clearBadge();
+
       const all = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       // If a tab's already on the target route, focus it instead of
       // opening a duplicate. We compare by URL prefix so query strings
