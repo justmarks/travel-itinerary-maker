@@ -29,7 +29,7 @@ const HERO_GRADIENT =
 export function TripCardSkeleton(): React.JSX.Element {
   return (
     <div
-      className="flex h-full flex-col gap-4 overflow-hidden rounded-xl border bg-card pt-0 shadow-xs"
+      className="flex h-full flex-col gap-4 overflow-hidden rounded-xl border bg-card pt-0 shadow-sm"
       aria-hidden
     >
       {/* Hero band — matches TripCardHero's h-32 */}
