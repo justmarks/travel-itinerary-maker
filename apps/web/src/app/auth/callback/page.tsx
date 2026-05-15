@@ -287,7 +287,7 @@ async function syncConnections(
       returnTo: pending.returnTo ?? null,
       capabilityError: capabilityResult.ok
         ? null
-        : capabilityResult.message ?? "Could not save connection",
+        : capabilityResult.message ?? "Couldn't save connection",
     };
   }
 

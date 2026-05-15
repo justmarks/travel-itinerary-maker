@@ -105,7 +105,7 @@ export function XlsxImportDialog({
     try {
       fileBase64 = await fileToBase64(file);
     } catch {
-      setErrorMessage("Could not read the selected file. Please try again.");
+      setErrorMessage("Couldn't read the selected file. Please try again.");
       return;
     }
 
