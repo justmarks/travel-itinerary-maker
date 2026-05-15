@@ -285,18 +285,52 @@ export class EmailParser {
       fromAddr = parsed.from.text.trim();
     }
 
-    // Prefer HTML body, otherwise plain text. mailparser gives us the
-    // richest available form; we run the HTML through htmlToText so the
-    // downstream pipeline receives plain text either way.
-    let body = "";
-    if (typeof parsed.html === "string" && parsed.html.trim()) {
-      body = EmailParser.htmlToText(parsed.html);
-    } else if (typeof parsed.text === "string" && parsed.text.trim()) {
-      body = parsed.text
+    // Pick the body the parser will see. multipart/alternative emails
+    // give us BOTH a plain-text part and an HTML part — same content,
+    // different formats — and the sender intentionally curates the
+    // plain-text version to be the no-formatting fallback. For most
+    // travel confirmations that means the plain-text part reads like a
+    // receipt (hotel name + dates + reference + total on consecutive
+    // lines) while the HTML part is the marketing email surrounding
+    // the same facts with 500 KB of nested-table layout, banner
+    // images, alt text, and tracking pixels.
+    //
+    // Stripping that HTML to text leaves a noisy soup of marketing
+    // copy that buries the booking facts, which is enough to make
+    // Claude return `[]` ("no travel content"). Preferring the clean
+    // plain-text part fixes that case while staying compatible with
+    // the simple cases (plain-text-only emails, HTML-only emails).
+    //
+    // Threshold: we still fall back to HTML when the plain-text part
+    // is a stub ("If you can't see this, view in browser…") rather
+    // than a real body. 400 chars is empirically enough to catch
+    // every real travel confirmation we've seen while skipping the
+    // common stub strings.
+    const PLAIN_TEXT_PREFER_THRESHOLD = 400;
+    const normalizePlain = (s: string): string =>
+      s
         .split(/\r?\n/)
         .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
         .filter((line) => line.length > 0)
         .join("\n");
+
+    let body = "";
+    const textBody =
+      typeof parsed.text === "string" && parsed.text.trim()
+        ? normalizePlain(parsed.text)
+        : "";
+    const hasHtml = typeof parsed.html === "string" && parsed.html.trim();
+
+    if (textBody && textBody.length >= PLAIN_TEXT_PREFER_THRESHOLD) {
+      // Real plain-text body — use it directly. Best signal-to-noise
+      // for Claude.
+      body = textBody;
+    } else if (hasHtml) {
+      // HTML-only OR stub plain-text — fall back to stripping the HTML.
+      body = EmailParser.htmlToText(parsed.html as string);
+    } else if (textBody) {
+      // Stub plain-text but no HTML either — use what we have.
+      body = textBody;
     } else if (typeof parsed.textAsHtml === "string") {
       body = EmailParser.htmlToText(parsed.textAsHtml);
     }
