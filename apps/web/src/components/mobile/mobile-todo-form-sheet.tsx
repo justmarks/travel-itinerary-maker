@@ -11,6 +11,7 @@ import { Briefcase, MapPin, Search, Trash2, Utensils, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
+import { MarkdownText } from "@/components/markdown-text";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 const CATEGORY_OPTIONS: {
@@ -242,6 +243,22 @@ export function MobileTodoFormSheet({
           }}
           className="mt-1 w-full resize-none rounded-xl border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-foreground"
         />
+        {/* Live markdown preview — mirrors the desktop edit-todo dialog
+            (`edit-todo-dialog.tsx`). The list view renders the details
+            via `MarkdownText` with `line-clamp-1`, so without a preview
+            here, tapping a todo to "see more" of the formatted content
+            actually hid the formatting (the textarea shows raw
+            `[label](url)` markdown source). Only renders when there's
+            something to preview so a freshly-blank "Add to-do" sheet
+            stays minimal. */}
+        {details.trim() && (
+          <div className="mt-2 rounded-md border border-dashed bg-muted/40 px-3 py-2">
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Preview
+            </div>
+            <MarkdownText className="text-sm">{details}</MarkdownText>
+          </div>
+        )}
       </form>
 
       {/* Action bar */}
