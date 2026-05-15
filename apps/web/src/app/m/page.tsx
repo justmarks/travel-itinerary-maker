@@ -136,7 +136,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
           style={{ top: countdownLabel ? "2.25rem" : "0.5rem" }}
         >
           <Users className="h-3 w-3" />
-          {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
+          {trip.sharedPermission === "edit" ? "Shared · Editor" : "Shared · Viewer"}
         </span>
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
