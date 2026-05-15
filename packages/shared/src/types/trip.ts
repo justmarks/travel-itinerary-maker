@@ -383,6 +383,8 @@ export interface ParsedSegment {
   phone?: string;
   endDate?: string;
   portsOfCall?: CruisePortOfCall[];
+  /** Cruise-only: name of the ship (e.g. "Disney Fantasy"). */
+  shipName?: string;
   breakfastIncluded?: boolean;
   seatNumber?: string;
   cabinClass?: string;

@@ -173,6 +173,7 @@ function mergeSegments(
     "city", "venueName", "address", "confirmationCode", "provider",
     "carrier", "routeCode", "departureCity", "arrivalCity", "phone",
     "url", "startTime", "endTime", "endDate", "breakfastIncluded", "cabinClass", "baggageInfo",
+    "shipName",
   ] as const;
   for (const field of fillFields) {
     if (!merged[field] && b[field] !== undefined) {
@@ -311,6 +312,7 @@ const COMPARABLE_FIELDS = [
   "phone",
   "endDate",
   "breakfastIncluded",
+  "shipName",
   "seatNumber",
   "cabinClass",
   "baggageInfo",
@@ -596,6 +598,7 @@ function applySegmentFields(
     "phone",
     "endDate",
     "breakfastIncluded",
+    "shipName",
     "seatNumber",
     "cabinClass",
     "baggageInfo",
@@ -2473,6 +2476,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             phone: seg.phone,
             endDate: seg.endDate,
             portsOfCall: seg.portsOfCall,
+            shipName: seg.shipName,
             breakfastIncluded: seg.breakfastIncluded,
             cost: seg.cost,
             source: "email_auto",

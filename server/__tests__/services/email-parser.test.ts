@@ -350,6 +350,40 @@ describe("EmailParser.parseEmail", () => {
     expect(result.segments).toHaveLength(0);
   });
 
+  it("preserves shipName on parsed cruise segments", async () => {
+    // When Claude extracts a cruise email, the prompt instructs it to
+    // return `shipName` as a dedicated field (the ship name only,
+    // without the itinerary descriptor that may live in `title`). The
+    // parser must let that value pass through to the parsed segment so
+    // the apply path can copy it onto the new segment.
+    mockCreate.mockReturnValueOnce(
+      aiResponse(
+        JSON.stringify([
+          {
+            type: "cruise",
+            title: "Disney Fantasy — 7-Night Eastern Caribbean",
+            shipName: "Disney Fantasy",
+            date: "2026-09-12",
+            startTime: "12:00",
+            endDate: "2026-09-19",
+            endTime: "08:00",
+            departureCity: "Port Canaveral",
+            arrivalCity: "Port Canaveral",
+            confidence: "high",
+          },
+        ]),
+      ),
+    );
+    const result = await parser.parseEmail({
+      subject: "Your Disney Cruise is booked!",
+      from: "DisneyCruiseLine@disney.com",
+      body: "Get ready to sail aboard the Disney Fantasy...",
+    });
+    expect(result.segments).toHaveLength(1);
+    expect(result.segments[0].type).toBe("cruise");
+    expect(result.segments[0].shipName).toBe("Disney Fantasy");
+  });
+
   it("handles Claude output wrapped in a markdown code block", async () => {
     const segment = {
       type: "flight",
