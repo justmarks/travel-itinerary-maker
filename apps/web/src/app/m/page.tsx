@@ -56,6 +56,25 @@ import {
 } from "@/lib/trip-buckets";
 import { formatTripDateRange } from "@/lib/format-date";
 
+/**
+ * Map each trip status to a `--status-*` token. Mirrors the same
+ * mapping in `trip-card.tsx` so the mobile row's status chip uses
+ * the same palette the desktop card's chip uses.
+ */
+const STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
+  planning:  "info",
+  active:    "ok",
+  completed: "muted",
+  cancelled: "danger",
+};
+
+function statusChipStyle(status: string): React.CSSProperties {
+  const t = STATUS_TOKEN[status] ?? "muted";
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
+}
 
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
@@ -230,8 +249,12 @@ function TripRow({
           {formatTripDateRange(trip.startDate, trip.endDate)}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="capitalize">{trip.status}</span>
-          <span aria-hidden>·</span>
+          <span
+            className="inline-flex items-center rounded-full px-1.5 py-0.5 capitalize"
+            style={statusChipStyle(trip.status)}
+          >
+            {trip.status}
+          </span>
           <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
