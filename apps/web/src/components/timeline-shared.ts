@@ -7,6 +7,7 @@ export type TimelineCategory = "transport" | "hotel" | "activity" | "dining";
 const TRANSPORT_TYPES = new Set<SegmentType>([
   "flight",
   "train",
+  "car_rental",
   "car_service",
   "other_transport",
 ]);
@@ -24,14 +25,31 @@ const DINING_TYPES = new Set<SegmentType>([
 
 /**
  * Segment types that render as multi-day BANDS on the Lodging swimlane.
- * Cruises and car rentals share the lane with hotels because all three
- * are multi-day commitments where what matters on the timeline is the
- * span (embark → disembark, pickup → dropoff), not a per-day pill in
- * Activities / Transport that loses the duration. Per-bar cosmetics
- * (icon + label + unit) still differ so a rental reads as a rental,
- * not as a hotel.
+ * Cruises share the lane with hotels because the ship is the user's
+ * lodging from embark through disembark. Car rentals are NOT here —
+ * they belong to the Transport lane (per user UX); see
+ * `TRANSPORT_BAND_TYPES`.
  */
-const LODGING_TYPES = new Set<SegmentType>(["hotel", "cruise", "car_rental"]);
+const LODGING_TYPES = new Set<SegmentType>(["hotel", "cruise"]);
+
+/**
+ * Segment types that render as multi-day BANDS on the Transport
+ * swimlane (instead of per-day pills). Car rentals are the only one
+ * today — they're transport but the user wants to see the duration
+ * of the rental at a glance, not a single-day pickup pill.
+ */
+const TRANSPORT_BAND_TYPES = new Set<SegmentType>(["car_rental"]);
+
+/**
+ * Every segment type that renders as a multi-day band on its lane.
+ * Used by TypeRow to filter band types OUT of the per-day pill row so
+ * a rental doesn't double-render as both a band AND a pill in the
+ * same Transport lane.
+ */
+export const BAND_TYPES = new Set<SegmentType>([
+  ...LODGING_TYPES,
+  ...TRANSPORT_BAND_TYPES,
+]);
 
 export function getTimelineCategory(type: SegmentType): TimelineCategory {
   if (TRANSPORT_TYPES.has(type)) return "transport";
@@ -95,11 +113,14 @@ export interface HotelBar {
  * Out-of-range end dates fall back to a one-day bar so a stray
  * endDate can't overlap and scramble the grid below.
  */
-export function extractHotels(days: readonly TripDay[]): HotelBar[] {
+function extractBars(
+  days: readonly TripDay[],
+  filter: ReadonlySet<SegmentType>,
+): HotelBar[] {
   const bars: HotelBar[] = [];
   days.forEach((day, dayIdx) => {
     day.segments
-      .filter((s) => LODGING_TYPES.has(s.type))
+      .filter((s) => filter.has(s.type))
       .forEach((s) => {
         let endDayIdx = dayIdx;
         if (s.endDate) {
@@ -115,4 +136,54 @@ export function extractHotels(days: readonly TripDay[]): HotelBar[] {
       });
   });
   return bars;
+}
+
+/** Lodging-lane bands: hotels + cruises. */
+export function extractHotels(days: readonly TripDay[]): HotelBar[] {
+  return extractBars(days, LODGING_TYPES);
+}
+
+/** Transport-lane bands: car rentals. */
+export function extractRentals(days: readonly TripDay[]): HotelBar[] {
+  return extractBars(days, TRANSPORT_BAND_TYPES);
+}
+
+/**
+ * Greedily packs lodging bars into the smallest number of
+ * non-overlapping tracks. The single-row HotelRow assumed bars never
+ * overlap — when only hotels rode the lane that mostly held, but
+ * cruises and car rentals frequently overlap each other AND any hotel
+ * the user was sleeping at on the embarkation / pickup day. Without
+ * packing, the later bar (sorted by startDayIdx) gets clamped to
+ * `span <= 0` and silently vanishes from the timeline.
+ *
+ * Algorithm: sort by `startDayIdx`. For each bar, walk the existing
+ * tracks looking for one whose last bar ended strictly before this
+ * bar starts; if found, append. Otherwise open a new track. Result
+ * length is therefore equal to the maximum number of overlapping
+ * bars at any single day — i.e. the minimum number of rows the
+ * Lodging lane must render to show every bar in full.
+ */
+export function packIntoTracks(bars: readonly HotelBar[]): HotelBar[][] {
+  const tracks: HotelBar[][] = [];
+  const sorted = [...bars].sort(
+    (a, b) =>
+      a.startDayIdx - b.startDayIdx ||
+      // Tie-break: longer bars first so a short overlap doesn't push
+      // a long one onto its own track unnecessarily.
+      b.endDayIdx - a.endDayIdx,
+  );
+  for (const bar of sorted) {
+    let placed = false;
+    for (const track of tracks) {
+      const last = track[track.length - 1];
+      if (last.endDayIdx < bar.startDayIdx) {
+        track.push(bar);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) tracks.push([bar]);
+  }
+  return tracks;
 }
