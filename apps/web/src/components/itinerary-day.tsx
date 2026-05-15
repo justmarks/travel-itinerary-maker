@@ -582,6 +582,7 @@ function EditableCity({
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save city"
           className="h-6 w-6"
           disabled={updateDay.isPending}
         >
@@ -591,6 +592,7 @@ function EditableCity({
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel"
           className="h-6 w-6"
           onClick={() => {
             setValue(city);
