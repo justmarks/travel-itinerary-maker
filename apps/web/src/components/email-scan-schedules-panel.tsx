@@ -109,7 +109,7 @@ function fmtRunStarted(iso: string): string {
  * a "+" button to create one, and inline edit/delete affordances.
  */
 export function EmailScanSchedulesPanel(): React.JSX.Element {
-  const { data: schedules, isLoading, isError } = useEmailScanSchedules();
+  const { data: schedules, isLoading, isError, refetch } = useEmailScanSchedules();
   const { providers: connectedProviders } = useConnectedEmailProviders();
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -154,7 +154,14 @@ export function EmailScanSchedulesPanel(): React.JSX.Element {
           }}
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          Couldn&apos;t load schedules. Try refreshing.
+          <span className="flex-1">Couldn&apos;t load schedules.</span>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="shrink-0 rounded-md border border-current px-2 py-0.5 text-xs font-medium hover:bg-destructive/10"
+          >
+            Retry
+          </button>
         </div>
       ) : !schedules || schedules.length === 0 ? (
         <EmptyState onAdd={() => setCreateOpen(true)} disabled={noProviders} />
