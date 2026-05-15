@@ -94,16 +94,4 @@ describe("computeNextRunAt", () => {
     });
   });
 
-  describe("monthly", () => {
-    it("bumps a calendar month (ignoring any anchor)", () => {
-      const ref = new Date("2026-05-14T18:00:00Z");
-      const next = new Date(
-        computeNextRunAt("monthly", ref, {
-          timeOfDay: "09:00",
-          dayOfWeek: 0,
-        }),
-      );
-      expect(next.toISOString()).toBe("2026-06-14T18:00:00.000Z");
-    });
-  });
 });

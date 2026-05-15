@@ -373,7 +373,7 @@ export const emailScanSchedules = pgTable(
     provider: text("provider").notNull(), // 'google' | 'microsoft'
     labelFilter: text("label_filter"), // gmail label id or outlook folder id
     labelName: text("label_name"), // cached human-readable label for the UI
-    frequency: text("frequency").notNull(), // 'daily' | 'weekly' | 'monthly'
+    frequency: text("frequency").notNull(), // 'daily' | 'weekly'
     enabled: boolean("enabled").notNull().default(true),
     // When true, the schedule scans descendants of `label_filter` too
     // (e.g. "Travel" → also "Travel/Hotels", "Travel/Flights/Confirmed").
@@ -384,8 +384,7 @@ export const emailScanSchedules = pgTable(
     includeSublabels: boolean("include_sublabels").notNull().default(false),
     // UTC clock time the scan should target, "HH:MM" 24h. Nullable to
     // preserve the legacy flat-bump behaviour for schedules created
-    // before this column existed. Used by daily + weekly cadences;
-    // monthly ignores it (calendar-month cadence has no clock anchor).
+    // before this column existed.
     timeOfDay: text("time_of_day"),
     // UTC day-of-week (0 = Sunday, …, 6 = Saturday). Only meaningful
     // for the weekly cadence. Editor UI converts together with

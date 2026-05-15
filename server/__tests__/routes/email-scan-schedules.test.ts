@@ -240,10 +240,10 @@ describe("email-scan-schedules routes", () => {
 
       const res = await request(app)
         .put(`/email-scan-schedules/${created.body.id}`)
-        .send({ frequency: "monthly" });
+        .send({ frequency: "weekly" });
       expect(res.status).toBe(200);
       const after = new Date(res.body.nextRunAt).getTime();
-      // Monthly is much further out than daily.
+      // Weekly is much further out than daily.
       expect(after).toBeGreaterThan(before);
     });
 

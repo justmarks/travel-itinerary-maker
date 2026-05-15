@@ -17,11 +17,6 @@
  *   weekly + timeOfDay + dow  → next occurrence of `dow` at HH:MM
  *                                strictly after `reference`.
  *   weekly + dow without time → midnight UTC on that day.
- *   monthly                   → calendar-month bump (no clock anchor;
- *                                the cadence is too coarse for a
- *                                wall-clock alignment to feel
- *                                meaningful, and the editor doesn't
- *                                expose the picker for it).
  *
  * Unspecified anchors fall back to the legacy flat-bump semantics so
  * schedules persisted before the columns existed keep working.
@@ -105,12 +100,6 @@ export function computeNextRunAt(
       }
       break;
     }
-    case "monthly":
-      // Calendar-month bump — `setUTCMonth` rolls over correctly across
-      // year boundaries and handles short months (Jan 31 + 1 month →
-      // Mar 3 in JS, which is fine for our purposes).
-      next.setUTCMonth(next.getUTCMonth() + 1);
-      break;
   }
   return next.toISOString();
 }

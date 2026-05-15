@@ -112,8 +112,8 @@ select cron.schedule(
 ```
 
 Hourly is the recommended cadence — the user-facing schedule
-frequencies are daily/weekly/monthly, so a finer tick mostly just
-burns Railway requests and Supabase quota on no-op selects. If
+frequencies are daily/weekly, so a finer tick mostly just burns
+Railway requests and Supabase quota on no-op selects. If
 you've already scheduled this with `'* * * * *'` (every minute),
 flip it to hourly without re-creating the job:
 
