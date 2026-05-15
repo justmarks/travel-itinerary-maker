@@ -70,8 +70,11 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
   const gradient = gradientFor(seed);
   const delta = daysUntil(trip.startDate);
   const showCountdown = delta > 0 && delta <= 60 && trip.status !== "cancelled";
-  const countdownLabel =
-    delta === 1 ? "Tomorrow" : showCountdown ? `In ${delta} days` : null;
+  const countdownLabel = showCountdown
+    ? delta === 1
+      ? "Tomorrow"
+      : `In ${delta} days`
+    : null;
 
   return (
     <div
