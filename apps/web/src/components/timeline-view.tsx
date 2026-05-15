@@ -166,8 +166,22 @@ function TransportLane({
         gridTemplateColumns: gridCols,
       }}
     >
-      <div style={{ gridRow: 1, gridColumn: 1 }}>
-        <RowLabel icon="✈" name="Transport" />
+      {/* Label cell — inlined (rather than wrapping RowLabel in a
+          grid-positioned div) so the bg-card + border styling fills
+          the full nested-row height. Otherwise RowLabel only paints
+          its own intrinsic height (~50px) at the top of a row that
+          can be 130px+ tall when a flight pill stacks above a rental
+          band, leaving a blank gap below the label that looks like a
+          row-height mismatch with the day cells next to it. */}
+      <div
+        title="Transport"
+        style={{ gridRow: 1, gridColumn: 1 }}
+        className="sticky left-0 z-10 bg-card border-r border-border border-b border-border/60 px-2 sm:px-3 py-2.5 flex items-center sm:items-start justify-center sm:justify-start gap-1.5"
+      >
+        <span className="text-sm leading-none sm:mt-0.5">✈</span>
+        <span className="hidden sm:inline text-kicker font-semibold text-muted-foreground whitespace-nowrap">
+          Transport
+        </span>
       </div>
       {days.map((day, dayIdx) => {
         const segs = sortByTime(

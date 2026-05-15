@@ -215,8 +215,18 @@ function TransportLane({
         gridTemplateColumns: gridCols,
       }}
     >
-      <div style={{ gridRow: 1, gridColumn: 1 }}>
-        <RowLabel icon={FlightIcon} name="Transport" />
+      {/* Inline label cell — same fix as desktop. RowLabel by itself
+          only paints its intrinsic height inside a wrapper, leaving a
+          gap beneath when the nested row grows for a rental band. */}
+      <div
+        title="Transport"
+        style={{ gridRow: 1, gridColumn: 1 }}
+        className="sticky left-0 z-10 flex items-center justify-center gap-1 border-b border-r border-border/60 bg-card px-1.5 py-1.5 landscape:justify-start landscape:px-3"
+      >
+        <FlightIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="hidden whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-muted-foreground landscape:inline">
+          Transport
+        </span>
       </div>
       {days.map((day, dayIdx) => {
         const segs = sortByTime(
