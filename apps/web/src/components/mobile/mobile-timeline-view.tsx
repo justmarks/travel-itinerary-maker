@@ -210,7 +210,24 @@ function HotelRow({
       idx++;
     }
     const h = hotel.segment;
-    const name = h.venueName ?? h.title;
+    // Per-type pill cosmetics on the shared Lodging lane.
+    //   hotel       → venueName, "Nn" (nights, checkout exclusive)
+    //   cruise      → shipName, "Nd" (days, disembark inclusive)
+    //   car_rental  → title (already "<Provider> - <Pickup>" from the
+    //                 segment form's auto-title), "Nd" (rental days,
+    //                 dropoff inclusive)
+    let name: string;
+    let unitSuffix: string;
+    if (h.type === "cruise") {
+      name = h.shipName ?? h.title;
+      unitSuffix = "d";
+    } else if (h.type === "car_rental") {
+      name = h.title;
+      unitSuffix = "d";
+    } else {
+      name = h.venueName ?? h.title;
+      unitSuffix = "n";
+    }
     cells.push(
       <button
         type="button"
@@ -226,7 +243,7 @@ function HotelRow({
           <span className="truncate">{name}</span>
           {span > 1 && (
             <span className="ml-auto pl-1 text-[10px] font-normal opacity-80">
-              {span}n
+              {span}{unitSuffix}
             </span>
           )}
         </div>
@@ -417,8 +434,15 @@ export function MobileTimelineView({
               />
               <RowLabel icon={SEGMENT_CONFIG.activity.icon} name="All" />
               {days.map((day) => {
+                // Exclude lodging-lane types — they render as bands
+                // above and would otherwise double-up in the chrono row.
                 const segs = sortByTime(
-                  day.segments.filter((s) => s.type !== "hotel"),
+                  day.segments.filter(
+                    (s) =>
+                      s.type !== "hotel" &&
+                      s.type !== "cruise" &&
+                      s.type !== "car_rental",
+                  ),
                 );
                 return (
                   <div

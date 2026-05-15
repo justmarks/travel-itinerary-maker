@@ -173,9 +173,28 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       );
       idx++;
     }
-    // Spanning hotel cell
+    // Spanning lodging cell — hotel, cruise, and car_rental ride the
+    // same lane; per-type icon + label + unit so each reads as itself.
+    // Hotels: 🏨 + venueName + "N nights" (checkout-morning convention).
+    // Cruises: 🚢 + shipName + "N days" (inclusive disembark).
+    // Rentals: 🚗 + "<Provider> - <Pickup>" + "N days" (inclusive dropoff).
     const h = hotel.segment;
-    const name = h.venueName ?? h.title;
+    let name: string;
+    let icon: string;
+    let unit: string;
+    if (h.type === "cruise") {
+      name = h.shipName ?? h.title;
+      icon = "🚢";
+      unit = `${span} day${span !== 1 ? "s" : ""}`;
+    } else if (h.type === "car_rental") {
+      name = h.title;
+      icon = "🚗";
+      unit = `${span} day${span !== 1 ? "s" : ""}`;
+    } else {
+      name = h.venueName ?? h.title;
+      icon = "🏨";
+      unit = `${span} night${span !== 1 ? "s" : ""}`;
+    }
     cells.push(
       <div
         key={h.id}
@@ -186,10 +205,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
           className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
           style={pillStyleLodging}
         >
-          <span className="hidden sm:inline shrink-0">🏨</span>
+          <span className="hidden sm:inline shrink-0">{icon}</span>
           <span className="truncate">{name}</span>
           <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
-            {span} night{span !== 1 ? "s" : ""}
+            {unit}
           </span>
         </div>
       </div>,
@@ -334,7 +353,16 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
                 <HotelRow days={days} hotels={hotels} />
                 <RowLabel icon="🗓" name="All events" />
                 {days.map((day) => {
-                  const segs = sortByTime(day.segments.filter((s) => s.type !== "hotel"));
+                  // Exclude lodging-lane types — they render as bands
+                  // above and would otherwise double-up in the chrono row.
+                  const segs = sortByTime(
+                    day.segments.filter(
+                      (s) =>
+                        s.type !== "hotel" &&
+                        s.type !== "cruise" &&
+                        s.type !== "car_rental",
+                    ),
+                  );
                   return (
                     <div
                       key={day.date}
