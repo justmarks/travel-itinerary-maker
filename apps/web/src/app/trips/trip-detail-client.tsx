@@ -171,6 +171,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save trip name"
           className="h-8 w-8"
           disabled={!value.trim() || updateTrip.isPending}
         >
@@ -180,6 +181,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel rename"
           className="h-8 w-8"
           onClick={cancelEdit}
         >
@@ -298,6 +300,7 @@ function EditableDates({
             type="submit"
             variant="ghost"
             size="icon"
+            aria-label="Save dates"
             className="h-7 w-7"
             disabled={!isValid || !hasChanges || updateTrip.isPending}
           >
@@ -307,6 +310,7 @@ function EditableDates({
             type="button"
             variant="ghost"
             size="icon"
+            aria-label="Cancel date edit"
             className="h-7 w-7"
             onClick={cancel}
           >
