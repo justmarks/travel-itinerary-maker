@@ -1296,12 +1296,12 @@ export function SegmentFormFields({
             />
           </div>
           <div className="col-span-2 space-y-2">
-            <Label>Currency</Label>
+            <Label htmlFor={`${idPrefix}-currency`}>Currency</Label>
             <Select
               value={form.costCurrency}
               onValueChange={(v) => onChange({ costCurrency: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${idPrefix}-currency`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
