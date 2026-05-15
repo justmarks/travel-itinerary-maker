@@ -25,6 +25,7 @@ export type {
   EmailScanFrequency,
   EmailScanSchedule,
   EmailScanRun,
+  TripUserCalendarSync,
   GmailLabel,
   TripHistoryEntry,
   TripHistoryActor,

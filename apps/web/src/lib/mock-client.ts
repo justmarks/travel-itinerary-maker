@@ -2273,26 +2273,59 @@ export class MockApiClient extends ApiClient {
 
   // ─── Calendar Sync ──────────────────────────────────────
 
+  // Per-user calendar-sync state. Demo mode is single-user so there's
+  // no point keying by userId — one Map per tripId is enough to
+  // round-trip the per-trip state across sync/unsync calls.
+  private calendarSyncs: Map<
+    string,
+    { calendarId: string; segmentEventMap: Record<string, string> }
+  > = new Map();
+
+  override getTripCalendarSync(
+    tripId: string,
+  ): Promise<import("@itinly/shared").TripUserCalendarSync | null> {
+    const state = this.calendarSyncs.get(tripId);
+    if (!state) return Promise.resolve(null);
+    const now = new Date().toISOString();
+    return Promise.resolve({
+      id: `demo-sync-${tripId}`,
+      tripId,
+      userId: "demo-user",
+      calendarId: state.calendarId,
+      segmentEventMap: state.segmentEventMap,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
   override syncCalendar(
     tripId: string,
+    calendarId?: string,
   ): Promise<{ created: number; updated: number; failed: number; calendarId: string }> {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
+
+    const targetCalendarId = calendarId ?? "primary";
+    const prior = this.calendarSyncs.get(tripId);
+    const map: Record<string, string> = { ...(prior?.segmentEventMap ?? {}) };
 
     let created = 0;
     let updated = 0;
     for (const day of trip.days) {
       for (const segment of day.segments) {
-        if (segment.calendarEventId) {
+        if (map[segment.id]) {
           updated++;
         } else {
-          segment.calendarEventId = `mock-event-${segment.id}`;
+          map[segment.id] = `mock-event-${segment.id}`;
           created++;
         }
       }
     }
-    this.trips.set(tripId, trip);
-    return Promise.resolve({ created, updated, failed: 0, calendarId: "primary" });
+    this.calendarSyncs.set(tripId, {
+      calendarId: targetCalendarId,
+      segmentEventMap: map,
+    });
+    return Promise.resolve({ created, updated, failed: 0, calendarId: targetCalendarId });
   }
 
   override unsyncCalendar(
@@ -2301,16 +2334,9 @@ export class MockApiClient extends ApiClient {
     const trip = this.trips.get(tripId);
     if (!trip) return Promise.reject(new Error("Trip not found"));
 
-    let removed = 0;
-    for (const day of trip.days) {
-      for (const segment of day.segments) {
-        if (segment.calendarEventId) {
-          delete segment.calendarEventId;
-          removed++;
-        }
-      }
-    }
-    this.trips.set(tripId, trip);
+    const prior = this.calendarSyncs.get(tripId);
+    const removed = prior ? Object.keys(prior.segmentEventMap).length : 0;
+    this.calendarSyncs.delete(tripId);
     return Promise.resolve({ removed, failed: 0 });
   }
 

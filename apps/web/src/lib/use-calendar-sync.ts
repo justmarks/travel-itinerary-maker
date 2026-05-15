@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useApiClient } from "@itinly/api-client";
+import { useApiClient, useTripCalendarSync } from "@itinly/api-client";
 import { toast } from "sonner";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
@@ -18,10 +18,15 @@ export type CalendarOption = {
   primary: boolean;
 };
 
+/**
+ * The hook only needs the trip's id — its sync state comes from a
+ * dedicated per-user query (`useTripCalendarSync`). The legacy
+ * shape with `trip.calendarId` + `segment.calendarEventId` is gone:
+ * those moved server-side into `trip_user_calendar_syncs` so each
+ * user (owner + shared-edit recipients) has their own row.
+ */
 type CalendarSyncTrip = {
   id: string;
-  calendarId?: string;
-  days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
 };
 
 /**
@@ -98,12 +103,19 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
   const [calendars, setCalendars] = useState<CalendarOption[] | null>(null);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
 
-  const syncedSegments = trip.days
-    .flatMap((d) => d.segments)
-    .filter((s) => s.calendarEventId);
-  const isSynced = syncedSegments.length > 0;
-  const syncedCount = syncedSegments.length;
-  const syncedCalendarName = calendars?.find((c) => c.id === trip.calendarId)
+  // Per-user sync state from the server. Replaces the legacy reads
+  // off the trip object. `enabled` is gated on `calendarGranted` so
+  // we don't fire a 401 / connect-prompt query for users who haven't
+  // linked a calendar yet.
+  const { data: syncState } = useTripCalendarSync(trip.id, {
+    enabled: calendarGranted,
+  });
+  const syncedCount = syncState
+    ? Object.keys(syncState.segmentEventMap).length
+    : 0;
+  const isSynced = syncedCount > 0;
+  const syncedCalendarId = syncState?.calendarId;
+  const syncedCalendarName = calendars?.find((c) => c.id === syncedCalendarId)
     ?.summary;
 
   const effectiveProvider = (): CalendarProvider | undefined =>
@@ -142,6 +154,15 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
     requestAdditionalScopes([CALENDAR_SCOPE], returnTo);
   };
 
+  // Invalidate the per-user sync query (calendarId + segmentEventMap)
+  // on every mutation. The trip query no longer carries calendar
+  // state, so the legacy `["trips", id]` invalidation is gone.
+  const invalidateSyncQuery = async (): Promise<void> => {
+    await queryClient.invalidateQueries({
+      queryKey: ["trips", trip.id, "calendar-sync"],
+    });
+  };
+
   const sync = async (calendarId: string): Promise<void> => {
     setSyncing(true);
     try {
@@ -150,7 +171,7 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
         calendarId,
         effectiveProvider(),
       );
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      await invalidateSyncQuery();
       const total = result.created + result.updated;
       if (result.failed > 0) {
         toast.warning(
@@ -173,10 +194,10 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
     try {
       const result = await client.syncCalendar(
         trip.id,
-        trip.calendarId,
+        syncedCalendarId,
         effectiveProvider(),
       );
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      await invalidateSyncQuery();
       const total = result.created + result.updated;
       if (result.failed > 0) {
         toast.warning(
@@ -201,7 +222,7 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
         deleteEvents,
         provider: effectiveProvider(),
       });
-      await queryClient.invalidateQueries({ queryKey: ["trips", trip.id] });
+      await invalidateSyncQuery();
       if (deleteEvents) {
         toast.success(
           `Removed ${result.removed} calendar event${result.removed !== 1 ? "s" : ""}`,
@@ -237,6 +258,8 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
     setSelectedProvider,
     isSynced,
     syncedCount,
+    /** The user's currently-synced calendar id (or undefined). */
+    syncedCalendarId,
     syncedCalendarName,
     syncing,
     calendars,

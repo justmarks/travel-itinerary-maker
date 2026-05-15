@@ -51,6 +51,40 @@ beforeEach(async () => {
   jest.resetAllMocks();
 });
 
+describe("GET /api/v1/trips/:tripId/calendar/sync", () => {
+  it("returns null when the user has no sync state", async () => {
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/calendar/sync`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toBeNull();
+  });
+
+  it("returns the per-user sync row when it exists", async () => {
+    const trip = await storage.getTrip(tripId);
+    const segId = trip!.days[0].segments[0].id;
+    await storage.saveTripUserCalendarSync({
+      id: "sync-1",
+      tripId,
+      userId: "memory-anon",
+      calendarId: "work@example.com",
+      segmentEventMap: { [segId]: "ev-123" },
+      createdAt: "2026-05-15T00:00:00.000Z",
+      updatedAt: "2026-05-15T00:00:00.000Z",
+    });
+    const res = await request(app).get(
+      `/api/v1/trips/${tripId}/calendar/sync`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      tripId,
+      userId: "memory-anon",
+      calendarId: "work@example.com",
+      segmentEventMap: { [segId]: "ev-123" },
+    });
+  });
+});
+
 describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
   it("syncs a trip and returns counts", async () => {
     mockSync.mockResolvedValueOnce({
@@ -72,7 +106,7 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
     expect(mockSync).toHaveBeenCalledTimes(1);
   });
 
-  it("persists calendarEventId on the segment after sync", async () => {
+  it("persists the eventMap in the per-user sync state after sync", async () => {
     const trip = await storage.getTrip(tripId);
     const segId = trip!.days[0].segments[0].id;
 
@@ -86,8 +120,17 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
 
     await request(app).post(`/api/v1/trips/${tripId}/calendar/sync`);
 
-    const updated = await storage.getTrip(tripId);
-    expect(updated!.days[0].segments[0].calendarEventId).toBe("gcal-event-xyz");
+    // Calendar sync state is now per-user in
+    // `trip_user_calendar_syncs` (memory-mode userId defaults to
+    // "memory-anon"); the segment row itself no longer carries
+    // calendarEventId.
+    const syncState = await storage.getTripUserCalendarSync(
+      tripId,
+      "memory-anon",
+    );
+    expect(syncState).not.toBeNull();
+    expect(syncState!.calendarId).toBe("primary");
+    expect(syncState!.segmentEventMap[segId]).toBe("gcal-event-xyz");
   });
 
   it("accepts a custom calendarId via query param", async () => {
@@ -123,11 +166,21 @@ describe("POST /api/v1/trips/:tripId/calendar/sync", () => {
 });
 
 describe("DELETE /api/v1/trips/:tripId/calendar/sync", () => {
-  it("removes synced events and clears calendarEventId", async () => {
-    // First, plant a calendarEventId on the segment directly in storage
+  it("removes synced events and clears the per-user sync state row", async () => {
+    // Plant a per-user sync state row directly in storage so the
+    // DELETE has something to drop. Memory-mode userId is the
+    // "memory-anon" constant the calendar router falls back to.
     const trip = await storage.getTrip(tripId);
-    trip!.days[0].segments[0].calendarEventId = "gcal-event-to-delete";
-    await storage.saveTrip(trip!);
+    const segId = trip!.days[0].segments[0].id;
+    await storage.saveTripUserCalendarSync({
+      id: "sync-to-delete",
+      tripId,
+      userId: "memory-anon",
+      calendarId: "primary",
+      segmentEventMap: { [segId]: "gcal-event-to-delete" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
 
     mockUnsync.mockResolvedValueOnce({ removed: 1, failed: 0 });
 
@@ -138,8 +191,45 @@ describe("DELETE /api/v1/trips/:tripId/calendar/sync", () => {
     expect(res.body.removed).toBe(1);
     expect(res.body.failed).toBe(0);
 
-    const updated = await storage.getTrip(tripId);
-    expect(updated!.days[0].segments[0].calendarEventId).toBeUndefined();
+    const after = await storage.getTripUserCalendarSync(tripId, "memory-anon");
+    expect(after).toBeNull();
+  });
+
+  it("only drops the requester's sync row — other users' state is untouched", async () => {
+    // Two different users on the same trip — each with their own sync
+    // row. Unsync via the memory-mode userId should only delete that
+    // user's row.
+    const trip = await storage.getTrip(tripId);
+    const segId = trip!.days[0].segments[0].id;
+    const otherUserId = "recipient-uid";
+    await storage.saveTripUserCalendarSync({
+      id: "sync-mine",
+      tripId,
+      userId: "memory-anon",
+      calendarId: "primary",
+      segmentEventMap: { [segId]: "mine" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await storage.saveTripUserCalendarSync({
+      id: "sync-theirs",
+      tripId,
+      userId: otherUserId,
+      calendarId: "their-calendar",
+      segmentEventMap: { [segId]: "theirs" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    mockUnsync.mockResolvedValueOnce({ removed: 1, failed: 0 });
+    await request(app).delete(`/api/v1/trips/${tripId}/calendar/sync`);
+
+    expect(
+      await storage.getTripUserCalendarSync(tripId, "memory-anon"),
+    ).toBeNull();
+    const theirs = await storage.getTripUserCalendarSync(tripId, otherUserId);
+    expect(theirs).not.toBeNull();
+    expect(theirs!.segmentEventMap[segId]).toBe("theirs");
   });
 
   it("returns 404 for a non-existent trip", async () => {

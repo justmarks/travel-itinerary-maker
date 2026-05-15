@@ -384,11 +384,7 @@ function TripActionsMenu({
 }: {
   tripId: string;
   tripTitle: string;
-  trip: {
-    id: string;
-    calendarId?: string;
-    days: Array<{ segments: Array<{ calendarEventId?: string }> }>;
-  };
+  trip: { id: string };
   onImportEmail: () => void;
   /** Whether to surface the destructive "Delete trip" entry. Owner-only. */
   canDelete: boolean;
@@ -467,6 +463,7 @@ function TripActionsMenu({
     calendarGranted,
     isSynced,
     syncedCount,
+    syncedCalendarId,
     syncedCalendarName,
     syncing,
     calendars,
@@ -488,7 +485,7 @@ function TripActionsMenu({
   const refreshCalendarList = async (providerOverride?: CalendarProvider) => {
     const cals = await loadCalendars(providerOverride);
     const primary = cals.find((c) => c.primary);
-    setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+    setSelectedCalendarId(syncedCalendarId ?? primary?.id ?? "primary");
   };
 
   const handleProviderChange = (next: CalendarProvider) => {
@@ -1144,13 +1141,6 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   <Share2 className="h-3.5 w-3.5" />
                   Share
                 </Button>
-                <TripActionsMenu
-                  tripId={trip.id}
-                  tripTitle={trip.title}
-                  trip={trip}
-                  onImportEmail={() => setHtmlImportOpen(true)}
-                  canDelete={permission.isOwner}
-                />
                 <HtmlImportDialog
                   tripId={trip.id}
                   hideTrigger
@@ -1163,6 +1153,20 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   onOpenChange={setShareOpen}
                 />
               </>
+            )}
+            {/* Trip actions menu — Calendar sync now visible to ANY
+                edit user (recipients push to their OWN calendar via
+                the per-user `trip_user_calendar_syncs` row). Delete
+                + other owner-only items inside the menu still gate
+                on `canDelete`. */}
+            {!permission.isLoading && permission.canEdit && (
+              <TripActionsMenu
+                tripId={trip.id}
+                tripTitle={trip.title}
+                trip={trip}
+                onImportEmail={() => setHtmlImportOpen(true)}
+                canDelete={permission.isOwner}
+              />
             )}
             {!permission.isLoading && !isOwner && ownShareId && (
               <LeaveTripMenu

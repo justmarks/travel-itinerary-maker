@@ -28,6 +28,7 @@ import type {
   XlsxImportRequest,
   EmailScanSchedule,
   EmailScanRun,
+  TripUserCalendarSync,
   CreateEmailScanScheduleInput,
   UpdateEmailScanScheduleInput,
 } from "@itinly/shared";
@@ -60,6 +61,8 @@ export const queryKeys = {
   emailScanSchedules: ["email-scan-schedules"] as const,
   emailScanRuns: (scheduleId: string) =>
     ["email-scan-schedules", scheduleId, "runs"] as const,
+  tripCalendarSync: (tripId: string) =>
+    ["trips", tripId, "calendar-sync"] as const,
 };
 
 // ─── Trip Queries ─────────────────────────────────────────
@@ -1062,6 +1065,32 @@ export function useEmailScanRuns(
     queryKey: queryKeys.emailScanRuns(scheduleId),
     queryFn: () => client.listEmailScanRuns(scheduleId),
     enabled: Boolean(scheduleId),
+    ...options,
+  });
+}
+
+// ─── Calendar Sync (per-user) ─────────────────────────────
+
+/**
+ * Per-user calendar-sync state for a single trip. Returns null when
+ * the current user hasn't synced this trip to a calendar yet. The
+ * sync state is the source of truth for the trip's calendar info
+ * — the trip object itself no longer carries `calendarId` or
+ * per-segment `calendarEventId` since those moved server-side to
+ * `trip_user_calendar_syncs`.
+ */
+export function useTripCalendarSync(
+  tripId: string,
+  options?: Omit<
+    UseQueryOptions<TripUserCalendarSync | null>,
+    "queryKey" | "queryFn"
+  >,
+) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.tripCalendarSync(tripId),
+    queryFn: () => client.getTripCalendarSync(tripId),
+    enabled: Boolean(tripId),
     ...options,
   });
 }
