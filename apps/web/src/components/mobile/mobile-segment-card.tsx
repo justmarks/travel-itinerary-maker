@@ -1,6 +1,11 @@
 "use client";
 
-import { formatFlightLabel, formatFlightEndpoint, convertToUsd } from "@itinly/shared";
+import {
+  formatCurrency,
+  formatFlightEndpoint,
+  formatFlightLabel,
+  convertToUsd,
+} from "@itinly/shared";
 import type { Segment } from "@itinly/shared";
 import {
   CheckCircle2,
@@ -32,8 +37,10 @@ function fmtDate(iso?: string): string | null {
 }
 
 function fmtUsd(amount: number) {
+  // Always 2 decimals — partial-decimal display ("$288.4") reads as a
+  // typo and fails to match what people see on receipts.
   return `$${amount.toLocaleString("en-US", {
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
@@ -43,23 +50,20 @@ function fmtUsd(amount: number) {
  * Foreign-currency segments (EUR/GBP/JPY/...) display as their USD
  * equivalent so the card reads consistently in dollars; the original
  * currency is preserved in the secondary line for reference. Currencies
- * without a rate (e.g. "points") fall back to their native symbol.
+ * without a rate (e.g. "points") fall back to their native symbol via
+ * the shared `formatCurrency` helper (which forces 2 decimals).
  */
 function formatCost(cost?: { amount: number; currency: string; details?: string }) {
   if (!cost) return null;
   const usd = convertToUsd(cost.amount, cost.currency);
   if (usd !== undefined) return fmtUsd(usd);
-  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-  const sym = symbols[cost.currency] ?? `${cost.currency} `;
-  return `${sym}${cost.amount.toLocaleString()}`;
+  return formatCurrency(cost.amount, cost.currency);
 }
 
 function formatCostOriginal(cost?: { amount: number; currency: string }) {
   if (!cost || cost.currency === "USD") return null;
   if (convertToUsd(cost.amount, cost.currency) === undefined) return null;
-  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-  const sym = symbols[cost.currency] ?? `${cost.currency} `;
-  return `${sym}${cost.amount.toLocaleString()}`;
+  return formatCurrency(cost.amount, cost.currency);
 }
 
 /**

@@ -60,8 +60,12 @@ function segmentToFormState(
     contactName: segment.contactName ?? "",
     phone: segment.phone ?? "",
     breakfastIncluded: segment.breakfastIncluded ?? false,
+    shipName: segment.shipName ?? "",
     endDate: segment.endDate ?? "",
-    costAmount: segment.cost?.amount?.toString() ?? "",
+    // Force 2-decimal display so a stored 288.4 renders as 288.40 — the
+    // bare .toString() truncated trailing zeros and made costs look
+    // like typos. Input still accepts any step="0.01" value.
+    costAmount: segment.cost ? segment.cost.amount.toFixed(2) : "",
     costCurrency: segment.cost?.currency ?? "USD",
     costDetails: segment.cost?.details ?? "",
   };
@@ -260,6 +264,7 @@ function SegmentFormBody({
           contactName: form.contactName || undefined,
           phone: form.phone || undefined,
           breakfastIncluded: form.breakfastIncluded || undefined,
+          shipName: form.type === "cruise" && form.shipName ? form.shipName : undefined,
           cost,
         },
         {
@@ -353,6 +358,7 @@ function SegmentFormBody({
     if (flags.isCruise) {
       updates.endDate =
         form.endDate || defaultEndDate("cruise", form.date) || undefined;
+      updates.shipName = form.shipName || undefined;
     }
 
     if (flags.isRestaurant) {

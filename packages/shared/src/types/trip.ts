@@ -85,6 +85,13 @@ export interface Segment {
   // Cruise-specific: per-day ports of call. When present, applying the
   // segment updates TripDay.city for each day in range to match the port.
   portsOfCall?: CruisePortOfCall[];
+  /**
+   * Cruise-specific: the name of the ship. Surfaced in the calendar
+   * description and the auto-generated title falls back to it when no
+   * cruise title was given. Optional — older cruise segments stored
+   * the ship name in `venueName` or `title` and still render fine.
+   */
+  shipName?: string;
   // Hotel-specific
   breakfastIncluded?: boolean;
   // Flight-specific

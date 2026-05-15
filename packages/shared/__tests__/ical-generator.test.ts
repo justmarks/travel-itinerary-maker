@@ -93,7 +93,11 @@ describe("tripToIcal", () => {
     expect(ics).not.toContain("T150000");
   });
 
-  it("emits an all-day VEVENT for a car rental", () => {
+  it("emits an all-day VEVENT for a car rental, spanning through the dropoff date", () => {
+    // Pickup 2026-06-10, dropoff 2026-06-13. The event should be
+    // visible across 6/10, 6/11, 6/12, AND 6/13 — DTEND on an all-day
+    // VEVENT is exclusive, so DTEND = 6/14 makes the dropoff date
+    // visible to the user.
     const trip = makeTrip({
       days: [
         {
@@ -104,11 +108,15 @@ describe("tripToIcal", () => {
             {
               id: "seg2b",
               type: "car_rental",
-              title: "Toyota Aqua",
-              venueName: "Times Car Rental",
+              title: "Hertz - Kyoto",
+              provider: "Hertz",
+              departureCity: "Kyoto",
+              arrivalCity: "Kyoto",
+              address: "12 Karasuma-dori, Kyoto",
               startTime: "15:00",
               endTime: "10:00",
               endDate: "2026-06-13",
+              confirmationCode: "ABC123",
               source: "manual",
               needsReview: false,
               sortOrder: 0,
@@ -120,8 +128,77 @@ describe("tripToIcal", () => {
 
     const ics = tripToIcal(trip);
     expect(ics).toContain("DTSTART;VALUE=DATE:20260610\r\n");
-    expect(ics).toContain("DTEND;VALUE=DATE:20260613\r\n");
+    // DTEND is exclusive — 6/14 makes the rental visible through 6/13.
+    expect(ics).toContain("DTEND;VALUE=DATE:20260614\r\n");
     expect(ics).not.toContain("T150000");
+    // Summary follows the "<Provider> - <Pickup city>" convention.
+    expect(ics).toContain("SUMMARY:Hertz - Kyoto");
+    // Location is the address (preferred over city).
+    expect(ics).toContain("LOCATION:12 Karasuma-dori\\, Kyoto");
+    // Description includes confirmation + pickup + dropoff details.
+    // iCal folds lines at 75 chars (`\r\n ` continuation), so we
+    // unfold before substring-matching to keep the assertions stable.
+    const unfolded = ics.replace(/\r\n /g, "");
+    expect(unfolded).toContain("DESCRIPTION:Confirmation: ABC123");
+    expect(unfolded).toContain("Pickup: Kyoto\\, 2026-06-10\\, 15:00");
+    expect(unfolded).toContain("Dropoff: Kyoto\\, 2026-06-13\\, 10:00");
+  });
+
+  it("emits a VEVENT for a cruise with the ship name as the summary", () => {
+    const trip = makeTrip({
+      days: [
+        {
+          date: "2026-06-10",
+          dayOfWeek: "Wed",
+          city: "Port Canaveral",
+          segments: [
+            {
+              id: "seg-cruise",
+              type: "cruise",
+              title: "7-night Western Caribbean",
+              shipName: "Symphony of the Seas",
+              departureCity: "Port Canaveral",
+              arrivalCity: "Port Canaveral",
+              startTime: "16:00",
+              endTime: "08:00",
+              endDate: "2026-06-17",
+              confirmationCode: "RCL-9988",
+              portsOfCall: [
+                { date: "2026-06-11", atSea: true },
+                {
+                  date: "2026-06-12",
+                  port: "Nassau",
+                  arrivalTime: "08:00",
+                  departureTime: "17:00",
+                },
+                {
+                  date: "2026-06-13",
+                  port: "CocoCay",
+                  arrivalTime: "07:00",
+                  departureTime: "16:00",
+                },
+              ],
+              source: "manual",
+              needsReview: false,
+              sortOrder: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    const ics = tripToIcal(trip);
+    const unfolded = ics.replace(/\r\n /g, "");
+    // Summary is the ship name (NOT the route or itinerary title).
+    expect(unfolded).toContain("SUMMARY:Symphony of the Seas");
+    // Location is the boarding port (departureCity).
+    expect(unfolded).toContain("LOCATION:Port Canaveral");
+    // Description lists every port + at-sea day.
+    expect(unfolded).toContain("Confirmation: RCL-9988");
+    expect(unfolded).toContain("Ports of call:");
+    expect(unfolded).toContain("2026-06-11 — At sea");
+    expect(unfolded).toContain("2026-06-12 — Nassau (arr 08:00\\, dep 17:00)");
+    expect(unfolded).toContain("2026-06-13 — CocoCay (arr 07:00\\, dep 16:00)");
   });
 
   it("emits a floating datetime when city is unrecognised", () => {
