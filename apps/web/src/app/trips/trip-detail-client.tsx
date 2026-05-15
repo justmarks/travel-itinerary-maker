@@ -80,6 +80,7 @@ import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError, toastMutationError } from "@/lib/api-error";
+import { formatTripDateRange } from "@/lib/format-date";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {
   calendarProviderLabel,
@@ -122,12 +123,6 @@ const TRIP_STATUS_CYCLE: TripStatus[] = [
 function nextTripStatus(current: string): TripStatus {
   const idx = TRIP_STATUS_CYCLE.indexOf(current as TripStatus);
   return TRIP_STATUS_CYCLE[(idx + 1) % TRIP_STATUS_CYCLE.length];
-}
-
-function formatDateRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
-  const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  return `${fmt(start)} – ${fmt(end)}`;
 }
 
 function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
@@ -322,7 +317,7 @@ function EditableDates({
               <ul className="mt-0.5">
                 {overlapError.map((trip) => (
                   <li key={trip.id}>
-                    {trip.title} ({formatDateRange(trip.startDate, trip.endDate)})
+                    {trip.title} ({formatTripDateRange(trip.startDate, trip.endDate)})
                   </li>
                 ))}
               </ul>
@@ -340,7 +335,7 @@ function EditableDates({
       title="Edit dates"
     >
       <Calendar className="h-3.5 w-3.5" />
-      {formatDateRange(startDate, endDate)}
+      {formatTripDateRange(startDate, endDate)}
       <Pencil className="h-3 w-3 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/dates:opacity-100" />
     </button>
   );
@@ -1222,7 +1217,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
             {isReadOnly ? (
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                {formatDateRange(trip.startDate, trip.endDate)}
+                {formatTripDateRange(trip.startDate, trip.endDate)}
               </span>
             ) : (
               <EditableDates

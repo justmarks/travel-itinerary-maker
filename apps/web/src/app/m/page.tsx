@@ -54,14 +54,7 @@ import {
   todayLocalISO,
   type TripBucket,
 } from "@/lib/trip-buckets";
-
-function fmtRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  const yr = new Date(end + "T00:00:00").getFullYear();
-  return `${fmt(start)} – ${fmt(end)}, ${yr}`;
-}
+import { formatTripDateRange } from "@/lib/format-date";
 
 
 /**
@@ -231,7 +224,7 @@ function TripRow({
       <div className="flex flex-col gap-1 p-3">
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
-          {fmtRange(trip.startDate, trip.endDate)}
+          {formatTripDateRange(trip.startDate, trip.endDate)}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <span className="capitalize">{trip.status}</span>

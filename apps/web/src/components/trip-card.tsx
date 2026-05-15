@@ -10,6 +10,7 @@ import { toastMutationError } from "@/lib/api-error";
 import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@itinly/api-client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { formatTripDateRange } from "@/lib/format-date";
 import {
   daysUntil,
   flagEmoji,
@@ -76,21 +77,6 @@ const STATUS_CYCLE: TripStatus[] = [
 function nextStatus(current: string): TripStatus {
   const idx = STATUS_CYCLE.indexOf(current as TripStatus);
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-}
-
-function formatDateRange(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const opts: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-  };
-  const startStr = s.toLocaleDateString("en-US", opts);
-  const endStr = e.toLocaleDateString("en-US", {
-    ...opts,
-    year: "numeric",
-  });
-  return `${startStr} – ${endStr}`;
 }
 
 /**
@@ -420,7 +406,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
       <CardContent className="mt-auto space-y-2">
         <CardDescription className="flex items-center gap-1">
           <Calendar className="h-3.5 w-3.5" />
-          {formatDateRange(trip.startDate, trip.endDate)}
+          {formatTripDateRange(trip.startDate, trip.endDate)}
         </CardDescription>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Badge asChild variant="secondary" className="relative z-10 p-0">
