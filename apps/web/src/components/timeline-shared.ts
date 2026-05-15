@@ -14,7 +14,6 @@ const TRANSPORT_TYPES = new Set<SegmentType>([
 const ACTIVITY_TYPES = new Set<SegmentType>([
   "activity",
   "tour",
-  "cruise",
   "show",
 ]);
 const DINING_TYPES = new Set<SegmentType>([
@@ -24,9 +23,18 @@ const DINING_TYPES = new Set<SegmentType>([
   "restaurant_dinner",
 ]);
 
+/**
+ * Segment types that render as multi-day BANDS on the Lodging swimlane.
+ * Cruises ride the same lane as hotels because the ship is effectively
+ * the user's lodging from embark through disembark — a per-day pill
+ * scattered across an "Activities" row would understate that and lose
+ * the multi-day span.
+ */
+const LODGING_TYPES = new Set<SegmentType>(["hotel", "cruise"]);
+
 export function getTimelineCategory(type: SegmentType): TimelineCategory {
   if (TRANSPORT_TYPES.has(type)) return "transport";
-  if (type === "hotel") return "hotel";
+  if (LODGING_TYPES.has(type)) return "hotel";
   if (ACTIVITY_TYPES.has(type)) return "activity";
   if (DINING_TYPES.has(type)) return "dining";
   return "activity";
@@ -68,21 +76,31 @@ export interface HotelBar {
 }
 
 /**
- * Walks the trip and collects the hotel segments as multi-day bars
- * (start day index → end day index, where end is the night before
- * checkout). Out-of-range checkout dates fall back to a one-day bar
- * so a stray endDate can't overlap and scramble the grid below.
+ * Walks the trip and collects every lodging-lane segment (hotels +
+ * cruises) as multi-day bars (start day index → end day index).
+ *
+ * End-date semantics differ by type:
+ *   - hotel  → `endDate` is the check-OUT day (user has already left
+ *              that morning). Last covered cell = endDate index − 1.
+ *   - cruise → `endDate` is the disembark day (user is still on the
+ *              ship that day). Last covered cell = endDate index
+ *              itself.
+ *
+ * Out-of-range end dates fall back to a one-day bar so a stray
+ * endDate can't overlap and scramble the grid below.
  */
 export function extractHotels(days: readonly TripDay[]): HotelBar[] {
   const bars: HotelBar[] = [];
   days.forEach((day, dayIdx) => {
     day.segments
-      .filter((s) => s.type === "hotel")
+      .filter((s) => LODGING_TYPES.has(s.type))
       .forEach((s) => {
         let endDayIdx = dayIdx;
         if (s.endDate) {
           const found = days.findIndex((d) => d.date === s.endDate);
-          if (found > 0) endDayIdx = found - 1;
+          if (found > 0) {
+            endDayIdx = s.type === "cruise" ? found : found - 1;
+          }
         }
         bars.push({ segment: s, startDayIdx: dayIdx, endDayIdx });
       });

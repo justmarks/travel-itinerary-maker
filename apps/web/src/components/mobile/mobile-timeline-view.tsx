@@ -210,7 +210,14 @@ function HotelRow({
       idx++;
     }
     const h = hotel.segment;
-    const name = h.venueName ?? h.title;
+    const isCruise = h.type === "cruise";
+    // Cruise pills use the ship name + a "Nd" suffix (days, not
+    // nights — you ARE on the ship on disembark day). Hotels keep the
+    // venueName + "Nn" night-count suffix.
+    const name = isCruise
+      ? (h.shipName ?? h.title)
+      : (h.venueName ?? h.title);
+    const unitSuffix = isCruise ? "d" : "n";
     cells.push(
       <button
         type="button"
@@ -226,7 +233,7 @@ function HotelRow({
           <span className="truncate">{name}</span>
           {span > 1 && (
             <span className="ml-auto pl-1 text-[10px] font-normal opacity-80">
-              {span}n
+              {span}{unitSuffix}
             </span>
           )}
         </div>
@@ -417,8 +424,12 @@ export function MobileTimelineView({
               />
               <RowLabel icon={SEGMENT_CONFIG.activity.icon} name="All" />
               {days.map((day) => {
+                // Exclude lodging-lane types — they render as bands
+                // above and would otherwise double-up in the chrono row.
                 const segs = sortByTime(
-                  day.segments.filter((s) => s.type !== "hotel"),
+                  day.segments.filter(
+                    (s) => s.type !== "hotel" && s.type !== "cruise",
+                  ),
                 );
                 return (
                   <div

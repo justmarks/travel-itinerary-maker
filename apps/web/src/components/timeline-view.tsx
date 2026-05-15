@@ -173,9 +173,19 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       );
       idx++;
     }
-    // Spanning hotel cell
+    // Spanning lodging cell — hotel and cruise ride the same lane;
+    // per-type icon + label + unit so a cruise reads as a cruise ("3
+    // days" with a ship icon) and a hotel reads as a hotel ("3 nights"
+    // with a 🏨).
     const h = hotel.segment;
-    const name = h.venueName ?? h.title;
+    const isCruise = h.type === "cruise";
+    const name = isCruise
+      ? (h.shipName ?? h.title)
+      : (h.venueName ?? h.title);
+    const icon = isCruise ? "🚢" : "🏨";
+    const unit = isCruise
+      ? `${span} day${span !== 1 ? "s" : ""}`
+      : `${span} night${span !== 1 ? "s" : ""}`;
     cells.push(
       <div
         key={h.id}
@@ -186,10 +196,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
           className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
           style={pillStyleLodging}
         >
-          <span className="hidden sm:inline shrink-0">🏨</span>
+          <span className="hidden sm:inline shrink-0">{icon}</span>
           <span className="truncate">{name}</span>
           <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
-            {span} night{span !== 1 ? "s" : ""}
+            {unit}
           </span>
         </div>
       </div>,
@@ -334,7 +344,13 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
                 <HotelRow days={days} hotels={hotels} />
                 <RowLabel icon="🗓" name="All events" />
                 {days.map((day) => {
-                  const segs = sortByTime(day.segments.filter((s) => s.type !== "hotel"));
+                  // Exclude lodging-lane types — they render as bands
+                  // above and would otherwise double-up in the chrono row.
+                  const segs = sortByTime(
+                    day.segments.filter(
+                      (s) => s.type !== "hotel" && s.type !== "cruise",
+                    ),
+                  );
                   return (
                     <div
                       key={day.date}
