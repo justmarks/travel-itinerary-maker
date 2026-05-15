@@ -44,6 +44,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { sortByPrimaryEmail } from "@itinly/shared";
+import { Loader2 } from "lucide-react";
 
 type LinkableProvider = "google" | "azure";
 type ConnectionsProvider = "google" | "microsoft";
@@ -154,7 +155,7 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
   if (identities === null) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" />
         Loading sign-in methods…
       </div>
     );

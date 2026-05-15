@@ -36,6 +36,7 @@ import { markPendingConnection } from "@/app/auth/callback/page";
 import { startGmailLink, isGmailLinkConfigured } from "@/lib/oauth";
 import { describeError } from "@/lib/api-error";
 import { sortByPrimaryEmail } from "@itinly/shared";
+import { Loader2 } from "lucide-react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -290,7 +291,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" />
         Loading connected services…
       </div>
     );
