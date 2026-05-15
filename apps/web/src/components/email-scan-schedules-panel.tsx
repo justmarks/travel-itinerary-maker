@@ -96,7 +96,7 @@ function fmtNextRun(iso: string): string {
 
 function fmtRunStarted(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
