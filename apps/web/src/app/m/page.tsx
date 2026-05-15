@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDeleteShare, useTrips } from "@itinly/api-client";
 import type { TripSummary } from "@itinly/api-client";
@@ -467,36 +467,38 @@ function MobileHomeContent(): React.JSX.Element {
   const [scanOpen, setScanOpen] = useState(false);
   const [autoShareOpen, setAutoShareOpen] = useState(false);
 
-  // PWA "Create trip" shortcut deep-link. The manifest's `shortcuts`
-  // entry points at `/m?new=trip`; when the user picks it from the
-  // Android long-press menu (or desktop right-click) the OS opens the
-  // installed PWA at that URL. We pop the create sheet on mount and
-  // scrub the param so a refresh / back-nav / SW shell-cache restore
-  // doesn't re-open the sheet on every visit. Reading via
-  // `window.location.search` (rather than `useSearchParams`) avoids
-  // forcing the page into dynamic rendering for what is otherwise a
-  // statically-served shell.
+  // URL deep-links into specific sheets. Two triggers today:
+  //   ?new=trip   — PWA "Create trip" shortcut from the manifest
+  //   ?review=1   — AutoScanBanner's "Review" link
+  //
+  // We use `useSearchParams()` here (rather than reading
+  // `window.location.search` once on mount) because Next's `<Link>`
+  // does a soft navigation when the destination matches the current
+  // path. The AutoScanBanner's `/m?review=1` link clicked from the
+  // banner that's rendered on `/m` is the canonical case — without
+  // observing searchParams changes, the URL updates but no
+  // component re-mounts and a mount-only effect never re-fires.
+  //
+  // The handler scrubs the params via `history.replaceState`
+  // immediately after opening the sheet so the next render sees a
+  // clean URL — that keeps the effect from re-popping the sheet if
+  // the user closes it and the searchParams haven't changed.
+  const searchParams = useSearchParams();
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const search = new URLSearchParams(window.location.search);
-    const wantsCreate = search.get("new") === "trip";
-    const wantsReview = search.get("review") === "1";
+    const wantsCreate = searchParams.get("new") === "trip";
+    const wantsReview = searchParams.get("review") === "1";
     if (!wantsCreate && !wantsReview) return;
-    // `?review=1` comes from the AutoScanBanner's "Review" link — pop
-    // the email-scan sheet open. The sheet's internal `verifying` →
-    // `review` transition reads pending emails via `usePendingEmails`
-    // so it lands on the review step automatically when there are
-    // parsed-but-unconfirmed rows; if there aren't, it falls back to
-    // the config step which is also a fine outcome.
     if (wantsCreate) setCreateOpen(true);
     if (wantsReview) setScanOpen(true);
-    search.delete("new");
-    search.delete("review");
-    const qs = search.toString();
-    const cleaned =
+    const cleaned = new URLSearchParams(searchParams.toString());
+    cleaned.delete("new");
+    cleaned.delete("review");
+    const qs = cleaned.toString();
+    const url =
       window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
-    window.history.replaceState(null, "", cleaned);
-  }, []);
+    window.history.replaceState(null, "", url);
+  }, [searchParams]);
 
   return (
     <MobileFrame>
@@ -541,7 +543,15 @@ function MobileHomeContent(): React.JSX.Element {
 export default function MobileHomePage(): React.JSX.Element {
   return (
     <RequireAuth>
-      <MobileHomeContent />
+      {/* `MobileHomeContent` reads `useSearchParams()` to react to
+          `?new=trip` and `?review=1` deep-links — Next 15 requires the
+          consumer to be wrapped in Suspense so the static prerender
+          doesn't blow up. The fallback never visibly fires because
+          `useSearchParams` only suspends during the initial dynamic
+          render, but Next's typechecker insists. */}
+      <Suspense fallback={null}>
+        <MobileHomeContent />
+      </Suspense>
     </RequireAuth>
   );
 }
