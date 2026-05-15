@@ -247,7 +247,7 @@ function CalendarSyncBody({
                 <p>
                   Your {providerLabel} connection may have expired.{" "}
                   <Link
-                    href="/settings/account"
+                    href="/m/settings/account"
                     className="font-medium text-foreground underline underline-offset-2"
                     onClick={onClose}
                   >
