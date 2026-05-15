@@ -1147,7 +1147,7 @@ export function EmailScanDialog({
                     }}
                   >
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Scan More
+                    Scan more
                   </Button>
                 )}
                 {selections.length > 0 && (
@@ -1196,7 +1196,7 @@ export function EmailScanDialog({
           <>
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
               <XCircle className="h-8 w-8 text-destructive" />
-              <p className="text-lg font-medium">Scan Failed</p>
+              <p className="text-lg font-medium">Scan failed</p>
               <p className="text-sm text-muted-foreground">{errorMessage}</p>
             </div>
             <DialogFooter className="flex-row justify-center gap-2">
