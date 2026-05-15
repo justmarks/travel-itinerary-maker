@@ -417,7 +417,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "calendar", MICROSOFT_CALENDAR_SCOPES)
             }
           >
-            Connect Outlook calendar
+            Connect Outlook Calendar
           </Button>
         )}
       </CapabilitySection>
