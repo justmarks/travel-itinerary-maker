@@ -620,7 +620,7 @@ export function HtmlImportDialog({
                       onClick={() => setShowNewTripForm(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
-                      Create Trip
+                      Create trip
                     </Button>
                   </div>
                 </div>
@@ -689,7 +689,7 @@ export function HtmlImportDialog({
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                   )}
                   {creatingTrip
-                    ? "Creating..."
+                    ? "Creating…"
                     : "Create & Assign Matching Segments"}
                 </Button>
               </div>

@@ -56,7 +56,7 @@ export function MobileUserMenu({
 
   const handleSwitchToDesktop = () => {
     setDesktopOverride();
-    router.replace("/");
+    router.replace(isDemo ? "/?demo=true" : "/");
   };
 
   // In demo mode without auth, show a sign-in shortcut.

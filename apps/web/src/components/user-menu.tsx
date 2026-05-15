@@ -31,7 +31,7 @@ export function UserMenu(): React.JSX.Element | null {
   // user straight back to /.
   const handleSwitchToMobile = () => {
     clearDesktopOverride();
-    router.push("/m");
+    router.push(isDemo ? "/m?demo=true" : "/m");
   };
 
   // In demo mode without auth, show a "Sign in" button

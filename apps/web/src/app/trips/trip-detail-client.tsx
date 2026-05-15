@@ -80,6 +80,7 @@ import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError, toastMutationError } from "@/lib/api-error";
+import { formatTripDateRange } from "@/lib/format-date";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {
   calendarProviderLabel,
@@ -124,12 +125,6 @@ function nextTripStatus(current: string): TripStatus {
   return TRIP_STATUS_CYCLE[(idx + 1) % TRIP_STATUS_CYCLE.length];
 }
 
-function formatDateRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
-  const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
 function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(title);
@@ -149,6 +144,11 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     }
   };
 
+  const cancelEdit = () => {
+    setValue(title);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -163,6 +163,9 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           onChange={(e) => setValue(e.target.value)}
           className="h-9 text-2xl font-bold"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancelEdit();
+          }}
         />
         <Button
           type="submit"
@@ -178,10 +181,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => {
-            setValue(title);
-            setEditing(false);
-          }}
+          onClick={cancelEdit}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -277,6 +277,9 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <span className="text-sm text-muted-foreground">–</span>
           <Input
@@ -287,6 +290,9 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <Button
             type="submit"
@@ -322,7 +328,7 @@ function EditableDates({
               <ul className="mt-0.5">
                 {overlapError.map((trip) => (
                   <li key={trip.id}>
-                    {trip.title} ({formatDateRange(trip.startDate, trip.endDate)})
+                    {trip.title} ({formatTripDateRange(trip.startDate, trip.endDate)})
                   </li>
                 ))}
               </ul>
@@ -340,7 +346,7 @@ function EditableDates({
       title="Edit dates"
     >
       <Calendar className="h-3.5 w-3.5" />
-      {formatDateRange(startDate, endDate)}
+      {formatTripDateRange(startDate, endDate)}
       <Pencil className="h-3 w-3 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/dates:opacity-100" />
     </button>
   );
@@ -1222,7 +1228,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
             {isReadOnly ? (
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                {formatDateRange(trip.startDate, trip.endDate)}
+                {formatTripDateRange(trip.startDate, trip.endDate)}
               </span>
             ) : (
               <EditableDates
@@ -1282,7 +1288,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(0,1fr)_280px]">
             <div
               ref={itineraryDaysRef}
-              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pr-2 print:overflow-visible"
+              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pl-1 lg:pr-2 lg:pt-1 print:overflow-visible"
             >
               {trip.days.map((day) => (
                 <ItineraryDay

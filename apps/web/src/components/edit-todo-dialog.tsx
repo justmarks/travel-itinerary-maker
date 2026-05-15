@@ -121,7 +121,7 @@ export function EditTodoDialog({
               container border. */}
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
             <div className="space-y-1.5">
-              <Label htmlFor="todo-text">Task</Label>
+              <Label htmlFor="todo-text">To-do</Label>
               <Input
                 id="todo-text"
                 value={text}
@@ -132,13 +132,13 @@ export function EditTodoDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="todo-category">Tag</Label>
+              <Label htmlFor="todo-category">Category</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger id="todo-category">
-                  <SelectValue placeholder="No tag" />
+                  <SelectValue placeholder="No category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CATEGORY}>No tag</SelectItem>
+                  <SelectItem value={NO_CATEGORY}>No category</SelectItem>
                   {TODO_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}

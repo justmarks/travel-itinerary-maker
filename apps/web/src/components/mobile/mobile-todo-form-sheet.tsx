@@ -179,7 +179,7 @@ export function MobileTodoFormSheet({
         className="flex flex-1 flex-col overflow-y-auto px-5 pb-3"
       >
         <label className="text-kicker font-medium text-muted-foreground">
-          Task
+          To-do
         </label>
         <input
           type="text"
