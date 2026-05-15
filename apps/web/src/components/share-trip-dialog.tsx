@@ -327,7 +327,12 @@ export function ShareTripDialog({
         {inSuccessState ? (
           /* ── Success state: link + copy + close + create another ── */
           <>
-            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--status-ok-bg)", borderColor: "var(--status-ok-rail)" }}>
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border p-3"
+              style={{ backgroundColor: "var(--status-ok-bg)", borderColor: "var(--status-ok-rail)" }}
+            >
               <p className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--status-ok-fg)" }}>
                 <CheckCircle2 className="h-4 w-4" />
                 Share link ready
