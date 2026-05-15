@@ -1121,6 +1121,7 @@ export function SegmentFormFields({
               <Input
                 id={`${idPrefix}-party`}
                 type="number"
+                inputMode="numeric"
                 min="1"
                 placeholder="e.g. 4"
                 value={form.partySize}
@@ -1286,6 +1287,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-cost`}
               type="number"
+              inputMode="decimal"
               min="0"
               step="0.01"
               placeholder="0.00"
