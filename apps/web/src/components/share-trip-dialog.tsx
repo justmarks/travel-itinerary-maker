@@ -490,7 +490,7 @@ export function ShareTripDialog({
             previously created links without dismissing. */}
         {!isLoading && shares.length > 0 && (
           <div className="border-t pt-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-kicker font-semibold text-muted-foreground">
               Active shares · {shares.length}
             </p>
             <ul className="flex flex-col gap-2">
