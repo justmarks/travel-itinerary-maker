@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { ConnectedProvidersPanel } from "@/components/connected-providers-panel";
 import { ConnectedServicesPanel } from "@/components/connected-services-panel";
 import { DeleteAccountSection } from "@/components/delete-account-section";
+import { EmailScanSchedulesPanel } from "@/components/email-scan-schedules-panel";
 
 export default function AccountSettingsPage(): React.JSX.Element {
   return (
@@ -51,6 +52,10 @@ function AccountSettingsBody(): React.JSX.Element | null {
 
       <div className="mt-10 border-t border-border pt-6">
         <ConnectedServicesPanel />
+      </div>
+
+      <div className="mt-10 border-t border-border pt-6">
+        <EmailScanSchedulesPanel />
       </div>
 
       <div className="mt-10 border-t border-border pt-6">

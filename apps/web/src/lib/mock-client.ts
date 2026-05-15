@@ -2310,4 +2310,35 @@ export class MockApiClient extends ApiClient {
     this.trips.set(tripId, trip);
     return Promise.resolve({ removed, failed: 0 });
   }
+
+  // ─── Auto email-scan schedules (demo: not persisted, returns empty) ───
+  //
+  // Demo mode has no real mailbox to schedule scans against, so each
+  // method short-circuits to an empty / no-op response. The settings
+  // page renders the "No scheduled scans" empty state under demo,
+  // which is the right reality — the demo user has nothing to scan.
+
+  override listEmailScanSchedules() {
+    return Promise.resolve([]);
+  }
+
+  override createEmailScanSchedule() {
+    return Promise.reject(
+      new Error("Demo mode can't schedule scans — sign in with a real account."),
+    );
+  }
+
+  override updateEmailScanSchedule() {
+    return Promise.reject(
+      new Error("Demo mode can't schedule scans — sign in with a real account."),
+    );
+  }
+
+  override deleteEmailScanSchedule() {
+    return Promise.resolve({ status: "deleted" });
+  }
+
+  override listEmailScanRuns() {
+    return Promise.resolve([]);
+  }
 }

@@ -22,6 +22,9 @@ export type {
   SegmentMatchStatus,
   SegmentFieldDiff,
   EmailScanResult,
+  EmailScanFrequency,
+  EmailScanSchedule,
+  EmailScanRun,
   GmailLabel,
   TripHistoryEntry,
   TripHistoryActor,
@@ -59,6 +62,9 @@ export {
   importSharedRequestSchema,
   applyParsedSegmentsSchema,
   xlsxImportRequestSchema,
+  createEmailScanScheduleSchema,
+  updateEmailScanScheduleSchema,
+  EMAIL_SCAN_FREQUENCIES,
   SEGMENT_TYPES,
   TRIP_STATUSES,
   SEGMENT_SOURCES,
@@ -88,6 +94,8 @@ export type {
   ApplyParsedSegmentsInput,
   ApplyAction,
   XlsxImportRequest,
+  CreateEmailScanScheduleInput,
+  UpdateEmailScanScheduleInput,
 } from "./validators/trip";
 
 // Utilities

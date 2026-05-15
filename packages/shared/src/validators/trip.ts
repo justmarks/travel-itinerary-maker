@@ -506,6 +506,55 @@ export const PARSE_REPORT_REASONS = [
 ] as const;
 export type ParseReportReason = (typeof PARSE_REPORT_REASONS)[number];
 
+/** Allowed cadences for an auto-scan schedule. */
+export const EMAIL_SCAN_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
+
+/**
+ * Schema for creating an email-scan schedule. The frontend captures
+ * `provider` + `labelFilter` from whatever the user just ran a manual
+ * scan against, plus a `frequency` from the cadence picker, and POSTs
+ * the result. Server fills in defaults for `enabled` (true), the
+ * `nextRunAt` (now + one tick of `frequency`), and metadata
+ * (`createdAt`, `updatedAt`, `userId`).
+ *
+ * `labelName` is optional and purely cosmetic — the server resolves
+ * the labelFilter against the provider's label list on next-scan to
+ * keep the cached name fresh.
+ */
+export const createEmailScanScheduleSchema = z.object({
+  provider: z.enum(["google", "microsoft"]),
+  labelFilter: z.string().optional(),
+  labelName: z.string().optional(),
+  frequency: z.enum(EMAIL_SCAN_FREQUENCIES),
+});
+
+/**
+ * Schema for updating an existing schedule. Every field is optional so
+ * the user can flip `enabled` from a quick toggle without resending
+ * the whole row. `frequency` change recomputes `nextRunAt` so the
+ * cadence flip takes effect on the next tick.
+ */
+export const updateEmailScanScheduleSchema = z
+  .object({
+    provider: z.enum(["google", "microsoft"]).optional(),
+    labelFilter: z.string().nullable().optional(),
+    labelName: z.string().nullable().optional(),
+    frequency: z.enum(EMAIL_SCAN_FREQUENCIES).optional(),
+    enabled: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      data.provider !== undefined ||
+      data.labelFilter !== undefined ||
+      data.labelName !== undefined ||
+      data.frequency !== undefined ||
+      data.enabled !== undefined,
+    {
+      message:
+        "At least one of provider, labelFilter, labelName, frequency, enabled must be provided",
+    },
+  );
+
 /** Schema for triggering an email scan */
 export const emailScanRequestSchema = z.object({
   tripId: z.string().optional(),
@@ -577,3 +626,5 @@ export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
 export type ImportSharedRequest = z.infer<typeof importSharedRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
 export type XlsxImportRequest = z.infer<typeof xlsxImportRequestSchema>;
+export type CreateEmailScanScheduleInput = z.infer<typeof createEmailScanScheduleSchema>;
+export type UpdateEmailScanScheduleInput = z.infer<typeof updateEmailScanScheduleSchema>;

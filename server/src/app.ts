@@ -18,6 +18,12 @@ import { ShareActivityTracker } from "./services/share-activity-tracker";
 import { createPushRoutes } from "./routes/push";
 import { createConnectionsRoutes } from "./routes/connections";
 import { createAccountRoutes } from "./routes/account";
+import { createEmailScanScheduleRoutes } from "./routes/email-scan-schedules";
+import {
+  createMemoryDueEmailScanScheduleStore,
+  createPostgresDueEmailScanScheduleStore,
+  type DueEmailScanScheduleStore,
+} from "./services/email-scan-due";
 import { ConnectionsStore } from "./services/connections-store";
 import {
   createSupabaseAdmin,
@@ -399,6 +405,57 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
       "/api/v1/connections",
       requireAuth,
       createConnectionsRoutes({ store: connectionsStore }),
+    );
+  }
+
+  // Auto email-scan scheduler routes. The cron-tick endpoint
+  // (`POST /email-scan-schedules/tick`) is shared-secret guarded and
+  // runs without `requireAuth`; the user-scoped CRUD endpoints under
+  // the same router self-gate on `req.userId` (rejecting with 401
+  // when missing in postgres mode, returning empty results in memory
+  // mode). That's why we mount the whole router WITHOUT
+  // `requireAuth` — the tick endpoint must remain reachable for the
+  // Supabase pg_cron job.
+  const dueScheduleStore: DueEmailScanScheduleStore =
+    mode === "postgres"
+      ? createPostgresDueEmailScanScheduleStore(dbClient!.db)
+      : createMemoryDueEmailScanScheduleStore(storage!);
+  const resolveStorageForUser: (userId: string) => Promise<StorageProvider | null> =
+    mode === "postgres"
+      ? async (userId: string) =>
+          new SupabaseStorage({ db: dbClient!.db, userId })
+      : async () => storage!;
+  // Apply requireAuth to the user-scoped routes only when in
+  // postgres mode — mounting the tick route on a no-auth path means
+  // we wire it as a single mount with self-gating inside the router.
+  if (requiresAuth) {
+    app.use(
+      "/api/v1/email-scan-schedules",
+      // Allow unauthenticated requests through to the router so the
+      // shared-secret tick endpoint stays reachable. Per-user routes
+      // inside the router self-gate on `req.userId`.
+      (req, res, next) => {
+        if (req.path === "/tick") return next();
+        return requireAuth(req, res, next);
+      },
+      createEmailScanScheduleRoutes({
+        resolveStorage,
+        resolveStorageForUser,
+        dueScheduleStore,
+        connectionsStore,
+        notificationSender,
+      }),
+    );
+  } else {
+    app.use(
+      "/api/v1/email-scan-schedules",
+      createEmailScanScheduleRoutes({
+        resolveStorage,
+        resolveStorageForUser,
+        dueScheduleStore,
+        connectionsStore,
+        notificationSender,
+      }),
     );
   }
 
