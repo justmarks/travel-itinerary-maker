@@ -584,6 +584,15 @@ export const emailScanRequestSchema = z.object({
    * picker on the scan dialog.
    */
   provider: z.enum(["google", "microsoft"]).optional(),
+  /**
+   * When true and `labelFilter` is set, widens the scan to include
+   * descendants of the picked label / folder (Gmail "Travel" also
+   * catches "Travel/Hotels", "Travel/Flights/Confirmed"; Outlook
+   * folder paths follow the same shape). The server expands the
+   * filter via `connector.listLabels()` at request time. No effect
+   * when `labelFilter` is unset.
+   */
+  includeSublabels: z.boolean().optional(),
 });
 
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;
