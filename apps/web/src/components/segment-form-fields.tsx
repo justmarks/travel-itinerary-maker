@@ -994,6 +994,7 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("hotel", form.date)}
+              min={form.date || undefined}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1049,6 +1050,7 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("car_rental", form.date)}
+              min={form.date || undefined}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1187,6 +1189,7 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("cruise", form.date)}
+              min={form.date || undefined}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
