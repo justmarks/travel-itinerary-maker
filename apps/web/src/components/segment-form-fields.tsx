@@ -138,6 +138,8 @@ export interface SegmentFormState {
   contactName: string;
   phone: string;
   breakfastIncluded: boolean;
+  /** Cruise: the ship's name (separate from the cruise / itinerary title). */
+  shipName: string;
   endDate: string;
   costAmount: string;
   costCurrency: string;
@@ -171,6 +173,7 @@ export const EMPTY_FORM_STATE: SegmentFormState = {
   contactName: "",
   phone: "",
   breakfastIncluded: false,
+  shipName: "",
   endDate: "",
   costAmount: "",
   costCurrency: "USD",
@@ -186,11 +189,12 @@ const MEAL_LABELS: Record<string, string> = {
 
 /**
  * Returns the title to save for the segment. If the user typed one,
- * use it verbatim. For dining segments (breakfast / brunch / lunch /
- * dinner) where the user left the title blank, derive it from the
- * meal type + venue name — "Lunch @ Araxi". Returns "" when no title
- * is available (the form-level `canSave` should refuse to submit in
- * that case).
+ * use it verbatim. Otherwise derive from per-type hints:
+ *   - dining   → "<Meal> @ <Venue>" (e.g. "Lunch @ Araxi")
+ *   - car_rental → "<Provider> - <Pickup city>" (e.g. "Hertz - Lihue")
+ *   - cruise   → the ship name (e.g. "Symphony of the Seas")
+ * Returns "" when no title is available; the form-level `canSave`
+ * refuses to submit in that case.
  */
 export function resolveSegmentTitle(form: SegmentFormState): string {
   const typed = form.title.trim();
@@ -198,6 +202,16 @@ export function resolveSegmentTitle(form: SegmentFormState): string {
   const mealLabel = MEAL_LABELS[form.type];
   const venue = form.venueName.trim();
   if (mealLabel && venue) return `${mealLabel} @ ${venue}`;
+  if (form.type === "car_rental") {
+    const provider = form.provider.trim();
+    const pickup = form.departureCity.trim();
+    if (provider && pickup) return `${provider} - ${pickup}`;
+    if (provider) return provider;
+  }
+  if (form.type === "cruise") {
+    const ship = form.shipName.trim();
+    if (ship) return ship;
+  }
   return "";
 }
 
@@ -636,6 +650,43 @@ export function SegmentFormFields({
     onChange(patch);
   };
 
+  // Same UX as flights — live-fill the title field for car rentals and
+  // cruises as the user types the source fields, so the user sees the
+  // auto-title appear and doesn't think they need to type it themselves.
+  // The pattern-check refuses to overwrite a user-typed title that
+  // doesn't match the auto-shape, so a custom title is never lost.
+  const carRentalAutoTitlePattern = /^[^-]+\s-\s.+$/;
+  const applyCarRentalAutoTitle = (patch: Partial<SegmentFormState>): void => {
+    if (!isCarRental) return;
+    const provider = (patch.provider ?? form.provider).trim();
+    const pickup = (patch.departureCity ?? form.departureCity).trim();
+    if (!provider || !pickup) return;
+    const current = (patch.title ?? form.title).trim();
+    if (current && !carRentalAutoTitlePattern.test(current)) return;
+    patch.title = `${provider} - ${pickup}`;
+  };
+  const pushCarRentalPatch = (patch: Partial<SegmentFormState>): void => {
+    applyCarRentalAutoTitle(patch);
+    onChange(patch);
+  };
+
+  const applyCruiseAutoTitle = (patch: Partial<SegmentFormState>): void => {
+    if (!isCruise) return;
+    const ship = (patch.shipName ?? form.shipName).trim();
+    if (!ship) return;
+    const current = (patch.title ?? form.title).trim();
+    // Auto-fill only when blank or matches the previously-auto shape
+    // (i.e. the user hasn't typed a custom cruise title). Since the
+    // cruise auto-title is just the ship name, we recognise that exact
+    // form by comparing against the previous shipName value.
+    if (current && current !== form.shipName.trim()) return;
+    patch.title = ship;
+  };
+  const pushCruisePatch = (patch: Partial<SegmentFormState>): void => {
+    applyCruiseAutoTitle(patch);
+    onChange(patch);
+  };
+
   // Which fields should be visible?
   const showVenue = !isFlight && !isTransport && !isCruise;
   const showAddress = !isFlight && !isCruise;
@@ -959,7 +1010,7 @@ export function SegmentFormFields({
                 id={`${idPrefix}-dep-city`}
                 placeholder="e.g. Lihue"
                 value={form.departureCity}
-                onChange={(e) => onChange({ departureCity: e.target.value })}
+                onChange={(e) => pushCarRentalPatch({ departureCity: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -1078,9 +1129,18 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Cruise: departure/arrival ports, boarding/disembark times ── */}
+      {/* ── Cruise: ship name, departure/arrival ports, boarding/disembark times ── */}
       {isCruise && (
         <>
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-ship`}>Ship name</Label>
+            <Input
+              id={`${idPrefix}-ship`}
+              placeholder="e.g. Symphony of the Seas"
+              value={form.shipName}
+              onChange={(e) => pushCruisePatch({ shipName: e.target.value })}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-dep-city`}>Boarding city</Label>
@@ -1441,9 +1501,15 @@ export function SegmentFormFields({
             <Label htmlFor={`${idPrefix}-provider`}>Provider</Label>
             <Input
               id={`${idPrefix}-provider`}
-              placeholder="e.g. Expedia, Direct"
+              placeholder={
+                isCarRental ? "e.g. Hertz, Enterprise" : "e.g. Expedia, Direct"
+              }
               value={form.provider}
-              onChange={(e) => onChange({ provider: e.target.value })}
+              onChange={(e) =>
+                isCarRental
+                  ? pushCarRentalPatch({ provider: e.target.value })
+                  : onChange({ provider: e.target.value })
+              }
             />
           </div>
         )}

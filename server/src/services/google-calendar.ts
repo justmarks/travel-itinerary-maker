@@ -219,30 +219,90 @@ export function segmentToEvent(
     }
 
     case "car_rental": {
-      const venue = segment.venueName || segment.title;
-      summary = `${label}: ${venue}`;
+      // Title: "<Provider> - <Pickup city>" (e.g. "Hertz - Lihue") when
+      // both fields are filled; otherwise fall back to whatever the
+      // user titled the segment. The segment-form already auto-fills
+      // `title` to that shape, but we re-derive here so a calendar push
+      // gets the right summary even when the segment was created via
+      // email-parse or imported with a different title shape.
+      const provider = (segment.provider ?? "").trim();
+      const pickup = (segment.departureCity ?? "").trim();
+      summary =
+        provider && pickup
+          ? `${provider} - ${pickup}`
+          : segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
       const desc: string[] = [];
-      if (segment.address) desc.push(segment.address);
-      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      if (segment.confirmationCode) {
+        desc.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      // Pickup line: city + day + time. Day uses the segment's own date
+      // so a calendar viewer sees "Pickup: Lihue, 2026-06-10 09:00"
+      // without having to compute it from the all-day event boundary.
+      const pickupParts: string[] = [];
+      if (pickup) pickupParts.push(pickup);
+      pickupParts.push(day.date);
+      if (segment.startTime) pickupParts.push(segment.startTime);
+      desc.push(`Pickup: ${pickupParts.join(", ")}`);
+      const dropoff = (segment.arrivalCity ?? "").trim();
+      const dropoffDate = segment.endDate ?? day.date;
+      const dropoffParts: string[] = [];
+      if (dropoff) dropoffParts.push(dropoff);
+      dropoffParts.push(dropoffDate);
+      if (segment.endTime) dropoffParts.push(segment.endTime);
+      desc.push(`Dropoff: ${dropoffParts.join(", ")}`);
+      if (segment.cost?.details) desc.push(segment.cost.details);
       description = desc.join("\n");
-      location = segment.address || segment.city || day.city;
+      // Location: prefer the pickup address. Fall back through city in
+      // case the user only filled the high-level fields.
+      location = segment.address || pickup || segment.city || day.city;
       start = { date: day.date };
-      end = { date: segment.endDate ?? addDays(day.date, 1) };
+      // End-date on a Google all-day event is exclusive — add one day
+      // so the visible span runs through the dropoff date inclusive.
+      const endDateExclusive = addDays(segment.endDate ?? day.date, 1);
+      end = { date: endDateExclusive };
       break;
     }
 
     case "cruise": {
-      const venue = segment.venueName || segment.title;
-      summary = `${label}: ${venue}`;
+      // Title: cruise / ship name. Prefer the explicit `shipName` field
+      // (added 2026-05); fall back to the segment title for older data.
+      const ship = (segment.shipName ?? "").trim();
+      summary = ship || segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
       const desc: string[] = [];
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
-      if (route) desc.push(route);
-      if (segment.address) desc.push(segment.address);
-      if (segment.confirmationCode) desc.push(`Confirmation: ${segment.confirmationCode}`);
+      if (segment.confirmationCode) {
+        desc.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      // Per-port list with day + time anchors. Always render every port,
+      // including "at sea" days, so the cruise itinerary reads as a
+      // single coherent description on the calendar event.
+      if (segment.portsOfCall && segment.portsOfCall.length > 0) {
+        desc.push("Ports of call:");
+        for (const port of segment.portsOfCall) {
+          if (port.atSea) {
+            desc.push(`  ${port.date} — At sea`);
+            continue;
+          }
+          const times: string[] = [];
+          if (port.arrivalTime) times.push(`arr ${port.arrivalTime}`);
+          if (port.departureTime) times.push(`dep ${port.departureTime}`);
+          const timeSuffix = times.length ? ` (${times.join(", ")})` : "";
+          desc.push(`  ${port.date} — ${port.port ?? "Port TBD"}${timeSuffix}`);
+        }
+      } else {
+        // No per-day ports — fall back to a boarding → disembark line.
+        const route = [segment.departureCity, segment.arrivalCity]
+          .filter(Boolean)
+          .join(" → ");
+        if (route) desc.push(route);
+      }
       description = desc.join("\n");
-      location = segment.address || segment.city || day.city;
+      // Location: boarding port. Falls back through city for legacy
+      // cruise segments that stored the port in `city`.
+      location =
+        segment.departureCity ||
+        segment.address ||
+        segment.city ||
+        day.city;
       if (segment.endDate) {
         start = dateTime(day.date, segment.startTime, startTz);
         end = dateTime(segment.endDate, segment.endTime, endTz);

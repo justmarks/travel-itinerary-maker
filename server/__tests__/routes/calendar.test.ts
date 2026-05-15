@@ -254,14 +254,14 @@ describe("segmentToEvent", () => {
     expect((event.start as { timeZone?: string }).timeZone).toBeUndefined();
   });
 
-  it("maps a cruise segment with endDate as a multi-day event", async () => {
+  it("maps a cruise segment with endDate as a multi-day event titled by the ship name", async () => {
     const { segmentToEvent } = await import("../../src/services/google-calendar");
     const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Barcelona", segments: [] };
     const segment = {
       id: "s4",
       type: "cruise" as const,
       title: "Mediterranean Cruise",
-      venueName: "MSC Seaside",
+      shipName: "MSC Seaside",
       departureCity: "Barcelona",
       arrivalCity: "Civitavecchia",
       startTime: "16:00",
@@ -274,7 +274,10 @@ describe("segmentToEvent", () => {
 
     const event = segmentToEvent(segment, day, "Test Trip");
 
-    expect(event.summary).toBe("Cruise: MSC Seaside");
+    // Summary now reflects the ship name; route falls into the
+    // description and location is the boarding port.
+    expect(event.summary).toBe("MSC Seaside");
+    expect(event.location).toBe("Barcelona");
     // Start in Barcelona (Europe/Madrid), end in Civitavecchia (Europe/Rome)
     expect(event.start).toEqual({ dateTime: "2026-06-10T16:00:00", timeZone: "Europe/Madrid" });
     expect(event.end).toEqual({ date: "2026-06-17" }); // endTime omitted → all-day end
@@ -282,15 +285,17 @@ describe("segmentToEvent", () => {
     expect(event.description).toContain("MSC-7741");
   });
 
-  it("maps a car_rental segment with endDate as a multi-day event in local timezone", async () => {
+  it("maps a car_rental segment titled '<Provider> - <Pickup city>' across pickup → dropoff", async () => {
     const { segmentToEvent } = await import("../../src/services/google-calendar");
     const day = { date: "2026-06-10", dayOfWeek: "Wed", city: "Kyoto", segments: [] };
     const segment = {
       id: "s5",
       type: "car_rental" as const,
-      title: "Car Rental · Toyota Aqua",
-      venueName: "Times Car Rental Kyoto Station",
-      city: "Kyoto",
+      title: "Hertz - Kyoto",
+      provider: "Hertz",
+      departureCity: "Kyoto",
+      arrivalCity: "Kyoto",
+      address: "12 Karasuma-dori",
       startTime: "15:00",
       endTime: "10:00",
       endDate: "2026-06-13",
@@ -302,10 +307,14 @@ describe("segmentToEvent", () => {
 
     const event = segmentToEvent(segment, day, "Test Trip");
 
-    expect(event.summary).toBe("Car Rental: Times Car Rental Kyoto Station");
+    expect(event.summary).toBe("Hertz - Kyoto");
+    expect(event.location).toBe("12 Karasuma-dori");
     expect(event.start).toEqual({ date: "2026-06-10" });
-    expect(event.end).toEqual({ date: "2026-06-13" });
+    // Exclusive DTEND — 2026-06-14 makes the dropoff date (6/13) visible.
+    expect(event.end).toEqual({ date: "2026-06-14" });
     expect(event.description).toContain("TCR-7741");
+    expect(event.description).toContain("Pickup: Kyoto, 2026-06-10, 15:00");
+    expect(event.description).toContain("Dropoff: Kyoto, 2026-06-13, 10:00");
   });
 
   it("maps a show segment with seat number", async () => {

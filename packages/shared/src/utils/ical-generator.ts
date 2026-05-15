@@ -337,26 +337,68 @@ function segmentToVEvent(
     }
 
     case "car_rental": {
-      const venue = segment.venueName ?? segment.title;
-      summary = `${label}: ${venue}`;
-      if (segment.address) descParts.push(segment.address);
-      if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
-      location = segment.address ?? segment.city ?? day.city;
+      // Title shape mirrors the Google / Outlook calendar export: prefer
+      // "<Provider> - <Pickup city>" (the auto-title format the editor
+      // produces) and fall back to whatever the segment is titled.
+      const provider = (segment.provider ?? "").trim();
+      const pickup = (segment.departureCity ?? "").trim();
+      summary =
+        provider && pickup
+          ? `${provider} - ${pickup}`
+          : segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
+      if (segment.confirmationCode) {
+        descParts.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      const pickupParts: string[] = [];
+      if (pickup) pickupParts.push(pickup);
+      pickupParts.push(day.date);
+      if (segment.startTime) pickupParts.push(segment.startTime);
+      descParts.push(`Pickup: ${pickupParts.join(", ")}`);
+      const dropoff = (segment.arrivalCity ?? "").trim();
+      const dropoffDate = segment.endDate ?? day.date;
+      const dropoffParts: string[] = [];
+      if (dropoff) dropoffParts.push(dropoff);
+      dropoffParts.push(dropoffDate);
+      if (segment.endTime) dropoffParts.push(segment.endTime);
+      descParts.push(`Dropoff: ${dropoffParts.join(", ")}`);
+      if (segment.cost?.details) descParts.push(segment.cost.details);
+      location = segment.address ?? pickup ?? segment.city ?? day.city;
       dtStart = dtProp("DTSTART", day.date);
-      dtEnd = dtProp("DTEND", segment.endDate ?? addDays(day.date, 1));
+      // DTEND on an all-day VEVENT is exclusive — add one day so the
+      // visible span runs through the dropoff date inclusive.
+      dtEnd = dtProp("DTEND", addDays(segment.endDate ?? day.date, 1));
       break;
     }
 
     case "cruise": {
-      const venue = segment.venueName ?? segment.title;
-      summary = `${label}: ${venue}`;
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
-      if (route) descParts.push(route);
-      if (segment.address) descParts.push(segment.address);
-      if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
-      location = segment.address ?? segment.city ?? day.city;
+      // Title shape: ship name. Falls back to existing title for cruise
+      // segments that pre-date the dedicated `shipName` field.
+      const ship = (segment.shipName ?? "").trim();
+      summary = ship || segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
+      if (segment.confirmationCode) {
+        descParts.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      if (segment.portsOfCall && segment.portsOfCall.length > 0) {
+        descParts.push("Ports of call:");
+        for (const port of segment.portsOfCall) {
+          if (port.atSea) {
+            descParts.push(`  ${port.date} — At sea`);
+            continue;
+          }
+          const times: string[] = [];
+          if (port.arrivalTime) times.push(`arr ${port.arrivalTime}`);
+          if (port.departureTime) times.push(`dep ${port.departureTime}`);
+          const timeSuffix = times.length ? ` (${times.join(", ")})` : "";
+          descParts.push(`  ${port.date} — ${port.port ?? "Port TBD"}${timeSuffix}`);
+        }
+      } else {
+        const route = [segment.departureCity, segment.arrivalCity]
+          .filter(Boolean)
+          .join(" → ");
+        if (route) descParts.push(route);
+      }
+      location =
+        segment.departureCity ?? segment.address ?? segment.city ?? day.city;
       if (segment.endDate) {
         dtStart = dtProp("DTSTART", day.date, segment.startTime, startTz);
         dtEnd = dtProp("DTEND", segment.endDate, segment.endTime, endTz);

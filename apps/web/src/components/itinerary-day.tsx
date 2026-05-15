@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  formatCurrency,
   formatFlightLabel,
   formatFlightEndpoint,
   SEGMENT_LABELS,
@@ -72,9 +73,11 @@ function fmtDate(iso?: string) {
 
 function formatCost(cost?: { amount: number; currency: string; details?: string }) {
   if (!cost) return null;
-  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-  const sym = symbols[cost.currency] ?? `${cost.currency} `;
-  return `${sym}${cost.amount.toLocaleString()}`;
+  // Delegate to the shared `formatCurrency` helper so the symbol set +
+  // 2-decimal rule stay in one place. The old inline copy stripped
+  // trailing zeros (288.4 instead of 288.40), which read as truncated
+  // and confused users — every cost surface now formats consistently.
+  return formatCurrency(cost.amount, cost.currency);
 }
 
 // Icon-only map — labels and token families live in `@travel-app/shared` so

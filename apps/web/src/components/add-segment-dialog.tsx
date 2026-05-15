@@ -101,6 +101,7 @@ export function AddSegmentDialog({
         contactName: form.contactName || undefined,
         phone: form.phone || undefined,
         breakfastIncluded: form.breakfastIncluded || undefined,
+        shipName: form.type === "cruise" && form.shipName ? form.shipName : undefined,
         cost,
       },
       {

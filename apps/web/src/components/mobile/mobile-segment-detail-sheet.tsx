@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  formatCurrency,
   formatFlightLabel,
   formatFlightEndpoint,
   convertToUsd,
@@ -56,7 +57,7 @@ function fmtDateLong(iso?: string): string | null {
 
 function fmtUsd(amount: number) {
   return `$${amount.toLocaleString("en-US", {
-    minimumFractionDigits: amount % 1 === 0 ? 0 : 2,
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
@@ -64,23 +65,21 @@ function fmtUsd(amount: number) {
 /**
  * Returns the cost in USD when the source currency has a known FX rate;
  * otherwise the native-currency formatting (e.g. "points"). Pairs with
- * formatCostOriginal below to render "$X (€Y)" for foreign cards.
+ * formatCostOriginal below to render "$X (€Y)" for foreign cards. Both
+ * delegate to the shared `formatCurrency` helper which forces 2
+ * decimals across every currency.
  */
 function formatCost(cost?: { amount: number; currency: string; details?: string }) {
   if (!cost) return null;
   const usd = convertToUsd(cost.amount, cost.currency);
   if (usd !== undefined) return fmtUsd(usd);
-  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-  const sym = symbols[cost.currency] ?? `${cost.currency} `;
-  return `${sym}${cost.amount.toLocaleString()}`;
+  return formatCurrency(cost.amount, cost.currency);
 }
 
 function formatCostOriginal(cost?: { amount: number; currency: string }) {
   if (!cost || cost.currency === "USD") return null;
   if (convertToUsd(cost.amount, cost.currency) === undefined) return null;
-  const symbols: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-  const sym = symbols[cost.currency] ?? `${cost.currency} `;
-  return `${sym}${cost.amount.toLocaleString()}`;
+  return formatCurrency(cost.amount, cost.currency);
 }
 
 function mapsQuery(segment: Segment): string | null {
