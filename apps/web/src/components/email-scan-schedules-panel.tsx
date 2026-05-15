@@ -28,6 +28,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -661,12 +662,11 @@ function ScheduleEditorDialog({
                 </>
               )}
               <Label htmlFor="sched-time">Time</Label>
-              <input
+              <Input
                 id="sched-time"
                 type="time"
                 value={localTimeOfDay}
                 onChange={(e) => setLocalTimeOfDay(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
               />
             </div>
           </div>
