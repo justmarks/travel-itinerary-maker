@@ -896,7 +896,7 @@ export function EmailScanDialog({
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             {scanProgress.foundTotal === null ? (
               <>
-                <p className="font-medium">Scanning emails...</p>
+                <p className="font-medium">Scanning emails…</p>
                 <p className="text-sm text-muted-foreground">
                   Searching {emailProviderLabel(activeEmailProvider)}.
                 </p>
@@ -1381,7 +1381,7 @@ function SegmentCard({
                 onValueChange={handleTripChange}
               >
                 <SelectTrigger className="h-7 w-full text-xs">
-                  <SelectValue placeholder="Assign to trip..." />
+                  <SelectValue placeholder="Assign to trip…" />
                 </SelectTrigger>
                 <SelectContent>
                   {trips.map((t) => (

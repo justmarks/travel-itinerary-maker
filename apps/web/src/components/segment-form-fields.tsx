@@ -1541,7 +1541,7 @@ export function SegmentFormFields({
                 ? "e.g. Premium Economy, 2 checked bags included"
                 : isCarRental
                 ? "e.g. Midsize SUV, GPS included"
-                : "Additional notes..."
+                : "Additional notes…"
             }
             value={form.costDetails}
             onChange={(e) => onChange({ costDetails: e.target.value })}
