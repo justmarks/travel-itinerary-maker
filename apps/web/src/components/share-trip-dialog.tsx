@@ -423,6 +423,9 @@ export function ShareTripDialog({
                 <Input
                   id="share-email"
                   type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   placeholder="name@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

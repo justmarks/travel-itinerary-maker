@@ -185,6 +185,9 @@ function CreateRuleDialog({
             <Input
               id="rule-email"
               type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
               placeholder="friend@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
