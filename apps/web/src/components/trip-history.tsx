@@ -76,7 +76,7 @@ function formatRelativeTime(iso: string): string {
   if (days < 7) return `${days}d ago`;
   const weeks = Math.round(days / 7);
   if (weeks < 5) return `${weeks}w ago`;
-  return new Date(iso).toLocaleDateString(undefined, {
+  return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -84,7 +84,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 function formatAbsoluteTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
+  return new Date(iso).toLocaleString("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
