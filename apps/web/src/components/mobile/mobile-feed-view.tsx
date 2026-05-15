@@ -120,7 +120,7 @@ export function MobileDaysList({
             >
               <div className="flex items-baseline justify-between gap-3">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-kicker font-semibold text-muted-foreground">
                     Day {i + 1}
                   </span>
                   <h2 className="text-base font-semibold">
