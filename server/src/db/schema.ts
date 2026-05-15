@@ -355,6 +355,16 @@ export const pushSubscriptions = pgTable(
 //  - `email_scan_schedules_due_idx` is the cron-tick hot path —
 //    composite on `(enabled, next_run_at)` so Postgres can do a
 //    single index scan and skip disabled rows.
+//
+// RLS: Both this table and `email_scan_runs` have row-level security
+// enabled in migration 0004 with an owner-only policy
+// (`auth.uid()::text = user_id`). The server connects as `postgres`
+// which has BYPASSRLS, so server reads / writes are unaffected; the
+// policies exist to gate the Supabase-managed PostgREST endpoint
+// against the browser-shipped anon key. **Any new user-scoped table
+// must do the same** — ideally enable RLS in the same migration
+// that creates the table. See `drizzle/0004_email_scan_rls.sql` for
+// the pattern.
 export const emailScanSchedules = pgTable(
   "email_scan_schedules",
   {
