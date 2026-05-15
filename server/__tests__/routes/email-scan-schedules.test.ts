@@ -86,6 +86,49 @@ describe("email-scan-schedules routes", () => {
         .send({ provider: "google", frequency: "daily" });
       expect(res.status).toBe(401);
     });
+
+    it("stores includeSublabels: false by default when omitted", async () => {
+      const res = await request(app)
+        .post("/email-scan-schedules")
+        .send({ provider: "google", frequency: "daily" });
+      expect(res.status).toBe(201);
+      expect(res.body.includeSublabels).toBe(false);
+    });
+
+    it("stores includeSublabels: true when sent + round-trips through GET", async () => {
+      const created = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "daily",
+          labelFilter: "Label_42",
+          labelName: "Travel",
+          includeSublabels: true,
+        });
+      expect(created.status).toBe(201);
+      expect(created.body.includeSublabels).toBe(true);
+
+      const list = await request(app).get("/email-scan-schedules");
+      const found = (list.body as Array<{ id: string; includeSublabels: boolean }>)
+        .find((s) => s.id === created.body.id);
+      expect(found?.includeSublabels).toBe(true);
+    });
+
+    it("PUT can flip includeSublabels back to false", async () => {
+      const created = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "daily",
+          labelFilter: "Label_42",
+          includeSublabels: true,
+        });
+      const res = await request(app)
+        .put(`/email-scan-schedules/${created.body.id}`)
+        .send({ includeSublabels: false });
+      expect(res.status).toBe(200);
+      expect(res.body.includeSublabels).toBe(false);
+    });
   });
 
   describe("GET /email-scan-schedules", () => {

@@ -443,6 +443,18 @@ export interface EmailScanSchedule {
    * the next time a scan runs.
    */
   labelName?: string;
+  /**
+   * When true, the scheduled scan widens its match to include every
+   * label/folder nested under `labelFilter` — e.g. picking "Travel"
+   * with this flag set also scans "Travel/Hotels",
+   * "Travel/Flights/Confirmed", etc. Implemented at execute time by
+   * resolving `labelFilter`'s descendants from the connector's
+   * `listLabels()` and scanning each one. Has no effect when
+   * `labelFilter` is unset (all-mail scans already cover everything).
+   * Defaults to false — picking "Travel" by itself only matches that
+   * exact label, matching Gmail's flat-label model.
+   */
+  includeSublabels?: boolean;
   frequency: EmailScanFrequency;
   /**
    * When false, the scheduler skips this row on the cron tick.

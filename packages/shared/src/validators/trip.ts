@@ -526,6 +526,13 @@ export const createEmailScanScheduleSchema = z.object({
   labelFilter: z.string().optional(),
   labelName: z.string().optional(),
   frequency: z.enum(EMAIL_SCAN_FREQUENCIES),
+  /**
+   * When true, the schedule scans descendants of `labelFilter` too
+   * (e.g. "Travel" → also "Travel/Hotels", "Travel/Flights"). The
+   * executor expands the filter at run time by walking the
+   * connector's label list. No effect when `labelFilter` is unset.
+   */
+  includeSublabels: z.boolean().optional(),
 });
 
 /**
@@ -541,6 +548,7 @@ export const updateEmailScanScheduleSchema = z
     labelName: z.string().nullable().optional(),
     frequency: z.enum(EMAIL_SCAN_FREQUENCIES).optional(),
     enabled: z.boolean().optional(),
+    includeSublabels: z.boolean().optional(),
   })
   .refine(
     (data) =>
@@ -548,10 +556,11 @@ export const updateEmailScanScheduleSchema = z
       data.labelFilter !== undefined ||
       data.labelName !== undefined ||
       data.frequency !== undefined ||
-      data.enabled !== undefined,
+      data.enabled !== undefined ||
+      data.includeSublabels !== undefined,
     {
       message:
-        "At least one of provider, labelFilter, labelName, frequency, enabled must be provided",
+        "At least one of provider, labelFilter, labelName, frequency, enabled, includeSublabels must be provided",
     },
   );
 
@@ -575,6 +584,15 @@ export const emailScanRequestSchema = z.object({
    * picker on the scan dialog.
    */
   provider: z.enum(["google", "microsoft"]).optional(),
+  /**
+   * When true and `labelFilter` is set, widens the scan to include
+   * descendants of the picked label / folder (Gmail "Travel" also
+   * catches "Travel/Hotels", "Travel/Flights/Confirmed"; Outlook
+   * folder paths follow the same shape). The server expands the
+   * filter via `connector.listLabels()` at request time. No effect
+   * when `labelFilter` is unset.
+   */
+  includeSublabels: z.boolean().optional(),
 });
 
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;

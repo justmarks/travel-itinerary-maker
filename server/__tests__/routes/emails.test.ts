@@ -514,6 +514,20 @@ describe("Email Routes", () => {
 
       expect(res.status).toBe(200);
     });
+
+    it("accepts includeSublabels and runs the scan", async () => {
+      // The mocked Gmail scanner returns the same 3 emails for any
+      // labelFilter, so we can't directly observe the expansion here —
+      // the helper's unit tests cover that branch. What this confirms
+      // is that the validator accepts the new field and the route
+      // completes without erroring after running the (now per-filter)
+      // scan loop.
+      const res = await request(app)
+        .post("/api/v1/emails/scan")
+        .send({ labelFilter: "Travel", includeSublabels: true });
+      expect(res.status).toBe(200);
+      expect(res.body.results).toHaveLength(3);
+    });
   });
 
   describe("GET /api/v1/emails/pending", () => {

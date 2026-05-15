@@ -36,6 +36,7 @@ import { MicrosoftEmailConnector } from "../connectors/microsoft-email-connector
 import type { EmailConnector } from "../connectors/email-connector";
 import { EmailParser } from "./email-parser";
 import { computeNextRunAt } from "./email-scan-schedule-cadence";
+import { expandLabelFilters } from "./email-scan-label-expansion";
 import type { ProcessedEmail } from "./processed-email";
 import { NotificationSender } from "./notification-sender";
 import { recordParseFailure } from "./email-telemetry";
@@ -173,21 +174,43 @@ export async function executeSchedule(
     });
   }
 
-  // 2. Scan the mailbox.
-  let rawEmails;
+  // 2. Resolve which label / folder ids to scan. `expandLabelFilters`
+  // returns `[labelFilter]` verbatim when sublabel-widen isn't asked
+  // for (or there's no filter at all), and falls back to the same
+  // singleton if listing labels fails — a transient API blip
+  // shouldn't escalate the widen into a failed run.
+  const labelFiltersToScan = await expandLabelFilters({
+    connector,
+    labelFilter: schedule.labelFilter,
+    includeSublabels: schedule.includeSublabels,
+    logPrefix,
+  });
+
+  // 3. Scan each filter and merge results by message id.
+  type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+  let rawEmails: RawEmail[];
   try {
-    rawEmails = await connector.scanEmails({
-      labelFilter: schedule.labelFilter,
-      // Same cap the manual scan uses — keeps a single tick cheap and
-      // bounded even when the user picks a noisy folder.
-      maxResults: 100,
-      // 30-day window is enough for a daily cadence to never miss an
-      // email even with a few skipped runs. Weekly / monthly cadences
-      // also tolerate it because already-processed messages are
-      // filtered out before parsing.
-      newerThanDays: 30,
-      logPrefix,
-    });
+    const seen = new Map<string, RawEmail>();
+    for (const filter of labelFiltersToScan) {
+      const batch = await connector.scanEmails({
+        labelFilter: filter,
+        // Same cap the manual scan uses — keeps a single tick cheap
+        // and bounded even when the user picks a noisy folder. Applies
+        // per-label when expanding sublabels; the aggregate may exceed
+        // 100 across the descendant set, which is fine.
+        maxResults: 100,
+        // 30-day window is enough for a daily cadence to never miss
+        // an email even with a few skipped runs. Weekly / monthly
+        // cadences also tolerate it because already-processed
+        // messages are filtered out before parsing.
+        newerThanDays: 30,
+        logPrefix,
+      });
+      for (const e of batch) {
+        if (!seen.has(e.id)) seen.set(e.id, e);
+      }
+    }
+    rawEmails = Array.from(seen.values());
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`${logPrefix} mailbox scan threw:`, err);

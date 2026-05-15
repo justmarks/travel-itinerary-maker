@@ -245,6 +245,12 @@ function ScheduleRow({
               (schedule.labelFilter
                 ? schedule.labelFilter
                 : `All ${emailLabelNoun(schedule.provider as EmailProvider)}s`)}
+            {/* "+ sub" suffix when the filter is widened to descendants
+                — keeps the row tight while still communicating that
+                this schedule will pick up nested folders too. */}
+            {schedule.labelFilter && schedule.includeSublabels && (
+              <span> + sub{emailLabelNoun(schedule.provider as EmailProvider)}s</span>
+            )}
             {" · "}
             {schedule.enabled ? (
               <>Next run {fmtNextRun(schedule.nextRunAt)}</>
@@ -334,6 +340,9 @@ function ScheduleEditorDialog({
   const [labelFilter, setLabelFilter] = useState<string>(
     schedule?.labelFilter ?? "",
   );
+  const [includeSublabels, setIncludeSublabels] = useState<boolean>(
+    schedule?.includeSublabels ?? false,
+  );
   const [frequency, setFrequency] = useState<EmailScanFrequency>(
     schedule?.frequency ?? "daily",
   );
@@ -348,6 +357,11 @@ function ScheduleEditorDialog({
     return labels.find((l) => l.id === labelFilter)?.name;
   }, [labelFilter, labels]);
 
+  // `includeSublabels` is only meaningful when a specific label is
+  // picked; on "All folders" the scan already covers everything.
+  // Persist `false` in that case to keep the row tidy.
+  const effectiveIncludeSublabels = labelFilter ? includeSublabels : false;
+
   const onSubmit = () => {
     if (schedule) {
       update.mutate(
@@ -359,6 +373,7 @@ function ScheduleEditorDialog({
             // user picks "All mail" — undefined would be stripped.
             labelFilter: labelFilter || null,
             labelName: resolvedLabelName ?? null,
+            includeSublabels: effectiveIncludeSublabels,
             frequency,
           },
         },
@@ -376,6 +391,7 @@ function ScheduleEditorDialog({
           provider,
           labelFilter: labelFilter || undefined,
           labelName: resolvedLabelName,
+          includeSublabels: effectiveIncludeSublabels,
           frequency,
         },
         {
@@ -463,6 +479,40 @@ function ScheduleEditorDialog({
                 ))}
               </SelectContent>
             </Select>
+            {/*
+              "Include sublabels" widens the scan to descendants of the
+              picked label/folder (e.g. "Travel" + flag on ⇒ also scans
+              "Travel/Hotels", "Travel/Flights/Confirmed"). Only renders
+              when a specific label is picked — "All folders" already
+              covers everything by definition. Disabled state when
+              labelFilter is empty keeps the row visible (avoids a
+              layout jump when the user picks a label) but greyed out
+              to communicate it has no effect.
+            */}
+            <label
+              className={cn(
+                "mt-1 flex items-start gap-2 rounded-md border bg-card p-2.5 text-sm",
+                !labelFilter && "opacity-50",
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={labelFilter ? includeSublabels : false}
+                onChange={(e) => setIncludeSublabels(e.target.checked)}
+                disabled={!labelFilter}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input"
+              />
+              <span className="min-w-0">
+                <span className="block font-medium">
+                  Include sub{emailLabelNoun(provider)}s
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Also scan {emailLabelNoun(provider)}s nested under the
+                  one above (e.g. <span className="font-mono text-[10px]">Travel/Hotels</span> when{" "}
+                  <span className="font-mono text-[10px]">Travel</span> is picked).
+                </span>
+              </span>
+            </label>
           </div>
 
           <div className="space-y-2">
