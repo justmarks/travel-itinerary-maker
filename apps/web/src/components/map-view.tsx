@@ -279,9 +279,9 @@ function MapInner({
               onCloseClick={() => setSelectedId(null)}
               pixelOffset={[0, -40]}
             >
-              <div className="text-sm" style={{ maxWidth: 240 }}>
-                <p className="font-semibold text-gray-900 mb-0.5">{selectedPin.title}</p>
-                <p className="text-xs text-gray-500 mb-1">
+              <div className="text-sm text-foreground" style={{ maxWidth: 240 }}>
+                <p className="mb-0.5 font-semibold">{selectedPin.title}</p>
+                <p className="mb-1 text-xs text-muted-foreground">
                   {CATEGORY_LABEL[selectedPin.category]} ·{" "}
                   {new Date(selectedPin.day.date + "T00:00:00").toLocaleDateString("en-US", {
                     month: "short",
@@ -290,10 +290,10 @@ function MapInner({
                   {selectedPin.segment.startTime && ` · ${selectedPin.segment.startTime}`}
                 </p>
                 {selectedPin.segment.address && (
-                  <p className="text-xs text-gray-500 mb-1.5">{selectedPin.segment.address}</p>
+                  <p className="mb-1.5 text-xs text-muted-foreground">{selectedPin.segment.address}</p>
                 )}
                 {selectedPin.segment.confirmationCode && (
-                  <p className="text-xs text-gray-400 mb-1.5 font-mono">
+                  <p className="mb-1.5 font-mono text-xs text-muted-foreground/80">
                     #{selectedPin.segment.confirmationCode}
                   </p>
                 )}
@@ -301,7 +301,8 @@ function MapInner({
                   href={mapsSearchUrl(selectedPin.geocodeQuery)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs hover:underline"
+                  style={{ color: "var(--primary)" }}
                 >
                   Open in Google Maps
                   <ExternalLink className="h-3 w-3" />
