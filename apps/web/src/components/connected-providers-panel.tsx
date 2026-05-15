@@ -354,7 +354,14 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
                       : undefined
                   }
                 >
-                  Unlink
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Unlinking…
+                    </>
+                  ) : (
+                    "Unlink"
+                  )}
                 </Button>
               </li>
             );
