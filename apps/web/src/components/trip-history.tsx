@@ -104,9 +104,9 @@ function dayLabel(iso: string): string {
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
   if (diff < 7) {
-    return date.toLocaleDateString(undefined, { weekday: "long" });
+    return date.toLocaleDateString("en-US", { weekday: "long" });
   }
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: today.getFullYear() === date.getFullYear() ? undefined : "numeric",
