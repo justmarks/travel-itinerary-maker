@@ -94,8 +94,17 @@ export function AutoScanBanner({
         <strong>{segmentCount}</strong> new booking
         {segmentCount === 1 ? "" : "s"} ready to review.
       </p>
+      {/*
+        `?review=1` is the URL signal both `/m/page.tsx` and `/page.tsx`
+        listen for on mount — when set, they pop open the email-scan
+        dialog / sheet directly into its review step (which reads from
+        `usePendingEmails()` and triages the parsed-but-unconfirmed
+        rows the auto-scan deposited). The page handler scrubs the
+        param via `history.replaceState` so a refresh or back-nav
+        doesn't re-trigger.
+      */}
       <Link
-        href={href}
+        href={`${href}${href.includes("?") ? "&" : "?"}review=1`}
         className="rounded-full border border-current px-2.5 py-0.5 text-xs font-medium hover:bg-current/10"
       >
         Review

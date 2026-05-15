@@ -433,14 +433,27 @@ function ScheduleEditorDialog({
             <Label htmlFor="sched-label">
               {emailProviderLabel(provider)} {emailLabelNoun(provider)}
             </Label>
-            <Select value={labelFilter} onValueChange={setLabelFilter}>
+            {/*
+              Radix Select requires every <SelectItem> to have a NON-EMPTY
+              `value` prop — `value=""` is reserved for "no selection" and
+              passing it on an item throws at render. We use the
+              `__all__` sentinel for the "All folders / All labels" option
+              and translate to/from it in the `value`/onValueChange props.
+              The schedule itself stores `undefined` (omitted) when there's
+              no filter, matching the server contract; only the UI uses the
+              sentinel.
+            */}
+            <Select
+              value={labelFilter || "__all__"}
+              onValueChange={(v) => setLabelFilter(v === "__all__" ? "" : v)}
+            >
               <SelectTrigger id="sched-label">
                 <SelectValue
                   placeholder={`All ${emailLabelNoun(provider)}s`}
                 />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">
+                <SelectItem value="__all__">
                   All {emailLabelNoun(provider)}s
                 </SelectItem>
                 {labelTree.map((node) => (

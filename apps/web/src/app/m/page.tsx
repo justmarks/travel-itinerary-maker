@@ -479,9 +479,19 @@ function MobileHomeContent(): React.JSX.Element {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const search = new URLSearchParams(window.location.search);
-    if (search.get("new") !== "trip") return;
-    setCreateOpen(true);
+    const wantsCreate = search.get("new") === "trip";
+    const wantsReview = search.get("review") === "1";
+    if (!wantsCreate && !wantsReview) return;
+    // `?review=1` comes from the AutoScanBanner's "Review" link — pop
+    // the email-scan sheet open. The sheet's internal `verifying` →
+    // `review` transition reads pending emails via `usePendingEmails`
+    // so it lands on the review step automatically when there are
+    // parsed-but-unconfirmed rows; if there aren't, it falls back to
+    // the config step which is also a fine outcome.
+    if (wantsCreate) setCreateOpen(true);
+    if (wantsReview) setScanOpen(true);
     search.delete("new");
+    search.delete("review");
     const qs = search.toString();
     const cleaned =
       window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;

@@ -144,13 +144,21 @@ export function EmailScanDialog({
   triggerLabel = "Scan Emails",
   triggerVariant = "outline",
   triggerSize = "sm",
+  defaultOpen = false,
 }: {
   tripId?: string;
   triggerLabel?: string;
   triggerVariant?: "outline" | "default" | "ghost";
   triggerSize?: "sm" | "default" | "lg";
+  /**
+   * Render the dialog already open on mount. Used by
+   * `EmailScanDialogFromQuery` so the AutoScanBanner's `?review=1`
+   * deep-link pops the scan dialog straight into its review step
+   * (driven by `usePendingEmails`).
+   */
+  defaultOpen?: boolean;
 }): React.JSX.Element | null {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [step, setStep] = useState<ScanStep>("loading");
   const [selectedLabel, setSelectedLabel] = useState<string>("");
   const [results, setResults] = useState<EmailScanResult[]>([]);
