@@ -6,6 +6,7 @@ import {
   looksLikeJwt,
   type SupabaseJwtValidator,
 } from "../services/supabase-auth";
+import { debugAuth } from "../utils/debug-log";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -113,11 +114,11 @@ export async function requireAuth(
       // Defensive fall-through: see top comment. This fires on every
       // legacy Google access token (which doesn't have Supabase JWT
       // shape) AND on expired Supabase JWTs waiting for the client
-      // SDK to refresh. Both are routine; routing to stdout (not
-      // stderr) keeps Railway from styling it as an error. Phrasing
-      // chosen so a future operator reading the log knows this is
-      // expected coexistence behaviour, not an attack signal.
-      console.log(
+      // SDK to refresh. Both are routine — gated behind `DEBUG_AUTH=1`
+      // so the steady-state Railway log isn't flooded with one of
+      // these lines per request. Flip it on when triaging "why am I
+      // getting 401s after sign-in?" reports.
+      debugAuth(
         "[auth] supabase token not used (legacy access token or expired JWT), trying legacy validator:",
         err instanceof Error ? err.message : err,
       );

@@ -95,7 +95,7 @@ Still in the SQL editor:
 ```sql
 select cron.schedule(
   'itinly-email-scan-tick',
-  '* * * * *',  -- every minute; pg_cron honors standard cron expressions
+  '0 * * * *',  -- every hour, on the hour; pg_cron honors standard cron expressions
   $$
   select net.http_post(
     url := (select decrypted_secret from vault.decrypted_secrets where name = 'itinly_api_base')
@@ -111,7 +111,20 @@ select cron.schedule(
 );
 ```
 
-That's it — the job now fires every minute and the Railway endpoint
+Hourly is the recommended cadence — the user-facing schedule
+frequencies are daily/weekly/monthly, so a finer tick mostly just
+burns Railway requests and Supabase quota on no-op selects. If
+you've already scheduled this with `'* * * * *'` (every minute),
+flip it to hourly without re-creating the job:
+
+```sql
+select cron.alter_job(
+  (select jobid from cron.job where jobname = 'itinly-email-scan-tick'),
+  schedule := '0 * * * *'
+);
+```
+
+That's it — the job now fires every hour and the Railway endpoint
 queries due schedules (`enabled AND next_run_at <= now()`) and runs
 each one. Most ticks find zero due schedules and return in under a
 second; the tick is cheap.

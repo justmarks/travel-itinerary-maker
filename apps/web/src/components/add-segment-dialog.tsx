@@ -173,7 +173,7 @@ export function AddSegmentDialog({
               content below" was removed when the form collapsed to a
               short default — the hint was misleading (nothing below)
               and the fade made the Cancel button read as faded. */}
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}

@@ -16,6 +16,14 @@
  *                          default; flip on when investigating
  *                          why a specific trip's segment-card
  *                          times look wrong on calendar export.
+ *   DEBUG_AUTH=1         — auth middleware coexistence trace. Every
+ *                          request whose Supabase JWT validator
+ *                          rejects (legitimately, because the token
+ *                          is an old Google access token or just a
+ *                          stale JWT awaiting client refresh) is
+ *                          logged here. Routine in steady state; only
+ *                          interesting when triaging "why am I
+ *                          getting 401s after sign-in?" reports.
  *
  * `console.warn` / `console.error` calls are deliberately NOT gated
  * by these knobs — those flag real anomalies and should always
@@ -26,6 +34,7 @@ const DEBUG_EMAIL_SCAN = process.env.DEBUG_EMAIL_SCAN === "1";
 const DEBUG_CONNECTIONS = process.env.DEBUG_CONNECTIONS === "1";
 const DEBUG_CALENDAR = process.env.DEBUG_CALENDAR === "1";
 const DEBUG_TIMEZONES = process.env.DEBUG_TIMEZONES === "1";
+const DEBUG_AUTH = process.env.DEBUG_AUTH === "1";
 
 export function debugEmailScan(...args: unknown[]): void {
   if (DEBUG_EMAIL_SCAN) {
@@ -41,6 +50,12 @@ export function debugConnections(...args: unknown[]): void {
 
 export function debugCalendar(...args: unknown[]): void {
   if (DEBUG_CALENDAR) {
+    console.log(...args);
+  }
+}
+
+export function debugAuth(...args: unknown[]): void {
+  if (DEBUG_AUTH) {
     console.log(...args);
   }
 }
