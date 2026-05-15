@@ -219,7 +219,7 @@ export function CreateTripDialog({
               type="submit"
               disabled={!isValid || createTrip.isPending}
             >
-              {createTrip.isPending ? "Creating..." : "Create Trip"}
+              {createTrip.isPending ? "Creating…" : "Create Trip"}
             </Button>
           </div>
         </form>

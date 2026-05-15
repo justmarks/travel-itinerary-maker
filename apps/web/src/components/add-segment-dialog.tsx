@@ -205,7 +205,7 @@ export function AddSegmentDialog({
               type="submit"
               disabled={!resolvedTitle || createSegment.isPending}
             >
-              {createSegment.isPending ? "Adding..." : "Add Segment"}
+              {createSegment.isPending ? "Adding…" : "Add Segment"}
             </Button>
           </div>
         </form>

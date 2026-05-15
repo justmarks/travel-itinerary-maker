@@ -689,7 +689,7 @@ export function HtmlImportDialog({
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                   )}
                   {creatingTrip
-                    ? "Creating..."
+                    ? "Creating…"
                     : "Create & Assign Matching Segments"}
                 </Button>
               </div>
