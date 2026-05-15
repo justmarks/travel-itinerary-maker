@@ -844,9 +844,19 @@ export function createTripRoutes(options: TripRoutesOptions): Router {
       }
 
       // Apply validated updates (immutable fields protected by schema — id/source/sourceEmailId not in updateSegmentSchema)
+      //
+      // A `null` value is the wire-level signal for "explicitly clear this
+      // field" — distinct from `undefined`, which `JSON.stringify` strips
+      // and the client uses to mean "no change". We translate the null to
+      // a property delete so storage stays free of literal `null` values
+      // that would clutter the persisted JSON.
       const wasNeedsReview = found.needsReview;
       for (const [key, value] of Object.entries(segmentUpdates)) {
-        (found as unknown as Record<string, unknown>)[key] = value;
+        if (value === null) {
+          delete (found as unknown as Record<string, unknown>)[key];
+        } else {
+          (found as unknown as Record<string, unknown>)[key] = value;
+        }
       }
 
       // Clearing the review flag is treated as a confirmation — mirror the

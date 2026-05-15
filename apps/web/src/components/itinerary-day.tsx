@@ -13,6 +13,7 @@ import {
   useConfirmSegment,
   useUpdateDay,
 } from "@itinly/api-client";
+import { cn } from "@/lib/utils";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { EditSegmentDialog } from "@/components/edit-segment-dialog";
@@ -179,10 +180,59 @@ function SegmentRow({
       ? `${segment.title} (${flightLabel})`
       : segment.title;
 
+  // The whole card body opens the edit dialog when the user has edit
+  // rights. Inner interactives (URL link, confirm / delete buttons)
+  // stop propagation so they don't double-fire. Read-only views and
+  // anonymous shared-link viewers keep the row inert.
+  const canEdit = Boolean(!readOnly && tripId);
+  const openEdit = () => setEditOpen(true);
   return (
     <div
-      className="group/seg flex items-start gap-3.5 rounded-lg border border-l-4 bg-card px-4 py-3.5 shadow-xs"
+      className={cn(
+        "group/seg flex items-start gap-3.5 rounded-lg border border-l-4 bg-card px-4 py-3.5 shadow-xs",
+        canEdit &&
+          "cursor-pointer transition-colors hover:bg-muted/40 focus-within:bg-muted/40",
+      )}
       style={segmentRowStyle(config.token)}
+      onClick={
+        canEdit
+          ? (e) => {
+              // React portals propagate events through the COMPONENT
+              // tree, not the DOM tree — so a click on the Cancel
+              // button inside the portaled EditSegmentDialog (which
+              // is a child component of this row) will bubble back
+              // here as if the user had clicked the row. Without
+              // this DOM-tree guard, Cancel / the close icon would
+              // close the dialog and immediately reopen it.
+              //
+              // `currentTarget.contains(target)` filters out exactly
+              // those portaled clicks: the row's DOM subtree doesn't
+              // include the portaled dialog content, so a click that
+              // originated there fails the check and is ignored.
+              const target = e.target as Node | null;
+              if (!target || !e.currentTarget.contains(target)) return;
+              openEdit();
+            }
+          : undefined
+      }
+      onKeyDown={
+        canEdit
+          ? (e) => {
+              // Keyboard parity with native button activation. The row
+              // sits between focusable children (title link, action
+              // buttons) so we only fire when focus is on the row
+              // itself — never on an inner control.
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openEdit();
+              }
+            }
+          : undefined
+      }
+      role={canEdit ? "button" : undefined}
+      tabIndex={canEdit ? 0 : undefined}
+      aria-label={canEdit ? `Edit ${segment.title}` : undefined}
     >
       <div
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
@@ -200,6 +250,10 @@ function SegmentRow({
               target="_blank"
               rel="noopener noreferrer"
               className="font-medium leading-snug hover:underline"
+              // Don't bubble into the row-level click handler — title
+              // links should navigate to the booking URL, not pop the
+              // edit dialog.
+              onClick={(e) => e.stopPropagation()}
             >
               {titleText}
             </a>
@@ -411,7 +465,16 @@ function SegmentRow({
       {/* Actions */}
       {!readOnly && tripId && (
         <>
-          <div className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100">
+          {/* Action buttons sit on top of the click-to-edit row. Each
+              one stops propagation in its onClick so the row-level
+              handler doesn't ALSO open the edit dialog when the user
+              just wanted to confirm or delete. The Edit button is
+              redundant with the row click but kept as a discoverable
+              visible affordance — its handler is the same. */}
+          <div
+            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
             {segment.needsReview && (
               <Button
                 variant="ghost"

@@ -99,14 +99,27 @@ export function EditSegmentDialog({
     e.preventDefault();
 
     const flags = getTypeFlags(form.type);
-    const cost =
-      form.costAmount && parseFloat(form.costAmount) >= 0
+    // Cost cleared → send explicit `null` so the server clears the stored
+    // cost. Sending `undefined` would be dropped by `JSON.stringify` and
+    // the segment would keep its old cost on the next read.
+    //
+    // We only send `null` when the segment ACTUALLY had a cost previously
+    // (and the user cleared it). Otherwise — adding a fresh segment with
+    // no cost, or an existing cost-less segment that still has no cost —
+    // we omit the field entirely so the patch stays minimal and the
+    // history diff doesn't note a no-op cost change.
+    const hadCost = Boolean(segment.cost);
+    const filledCost = Boolean(form.costAmount) && parseFloat(form.costAmount) >= 0;
+    const cost: { amount: number; currency: string; details?: string } | null | undefined =
+      filledCost
         ? {
             amount: parseFloat(form.costAmount),
             currency: form.costCurrency,
             details: form.costDetails || undefined,
           }
-        : undefined;
+        : hadCost
+          ? null
+          : undefined;
 
     const updates: Record<string, unknown> = {
       segmentId: segment.id,
@@ -266,17 +279,23 @@ export function EditSegmentDialog({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
+          {/* `min-h-0` lets the scroll area shrink within the dialog's
+              max-height so long forms (More options expanded with many
+              advanced fields) scroll cleanly. `overflow-y-auto` engages
+              only when content overflows — short forms keep their
+              natural height and the footer sits right below the last
+              row, no empty gap.
+
+              The earlier sticky-bottom gradient that hinted "more
+              content below" has been removed: now that the form
+              collapses to a short default the hint was misleading
+              (nothing below) and the overlay made the Cancel button
+              feel un-clickable. */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}
               idPrefix="edit"
-            />
-            {/* Bottom-fade scroll indicator —
-                see add-segment-dialog.tsx for the rationale. */}
-            <div
-              aria-hidden
-              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
             />
           </div>
 

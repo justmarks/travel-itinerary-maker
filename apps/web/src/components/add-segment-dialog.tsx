@@ -164,22 +164,21 @@ export function AddSegmentDialog({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
+          {/* `min-h-0 flex-1 overflow-y-auto`: scrolls when content
+              overflows the dialog's max-height (e.g. More options
+              expanded with many type-specific advanced rows), stays
+              static otherwise.
+
+              The earlier sticky-bottom gradient that hinted "more
+              content below" was removed when the form collapsed to a
+              short default — the hint was misleading (nothing below)
+              and the fade made the Cancel button read as faded. */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}
               idPrefix="add"
               autoFocusTitle
-            />
-            {/* Bottom-fade scroll indicator. `sticky` keeps it pinned to
-                the bottom of the visible scroll area on iPad landscape
-                so the user can see Cost / Currency / Details live below
-                URL — iOS Safari hides scrollbars, so without this the
-                form looked like it ended at URL. `-mt-6` overlaps the
-                last content row so the fade reads as "more below". */}
-            <div
-              aria-hidden
-              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
             />
           </div>
 

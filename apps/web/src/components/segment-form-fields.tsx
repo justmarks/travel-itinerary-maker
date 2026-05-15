@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   addDays,
   lookupAirport,
@@ -463,6 +464,114 @@ export function NativeSegmentTypeSelect({
   );
 }
 
+// ─── "More options" collapsible ─────────────────────────────────────────────
+//
+// The segment form has a lot of fields — most users only fill in a
+// handful (route / dates / times / venue / cost). Anything beyond that
+// (cabin class, baggage info, seat numbers for activities, restaurant
+// phone, hotel address / breakfast, etc.) is hidden behind a single
+// disclosure at the bottom so the default view is short enough to fit
+// without scrolling on a phone.
+//
+// The section ALWAYS starts collapsed, even when editing a segment
+// that already has values in those fields. A previous iteration auto-
+// expanded on edit, but that defeated the simplification — the most
+// common case (editing a parsed flight or hotel) would still render
+// the full form. To keep the user aware that there's data behind the
+// disclosure, we suffix the button label with the count of populated
+// advanced fields ("More options · 3 filled"). The user can click to
+// see / edit those fields when they want.
+
+function MoreOptionsSection({
+  filledCount,
+  children,
+}: {
+  filledCount: number;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        // Full-foreground colour with a faint hover background so the
+        // row reads as an interactive disclosure rather than disabled
+        // helper text. The chevron sits left of the label and rotates
+        // between → and ↓ states. Keeping it inset 1px on either side
+        // gives the focus ring room to render cleanly.
+        className="flex w-full items-center gap-1.5 rounded-md px-1 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      >
+        {expanded ? (
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        )}
+        More options
+        {filledCount > 0 && (
+          <span className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-foreground/80">
+            {filledCount} filled
+          </span>
+        )}
+      </button>
+      {expanded && <div className="mt-3 space-y-4">{children}</div>}
+    </div>
+  );
+}
+
+/**
+ * Counts how many of the form's "advanced" fields have a value.
+ * Drives the "N filled" hint on the More options button so users
+ * editing a segment they previously enriched still see a signal that
+ * there's data behind the disclosure without having to expand it.
+ *
+ * Type-aware so a hotel's `coach` field (which it doesn't use)
+ * doesn't accidentally count. The common advanced fields (provider,
+ * url, costDetails) factor in for every type.
+ */
+function advancedFilledCount(form: SegmentFormState): number {
+  const flags = getTypeFlags(form.type);
+  let n = 0;
+  // Booking metadata: confirmation #, cost amount, plus the cost
+  // details textarea. Currency on its own doesn't count — it always
+  // has a value (defaults to "USD"), so the user picking USD on an
+  // un-priced segment shouldn't read as "filled."
+  if (form.confirmationCode) n += 1;
+  if (form.costAmount && parseFloat(form.costAmount) > 0) n += 1;
+  if (form.provider) n += 1;
+  if (form.url) n += 1;
+  if (form.costDetails) n += 1;
+
+  if (flags.isFlight) {
+    if (form.cabinClass) n += 1;
+    if (form.seatNumber) n += 1;
+    if (form.baggageInfo) n += 1;
+  } else if (flags.isTrain) {
+    if (form.coach) n += 1;
+    if (form.seatNumber) n += 1;
+  } else if (flags.isHotel) {
+    if (form.address) n += 1;
+    // Hotel check-in / out times default to 15:00 / 11:00; only count
+    // them as "filled" when the user changed them.
+    if (form.startTime && form.startTime !== "15:00") n += 1;
+    if (form.endTime && form.endTime !== "11:00") n += 1;
+    if (form.breakfastIncluded) n += 1;
+  } else if (flags.isCarService) {
+    if (form.contactName) n += 1;
+    if (form.phone) n += 1;
+  } else if (flags.isRestaurant) {
+    if (form.address) n += 1;
+    if (form.phone) n += 1;
+    if (form.creditCardHold) n += 1;
+  } else if (form.address) {
+    // Activity / show / tour / cruise / car_rental / other_transport.
+    n += 1;
+  }
+
+  return n;
+}
+
 // ─── Form fields component ──────────────────────────────────────────────────
 
 export function SegmentFormFields({
@@ -681,35 +790,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-cabin`}>Cabin class</Label>
-              <Input
-                id={`${idPrefix}-cabin`}
-                placeholder="e.g. Economy, Business"
-                value={form.cabinClass}
-                onChange={(e) => onChange({ cabinClass: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
-              <Input
-                id={`${idPrefix}-seats`}
-                placeholder="e.g. 12A, 12B"
-                value={form.seatNumber}
-                onChange={(e) => onChange({ seatNumber: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-baggage`}>Baggage info</Label>
-            <Input
-              id={`${idPrefix}-baggage`}
-              placeholder="e.g. 1 checked bag included"
-              value={form.baggageInfo}
-              onChange={(e) => onChange({ baggageInfo: e.target.value })}
-            />
-          </div>
         </>
       )}
 
@@ -773,26 +853,6 @@ export function SegmentFormFields({
                 type="time"
                 value={form.endTime}
                 onChange={(e) => onChange({ endTime: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-coach`}>Coach</Label>
-              <Input
-                id={`${idPrefix}-coach`}
-                placeholder="e.g. Coach 14"
-                value={form.coach}
-                onChange={(e) => onChange({ coach: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
-              <Input
-                id={`${idPrefix}-seats`}
-                placeholder="e.g. 23A, 23B"
-                value={form.seatNumber}
-                onChange={(e) => onChange({ seatNumber: e.target.value })}
               />
             </div>
           </div>
@@ -878,35 +938,6 @@ export function SegmentFormFields({
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-            <Input
-              id={`${idPrefix}-address`}
-              placeholder="Optional"
-              value={form.address}
-              onChange={(e) => onChange({ address: e.target.value })}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-start`}>Check-in time</Label>
-              <Input
-                id={`${idPrefix}-start`}
-                type="time"
-                value={form.startTime}
-                onChange={(e) => onChange({ startTime: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-end`}>Check-out time</Label>
-              <Input
-                id={`${idPrefix}-end`}
-                type="time"
-                value={form.endTime}
-                onChange={(e) => onChange({ endTime: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-end-date`}>Check-out date</Label>
             <Input
               id={`${idPrefix}-end-date`}
@@ -914,17 +945,6 @@ export function SegmentFormFields({
               value={form.endDate || defaultEndDate("hotel", form.date)}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.breakfastIncluded}
-                onChange={(e) => onChange({ breakfastIncluded: e.target.checked })}
-                className="rounded"
-              />
-              Breakfast included
-            </label>
           </div>
         </>
       )}
@@ -1007,27 +1027,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-contact`}>Driver name</Label>
-              <Input
-                id={`${idPrefix}-contact`}
-                placeholder="Optional"
-                value={form.contactName}
-                onChange={(e) => onChange({ contactName: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
-              <Input
-                id={`${idPrefix}-phone`}
-                type="tel"
-                placeholder="Optional"
-                value={form.phone}
-                onChange={(e) => onChange({ phone: e.target.value })}
-              />
-            </div>
-          </div>
         </>
       )}
 
@@ -1054,15 +1053,6 @@ export function SegmentFormFields({
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-            <Input
-              id={`${idPrefix}-address`}
-              placeholder="Optional"
-              value={form.address}
-              onChange={(e) => onChange({ address: e.target.value })}
-            />
-          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-start`}>Reservation time</Label>
@@ -1083,29 +1073,6 @@ export function SegmentFormFields({
                 value={form.partySize}
                 onChange={(e) => onChange({ partySize: e.target.value })}
               />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
-              <Input
-                id={`${idPrefix}-phone`}
-                type="tel"
-                placeholder="Optional"
-                value={form.phone}
-                onChange={(e) => onChange({ phone: e.target.value })}
-              />
-            </div>
-            <div className="flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.creditCardHold}
-                  onChange={(e) => onChange({ creditCardHold: e.target.checked })}
-                  className="rounded"
-                />
-                CC hold required
-              </label>
             </div>
           </div>
         </>
@@ -1195,17 +1162,6 @@ export function SegmentFormFields({
               )}
             </div>
           )}
-          {showAddress && (
-            <div className="space-y-2">
-              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
-              <Input
-                id={`${idPrefix}-address`}
-                placeholder="Optional"
-                value={form.address}
-                onChange={(e) => onChange({ address: e.target.value })}
-              />
-            </div>
-          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`${idPrefix}-start`}>Start time</Label>
@@ -1229,17 +1185,257 @@ export function SegmentFormFields({
         </>
       )}
 
-      {/* ── Common booking fields ── */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={`${idPrefix}-conf`}>Confirmation #</Label>
-          <Input
-            id={`${idPrefix}-conf`}
-            placeholder="Optional"
-            value={form.confirmationCode}
-            onChange={(e) => onChange({ confirmationCode: e.target.value })}
-          />
+      {/* ── More options ── */}
+      {/*
+        Single collapsible section that consolidates every booking
+        detail beyond the headline route / venue / time fields. Each
+        block below is gated on the active type so only the relevant
+        subset renders. Confirmation # and Cost live here too — they're
+        useful but most segments are filled in well before booking
+        details are known, and putting them up front gave the form an
+        intimidating first impression.
+
+        The button label gains a "N filled" pill when any of these
+        fields already has a value so an edit doesn't hide data
+        silently.
+      */}
+      <MoreOptionsSection filledCount={advancedFilledCount(form)}>
+        {/* Confirmation # + Cost — most commonly populated booking
+            metadata, surfaced at the top of the disclosure so they're
+            the first thing the user sees on expand. */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-conf`}>Confirmation #</Label>
+            <Input
+              id={`${idPrefix}-conf`}
+              placeholder="Optional"
+              value={form.confirmationCode}
+              onChange={(e) => onChange({ confirmationCode: e.target.value })}
+            />
+          </div>
         </div>
+
+        <div className="grid grid-cols-4 gap-4">
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor={`${idPrefix}-cost`}>
+              {isHotel ? "Room rate" : "Cost"}
+            </Label>
+            <Input
+              id={`${idPrefix}-cost`}
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+              value={form.costAmount}
+              onChange={(e) => onChange({ costAmount: e.target.value })}
+            />
+          </div>
+          <div className="col-span-2 space-y-2">
+            <Label>Currency</Label>
+            <Select
+              value={form.costCurrency}
+              onValueChange={(v) => onChange({ costCurrency: v })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD</SelectItem>
+                <SelectItem value="EUR">EUR</SelectItem>
+                <SelectItem value="GBP">GBP</SelectItem>
+                <SelectItem value="JPY">JPY</SelectItem>
+                <SelectItem value="points">Points</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Flight-specific advanced fields */}
+        {isFlight && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-cabin`}>Cabin class</Label>
+                <Input
+                  id={`${idPrefix}-cabin`}
+                  placeholder="e.g. Economy, Business"
+                  value={form.cabinClass}
+                  onChange={(e) => onChange({ cabinClass: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
+                <Input
+                  id={`${idPrefix}-seats`}
+                  placeholder="e.g. 12A, 12B"
+                  value={form.seatNumber}
+                  onChange={(e) => onChange({ seatNumber: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-baggage`}>Baggage info</Label>
+              <Input
+                id={`${idPrefix}-baggage`}
+                placeholder="e.g. 1 checked bag included"
+                value={form.baggageInfo}
+                onChange={(e) => onChange({ baggageInfo: e.target.value })}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Train-specific advanced fields */}
+        {isTrain && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-coach`}>Coach</Label>
+              <Input
+                id={`${idPrefix}-coach`}
+                placeholder="e.g. Coach 14"
+                value={form.coach}
+                onChange={(e) => onChange({ coach: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-seats`}>Seat(s)</Label>
+              <Input
+                id={`${idPrefix}-seats`}
+                placeholder="e.g. 23A, 23B"
+                value={form.seatNumber}
+                onChange={(e) => onChange({ seatNumber: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Hotel-specific advanced fields */}
+        {isHotel && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+              <Input
+                id={`${idPrefix}-address`}
+                placeholder="Optional"
+                value={form.address}
+                onChange={(e) => onChange({ address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-start`}>Check-in time</Label>
+                <Input
+                  id={`${idPrefix}-start`}
+                  type="time"
+                  value={form.startTime}
+                  onChange={(e) => onChange({ startTime: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-end`}>Check-out time</Label>
+                <Input
+                  id={`${idPrefix}-end`}
+                  type="time"
+                  value={form.endTime}
+                  onChange={(e) => onChange({ endTime: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.breakfastIncluded}
+                  onChange={(e) => onChange({ breakfastIncluded: e.target.checked })}
+                  className="rounded"
+                />
+                Breakfast included
+              </label>
+            </div>
+          </>
+        )}
+
+        {/* Car-service-specific advanced fields */}
+        {isCarService && (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-contact`}>Driver name</Label>
+              <Input
+                id={`${idPrefix}-contact`}
+                placeholder="Optional"
+                value={form.contactName}
+                onChange={(e) => onChange({ contactName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
+              <Input
+                id={`${idPrefix}-phone`}
+                type="tel"
+                placeholder="Optional"
+                value={form.phone}
+                onChange={(e) => onChange({ phone: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Restaurant-specific advanced fields */}
+        {isRestaurant && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+              <Input
+                id={`${idPrefix}-address`}
+                placeholder="Optional"
+                value={form.address}
+                onChange={(e) => onChange({ address: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>
+                <Input
+                  id={`${idPrefix}-phone`}
+                  type="tel"
+                  placeholder="Optional"
+                  value={form.phone}
+                  onChange={(e) => onChange({ phone: e.target.value })}
+                />
+              </div>
+              <div className="flex items-end pb-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.creditCardHold}
+                    onChange={(e) => onChange({ creditCardHold: e.target.checked })}
+                    className="rounded"
+                  />
+                  CC hold required
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Activity / Show / Tour / Cruise — address only.
+            Cruise & transport pages don't render an address row but
+            the form state can still carry one from an earlier edit; we
+            keep the row available behind the disclosure so users can
+            view / clear it without losing data. */}
+        {showAddress && !isHotel && !isRestaurant && (
+          <div className="space-y-2">
+            <Label htmlFor={`${idPrefix}-address`}>Address</Label>
+            <Input
+              id={`${idPrefix}-address`}
+              placeholder="Optional"
+              value={form.address}
+              onChange={(e) => onChange({ address: e.target.value })}
+            />
+          </div>
+        )}
+
+        {/* Common across types: Provider (when applicable), URL, free-form notes. */}
         {showProvider && (
           <div className="space-y-2">
             <Label htmlFor={`${idPrefix}-provider`}>Provider</Label>
@@ -1251,75 +1447,38 @@ export function SegmentFormFields({
             />
           </div>
         )}
-      </div>
 
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-url`}>URL</Label>
-        <Input
-          id={`${idPrefix}-url`}
-          type="url"
-          placeholder="https://..."
-          value={form.url}
-          onChange={(e) => onChange({ url: e.target.value })}
-        />
-      </div>
-
-      {/* ── Cost ── */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor={`${idPrefix}-cost`}>
-            {isHotel ? "Room rate" : "Cost"}
-          </Label>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-url`}>URL</Label>
           <Input
-            id={`${idPrefix}-cost`}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0.00"
-            value={form.costAmount}
-            onChange={(e) => onChange({ costAmount: e.target.value })}
+            id={`${idPrefix}-url`}
+            type="url"
+            placeholder="https://..."
+            value={form.url}
+            onChange={(e) => onChange({ url: e.target.value })}
           />
         </div>
-        <div className="col-span-2 space-y-2">
-          <Label>Currency</Label>
-          <Select
-            value={form.costCurrency}
-            onValueChange={(v) => onChange({ costCurrency: v })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="USD">USD</SelectItem>
-              <SelectItem value="EUR">EUR</SelectItem>
-              <SelectItem value="GBP">GBP</SelectItem>
-              <SelectItem value="JPY">JPY</SelectItem>
-              <SelectItem value="points">Points</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      {/* ── Details — always last, multi-line ── */}
-      <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-details`}>Details</Label>
-        <Textarea
-          id={`${idPrefix}-details`}
-          placeholder={
-            isHotel
-              ? "e.g. 2 Bedroom Villa, 2 Bathrooms. Parking $30/night. Resort fee $45/night."
-              : isFlight
-              ? "e.g. Premium Economy, 2 checked bags included"
-              : isCarRental
-              ? "e.g. Midsize SUV, GPS included"
-              : "Additional notes..."
-          }
-          value={form.costDetails}
-          onChange={(e) => onChange({ costDetails: e.target.value })}
-          rows={2}
-          className="resize-none"
-        />
-      </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-details`}>Details</Label>
+          <Textarea
+            id={`${idPrefix}-details`}
+            placeholder={
+              isHotel
+                ? "e.g. 2 Bedroom Villa, 2 Bathrooms. Parking $30/night. Resort fee $45/night."
+                : isFlight
+                ? "e.g. Premium Economy, 2 checked bags included"
+                : isCarRental
+                ? "e.g. Midsize SUV, GPS included"
+                : "Additional notes..."
+            }
+            value={form.costDetails}
+            onChange={(e) => onChange({ costDetails: e.target.value })}
+            rows={2}
+            className="resize-none"
+          />
+        </div>
+      </MoreOptionsSection>
     </div>
   );
 }
