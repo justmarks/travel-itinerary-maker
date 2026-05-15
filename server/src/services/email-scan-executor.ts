@@ -200,9 +200,9 @@ export async function executeSchedule(
         // 100 across the descendant set, which is fine.
         maxResults: 100,
         // 30-day window is enough for a daily cadence to never miss
-        // an email even with a few skipped runs. Weekly / monthly
-        // cadences also tolerate it because already-processed
-        // messages are filtered out before parsing.
+        // an email even with a few skipped runs. Weekly cadence also
+        // tolerates it because already-processed messages are filtered
+        // out before parsing.
         newerThanDays: 30,
         logPrefix,
       });

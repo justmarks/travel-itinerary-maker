@@ -66,7 +66,6 @@ import {
 const FREQUENCY_LABELS: Record<EmailScanFrequency, string> = {
   daily: "Daily",
   weekly: "Weekly",
-  monthly: "Monthly",
 };
 
 const STATUS_TOKEN: Record<EmailScanRun["status"], string> = {
@@ -202,10 +201,9 @@ function EmptyState({
  * Format the schedule's clock anchor into a short, user-local
  * description ("at 8:00 AM" / "Sundays at 11:00 PM"). Returns null
  * when the schedule has no clock anchor — the row falls back to just
- * "Daily" / "Weekly" / "Monthly" in that case (the legacy display).
+ * "Daily" / "Weekly" in that case (the legacy display).
  */
 function fmtScheduleAnchor(schedule: EmailScanSchedule): string | null {
-  if (schedule.frequency === "monthly") return null;
   if (schedule.frequency === "weekly") {
     if (
       typeof schedule.dayOfWeek !== "number" ||
@@ -432,23 +430,19 @@ function ScheduleEditorDialog({
   // Persist `false` in that case to keep the row tidy.
   const effectiveIncludeSublabels = labelFilter ? includeSublabels : false;
 
-  // Resolve the time/day anchors the API call should carry. Monthly
-  // has no clock anchor (calendar cadence). Daily gets just the time.
-  // Weekly gets both, converted as a pair so a near-midnight local
-  // pick that crosses UTC lands on the correct day.
+  // Resolve the time/day anchors the API call should carry. Daily
+  // gets just the time; weekly gets both, converted as a pair so a
+  // near-midnight local pick that crosses UTC lands on the correct
+  // day.
   let utcTimeOfDay: string | null | undefined = undefined;
   let utcDayOfWeek: number | null | undefined = undefined;
   if (frequency === "daily") {
     utcTimeOfDay = localTimeToUtcTime(localTimeOfDay);
     utcDayOfWeek = null;
-  } else if (frequency === "weekly") {
+  } else {
     const w = localWeeklyToUtc(localDayOfWeek, localTimeOfDay);
     utcTimeOfDay = w.timeOfDay;
     utcDayOfWeek = w.dayOfWeek;
-  } else {
-    // monthly — clear any anchors carried over from a previous freq.
-    utcTimeOfDay = null;
-    utcDayOfWeek = null;
   }
 
   const onSubmit = () => {
@@ -610,10 +604,9 @@ function ScheduleEditorDialog({
 
           {/* Frequency + clock anchor live on the same row so the dialog
               keeps a fixed width:
-                monthly  → just Frequency on the left, right column empty.
-                daily    → Frequency on the left, Time on the right.
-                weekly   → Frequency on the left, Day-of-week + Time
-                           stacked on the right.
+                daily   → Frequency on the left, Time on the right.
+                weekly  → Frequency on the left, Day-of-week + Time
+                          stacked on the right.
               Stored in UTC; presented + edited in the user's local time
               so a late-evening local pick that crosses midnight UTC
               still lands on the correct UTC day. */}
@@ -630,7 +623,6 @@ function ScheduleEditorDialog({
                 <SelectContent>
                   <SelectItem value="daily">Daily</SelectItem>
                   <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -658,28 +650,20 @@ function ScheduleEditorDialog({
                   </Select>
                 </>
               )}
-              {frequency !== "monthly" && (
-                <>
-                  <Label htmlFor="sched-time">Time</Label>
-                  <input
-                    id="sched-time"
-                    type="time"
-                    value={localTimeOfDay}
-                    onChange={(e) => setLocalTimeOfDay(e.target.value)}
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                  />
-                </>
-              )}
+              <Label htmlFor="sched-time">Time</Label>
+              <input
+                id="sched-time"
+                type="time"
+                value={localTimeOfDay}
+                onChange={(e) => setLocalTimeOfDay(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+              />
             </div>
           </div>
-          {/* Helper text moves below the row so it doesn't widen either
-              column on the right. Only meaningful when an anchor is set. */}
-          {frequency !== "monthly" && (
-            <p className="text-xs text-muted-foreground">
-              Time is in your local zone. The schedule fires at the
-              closest hourly cron tick after this clock.
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            Time is in your local zone. The schedule fires at the
+            closest hourly cron tick after this clock.
+          </p>
         </div>
 
         <DialogFooter>

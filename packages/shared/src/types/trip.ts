@@ -416,7 +416,7 @@ export interface GmailLabel {
 }
 
 /** Frequency cadence for an auto email-scan schedule. */
-export type EmailScanFrequency = "daily" | "weekly" | "monthly";
+export type EmailScanFrequency = "daily" | "weekly";
 
 /**
  * A user-owned schedule that re-runs an email scan on a regular
@@ -467,14 +467,13 @@ export interface EmailScanSchedule {
   frequency: EmailScanFrequency;
   /**
    * UTC clock time the schedule should target, formatted as `HH:MM`
-   * (24h). Used by `daily` and `weekly` cadences to anchor when the
-   * scan fires within the day. Stored in UTC because the cron tick
-   * runs in UTC; the editor UI converts to / from the user's local
-   * time so the picker still reads naturally. Undefined → the
-   * scheduler bumps `nextRunAt` by a flat 24h / 7d without anchoring
-   * to a specific time-of-day (legacy behaviour for schedules created
-   * before this field existed). `monthly` schedules ignore it — the
-   * calendar-month cadence has no clock-time anchor.
+   * (24h). Used by both supported cadences (`daily` and `weekly`) to
+   * anchor when the scan fires within the day. Stored in UTC because
+   * the cron tick runs in UTC; the editor UI converts to / from the
+   * user's local time so the picker still reads naturally. Undefined
+   * → the scheduler bumps `nextRunAt` by a flat 24h / 7d without
+   * anchoring to a specific time-of-day (legacy behaviour for
+   * schedules created before this field existed).
    */
   timeOfDay?: string;
   /**

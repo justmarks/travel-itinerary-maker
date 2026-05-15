@@ -510,7 +510,7 @@ export const PARSE_REPORT_REASONS = [
 export type ParseReportReason = (typeof PARSE_REPORT_REASONS)[number];
 
 /** Allowed cadences for an auto-scan schedule. */
-export const EMAIL_SCAN_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
+export const EMAIL_SCAN_FREQUENCIES = ["daily", "weekly"] as const;
 
 /**
  * Schema for creating an email-scan schedule. The frontend captures
@@ -545,8 +545,7 @@ export const createEmailScanScheduleSchema = z.object({
   includeSublabels: z.boolean().optional(),
   /**
    * UTC `HH:MM` clock time the scan should target. Optional — when
-   * omitted the scheduler bumps `nextRunAt` by a flat 24h/7d. Used by
-   * the `daily` and `weekly` cadences; `monthly` ignores it.
+   * omitted the scheduler bumps `nextRunAt` by a flat 24h/7d.
    */
   timeOfDay: z
     .string()
@@ -574,10 +573,10 @@ export const updateEmailScanScheduleSchema = z
     enabled: z.boolean().optional(),
     includeSublabels: z.boolean().optional(),
     /**
-     * Nullable so the editor can clear a previously-set value when the
-     * user flips the cadence back to "monthly" (or simply wants the
-     * legacy unanchored behaviour). `undefined` = leave the existing
-     * value alone; `null` = clear; `string` = set/replace.
+     * Nullable so the editor can clear a previously-set value when
+     * the user wants the legacy unanchored behaviour. `undefined` =
+     * leave the existing value alone; `null` = clear; `string` =
+     * set/replace.
      */
     timeOfDay: z
       .string()
