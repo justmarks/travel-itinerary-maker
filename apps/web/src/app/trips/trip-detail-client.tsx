@@ -1260,10 +1260,17 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         {isOwner && <NeedsReviewBanner trip={trip} />}
 
         {/* Tab navigation — hidden when printing */}
-        <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden">
+        <div
+          role="tablist"
+          aria-label="Trip views"
+          className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden"
+        >
           {visibleTabs.map((tab) => (
             <button
               key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
