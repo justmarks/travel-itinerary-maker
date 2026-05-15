@@ -1118,7 +1118,18 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               </Button>
             </div>
           ) : (
-            <p className="mt-4 text-destructive">Trip not found.</p>
+            <div className="mt-8 flex flex-col items-center gap-3 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground/60" />
+              <p className="text-base font-medium">Trip not found</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                It may have been deleted, or the link could be wrong.
+              </p>
+              <Link href={homeHref}>
+                <Button variant="outline" className="mt-2">
+                  Back to all trips
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </main>
