@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import type { TripSummary } from "@itinly/api-client";
 import type { TripStatus } from "@itinly/shared";
 import { useDemoHref } from "@/lib/demo";
 import { useConfirm } from "@/lib/confirm-dialog";
+import { toastMutationError } from "@/lib/api-error";
 import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@itinly/api-client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -228,11 +228,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     });
     if (!ok) return;
     deleteTrip.mutate(trip.id, {
-      onError: (err) => {
-        toast.error(
-          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
-      },
+      onError: toastMutationError("delete trip"),
     });
   };
 
@@ -252,11 +248,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
         // ensures any open detail page bounces away.
         router.push(homeHref);
       },
-      onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
-      },
+      onError: toastMutationError("leave trip"),
     });
   };
 
@@ -283,13 +275,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     if (trimmed !== trip.title) {
       updateTrip.mutate(
         { title: trimmed },
-        {
-          onError: (err) => {
-            toast.error(
-              `Couldn't rename trip${err instanceof Error ? `: ${err.message}` : ""}`,
-            );
-          },
-        },
+        { onError: toastMutationError("rename trip") },
       );
     }
   };
@@ -302,13 +288,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     if (!canEdit) return;
     updateTrip.mutate(
       { status: nextStatus(trip.status) },
-      {
-        onError: (err) => {
-          toast.error(
-            `Couldn't update status${err instanceof Error ? `: ${err.message}` : ""}`,
-          );
-        },
-      },
+      { onError: toastMutationError("update status") },
     );
   };
 
