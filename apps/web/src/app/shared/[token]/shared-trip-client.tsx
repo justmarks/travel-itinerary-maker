@@ -53,7 +53,7 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-kicker text-muted-foreground">
             Shared itinerary
           </p>
           <h1 className="text-2xl font-bold">{trip.title}</h1>
