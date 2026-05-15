@@ -435,7 +435,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
           </span>
           {trip.todoCount > 0 && (
             <span className="text-sm text-muted-foreground">
-              {trip.todoCount} {trip.todoCount === 1 ? "todo" : "todos"}
+              {trip.todoCount} {trip.todoCount === 1 ? "to-do" : "to-dos"}
             </span>
           )}
         </div>
