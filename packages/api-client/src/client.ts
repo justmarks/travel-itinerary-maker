@@ -22,6 +22,10 @@ import type {
   HtmlImportRequest,
   ImportSharedRequest,
   XlsxImportRequest,
+  EmailScanSchedule,
+  EmailScanRun,
+  CreateEmailScanScheduleInput,
+  UpdateEmailScanScheduleInput,
 } from "@itinly/shared";
 
 export interface PushStatusResponse {
@@ -693,6 +697,41 @@ export class ApiClient {
     return this.request(`/emails/dismiss/${emailId}`, {
       method: "POST",
     });
+  }
+
+  // ─── Auto email-scan schedules ──────────────────────────
+
+  listEmailScanSchedules(): Promise<EmailScanSchedule[]> {
+    return this.request("/email-scan-schedules");
+  }
+
+  createEmailScanSchedule(
+    input: CreateEmailScanScheduleInput,
+  ): Promise<EmailScanSchedule> {
+    return this.request("/email-scan-schedules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateEmailScanSchedule(
+    id: string,
+    input: UpdateEmailScanScheduleInput,
+  ): Promise<EmailScanSchedule> {
+    return this.request(`/email-scan-schedules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  }
+
+  deleteEmailScanSchedule(id: string): Promise<{ status: string }> {
+    return this.request(`/email-scan-schedules/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]> {
+    return this.request(`/email-scan-schedules/${scheduleId}/runs`);
   }
 
   // ─── Export ─────────────────────────────────────────────

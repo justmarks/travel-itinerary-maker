@@ -1,5 +1,11 @@
 import type { Request } from "express";
-import type { Trip, TripShareRule, UserSettings } from "@itinly/shared";
+import type {
+  EmailScanRun,
+  EmailScanSchedule,
+  Trip,
+  TripShareRule,
+  UserSettings,
+} from "@itinly/shared";
 import type { ProcessedEmail } from "./processed-email";
 
 /**
@@ -20,6 +26,17 @@ export interface StorageProvider {
   getShareRule(ruleId: string): Promise<TripShareRule | null>;
   saveShareRule(rule: TripShareRule): Promise<void>;
   deleteShareRule(ruleId: string): Promise<boolean>;
+  /**
+   * Auto email-scan schedules — user-scoped. See `EmailScanSchedule`
+   * and `EmailScanRun`. Implementations are responsible for capping
+   * the run history at the most recent 50 entries per schedule.
+   */
+  listEmailScanSchedules(): Promise<EmailScanSchedule[]>;
+  getEmailScanSchedule(id: string): Promise<EmailScanSchedule | null>;
+  saveEmailScanSchedule(schedule: EmailScanSchedule): Promise<void>;
+  deleteEmailScanSchedule(id: string): Promise<boolean>;
+  listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]>;
+  saveEmailScanRun(run: EmailScanRun): Promise<void>;
   /**
    * Hard-delete every row this provider knows about for `userId`.
    * Irreversible. Used by the account-deletion endpoint.
@@ -55,6 +72,10 @@ export class InMemoryStorage implements StorageProvider {
   };
   private processedEmails: ProcessedEmail[] = [];
   private shareRules: Map<string, TripShareRule> = new Map();
+  private emailScanSchedules: Map<string, EmailScanSchedule> = new Map();
+  /** Run history, keyed by scheduleId. Capped at 50 per schedule. */
+  private emailScanRuns: Map<string, EmailScanRun[]> = new Map();
+  private static readonly RUN_HISTORY_CAP = 50;
 
   async listTrips(): Promise<Trip[]> {
     return Array.from(this.trips.values())
@@ -113,6 +134,48 @@ export class InMemoryStorage implements StorageProvider {
     return this.shareRules.delete(ruleId);
   }
 
+  async listEmailScanSchedules(): Promise<EmailScanSchedule[]> {
+    return Array.from(this.emailScanSchedules.values())
+      .map((s) => structuredClone(s))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async getEmailScanSchedule(id: string): Promise<EmailScanSchedule | null> {
+    const found = this.emailScanSchedules.get(id);
+    return found ? structuredClone(found) : null;
+  }
+
+  async saveEmailScanSchedule(schedule: EmailScanSchedule): Promise<void> {
+    this.emailScanSchedules.set(schedule.id, structuredClone(schedule));
+  }
+
+  async deleteEmailScanSchedule(id: string): Promise<boolean> {
+    this.emailScanRuns.delete(id);
+    return this.emailScanSchedules.delete(id);
+  }
+
+  async listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]> {
+    const runs = this.emailScanRuns.get(scheduleId) ?? [];
+    // Newest-first ordering matches the settings UI's expectations.
+    return runs
+      .map((r) => structuredClone(r))
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  async saveEmailScanRun(run: EmailScanRun): Promise<void> {
+    const existing = this.emailScanRuns.get(run.scheduleId) ?? [];
+    // Upsert by id so a `running` row can transition to `succeeded` /
+    // `failed` on the same record rather than spawning a new one.
+    const idx = existing.findIndex((r) => r.id === run.id);
+    const next = idx >= 0
+      ? existing.map((r, i) => (i === idx ? structuredClone(run) : r))
+      : [...existing, structuredClone(run)];
+    // Cap at 50 most-recent — drop the oldest entries first.
+    next.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    const capped = next.slice(0, InMemoryStorage.RUN_HISTORY_CAP);
+    this.emailScanRuns.set(run.scheduleId, capped);
+  }
+
   async deleteAllForUser(_userId: string): Promise<void> {
     // Memory mode has no per-user scoping — everything in this
     // singleton belongs to the one (anonymous) caller. Mirror the
@@ -127,5 +190,7 @@ export class InMemoryStorage implements StorageProvider {
     this.settings = { emailScanIntervalMinutes: 1440, notificationsEnabled: true };
     this.processedEmails = [];
     this.shareRules.clear();
+    this.emailScanSchedules.clear();
+    this.emailScanRuns.clear();
   }
 }

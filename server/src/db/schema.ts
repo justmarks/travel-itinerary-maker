@@ -341,6 +341,72 @@ export const pushSubscriptions = pgTable(
 // provider or via DELETE /connections/:id) → garbage-collected later.
 // Soft-delete rather than hard so audit trails / re-auth UX know an
 // expired connection used to exist.
+// Phase: auto email-scan scheduler. One row per (user, provider,
+// labelFilter, frequency) — a user can have multiple schedules each
+// targeting a different inbox / folder, and the scheduler treats each
+// independently. `next_run_at` is the trigger column: the cron-tick
+// endpoint selects rows where `enabled AND next_run_at <= now()`,
+// runs the underlying email scan, then bumps `last_run_at` and
+// `next_run_at` (`now() + frequency`).
+//
+// Indexes:
+//  - `email_scan_schedules_user_idx` for the settings UI's
+//    `listForUser` query.
+//  - `email_scan_schedules_due_idx` is the cron-tick hot path —
+//    composite on `(enabled, next_run_at)` so Postgres can do a
+//    single index scan and skip disabled rows.
+export const emailScanSchedules = pgTable(
+  "email_scan_schedules",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(), // 'google' | 'microsoft'
+    labelFilter: text("label_filter"), // gmail label id or outlook folder id
+    labelName: text("label_name"), // cached human-readable label for the UI
+    frequency: text("frequency").notNull(), // 'daily' | 'weekly' | 'monthly'
+    enabled: boolean("enabled").notNull().default(true),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("email_scan_schedules_user_idx").on(t.userId),
+    index("email_scan_schedules_due_idx").on(t.enabled, t.nextRunAt),
+  ],
+);
+
+// One row per execution of a schedule. Capped to the last 50 per
+// schedule at write time so the settings UI's "Recent runs" panel
+// stays cheap and table growth is bounded. Cascade-delete with the
+// parent schedule.
+export const emailScanRuns = pgTable(
+  "email_scan_runs",
+  {
+    id: text("id").primaryKey(),
+    scheduleId: text("schedule_id")
+      .notNull()
+      .references(() => emailScanSchedules.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    status: text("status").notNull(), // 'running' | 'succeeded' | 'failed'
+    scannedCount: integer("scanned_count").notNull().default(0),
+    newCount: integer("new_count").notNull().default(0),
+    errorMessage: text("error_message"),
+  },
+  (t) => [
+    // Newest-run-first within a schedule is the only access pattern.
+    index("email_scan_runs_schedule_idx").on(t.scheduleId, t.startedAt),
+  ],
+);
+
 export const connections = pgTable(
   "connections",
   {

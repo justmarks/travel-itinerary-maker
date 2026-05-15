@@ -405,3 +405,86 @@ export interface GmailLabel {
   name: string;
   type: "system" | "user";
 }
+
+/** Frequency cadence for an auto email-scan schedule. */
+export type EmailScanFrequency = "daily" | "weekly" | "monthly";
+
+/**
+ * A user-owned schedule that re-runs an email scan on a regular
+ * cadence. After a successful first scan against a given (provider,
+ * labelFilter) pair, the user can persist the same scan as a schedule
+ * so new confirmations land as `needsReview: true` segments without
+ * the user having to run the scan dialog each time.
+ *
+ * Multiple schedules per user are allowed — each one is independently
+ * scoped to a single (provider, labelFilter, frequency) triple. Two
+ * schedules pointing at the same provider+folder with different
+ * cadences is supported but uncommon; the typical use case is one
+ * schedule per inbox the user wants watched.
+ */
+export interface EmailScanSchedule {
+  id: string;
+  /** Owner — schedules are private to the user who created them. */
+  userId: string;
+  /** Which mailbox provider this schedule scans. */
+  provider: "google" | "microsoft";
+  /**
+   * Provider-specific filter the scan honors. For Gmail this is a
+   * label id ("INBOX", "Label_5"); for Outlook it's a folder id.
+   * Optional — when omitted, the scan runs over the entire mailbox
+   * (same default as a manual scan with no label filter chosen).
+   */
+  labelFilter?: string;
+  /**
+   * Human-readable label / folder name resolved at create time and
+   * persisted alongside the id so the settings UI can render
+   * "Travel/Hotels" without having to re-query the provider for the
+   * mapping on every page load. Stays in sync via a periodic refresh
+   * the next time a scan runs.
+   */
+  labelName?: string;
+  frequency: EmailScanFrequency;
+  /**
+   * When false, the scheduler skips this row on the cron tick.
+   * Distinct from delete — lets the user pause a schedule (e.g.
+   * during a trip) and re-enable it later without losing the
+   * configured cadence or run history.
+   */
+  enabled: boolean;
+  /**
+   * ISO datetime of the most recent run (success OR failure). Used
+   * for ordering + relative-time labels in the settings UI.
+   */
+  lastRunAt?: string;
+  /**
+   * ISO datetime the scheduler will next consider this row. The
+   * cron-tick endpoint selects schedules with
+   * `enabled = true AND nextRunAt <= now()`.
+   */
+  nextRunAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Outcome of a single execution of a schedule. Capped at the most
+ * recent 50 per schedule on insert so storage doesn't grow unbounded;
+ * surfaced in the settings UI's "Recent runs" panel.
+ */
+export interface EmailScanRun {
+  id: string;
+  scheduleId: string;
+  userId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: "running" | "succeeded" | "failed";
+  /** Number of emails the connector returned (pre-parse). */
+  scannedCount: number;
+  /**
+   * Number of segments the run actually added to a trip. Drives the
+   * "X new items" push body and the banner-pill count.
+   */
+  newCount: number;
+  /** Sentence-form error message when status === "failed". */
+  errorMessage?: string;
+}
