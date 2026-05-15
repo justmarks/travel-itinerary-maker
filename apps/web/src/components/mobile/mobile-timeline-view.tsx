@@ -210,14 +210,24 @@ function HotelRow({
       idx++;
     }
     const h = hotel.segment;
-    const isCruise = h.type === "cruise";
-    // Cruise pills use the ship name + a "Nd" suffix (days, not
-    // nights — you ARE on the ship on disembark day). Hotels keep the
-    // venueName + "Nn" night-count suffix.
-    const name = isCruise
-      ? (h.shipName ?? h.title)
-      : (h.venueName ?? h.title);
-    const unitSuffix = isCruise ? "d" : "n";
+    // Per-type pill cosmetics on the shared Lodging lane.
+    //   hotel       → venueName, "Nn" (nights, checkout exclusive)
+    //   cruise      → shipName, "Nd" (days, disembark inclusive)
+    //   car_rental  → title (already "<Provider> - <Pickup>" from the
+    //                 segment form's auto-title), "Nd" (rental days,
+    //                 dropoff inclusive)
+    let name: string;
+    let unitSuffix: string;
+    if (h.type === "cruise") {
+      name = h.shipName ?? h.title;
+      unitSuffix = "d";
+    } else if (h.type === "car_rental") {
+      name = h.title;
+      unitSuffix = "d";
+    } else {
+      name = h.venueName ?? h.title;
+      unitSuffix = "n";
+    }
     cells.push(
       <button
         type="button"
@@ -428,7 +438,10 @@ export function MobileTimelineView({
                 // above and would otherwise double-up in the chrono row.
                 const segs = sortByTime(
                   day.segments.filter(
-                    (s) => s.type !== "hotel" && s.type !== "cruise",
+                    (s) =>
+                      s.type !== "hotel" &&
+                      s.type !== "cruise" &&
+                      s.type !== "car_rental",
                   ),
                 );
                 return (

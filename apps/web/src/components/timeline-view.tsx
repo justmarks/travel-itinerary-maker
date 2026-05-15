@@ -173,19 +173,28 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       );
       idx++;
     }
-    // Spanning lodging cell — hotel and cruise ride the same lane;
-    // per-type icon + label + unit so a cruise reads as a cruise ("3
-    // days" with a ship icon) and a hotel reads as a hotel ("3 nights"
-    // with a 🏨).
+    // Spanning lodging cell — hotel, cruise, and car_rental ride the
+    // same lane; per-type icon + label + unit so each reads as itself.
+    // Hotels: 🏨 + venueName + "N nights" (checkout-morning convention).
+    // Cruises: 🚢 + shipName + "N days" (inclusive disembark).
+    // Rentals: 🚗 + "<Provider> - <Pickup>" + "N days" (inclusive dropoff).
     const h = hotel.segment;
-    const isCruise = h.type === "cruise";
-    const name = isCruise
-      ? (h.shipName ?? h.title)
-      : (h.venueName ?? h.title);
-    const icon = isCruise ? "🚢" : "🏨";
-    const unit = isCruise
-      ? `${span} day${span !== 1 ? "s" : ""}`
-      : `${span} night${span !== 1 ? "s" : ""}`;
+    let name: string;
+    let icon: string;
+    let unit: string;
+    if (h.type === "cruise") {
+      name = h.shipName ?? h.title;
+      icon = "🚢";
+      unit = `${span} day${span !== 1 ? "s" : ""}`;
+    } else if (h.type === "car_rental") {
+      name = h.title;
+      icon = "🚗";
+      unit = `${span} day${span !== 1 ? "s" : ""}`;
+    } else {
+      name = h.venueName ?? h.title;
+      icon = "🏨";
+      unit = `${span} night${span !== 1 ? "s" : ""}`;
+    }
     cells.push(
       <div
         key={h.id}
@@ -348,7 +357,10 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
                   // above and would otherwise double-up in the chrono row.
                   const segs = sortByTime(
                     day.segments.filter(
-                      (s) => s.type !== "hotel" && s.type !== "cruise",
+                      (s) =>
+                        s.type !== "hotel" &&
+                        s.type !== "cruise" &&
+                        s.type !== "car_rental",
                     ),
                   );
                   return (
