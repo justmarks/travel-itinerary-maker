@@ -345,6 +345,33 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 2. Create feature component in `apps/web/src/components/`
 3. Use `useApiClient()` + React Query hooks for data fetching
 
+**Add a new Postgres table:**
+
+When you add a new `pgTable` in `server/src/db/schema.ts` AND it stores per-user data (i.e. has a `user_id` or `owner_user_id` column), the same migration that creates the table MUST also enable RLS and add an owner-only policy. Supabase exposes every `public`-schema table through its managed PostgREST endpoint by default; without RLS, the anon key shipped in the browser bundle can read every user's rows directly from `https://<project>.supabase.co/rest/v1/<table>`. The server's `postgres` role has `BYPASSRLS` so server queries are unaffected — the policies exist solely to gate the PostgREST surface.
+
+In the migration file (alongside the `CREATE TABLE` statements). The RLS block MUST be wrapped in a `DO $$ ... END $$;` that checks for the `authenticated` role — otherwise the integration test runner (which uses a vanilla Postgres 16 container without Supabase Auth installed) fails with `role "authenticated" does not exist`:
+
+```sql
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'ALTER TABLE "<table_name>" ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "<table_name>_owner_rw" ON "<table_name>"';
+    EXECUTE $policy$
+      CREATE POLICY "<table_name>_owner_rw" ON "<table_name>"
+        FOR ALL
+        TO authenticated
+        USING (auth.uid()::text = user_id)
+        WITH CHECK (auth.uid()::text = user_id)
+    $policy$;
+  END IF;
+END $$;
+```
+
+The `EXECUTE` wrapping defers parsing of the `auth.uid()` reference — vanilla Postgres doesn't ship that function either, and a direct `CREATE POLICY` would fail at parse time. Inside the `IF EXISTS` branch it's only reached on Supabase environments, where both the role and function are present.
+
+Tables that are only reachable via a parent (e.g. `email_scan_runs` joining through a `schedule_id` FK to `email_scan_schedules`) still need their own RLS — denormalize a `user_id` column on the child if necessary so the policy predicate stays a simple equality check rather than a cross-table join. See `server/drizzle/0004_email_scan_rls.sql` for the canonical pattern.
+
 **Run a single test file:**
 ```bash
 cd server && pnpm test -- --testPathPattern="trips.test"
