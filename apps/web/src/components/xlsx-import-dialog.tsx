@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileSpreadsheet, AlertCircle, Upload } from "lucide-react";
+import { FileSpreadsheet, AlertCircle, Loader2, Upload } from "lucide-react";
 
 interface OverlapInfo {
   id: string;
@@ -239,7 +239,11 @@ export function XlsxImportDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={!file || importXlsx.isPending}>
-              <Upload className="mr-2 h-4 w-4" />
+              {importXlsx.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
               {importXlsx.isPending ? "Importing…" : "Import trip"}
             </Button>
           </div>

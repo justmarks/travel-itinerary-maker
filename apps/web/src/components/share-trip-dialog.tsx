@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Copy,
   Eye,
+  Loader2,
   Pencil,
   Repeat,
   Share2,
@@ -475,7 +476,11 @@ export function ShareTripDialog({
               disabled={!canCreate}
               className="w-full"
             >
-              <Share2 className="mr-2 h-4 w-4" />
+              {createShare.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="mr-2 h-4 w-4" />
+              )}
               {createShare.isPending ? "Creating…" : "Create share link"}
             </Button>
           </>
