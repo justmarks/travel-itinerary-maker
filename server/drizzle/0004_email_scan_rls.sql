@@ -23,11 +23,27 @@
 -- Both SELECT and write operations are gated by the same predicate
 -- via `FOR ALL ... USING ... WITH CHECK ...`.
 --
--- Idempotency: written so it's safe to run on a DB where someone
--- already enabled RLS or created the same-named policy out-of-band
--- (e.g. via the Supabase dashboard). `ENABLE RLS` is a no-op when
--- already on; the `DROP POLICY IF EXISTS` guards prevent the
--- `CREATE POLICY` from erroring on a duplicate name.
+-- Portability: the integration test runner uses a vanilla Postgres 16
+-- container that doesn't have the Supabase-managed `authenticated`
+-- role (Supabase creates it as part of GoTrue setup) or the
+-- `auth.uid()` function. Running `CREATE POLICY ... TO authenticated`
+-- against such a Postgres errors with `role "authenticated" does not
+-- exist`. We guard the whole RLS block on the role's existence so the
+-- migration is a no-op on vanilla Postgres (where there's nothing for
+-- the policies to gate against anyway — no PostgREST exposure) and
+-- the full policy set lands on real Supabase environments.
+--
+-- The `auth.uid()` reference is wrapped in `EXECUTE` for the same
+-- reason: Postgres parses CREATE POLICY's predicate at definition
+-- time and would complain about an unknown function on vanilla
+-- Postgres. Defering through EXECUTE means the parse happens only
+-- inside the `IF EXISTS` branch, which never runs without the role.
+--
+-- Idempotency: `ENABLE RLS` on an already-enabled table is a no-op,
+-- and `DROP POLICY IF EXISTS` guards CREATE POLICY against
+-- duplicate-name failures — so this migration is safe to re-run on
+-- a database where the policy was already created (e.g. manually via
+-- the Supabase dashboard).
 --
 -- New user-scoped tables added in the future should follow this
 -- same pattern IN THE SAME MIGRATION that creates them, not in a
@@ -36,17 +52,28 @@
 -- level reminder lives in `CLAUDE.md` so it's surfaced to every
 -- contributor.
 
-ALTER TABLE "email_scan_schedules" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-ALTER TABLE "email_scan_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DROP POLICY IF EXISTS "email_scan_schedules_owner_rw" ON "email_scan_schedules";--> statement-breakpoint
-CREATE POLICY "email_scan_schedules_owner_rw" ON "email_scan_schedules"
-  FOR ALL
-  TO authenticated
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);--> statement-breakpoint
-DROP POLICY IF EXISTS "email_scan_runs_owner_rw" ON "email_scan_runs";--> statement-breakpoint
-CREATE POLICY "email_scan_runs_owner_rw" ON "email_scan_runs"
-  FOR ALL
-  TO authenticated
-  USING (auth.uid()::text = user_id)
-  WITH CHECK (auth.uid()::text = user_id);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'ALTER TABLE "email_scan_schedules" ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'ALTER TABLE "email_scan_runs" ENABLE ROW LEVEL SECURITY';
+
+    EXECUTE 'DROP POLICY IF EXISTS "email_scan_schedules_owner_rw" ON "email_scan_schedules"';
+    EXECUTE $policy$
+      CREATE POLICY "email_scan_schedules_owner_rw" ON "email_scan_schedules"
+        FOR ALL
+        TO authenticated
+        USING (auth.uid()::text = user_id)
+        WITH CHECK (auth.uid()::text = user_id)
+    $policy$;
+
+    EXECUTE 'DROP POLICY IF EXISTS "email_scan_runs_owner_rw" ON "email_scan_runs"';
+    EXECUTE $policy$
+      CREATE POLICY "email_scan_runs_owner_rw" ON "email_scan_runs"
+        FOR ALL
+        TO authenticated
+        USING (auth.uid()::text = user_id)
+        WITH CHECK (auth.uid()::text = user_id)
+    $policy$;
+  END IF;
+END $$;
