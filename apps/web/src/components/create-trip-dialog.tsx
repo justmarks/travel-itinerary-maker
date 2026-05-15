@@ -70,7 +70,7 @@ export function CreateTripDialog({
     e.preventDefault();
     setOverlapError(null);
     createTrip.mutate(
-      { title, startDate, endDate },
+      { title: title.trim(), startDate, endDate },
       {
         onSuccess: (trip) => {
           setOpen(false);
