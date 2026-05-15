@@ -180,6 +180,110 @@ function TypeRow({
   );
 }
 
+/**
+ * Mobile Transport lane — compound row that puts per-day flight /
+ * transfer pills AND any rental bands in the SAME visual row, so the
+ * Transport lane reads as one row instead of pills above, band
+ * below. Same approach as desktop's `TransportLane`: nested grid with
+ * EVERY child explicitly placed on `gridRow: 1` so the band overlap
+ * doesn't push cells onto a second row.
+ */
+function TransportLane({
+  days,
+  gridCols,
+  rentals,
+  onSelect,
+}: {
+  days: readonly TripDay[];
+  gridCols: string;
+  rentals: HotelBar[];
+  onSelect: (segment: Segment) => void;
+}): React.JSX.Element {
+  const tracks = packIntoTracks(rentals);
+  const numBandRows = tracks.length;
+  const rowBg = cellBgStyle("transport");
+  const transportPill: React.CSSProperties = pillStyle("transport");
+  const bandReservedHeight =
+    numBandRows > 0 ? `calc(${numBandRows} * 1.75rem + 0.25rem)` : "0px";
+  const FlightIcon = SEGMENT_CONFIG.flight.icon;
+
+  return (
+    <div
+      className="grid"
+      style={{
+        gridColumn: "1 / -1",
+        gridTemplateColumns: gridCols,
+      }}
+    >
+      <div style={{ gridRow: 1, gridColumn: 1 }}>
+        <RowLabel icon={FlightIcon} name="Transport" />
+      </div>
+      {days.map((day, dayIdx) => {
+        const segs = sortByTime(
+          day.segments.filter(
+            (s) =>
+              getTimelineCategory(s.type) === "transport" &&
+              !BAND_TYPES.has(s.type),
+          ),
+        );
+        return (
+          <div
+            key={day.date}
+            style={{
+              gridRow: 1,
+              gridColumn: dayIdx + 2,
+              ...rowBg,
+              paddingBottom: bandReservedHeight,
+            }}
+            className="min-h-12 border-b border-r border-border/60 p-1 flex flex-col"
+          >
+            {segs.length === 0 ? (
+              <div className="pt-2 text-center text-[10px] text-muted-foreground/40">
+                —
+              </div>
+            ) : (
+              segs.map((s) => (
+                <Pill key={s.id} segment={s} showIcon={false} onSelect={onSelect} />
+              ))
+            )}
+          </div>
+        );
+      })}
+      {tracks.map((track, trackIdx) =>
+        track.map((bar) => {
+          const start = bar.startDayIdx;
+          const end = Math.min(bar.endDayIdx, days.length - 1);
+          const span = end - start + 1;
+          if (span <= 0) return null;
+          const { name, unitSuffix } = bandCosmetics(bar.segment);
+          return (
+            <button
+              type="button"
+              key={`rental-${bar.segment.id}`}
+              onClick={() => onSelect(bar.segment)}
+              style={{
+                gridColumn: `${start + 2} / span ${span}`,
+                gridRow: 1,
+                alignSelf: "end",
+                marginBottom: `calc(${numBandRows - 1 - trackIdx} * 1.75rem + 0.25rem)`,
+                ...transportPill,
+              }}
+              className="mx-1 mb-1 flex h-6 items-center gap-1 rounded-md px-2 text-[11px] font-semibold min-w-0 transition-transform active:scale-[0.99]"
+            >
+              <span className="truncate">{name}</span>
+              {span > 1 && (
+                <span className="ml-auto pl-1 text-[10px] font-normal opacity-80">
+                  {span}{unitSuffix}
+                </span>
+              )}
+            </button>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
 /** Per-bar name + unit suffix for the mobile band pill. */
 function bandCosmetics(s: Segment): { name: string; unitSuffix: string } {
   if (s.type === "cruise") {
@@ -441,20 +545,12 @@ export function MobileTimelineView({
 
           {mode === "grouped" ? (
             <>
-              <TypeRow
+              {/* Compound Transport lane: per-day pills + rental bands
+                  in the SAME visual row. */}
+              <TransportLane
                 days={days}
-                category="transport"
-                icon={SEGMENT_CONFIG.flight.icon}
-                label="Transport"
-                onSelect={setSelectedSegment}
-              />
-              {/* Rental bands as sub-rows under Transport, no label
-                  (the TypeRow above already labels the lane). */}
-              <BandRows
-                days={days}
-                bars={rentals}
-                category="transport"
-                keyPrefix="rental"
+                gridCols={gridCols}
+                rentals={rentals}
                 onSelect={setSelectedSegment}
               />
               <BandRows

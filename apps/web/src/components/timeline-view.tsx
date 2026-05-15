@@ -113,6 +113,127 @@ function RowLabel({ icon, name }: { icon: string; name: string }) {
   );
 }
 
+/**
+ * Transport lane — special-case TypeRow that renders rental bands
+ * (multi-day spans) overlaid at the bottom of the SAME row as the
+ * per-day flight / transfer pills. This keeps Transport one visual
+ * row instead of splitting flights and rental bands onto separate
+ * sub-rows (which read as "two Transport lanes").
+ *
+ * Implementation: this row is one item in the outer grid (`gridColumn
+ * 1 / -1`) with its OWN nested grid that uses the same
+ * `gridTemplateColumns` so day cells stay aligned with the day header
+ * row. Rental bands are extra children of the nested grid, explicitly
+ * placed on `gridRow: 1` with `gridColumn: span N` and `align-self:
+ * end`, so they sit at the bottom of the row and overlap the cells
+ * above without bumping them.
+ *
+ * If multiple rental bands overlap each other we fall back to extra
+ * rows inside the nested grid via packIntoTracks — they still read as
+ * "still part of Transport" because the rows are visually inside the
+ * same outer-grid cell.
+ */
+function TransportLane({
+  days,
+  gridCols,
+  rentals,
+}: {
+  days: TripDay[];
+  gridCols: string;
+  rentals: HotelBar[];
+}): React.JSX.Element {
+  const tracks = packIntoTracks(rentals);
+  const numBandRows = tracks.length;
+  const rowBg = cellBgStyle("transport");
+  const transportPill: React.CSSProperties = pillStyle("transport");
+  // Extra vertical space at the BOTTOM of each cell so the band
+  // overlay has somewhere to sit without covering the pills above.
+  const bandReservedHeight =
+    numBandRows > 0 ? `calc(${numBandRows} * 2rem + 0.25rem)` : "0px";
+
+  // EVERY child of this nested grid uses EXPLICIT `gridRow: 1` +
+  // `gridColumn` placement. Mixing explicit (the band) with auto-
+  // placed (the cells) causes CSS Grid to push the auto-placed cells
+  // to a new row when their target column is blocked by the explicit
+  // item, which would force a 2nd visual row exactly as the user
+  // reported. With every child explicit, the band simply overlaps
+  // the day cells in the same row, which is what we want.
+  return (
+    <div
+      className="grid"
+      style={{
+        gridColumn: "1 / -1",
+        gridTemplateColumns: gridCols,
+      }}
+    >
+      <div style={{ gridRow: 1, gridColumn: 1 }}>
+        <RowLabel icon="✈" name="Transport" />
+      </div>
+      {days.map((day, dayIdx) => {
+        const segs = sortByTime(
+          day.segments.filter(
+            (s) => getCategory(s.type) === "transport" && !BAND_TYPES.has(s.type),
+          ),
+        );
+        return (
+          <div
+            key={day.date}
+            style={{
+              gridRow: 1,
+              gridColumn: dayIdx + 2,
+              ...rowBg,
+              paddingBottom: bandReservedHeight,
+            }}
+            className="border-b border-border/60 border-r border-border/60 p-1.5 min-h-12 flex flex-col"
+          >
+            {segs.length === 0 ? (
+              <div className="text-[10px] text-muted-foreground/40 text-center pt-2.5">
+                —
+              </div>
+            ) : (
+              segs.map((s) => <Pill key={s.id} segment={s} showIcon={false} />)
+            )}
+          </div>
+        );
+      })}
+      {tracks.map((track, trackIdx) =>
+        track.map((bar) => {
+          const start = bar.startDayIdx;
+          const end = Math.min(bar.endDayIdx, days.length - 1);
+          const span = end - start + 1;
+          if (span <= 0) return null;
+          const { name, icon, unit } = bandCosmetics(bar.segment, span);
+          return (
+            <div
+              key={`rental-${bar.segment.id}`}
+              style={{
+                // Day columns are 2..N+1 in the nested grid (col 1 is
+                // the label). startDayIdx = 0 → col 2.
+                gridColumn: `${start + 2} / span ${span}`,
+                gridRow: 1,
+                alignSelf: "end",
+                // Stack tracks vertically inside the reserved padding
+                // at the bottom of the cells: the bottom-most track
+                // (last index) sits flush with the cell border;
+                // earlier tracks sit above it by 2rem each.
+                marginBottom: `calc(${numBandRows - 1 - trackIdx} * 2rem + 0.25rem)`,
+                ...transportPill,
+              }}
+              className="mx-1 mb-1 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold min-w-0 h-7"
+            >
+              <span className="hidden sm:inline shrink-0">{icon}</span>
+              <span className="truncate">{name}</span>
+              <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
+                {unit}
+              </span>
+            </div>
+          );
+        }),
+      )}
+    </div>
+  );
+}
+
 function TypeRow({
   days,
   category,
@@ -419,16 +540,11 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
 
             {mode === "grouped" ? (
               <>
-                <TypeRow days={days} category="transport" icon="✈"   label="Transport"  />
-                {/* Rental bands ride under the Transport lane as
-                    additional sub-rows — no label on these rows since
-                    the TypeRow above already shows "Transport". */}
-                <BandRows
-                  days={days}
-                  bars={rentals}
-                  category="transport"
-                  keyPrefix="rental"
-                />
+                {/* Transport is a compound row: flight / transfer
+                    pills per day, with rental bands overlaid at the
+                    bottom of the SAME row so there's only one
+                    Transport lane visually. */}
+                <TransportLane days={days} gridCols={gridCols} rentals={rentals} />
                 <BandRows
                   days={days}
                   bars={hotels}
@@ -441,6 +557,10 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
               </>
             ) : (
               <>
+                {/* Chronological view: rentals + lodging still get
+                    band rows above the chrono "All events" row so
+                    multi-day spans don't get scattered as per-day
+                    pills below. */}
                 <BandRows
                   days={days}
                   bars={rentals}
