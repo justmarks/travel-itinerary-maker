@@ -485,6 +485,7 @@ function SegmentRow({
                 size="icon"
                 className="h-7 w-7 hover:opacity-80"
                 style={{ color: "var(--status-ok-fg)" }}
+                aria-label={`Confirm "${segment.title}"`}
                 title="Confirm"
                 onClick={() =>
                   confirmSegment.mutate(segment.id, {
@@ -500,6 +501,7 @@ function SegmentRow({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              aria-label={`Edit "${segment.title}"`}
               title="Edit"
               onClick={() => setEditOpen(true)}
             >
@@ -509,6 +511,7 @@ function SegmentRow({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete "${segment.title}"`}
               title="Delete"
               onClick={async () => {
                 const ok = await confirm({
