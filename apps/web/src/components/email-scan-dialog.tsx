@@ -159,6 +159,25 @@ export function EmailScanDialog({
   defaultOpen?: boolean;
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(defaultOpen);
+
+  // Treat `defaultOpen` as an imperative "open now" trigger when it
+  // flips from false → true after mount. The previous behaviour
+  // (`useState(defaultOpen)` only) seeded the initial state and then
+  // ignored later prop changes — so `EmailScanDialogFromQuery`'s
+  // `?review=1` deep-link worked on a fresh page load but silently
+  // failed when the user clicked the AutoScanBanner from the same
+  // page (Next's `<Link>` does a soft navigation; the dialog
+  // component instance survives, so its `open` state is stuck at
+  // its initial value).
+  //
+  // We don't gate this on `prev === false` — the parent scrubs the
+  // `?review=1` query param immediately, so `defaultOpen` snaps back
+  // to false on the next render. That means a subsequent click on
+  // the same banner correctly transitions false → true again and
+  // re-fires this effect.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
   const [step, setStep] = useState<ScanStep>("loading");
   const [selectedLabel, setSelectedLabel] = useState<string>("");
   const [results, setResults] = useState<EmailScanResult[]>([]);
