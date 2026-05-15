@@ -104,6 +104,8 @@ function TripBucketSection({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Hide" : "Show"} ${BUCKET_LABEL[bucket].toLowerCase()} trips`}
             className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-muted-foreground hover:text-foreground"
           >
             {expanded ? (

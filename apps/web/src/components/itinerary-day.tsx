@@ -40,6 +40,7 @@ import {
   Coffee,
   Trash2,
   Pencil,
+  Plus,
   Check,
   X,
 } from "lucide-react";
@@ -475,7 +476,7 @@ function SegmentRow({
               redundant with the row click but kept as a discoverable
               visible affordance — its handler is the same. */}
           <div
-            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100"
+            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100 can-hover:group-focus-within/seg:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
             {segment.needsReview && (
@@ -563,6 +564,11 @@ function EditableCity({
     }
   };
 
+  const cancel = () => {
+    setValue(city);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -577,11 +583,15 @@ function EditableCity({
           onChange={(e) => setValue(e.target.value)}
           className="h-6 w-28 px-1.5 text-sm"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancel();
+          }}
         />
         <Button
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save city"
           className="h-6 w-6"
           disabled={updateDay.isPending}
         >
@@ -591,11 +601,9 @@ function EditableCity({
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel"
           className="h-6 w-6"
-          onClick={() => {
-            setValue(city);
-            setEditing(false);
-          }}
+          onClick={cancel}
         >
           <X className="h-3 w-3" />
         </Button>
@@ -611,7 +619,7 @@ function EditableCity({
     >
       <MapPin className="h-3 w-3" />
       {city || "Set city"}
-      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100" />
+      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100 can-hover:group-focus-within/day:opacity-100" />
     </button>
   );
 }
@@ -668,9 +676,25 @@ export function ItineraryDay({
       </div>
 
       {segments.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          No activities planned.
-        </p>
+        !readOnly && tripId ? (
+          <AddSegmentDialog
+            tripId={tripId}
+            date={day.date}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add the first activity
+              </button>
+            }
+          />
+        ) : (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            No activities planned.
+          </p>
+        )
       ) : (
         <div className="flex flex-col gap-2">
           {segments.map((seg) => (

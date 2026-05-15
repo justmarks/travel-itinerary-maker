@@ -225,7 +225,9 @@ export function TripTodos({
               size="icon"
               className="h-6 w-6"
               onClick={() => setShowAdd(!showAdd)}
-              title="Add todo"
+              aria-label={showAdd ? "Cancel add to-do" : "Add to-do"}
+              aria-expanded={showAdd}
+              title={showAdd ? "Cancel" : "Add to-do"}
             >
               {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
             </Button>

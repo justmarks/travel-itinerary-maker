@@ -319,6 +319,7 @@ function ScheduleRow({
             size="icon"
             onClick={togglePause}
             disabled={update.isPending}
+            aria-label={schedule.enabled ? "Pause schedule" : "Resume schedule"}
             title={schedule.enabled ? "Pause schedule" : "Resume schedule"}
           >
             {schedule.enabled ? (
@@ -331,6 +332,7 @@ function ScheduleRow({
             variant="ghost"
             size="icon"
             onClick={() => setEditOpen(true)}
+            aria-label="Edit schedule"
             title="Edit schedule"
           >
             <Calendar className="h-3.5 w-3.5" />
@@ -341,6 +343,7 @@ function ScheduleRow({
             onClick={onDelete}
             disabled={remove.isPending}
             className="hover:text-destructive"
+            aria-label="Delete schedule"
             title="Delete schedule"
           >
             <Trash2 className="h-3.5 w-3.5" />
