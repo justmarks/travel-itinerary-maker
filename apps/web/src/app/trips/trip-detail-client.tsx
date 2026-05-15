@@ -144,6 +144,11 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     }
   };
 
+  const cancelEdit = () => {
+    setValue(title);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -158,6 +163,9 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           onChange={(e) => setValue(e.target.value)}
           className="h-9 text-2xl font-bold"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancelEdit();
+          }}
         />
         <Button
           type="submit"
@@ -173,10 +181,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => {
-            setValue(title);
-            setEditing(false);
-          }}
+          onClick={cancelEdit}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -272,6 +277,9 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <span className="text-sm text-muted-foreground">–</span>
           <Input
@@ -282,6 +290,9 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <Button
             type="submit"
