@@ -100,7 +100,7 @@ function capabilityLabel(
   capability: ConnectionsCapability,
 ): string {
   if (provider === "microsoft") {
-    if (capability === "email") return "Outlook mail";
+    if (capability === "email") return "Outlook Mail";
     if (capability === "calendar") return "Outlook Calendar";
   } else {
     if (capability === "email") return "Gmail";

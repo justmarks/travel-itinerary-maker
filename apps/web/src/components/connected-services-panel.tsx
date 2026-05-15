@@ -384,7 +384,7 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "email", MICROSOFT_MAIL_SCOPES)
             }
           >
-            Connect Outlook mail
+            Connect Outlook Mail
           </Button>
         )}
       </CapabilitySection>

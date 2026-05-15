@@ -175,7 +175,7 @@ export default function PrivacyPage(): React.JSX.Element {
               </li>
               <li>
                 <strong>Microsoft</strong> — authentication (Sign-In with
-                Microsoft), Outlook mail access, Outlook calendar sync.
+                Microsoft), Outlook Mail access, Outlook Calendar sync.
               </li>
               <li>
                 <strong>Supabase</strong> — authentication broker and managed
