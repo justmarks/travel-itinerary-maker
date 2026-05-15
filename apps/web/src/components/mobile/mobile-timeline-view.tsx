@@ -5,8 +5,10 @@ import type { Segment, Trip, TripDay } from "@itinly/shared";
 import { formatFlightEndpoint } from "@itinly/shared";
 import { cn } from "@/lib/utils";
 import {
+  BAND_TYPES,
   CATEGORY_TOKEN,
   extractHotels,
+  extractRentals,
   getTimelineCategory,
   packIntoTracks,
   sortByTime,
@@ -142,8 +144,14 @@ function TypeRow({
     <>
       <RowLabel icon={icon} name={label} />
       {days.map((day) => {
+        // Filter out band types (hotel / cruise / car_rental) so they
+        // don't double-render as both a band AND a per-day pill.
         const segs = sortByTime(
-          day.segments.filter((s) => getTimelineCategory(s.type) === category),
+          day.segments.filter(
+            (s) =>
+              getTimelineCategory(s.type) === category &&
+              !BAND_TYPES.has(s.type),
+          ),
         );
         return (
           <div
@@ -172,32 +180,56 @@ function TypeRow({
   );
 }
 
-function HotelRow({
+/** Per-bar name + unit suffix for the mobile band pill. */
+function bandCosmetics(s: Segment): { name: string; unitSuffix: string } {
+  if (s.type === "cruise") {
+    return { name: s.shipName ?? s.title, unitSuffix: "d" };
+  }
+  if (s.type === "car_rental") {
+    return { name: s.title, unitSuffix: "d" };
+  }
+  return { name: s.venueName ?? s.title, unitSuffix: "n" };
+}
+
+/**
+ * Mobile band-row component. Lodging (hotel + cruise) and Transport
+ * (car rental) bands share the same rendering shape — one row per
+ * track from `packIntoTracks`. `rowLabel` is shown on the first
+ * track only; subsequent tracks emit an empty sticky placeholder.
+ * Omit `rowLabel` to render label-less rows (e.g. rental bands as
+ * additional sub-rows under a Transport TypeRow that already shows
+ * the label).
+ */
+function BandRows({
   days,
-  hotels,
+  bars,
+  category,
+  keyPrefix,
+  rowLabel,
   onSelect,
 }: {
   days: readonly TripDay[];
-  hotels: HotelBar[];
+  bars: HotelBar[];
+  category: TimelineCategory;
+  keyPrefix: string;
+  rowLabel?: {
+    icon: React.ComponentType<{ className?: string }>;
+    name: string;
+  };
   onSelect: (segment: Segment) => void;
-}): React.JSX.Element {
-  // Pack overlapping bars (hotel + cruise + car_rental commonly overlap)
-  // into the minimum number of non-overlapping tracks. Each track is
-  // one row in the grid; the "Lodging" RowLabel renders on track 0 and
-  // subsequent tracks emit an empty sticky cell so the grid alignment
-  // stays consistent. With no overlap this collapses to one row.
-  const rowBg = cellBgStyle("hotel");
-  const lodgingPill: React.CSSProperties = pillStyle("hotel");
-  const HotelIcon = SEGMENT_CONFIG.hotel.icon;
-  const tracks = packIntoTracks(hotels);
+}): React.JSX.Element | null {
+  const rowBg = cellBgStyle(category);
+  const bandPill: React.CSSProperties = pillStyle(category);
+  const tracks = packIntoTracks(bars);
 
   if (tracks.length === 0) {
+    if (!rowLabel) return null;
     return (
       <>
-        <RowLabel icon={HotelIcon} name="Lodging" />
+        <RowLabel icon={rowLabel.icon} name={rowLabel.name} />
         {days.map((_, i) => (
           <div
-            key={`he-${i}`}
+            key={`${keyPrefix}-empty-${i}`}
             className="min-h-12 border-b border-r border-border/60"
             style={rowBg}
           />
@@ -211,10 +243,10 @@ function HotelRow({
       {tracks.map((track, trackIdx) => {
         const cells: React.ReactNode[] = [];
         let idx = 0;
-        track.forEach((hotel) => {
-          const start = Math.max(hotel.startDayIdx, idx);
+        track.forEach((bar) => {
+          const start = Math.max(bar.startDayIdx, idx);
           const end = Math.min(
-            Math.max(hotel.endDayIdx, start),
+            Math.max(bar.endDayIdx, start),
             days.length - 1,
           );
           const span = end - start + 1;
@@ -223,43 +255,25 @@ function HotelRow({
           while (idx < start) {
             cells.push(
               <div
-                key={`he-${trackIdx}-${idx}`}
+                key={`${keyPrefix}-${trackIdx}-${idx}`}
                 className="min-h-12 border-b border-r border-border/60"
                 style={rowBg}
               />,
             );
             idx++;
           }
-          const h = hotel.segment;
-          // Per-type pill cosmetics on the shared Lodging lane.
-          //   hotel       → venueName, "Nn" (nights, checkout exclusive)
-          //   cruise      → shipName, "Nd" (days, disembark inclusive)
-          //   car_rental  → title (already "<Provider> - <Pickup>" from
-          //                 the segment form's auto-title), "Nd"
-          //                 (rental days, dropoff inclusive)
-          let name: string;
-          let unitSuffix: string;
-          if (h.type === "cruise") {
-            name = h.shipName ?? h.title;
-            unitSuffix = "d";
-          } else if (h.type === "car_rental") {
-            name = h.title;
-            unitSuffix = "d";
-          } else {
-            name = h.venueName ?? h.title;
-            unitSuffix = "n";
-          }
+          const { name, unitSuffix } = bandCosmetics(bar.segment);
           cells.push(
             <button
               type="button"
-              key={h.id}
-              onClick={() => onSelect(h)}
+              key={bar.segment.id}
+              onClick={() => onSelect(bar.segment)}
               className="flex min-h-12 items-center border-b border-r border-border/60 p-1 transition-transform active:scale-[0.99]"
               style={{ ...rowBg, gridColumn: `span ${span}` }}
             >
               <div
                 className="flex w-full min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold"
-                style={lodgingPill}
+                style={bandPill}
               >
                 <span className="truncate">{name}</span>
                 {span > 1 && (
@@ -275,7 +289,7 @@ function HotelRow({
         while (idx < days.length) {
           cells.push(
             <div
-              key={`he-${trackIdx}-${idx}`}
+              key={`${keyPrefix}-${trackIdx}-${idx}`}
               className="min-h-12 border-b border-r border-border/60"
               style={rowBg}
             />,
@@ -283,9 +297,9 @@ function HotelRow({
           idx++;
         }
         return (
-          <React.Fragment key={`lodging-track-${trackIdx}`}>
-            {trackIdx === 0 ? (
-              <RowLabel icon={HotelIcon} name="Lodging" />
+          <React.Fragment key={`${keyPrefix}-track-${trackIdx}`}>
+            {trackIdx === 0 && rowLabel ? (
+              <RowLabel icon={rowLabel.icon} name={rowLabel.name} />
             ) : (
               <div
                 className="sticky left-0 z-10 border-b border-r border-border/60 bg-card"
@@ -328,6 +342,7 @@ export function MobileTimelineView({
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
   const { days } = trip;
   const hotels = extractHotels(days);
+  const rentals = extractRentals(days);
 
   // Find the day containing the selected segment so the detail sheet
   // can show its date — same lookup the carousel does.
@@ -433,9 +448,24 @@ export function MobileTimelineView({
                 label="Transport"
                 onSelect={setSelectedSegment}
               />
-              <HotelRow
+              {/* Rental bands as sub-rows under Transport, no label
+                  (the TypeRow above already labels the lane). */}
+              <BandRows
                 days={days}
-                hotels={hotels}
+                bars={rentals}
+                category="transport"
+                keyPrefix="rental"
+                onSelect={setSelectedSegment}
+              />
+              <BandRows
+                days={days}
+                bars={hotels}
+                category="hotel"
+                keyPrefix="lodging"
+                rowLabel={{
+                  icon: SEGMENT_CONFIG.hotel.icon,
+                  name: "Lodging",
+                }}
                 onSelect={setSelectedSegment}
               />
               <TypeRow
@@ -455,9 +485,26 @@ export function MobileTimelineView({
             </>
           ) : (
             <>
-              <HotelRow
+              <BandRows
                 days={days}
-                hotels={hotels}
+                bars={rentals}
+                category="transport"
+                keyPrefix="rental"
+                rowLabel={{
+                  icon: SEGMENT_CONFIG.car_rental.icon,
+                  name: "Rentals",
+                }}
+                onSelect={setSelectedSegment}
+              />
+              <BandRows
+                days={days}
+                bars={hotels}
+                category="hotel"
+                keyPrefix="lodging"
+                rowLabel={{
+                  icon: SEGMENT_CONFIG.hotel.icon,
+                  name: "Lodging",
+                }}
                 onSelect={setSelectedSegment}
               />
               <RowLabel icon={SEGMENT_CONFIG.activity.icon} name="All" />

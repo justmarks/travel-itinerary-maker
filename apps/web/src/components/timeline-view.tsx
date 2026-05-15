@@ -5,8 +5,10 @@ import type { Trip, TripDay, Segment, SegmentType } from "@itinly/shared";
 import { formatFlightEndpoint } from "@itinly/shared";
 import { cn } from "@/lib/utils";
 import {
+  BAND_TYPES,
   CATEGORY_TOKEN,
   extractHotels,
+  extractRentals,
   getTimelineCategory as getCategory,
   packIntoTracks,
   sortByTime,
@@ -126,7 +128,16 @@ function TypeRow({
     <>
       <RowLabel icon={icon} name={label} />
       {days.map((day) => {
-        const segs = sortByTime(day.segments.filter((s) => getCategory(s.type) === category));
+        // Filter out segment types that render as multi-day BANDS
+        // (hotel, cruise, car_rental) — those have their own dedicated
+        // rows just below. Keeping them out of the per-day pill row
+        // avoids a rental rendering as both a band AND a pickup-day
+        // pill in the same Transport lane.
+        const segs = sortByTime(
+          day.segments.filter(
+            (s) => getCategory(s.type) === category && !BAND_TYPES.has(s.type),
+          ),
+        );
         return (
           <div
             key={day.date}
@@ -145,28 +156,79 @@ function TypeRow({
   );
 }
 
-function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
-  // Lodging row tints come from the lodging category token so the
-  // hotel band stays in sync with the legend swatch and Map pin color.
-  const rowBg = cellBgStyle("hotel");
-  const pillStyleLodging: React.CSSProperties = pillStyle("hotel");
+/**
+ * Per-bar visual config. Cruises ride the Lodging lane; rentals ride
+ * the Transport lane; hotels are the default Lodging entry. The icon
+ * and unit ("nights" vs "days") differ per type so each band reads as
+ * itself even though they may share a lane.
+ */
+function bandCosmetics(
+  h: Segment,
+  span: number,
+): { name: string; icon: string; unit: string } {
+  if (h.type === "cruise") {
+    return {
+      name: h.shipName ?? h.title,
+      icon: "🚢",
+      unit: `${span} day${span !== 1 ? "s" : ""}`,
+    };
+  }
+  if (h.type === "car_rental") {
+    return {
+      name: h.title,
+      icon: "🚗",
+      unit: `${span} day${span !== 1 ? "s" : ""}`,
+    };
+  }
+  return {
+    name: h.venueName ?? h.title,
+    icon: "🏨",
+    unit: `${span} night${span !== 1 ? "s" : ""}`,
+  };
+}
 
-  // Pack overlapping bars (hotel + cruise + car_rental commonly overlap)
-  // into the minimum number of non-overlapping tracks. Each track renders
-  // as its own row in the grid; the "Lodging" RowLabel appears on the
-  // first row only so the lane reads as one logical group. With a single
-  // hotel and no overlap, this collapses to one row — identical to the
-  // pre-bug behaviour.
-  const tracks = packIntoTracks(hotels);
+/**
+ * Renders a list of multi-day bars as one or more grid rows on a given
+ * lane (Lodging or Transport). Overlapping bars get packed into the
+ * minimum number of non-overlapping tracks; each track becomes one row.
+ *
+ * When `rowLabel` is provided it renders on the first row only;
+ * subsequent rows emit an empty sticky cell so the grid alignment
+ * stays consistent. When omitted, all rows emit an empty sticky cell
+ * — useful when the lane has another row above (a TypeRow with the
+ * label) and the bands are additional sub-rows.
+ *
+ * If `bars` is empty, nothing is rendered (the caller is responsible
+ * for emitting a placeholder row when needed — Lodging needs one to
+ * keep its label visible; rentals-under-Transport doesn't, the
+ * Transport TypeRow above already shows the label).
+ */
+function BandRows({
+  days,
+  bars,
+  category,
+  keyPrefix,
+  rowLabel,
+}: {
+  days: TripDay[];
+  bars: HotelBar[];
+  category: Category;
+  keyPrefix: string;
+  rowLabel?: { icon: string; name: string };
+}) {
+  const rowBg = cellBgStyle(category);
+  const pill: React.CSSProperties = pillStyle(category);
+  const tracks = packIntoTracks(bars);
+
   if (tracks.length === 0) {
-    // No lodging at all — still render a single empty row so the lane
-    // label remains visible.
+    if (!rowLabel) return null;
+    // Render one empty row so the lane's label stays visible.
     return (
       <>
-        <RowLabel icon="🏨" name="Lodging" />
+        <RowLabel icon={rowLabel.icon} name={rowLabel.name} />
         {days.map((_, i) => (
           <div
-            key={`he-${i}`}
+            key={`${keyPrefix}-empty-${i}`}
             className="border-b border-border/60 border-r border-border/60 min-h-14"
             style={rowBg}
           />
@@ -180,10 +242,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
       {tracks.map((track, trackIdx) => {
         const cells: React.ReactNode[] = [];
         let idx = 0;
-        track.forEach((hotel) => {
-          const start = Math.max(hotel.startDayIdx, idx);
+        track.forEach((bar) => {
+          const start = Math.max(bar.startDayIdx, idx);
           const end = Math.min(
-            Math.max(hotel.endDayIdx, start),
+            Math.max(bar.endDayIdx, start),
             days.length - 1,
           );
           const span = end - start + 1;
@@ -192,43 +254,23 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
           while (idx < start) {
             cells.push(
               <div
-                key={`he-${trackIdx}-${idx}`}
+                key={`${keyPrefix}-${trackIdx}-${idx}`}
                 className="border-b border-border/60 border-r border-border/60 min-h-14"
                 style={rowBg}
               />,
             );
             idx++;
           }
-          // Per-type icon + label + unit so each reads as itself.
-          // Hotels: 🏨 + venueName + "N nights" (checkout-morning convention).
-          // Cruises: 🚢 + shipName + "N days" (inclusive disembark).
-          // Rentals: 🚗 + "<Provider> - <Pickup>" + "N days" (inclusive dropoff).
-          const h = hotel.segment;
-          let name: string;
-          let icon: string;
-          let unit: string;
-          if (h.type === "cruise") {
-            name = h.shipName ?? h.title;
-            icon = "🚢";
-            unit = `${span} day${span !== 1 ? "s" : ""}`;
-          } else if (h.type === "car_rental") {
-            name = h.title;
-            icon = "🚗";
-            unit = `${span} day${span !== 1 ? "s" : ""}`;
-          } else {
-            name = h.venueName ?? h.title;
-            icon = "🏨";
-            unit = `${span} night${span !== 1 ? "s" : ""}`;
-          }
+          const { name, icon, unit } = bandCosmetics(bar.segment, span);
           cells.push(
             <div
-              key={h.id}
+              key={bar.segment.id}
               className="border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
               style={{ ...rowBg, gridColumn: `span ${span}` }}
             >
               <div
                 className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
-                style={pillStyleLodging}
+                style={pill}
               >
                 <span className="hidden sm:inline shrink-0">{icon}</span>
                 <span className="truncate">{name}</span>
@@ -243,7 +285,7 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
         while (idx < days.length) {
           cells.push(
             <div
-              key={`he-${trackIdx}-${idx}`}
+              key={`${keyPrefix}-${trackIdx}-${idx}`}
               className="border-b border-border/60 border-r border-border/60 min-h-14"
               style={rowBg}
             />,
@@ -251,13 +293,10 @@ function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
           idx++;
         }
 
-        // Only the first track gets the "Lodging" label; subsequent
-        // tracks emit an invisible placeholder in the sticky column so
-        // the grid alignment stays consistent.
         return (
-          <React.Fragment key={`lodging-track-${trackIdx}`}>
-            {trackIdx === 0 ? (
-              <RowLabel icon="🏨" name="Lodging" />
+          <React.Fragment key={`${keyPrefix}-track-${trackIdx}`}>
+            {trackIdx === 0 && rowLabel ? (
+              <RowLabel icon={rowLabel.icon} name={rowLabel.name} />
             ) : (
               <div
                 className="sticky left-0 z-10 bg-card border-r border-border border-b border-border/60"
@@ -305,6 +344,7 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
   const [mode, setMode] = useState<"grouped" | "chrono">("grouped");
   const { days } = trip;
   const hotels = extractHotels(days);
+  const rentals = extractRentals(days);
 
   // Column widths are driven by CSS custom properties so print media can shrink
   // the per-day minimum to 0 (cells share page width equally) without having
@@ -380,13 +420,41 @@ export function TimelineView({ trip }: { trip: Trip }): React.JSX.Element {
             {mode === "grouped" ? (
               <>
                 <TypeRow days={days} category="transport" icon="✈"   label="Transport"  />
-                <HotelRow days={days} hotels={hotels} />
+                {/* Rental bands ride under the Transport lane as
+                    additional sub-rows — no label on these rows since
+                    the TypeRow above already shows "Transport". */}
+                <BandRows
+                  days={days}
+                  bars={rentals}
+                  category="transport"
+                  keyPrefix="rental"
+                />
+                <BandRows
+                  days={days}
+                  bars={hotels}
+                  category="hotel"
+                  keyPrefix="lodging"
+                  rowLabel={{ icon: "🏨", name: "Lodging" }}
+                />
                 <TypeRow days={days} category="activity"  icon="🎯"  label="Activities" />
                 <TypeRow days={days} category="dining"    icon="🍽️" label="Dining"      />
               </>
             ) : (
               <>
-                <HotelRow days={days} hotels={hotels} />
+                <BandRows
+                  days={days}
+                  bars={rentals}
+                  category="transport"
+                  keyPrefix="rental"
+                  rowLabel={{ icon: "🚗", name: "Rentals" }}
+                />
+                <BandRows
+                  days={days}
+                  bars={hotels}
+                  category="hotel"
+                  keyPrefix="lodging"
+                  rowLabel={{ icon: "🏨", name: "Lodging" }}
+                />
                 <RowLabel icon="🗓" name="All events" />
                 {days.map((day) => {
                   // Exclude lodging-lane types — they render as bands
