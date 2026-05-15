@@ -416,6 +416,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             type="submit"
             variant="ghost"
             size="icon"
+            aria-label="Save trip name"
             className="h-7 w-7 shrink-0"
             disabled={!newTitle.trim() || updateTrip.isPending}
           >
@@ -425,6 +426,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             type="button"
             variant="ghost"
             size="icon"
+            aria-label="Cancel rename"
             className="h-7 w-7 shrink-0"
             onClick={() => {
               setNewTitle(trip.title);
