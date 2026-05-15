@@ -116,3 +116,43 @@ export function extractHotels(days: readonly TripDay[]): HotelBar[] {
   });
   return bars;
 }
+
+/**
+ * Greedily packs lodging bars into the smallest number of
+ * non-overlapping tracks. The single-row HotelRow assumed bars never
+ * overlap — when only hotels rode the lane that mostly held, but
+ * cruises and car rentals frequently overlap each other AND any hotel
+ * the user was sleeping at on the embarkation / pickup day. Without
+ * packing, the later bar (sorted by startDayIdx) gets clamped to
+ * `span <= 0` and silently vanishes from the timeline.
+ *
+ * Algorithm: sort by `startDayIdx`. For each bar, walk the existing
+ * tracks looking for one whose last bar ended strictly before this
+ * bar starts; if found, append. Otherwise open a new track. Result
+ * length is therefore equal to the maximum number of overlapping
+ * bars at any single day — i.e. the minimum number of rows the
+ * Lodging lane must render to show every bar in full.
+ */
+export function packIntoTracks(bars: readonly HotelBar[]): HotelBar[][] {
+  const tracks: HotelBar[][] = [];
+  const sorted = [...bars].sort(
+    (a, b) =>
+      a.startDayIdx - b.startDayIdx ||
+      // Tie-break: longer bars first so a short overlap doesn't push
+      // a long one onto its own track unnecessarily.
+      b.endDayIdx - a.endDayIdx,
+  );
+  for (const bar of sorted) {
+    let placed = false;
+    for (const track of tracks) {
+      const last = track[track.length - 1];
+      if (last.endDayIdx < bar.startDayIdx) {
+        track.push(bar);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) tracks.push([bar]);
+  }
+  return tracks;
+}

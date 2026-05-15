@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { Trip, TripDay, Segment, SegmentType } from "@itinly/shared";
 import { formatFlightEndpoint } from "@itinly/shared";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import {
   CATEGORY_TOKEN,
   extractHotels,
   getTimelineCategory as getCategory,
+  packIntoTracks,
   sortByTime,
   type HotelBar,
   type TimelineCategory as Category,
@@ -145,93 +146,128 @@ function TypeRow({
 }
 
 function HotelRow({ days, hotels }: { days: TripDay[]; hotels: HotelBar[] }) {
-  const sorted = [...hotels].sort((a, b) => a.startDayIdx - b.startDayIdx);
-  const cells: React.ReactNode[] = [];
-  let idx = 0;
-
-  // Lodging row tints are derived from the lodging category token so the
+  // Lodging row tints come from the lodging category token so the
   // hotel band stays in sync with the legend swatch and Map pin color.
   const rowBg = cellBgStyle("hotel");
   const pillStyleLodging: React.CSSProperties = pillStyle("hotel");
 
-  sorted.forEach((hotel) => {
-    // Clamp so overlapping/out-of-range hotels cannot push this row past
-    // `days.length` cells — that would wrap and misalign every row below it.
-    const start = Math.max(hotel.startDayIdx, idx);
-    const end = Math.min(Math.max(hotel.endDayIdx, start), days.length - 1);
-    const span = end - start + 1;
-    if (span <= 0) return;
-
-    // Empty cells before this hotel
-    while (idx < start) {
-      cells.push(
-        <div
-          key={`he-${idx}`}
-          className="border-b border-border/60 border-r border-border/60 min-h-14"
-          style={rowBg}
-        />,
-      );
-      idx++;
-    }
-    // Spanning lodging cell — hotel, cruise, and car_rental ride the
-    // same lane; per-type icon + label + unit so each reads as itself.
-    // Hotels: 🏨 + venueName + "N nights" (checkout-morning convention).
-    // Cruises: 🚢 + shipName + "N days" (inclusive disembark).
-    // Rentals: 🚗 + "<Provider> - <Pickup>" + "N days" (inclusive dropoff).
-    const h = hotel.segment;
-    let name: string;
-    let icon: string;
-    let unit: string;
-    if (h.type === "cruise") {
-      name = h.shipName ?? h.title;
-      icon = "🚢";
-      unit = `${span} day${span !== 1 ? "s" : ""}`;
-    } else if (h.type === "car_rental") {
-      name = h.title;
-      icon = "🚗";
-      unit = `${span} day${span !== 1 ? "s" : ""}`;
-    } else {
-      name = h.venueName ?? h.title;
-      icon = "🏨";
-      unit = `${span} night${span !== 1 ? "s" : ""}`;
-    }
-    cells.push(
-      <div
-        key={h.id}
-        className="border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
-        style={{ ...rowBg, gridColumn: `span ${span}` }}
-      >
-        <div
-          className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
-          style={pillStyleLodging}
-        >
-          <span className="hidden sm:inline shrink-0">{icon}</span>
-          <span className="truncate">{name}</span>
-          <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
-            {unit}
-          </span>
-        </div>
-      </div>,
+  // Pack overlapping bars (hotel + cruise + car_rental commonly overlap)
+  // into the minimum number of non-overlapping tracks. Each track renders
+  // as its own row in the grid; the "Lodging" RowLabel appears on the
+  // first row only so the lane reads as one logical group. With a single
+  // hotel and no overlap, this collapses to one row — identical to the
+  // pre-bug behaviour.
+  const tracks = packIntoTracks(hotels);
+  if (tracks.length === 0) {
+    // No lodging at all — still render a single empty row so the lane
+    // label remains visible.
+    return (
+      <>
+        <RowLabel icon="🏨" name="Lodging" />
+        {days.map((_, i) => (
+          <div
+            key={`he-${i}`}
+            className="border-b border-border/60 border-r border-border/60 min-h-14"
+            style={rowBg}
+          />
+        ))}
+      </>
     );
-    idx = end + 1;
-  });
-
-  // Empty cells after last hotel
-  while (idx < days.length) {
-    cells.push(
-      <div
-        key={`he-${idx}`}
-        className="border-b border-border/60 border-r border-border/60 min-h-14"
-        style={rowBg}
-      />,
-    );
-    idx++;
   }
 
   return (
     <>
-      <RowLabel icon="🏨" name="Lodging" />
-      {cells}
+      {tracks.map((track, trackIdx) => {
+        const cells: React.ReactNode[] = [];
+        let idx = 0;
+        track.forEach((hotel) => {
+          const start = Math.max(hotel.startDayIdx, idx);
+          const end = Math.min(
+            Math.max(hotel.endDayIdx, start),
+            days.length - 1,
+          );
+          const span = end - start + 1;
+          if (span <= 0) return;
+
+          while (idx < start) {
+            cells.push(
+              <div
+                key={`he-${trackIdx}-${idx}`}
+                className="border-b border-border/60 border-r border-border/60 min-h-14"
+                style={rowBg}
+              />,
+            );
+            idx++;
+          }
+          // Per-type icon + label + unit so each reads as itself.
+          // Hotels: 🏨 + venueName + "N nights" (checkout-morning convention).
+          // Cruises: 🚢 + shipName + "N days" (inclusive disembark).
+          // Rentals: 🚗 + "<Provider> - <Pickup>" + "N days" (inclusive dropoff).
+          const h = hotel.segment;
+          let name: string;
+          let icon: string;
+          let unit: string;
+          if (h.type === "cruise") {
+            name = h.shipName ?? h.title;
+            icon = "🚢";
+            unit = `${span} day${span !== 1 ? "s" : ""}`;
+          } else if (h.type === "car_rental") {
+            name = h.title;
+            icon = "🚗";
+            unit = `${span} day${span !== 1 ? "s" : ""}`;
+          } else {
+            name = h.venueName ?? h.title;
+            icon = "🏨";
+            unit = `${span} night${span !== 1 ? "s" : ""}`;
+          }
+          cells.push(
+            <div
+              key={h.id}
+              className="border-b border-border/60 border-r border-border/60 p-2 min-h-14 flex items-center"
+              style={{ ...rowBg, gridColumn: `span ${span}` }}
+            >
+              <div
+                className="flex items-center gap-1.5 rounded-md px-2 sm:px-2.5 py-1.5 text-xs font-semibold w-full min-w-0"
+                style={pillStyleLodging}
+              >
+                <span className="hidden sm:inline shrink-0">{icon}</span>
+                <span className="truncate">{name}</span>
+                <span className="hidden sm:inline ml-auto pl-2 shrink-0 font-normal opacity-70 text-[10.5px]">
+                  {unit}
+                </span>
+              </div>
+            </div>,
+          );
+          idx = end + 1;
+        });
+        while (idx < days.length) {
+          cells.push(
+            <div
+              key={`he-${trackIdx}-${idx}`}
+              className="border-b border-border/60 border-r border-border/60 min-h-14"
+              style={rowBg}
+            />,
+          );
+          idx++;
+        }
+
+        // Only the first track gets the "Lodging" label; subsequent
+        // tracks emit an invisible placeholder in the sticky column so
+        // the grid alignment stays consistent.
+        return (
+          <React.Fragment key={`lodging-track-${trackIdx}`}>
+            {trackIdx === 0 ? (
+              <RowLabel icon="🏨" name="Lodging" />
+            ) : (
+              <div
+                className="sticky left-0 z-10 bg-card border-r border-border border-b border-border/60"
+                aria-hidden
+              />
+            )}
+            {cells}
+          </React.Fragment>
+        );
+      })}
     </>
   );
 }

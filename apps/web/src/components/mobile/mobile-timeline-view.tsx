@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import type { Segment, Trip, TripDay } from "@itinly/shared";
 import { formatFlightEndpoint } from "@itinly/shared";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import {
   CATEGORY_TOKEN,
   extractHotels,
   getTimelineCategory,
+  packIntoTracks,
   sortByTime,
   type HotelBar,
   type TimelineCategory,
@@ -180,94 +181,121 @@ function HotelRow({
   hotels: HotelBar[];
   onSelect: (segment: Segment) => void;
 }): React.JSX.Element {
-  // Same clamping as desktop's HotelRow — sort by start, fill empty cells
-  // before each bar, place a `gridColumn: span N` pill for the bar, and
-  // emit a `Math.min` clamp so out-of-range checkouts can't push the
-  // row past `days.length` cells (which would scramble the grid).
-  const sorted = [...hotels].sort((a, b) => a.startDayIdx - b.startDayIdx);
-  const cells: React.ReactNode[] = [];
-  let idx = 0;
+  // Pack overlapping bars (hotel + cruise + car_rental commonly overlap)
+  // into the minimum number of non-overlapping tracks. Each track is
+  // one row in the grid; the "Lodging" RowLabel renders on track 0 and
+  // subsequent tracks emit an empty sticky cell so the grid alignment
+  // stays consistent. With no overlap this collapses to one row.
   const rowBg = cellBgStyle("hotel");
   const lodgingPill: React.CSSProperties = pillStyle("hotel");
+  const HotelIcon = SEGMENT_CONFIG.hotel.icon;
+  const tracks = packIntoTracks(hotels);
 
-  sorted.forEach((hotel) => {
-    const start = Math.max(hotel.startDayIdx, idx);
-    const end = Math.min(
-      Math.max(hotel.endDayIdx, start),
-      days.length - 1,
+  if (tracks.length === 0) {
+    return (
+      <>
+        <RowLabel icon={HotelIcon} name="Lodging" />
+        {days.map((_, i) => (
+          <div
+            key={`he-${i}`}
+            className="min-h-12 border-b border-r border-border/60"
+            style={rowBg}
+          />
+        ))}
+      </>
     );
-    const span = end - start + 1;
-    if (span <= 0) return;
-
-    while (idx < start) {
-      cells.push(
-        <div
-          key={`he-${idx}`}
-          className="min-h-12 border-b border-r border-border/60"
-          style={rowBg}
-        />,
-      );
-      idx++;
-    }
-    const h = hotel.segment;
-    // Per-type pill cosmetics on the shared Lodging lane.
-    //   hotel       → venueName, "Nn" (nights, checkout exclusive)
-    //   cruise      → shipName, "Nd" (days, disembark inclusive)
-    //   car_rental  → title (already "<Provider> - <Pickup>" from the
-    //                 segment form's auto-title), "Nd" (rental days,
-    //                 dropoff inclusive)
-    let name: string;
-    let unitSuffix: string;
-    if (h.type === "cruise") {
-      name = h.shipName ?? h.title;
-      unitSuffix = "d";
-    } else if (h.type === "car_rental") {
-      name = h.title;
-      unitSuffix = "d";
-    } else {
-      name = h.venueName ?? h.title;
-      unitSuffix = "n";
-    }
-    cells.push(
-      <button
-        type="button"
-        key={h.id}
-        onClick={() => onSelect(h)}
-        className="flex min-h-12 items-center border-b border-r border-border/60 p-1 transition-transform active:scale-[0.99]"
-        style={{ ...rowBg, gridColumn: `span ${span}` }}
-      >
-        <div
-          className="flex w-full min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold"
-          style={lodgingPill}
-        >
-          <span className="truncate">{name}</span>
-          {span > 1 && (
-            <span className="ml-auto pl-1 text-[10px] font-normal opacity-80">
-              {span}{unitSuffix}
-            </span>
-          )}
-        </div>
-      </button>,
-    );
-    idx = end + 1;
-  });
-
-  while (idx < days.length) {
-    cells.push(
-      <div
-        key={`he-${idx}`}
-        className="min-h-12 border-b border-r border-border/60"
-        style={rowBg}
-      />,
-    );
-    idx++;
   }
 
-  const HotelIcon = SEGMENT_CONFIG.hotel.icon;
   return (
     <>
-      <RowLabel icon={HotelIcon} name="Lodging" />
-      {cells}
+      {tracks.map((track, trackIdx) => {
+        const cells: React.ReactNode[] = [];
+        let idx = 0;
+        track.forEach((hotel) => {
+          const start = Math.max(hotel.startDayIdx, idx);
+          const end = Math.min(
+            Math.max(hotel.endDayIdx, start),
+            days.length - 1,
+          );
+          const span = end - start + 1;
+          if (span <= 0) return;
+
+          while (idx < start) {
+            cells.push(
+              <div
+                key={`he-${trackIdx}-${idx}`}
+                className="min-h-12 border-b border-r border-border/60"
+                style={rowBg}
+              />,
+            );
+            idx++;
+          }
+          const h = hotel.segment;
+          // Per-type pill cosmetics on the shared Lodging lane.
+          //   hotel       → venueName, "Nn" (nights, checkout exclusive)
+          //   cruise      → shipName, "Nd" (days, disembark inclusive)
+          //   car_rental  → title (already "<Provider> - <Pickup>" from
+          //                 the segment form's auto-title), "Nd"
+          //                 (rental days, dropoff inclusive)
+          let name: string;
+          let unitSuffix: string;
+          if (h.type === "cruise") {
+            name = h.shipName ?? h.title;
+            unitSuffix = "d";
+          } else if (h.type === "car_rental") {
+            name = h.title;
+            unitSuffix = "d";
+          } else {
+            name = h.venueName ?? h.title;
+            unitSuffix = "n";
+          }
+          cells.push(
+            <button
+              type="button"
+              key={h.id}
+              onClick={() => onSelect(h)}
+              className="flex min-h-12 items-center border-b border-r border-border/60 p-1 transition-transform active:scale-[0.99]"
+              style={{ ...rowBg, gridColumn: `span ${span}` }}
+            >
+              <div
+                className="flex w-full min-w-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold"
+                style={lodgingPill}
+              >
+                <span className="truncate">{name}</span>
+                {span > 1 && (
+                  <span className="ml-auto pl-1 text-[10px] font-normal opacity-80">
+                    {span}{unitSuffix}
+                  </span>
+                )}
+              </div>
+            </button>,
+          );
+          idx = end + 1;
+        });
+        while (idx < days.length) {
+          cells.push(
+            <div
+              key={`he-${trackIdx}-${idx}`}
+              className="min-h-12 border-b border-r border-border/60"
+              style={rowBg}
+            />,
+          );
+          idx++;
+        }
+        return (
+          <React.Fragment key={`lodging-track-${trackIdx}`}>
+            {trackIdx === 0 ? (
+              <RowLabel icon={HotelIcon} name="Lodging" />
+            ) : (
+              <div
+                className="sticky left-0 z-10 border-b border-r border-border/60 bg-card"
+                aria-hidden
+              />
+            )}
+            {cells}
+          </React.Fragment>
+        );
+      })}
     </>
   );
 }
