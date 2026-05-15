@@ -410,7 +410,7 @@ export function SegmentTypeSelect({
       <SelectContent position="popper">
         {SEGMENT_TYPE_GROUPS.map((group) => (
           <SelectGroup key={group.label}>
-            <SelectLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <SelectLabel className="text-kicker font-semibold text-muted-foreground">
               {group.label}
             </SelectLabel>
             {group.items.map((item) => (
