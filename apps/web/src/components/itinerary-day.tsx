@@ -40,6 +40,7 @@ import {
   Coffee,
   Trash2,
   Pencil,
+  Plus,
   Check,
   X,
 } from "lucide-react";
@@ -675,9 +676,25 @@ export function ItineraryDay({
       </div>
 
       {segments.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          No activities planned.
-        </p>
+        !readOnly && tripId ? (
+          <AddSegmentDialog
+            tripId={tripId}
+            date={day.date}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add the first activity
+              </button>
+            }
+          />
+        ) : (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            No activities planned.
+          </p>
+        )
       ) : (
         <div className="flex flex-col gap-2">
           {segments.map((seg) => (
