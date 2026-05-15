@@ -638,7 +638,7 @@ export function EmailScanDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            Scan Emails
+            Scan emails
           </DialogTitle>
           <DialogDescription>
             Search your mailbox for travel confirmations and add them to your itinerary.
@@ -884,7 +884,7 @@ export function EmailScanDialog({
                 className="w-full"
               >
                 <Mail className="mr-2 h-4 w-4" />
-                {scanEmails.isPending ? "Scanning…" : "Start Scan"}
+                {scanEmails.isPending ? "Scanning…" : "Start scan"}
               </Button>
             </DialogFooter>
           </>
