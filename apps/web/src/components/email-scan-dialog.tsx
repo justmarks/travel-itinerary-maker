@@ -1169,7 +1169,7 @@ export function EmailScanDialog({
         {step === "applying" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-            <p className="font-medium">Adding segments to your trip...</p>
+            <p className="font-medium">Adding segments to your trip…</p>
           </div>
         )}
 

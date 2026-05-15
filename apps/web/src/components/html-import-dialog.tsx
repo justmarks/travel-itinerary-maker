@@ -821,7 +821,7 @@ export function HtmlImportDialog({
                                     style={{ color: "var(--status-info-fg)" }}
                                   >
                                     <Plus className="h-3 w-3" />
-                                    Create new trip...
+                                    Create new trip…
                                   </span>
                                 </SelectItem>
                               </SelectContent>
