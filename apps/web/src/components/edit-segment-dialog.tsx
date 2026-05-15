@@ -291,7 +291,7 @@ export function EditSegmentDialog({
               collapses to a short default the hint was misleading
               (nothing below) and the overlay made the Cancel button
               feel un-clickable. */}
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="min-h-0 flex-1 overflow-y-auto px-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}

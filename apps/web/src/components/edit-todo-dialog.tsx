@@ -114,7 +114,12 @@ export function EditTodoDialog({
           onSubmit={handleSubmit}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          {/* `px-1` (not `pr-1`) so the focus ring on the Task input —
+              and any other focused control in the scroll area — has 4px
+              of breathing room on the LEFT too. With right-only padding,
+              `overflow-y-auto` clipped the ring's left edge against the
+              container border. */}
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
             <div className="space-y-1.5">
               <Label htmlFor="todo-text">Task</Label>
               <Input

@@ -600,7 +600,7 @@ export function HtmlImportDialog({
 
         {step === "results" && result && (
           <div className="flex min-h-0 flex-1 flex-col py-2">
-            <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+            <div className="flex-1 space-y-4 overflow-y-auto px-1">
             {/* New Trip creation — banner + inline form when segments are unassigned */}
             {result.parsedSegments.length > 0 &&
               hasUnassignedSegments &&
