@@ -1282,7 +1282,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(0,1fr)_280px]">
             <div
               ref={itineraryDaysRef}
-              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pr-2 print:overflow-visible"
+              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pl-1 lg:pr-2 lg:pt-1 print:overflow-visible"
             >
               {trip.days.map((day) => (
                 <ItineraryDay
