@@ -129,6 +129,69 @@ describe("email-scan-schedules routes", () => {
       expect(res.status).toBe(200);
       expect(res.body.includeSublabels).toBe(false);
     });
+
+    it("stores timeOfDay + dayOfWeek and aligns nextRunAt to the anchor", async () => {
+      // Weekly schedule anchored on Sunday 09:00 UTC. The next firing
+      // must be the next Sunday at 09:00, NOT a flat 7-day bump.
+      const res = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "weekly",
+          dayOfWeek: 0,
+          timeOfDay: "09:00",
+        });
+      expect(res.status).toBe(201);
+      expect(res.body.dayOfWeek).toBe(0);
+      expect(res.body.timeOfDay).toBe("09:00");
+      const next = new Date(res.body.nextRunAt);
+      expect(next.getUTCDay()).toBe(0);
+      expect(next.getUTCHours()).toBe(9);
+      expect(next.getUTCMinutes()).toBe(0);
+    });
+
+    it("rejects timeOfDay outside 00:00–23:59", async () => {
+      const res = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "daily",
+          timeOfDay: "25:00",
+        });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects dayOfWeek outside 0–6", async () => {
+      const res = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "weekly",
+          dayOfWeek: 7,
+        });
+      expect(res.status).toBe(400);
+    });
+
+    it("PUT can clear timeOfDay/dayOfWeek with null and resets nextRunAt", async () => {
+      const created = await request(app)
+        .post("/email-scan-schedules")
+        .send({
+          provider: "google",
+          frequency: "weekly",
+          dayOfWeek: 3,
+          timeOfDay: "12:00",
+        });
+      const initialNext = created.body.nextRunAt;
+      const res = await request(app)
+        .put(`/email-scan-schedules/${created.body.id}`)
+        .send({ timeOfDay: null, dayOfWeek: null });
+      expect(res.status).toBe(200);
+      expect(res.body.timeOfDay).toBeUndefined();
+      expect(res.body.dayOfWeek).toBeUndefined();
+      // Anchor changed → nextRunAt should have been recomputed (legacy
+      // flat 7-day bump from "now"), not the original anchored time.
+      expect(res.body.nextRunAt).not.toBe(initialNext);
+    });
   });
 
   describe("GET /email-scan-schedules", () => {

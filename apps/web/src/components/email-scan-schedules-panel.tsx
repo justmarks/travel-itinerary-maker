@@ -54,6 +54,14 @@ import { buildGmailLabelTree, indentedLabel } from "@/lib/gmail-labels";
 import { toastMutationError } from "@/lib/api-error";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { cn } from "@/lib/utils";
+import {
+  DAY_OF_WEEK_LABELS,
+  localNowAsHHMM,
+  localTimeToUtcTime,
+  localWeeklyToUtc,
+  utcTimeToLocalTime,
+  utcWeeklyToLocal,
+} from "@/lib/schedule-time";
 
 const FREQUENCY_LABELS: Record<EmailScanFrequency, string> = {
   daily: "Daily",
@@ -190,6 +198,41 @@ function EmptyState({
   );
 }
 
+/**
+ * Format the schedule's clock anchor into a short, user-local
+ * description ("at 8:00 AM" / "Sundays at 11:00 PM"). Returns null
+ * when the schedule has no clock anchor — the row falls back to just
+ * "Daily" / "Weekly" / "Monthly" in that case (the legacy display).
+ */
+function fmtScheduleAnchor(schedule: EmailScanSchedule): string | null {
+  if (schedule.frequency === "monthly") return null;
+  if (schedule.frequency === "weekly") {
+    if (
+      typeof schedule.dayOfWeek !== "number" ||
+      !schedule.timeOfDay
+    ) {
+      return null;
+    }
+    const { dayOfWeek: localDay, timeOfDay: localTime } = utcWeeklyToLocal(
+      schedule.dayOfWeek,
+      schedule.timeOfDay,
+    );
+    return `${DAY_OF_WEEK_LABELS[localDay]}s at ${fmt12h(localTime)}`;
+  }
+  // daily
+  if (!schedule.timeOfDay) return null;
+  return `at ${fmt12h(utcTimeToLocalTime(schedule.timeOfDay))}`;
+}
+
+function fmt12h(hhmm: string): string {
+  const [hStr, mStr] = hhmm.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 function ScheduleRow({
   schedule,
 }: {
@@ -237,8 +280,12 @@ function ScheduleRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">
-            {FREQUENCY_LABELS[schedule.frequency]} scan ·{" "}
-            {emailProviderLabel(schedule.provider as EmailProvider)}
+            {FREQUENCY_LABELS[schedule.frequency]} scan
+            {(() => {
+              const anchor = fmtScheduleAnchor(schedule);
+              return anchor ? ` ${anchor}` : "";
+            })()}{" "}
+            · {emailProviderLabel(schedule.provider as EmailProvider)}
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {schedule.labelName ||
@@ -346,6 +393,29 @@ function ScheduleEditorDialog({
   const [frequency, setFrequency] = useState<EmailScanFrequency>(
     schedule?.frequency ?? "daily",
   );
+
+  // Time-of-day + day-of-week. Stored UTC; presented + edited LOCAL.
+  // Seed the editor from the existing schedule when reopening so the
+  // user sees their own picks back rather than a default. For weekly
+  // the day + time convert together (a late-evening UTC pick can land
+  // on a different local day, and vice versa).
+  const initialWeekly =
+    schedule?.frequency === "weekly" &&
+    schedule.timeOfDay &&
+    typeof schedule.dayOfWeek === "number"
+      ? utcWeeklyToLocal(schedule.dayOfWeek, schedule.timeOfDay)
+      : null;
+  const [localTimeOfDay, setLocalTimeOfDay] = useState<string>(() => {
+    if (initialWeekly) return initialWeekly.timeOfDay;
+    if (schedule?.timeOfDay) return utcTimeToLocalTime(schedule.timeOfDay);
+    return localNowAsHHMM();
+  });
+  const [localDayOfWeek, setLocalDayOfWeek] = useState<number>(() => {
+    if (initialWeekly) return initialWeekly.dayOfWeek;
+    if (typeof schedule?.dayOfWeek === "number") return schedule.dayOfWeek;
+    return new Date().getDay();
+  });
+
   const { data: labels } = useGmailLabels(open, provider);
   const create = useCreateEmailScanSchedule();
   const update = useUpdateEmailScanSchedule();
@@ -362,6 +432,25 @@ function ScheduleEditorDialog({
   // Persist `false` in that case to keep the row tidy.
   const effectiveIncludeSublabels = labelFilter ? includeSublabels : false;
 
+  // Resolve the time/day anchors the API call should carry. Monthly
+  // has no clock anchor (calendar cadence). Daily gets just the time.
+  // Weekly gets both, converted as a pair so a near-midnight local
+  // pick that crosses UTC lands on the correct day.
+  let utcTimeOfDay: string | null | undefined = undefined;
+  let utcDayOfWeek: number | null | undefined = undefined;
+  if (frequency === "daily") {
+    utcTimeOfDay = localTimeToUtcTime(localTimeOfDay);
+    utcDayOfWeek = null;
+  } else if (frequency === "weekly") {
+    const w = localWeeklyToUtc(localDayOfWeek, localTimeOfDay);
+    utcTimeOfDay = w.timeOfDay;
+    utcDayOfWeek = w.dayOfWeek;
+  } else {
+    // monthly — clear any anchors carried over from a previous freq.
+    utcTimeOfDay = null;
+    utcDayOfWeek = null;
+  }
+
   const onSubmit = () => {
     if (schedule) {
       update.mutate(
@@ -375,6 +464,8 @@ function ScheduleEditorDialog({
             labelName: resolvedLabelName ?? null,
             includeSublabels: effectiveIncludeSublabels,
             frequency,
+            timeOfDay: utcTimeOfDay,
+            dayOfWeek: utcDayOfWeek,
           },
         },
         {
@@ -393,6 +484,8 @@ function ScheduleEditorDialog({
           labelName: resolvedLabelName,
           includeSublabels: effectiveIncludeSublabels,
           frequency,
+          timeOfDay: utcTimeOfDay ?? undefined,
+          dayOfWeek: utcDayOfWeek ?? undefined,
         },
         {
           onSuccess: () => {
@@ -463,7 +556,7 @@ function ScheduleEditorDialog({
               value={labelFilter || "__all__"}
               onValueChange={(v) => setLabelFilter(v === "__all__" ? "" : v)}
             >
-              <SelectTrigger id="sched-label">
+              <SelectTrigger id="sched-label" className="w-full">
                 <SelectValue
                   placeholder={`All ${emailLabelNoun(provider)}s`}
                 />
@@ -515,22 +608,78 @@ function ScheduleEditorDialog({
             </label>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="sched-frequency">Frequency</Label>
-            <Select
-              value={frequency}
-              onValueChange={(v) => setFrequency(v as EmailScanFrequency)}
-            >
-              <SelectTrigger id="sched-frequency">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="daily">Daily</SelectItem>
-                <SelectItem value="weekly">Weekly</SelectItem>
-                <SelectItem value="monthly">Monthly</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Frequency + clock anchor live on the same row so the dialog
+              keeps a fixed width:
+                monthly  → just Frequency on the left, right column empty.
+                daily    → Frequency on the left, Time on the right.
+                weekly   → Frequency on the left, Day-of-week + Time
+                           stacked on the right.
+              Stored in UTC; presented + edited in the user's local time
+              so a late-evening local pick that crosses midnight UTC
+              still lands on the correct UTC day. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="sched-frequency">Frequency</Label>
+              <Select
+                value={frequency}
+                onValueChange={(v) => setFrequency(v as EmailScanFrequency)}
+              >
+                <SelectTrigger id="sched-frequency" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              {frequency === "weekly" && (
+                <>
+                  <Label htmlFor="sched-dow">Day of week</Label>
+                  <Select
+                    value={String(localDayOfWeek)}
+                    onValueChange={(v) =>
+                      setLocalDayOfWeek(parseInt(v, 10))
+                    }
+                  >
+                    <SelectTrigger id="sched-dow" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DAY_OF_WEEK_LABELS.map((label, i) => (
+                        <SelectItem key={i} value={String(i)}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+              {frequency !== "monthly" && (
+                <>
+                  <Label htmlFor="sched-time">Time</Label>
+                  <input
+                    id="sched-time"
+                    type="time"
+                    value={localTimeOfDay}
+                    onChange={(e) => setLocalTimeOfDay(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  />
+                </>
+              )}
+            </div>
           </div>
+          {/* Helper text moves below the row so it doesn't widen either
+              column on the right. Only meaningful when an anchor is set. */}
+          {frequency !== "monthly" && (
+            <p className="text-xs text-muted-foreground">
+              Time is in your local zone. The schedule fires at the
+              closest hourly cron tick after this clock.
+            </p>
+          )}
         </div>
 
         <DialogFooter>

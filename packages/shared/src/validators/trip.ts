@@ -524,6 +524,13 @@ export const EMAIL_SCAN_FREQUENCIES = ["daily", "weekly", "monthly"] as const;
  * the labelFilter against the provider's label list on next-scan to
  * keep the cached name fresh.
  */
+/**
+ * `HH:MM` 24h regex (00:00–23:59) used by the `timeOfDay` field on
+ * scheduled scans. Seconds aren't accepted — the scheduler's
+ * granularity is the cron tick, so minute precision is the floor.
+ */
+const scheduleTimeOfDayRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export const createEmailScanScheduleSchema = z.object({
   provider: z.enum(["google", "microsoft"]),
   labelFilter: z.string().optional(),
@@ -536,6 +543,20 @@ export const createEmailScanScheduleSchema = z.object({
    * connector's label list. No effect when `labelFilter` is unset.
    */
   includeSublabels: z.boolean().optional(),
+  /**
+   * UTC `HH:MM` clock time the scan should target. Optional — when
+   * omitted the scheduler bumps `nextRunAt` by a flat 24h/7d. Used by
+   * the `daily` and `weekly` cadences; `monthly` ignores it.
+   */
+  timeOfDay: z
+    .string()
+    .regex(scheduleTimeOfDayRegex, "Must be HH:MM (00:00–23:59)")
+    .optional(),
+  /**
+   * UTC day-of-week (0 = Sunday, …, 6 = Saturday). Only meaningful for
+   * the `weekly` cadence.
+   */
+  dayOfWeek: z.number().int().min(0).max(6).optional(),
 });
 
 /**
@@ -552,6 +573,18 @@ export const updateEmailScanScheduleSchema = z
     frequency: z.enum(EMAIL_SCAN_FREQUENCIES).optional(),
     enabled: z.boolean().optional(),
     includeSublabels: z.boolean().optional(),
+    /**
+     * Nullable so the editor can clear a previously-set value when the
+     * user flips the cadence back to "monthly" (or simply wants the
+     * legacy unanchored behaviour). `undefined` = leave the existing
+     * value alone; `null` = clear; `string` = set/replace.
+     */
+    timeOfDay: z
+      .string()
+      .regex(scheduleTimeOfDayRegex, "Must be HH:MM (00:00–23:59)")
+      .nullable()
+      .optional(),
+    dayOfWeek: z.number().int().min(0).max(6).nullable().optional(),
   })
   .refine(
     (data) =>
@@ -560,10 +593,12 @@ export const updateEmailScanScheduleSchema = z
       data.labelName !== undefined ||
       data.frequency !== undefined ||
       data.enabled !== undefined ||
-      data.includeSublabels !== undefined,
+      data.includeSublabels !== undefined ||
+      data.timeOfDay !== undefined ||
+      data.dayOfWeek !== undefined,
     {
       message:
-        "At least one of provider, labelFilter, labelName, frequency, enabled, includeSublabels must be provided",
+        "At least one of provider, labelFilter, labelName, frequency, enabled, includeSublabels, timeOfDay, dayOfWeek must be provided",
     },
   );
 

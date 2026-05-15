@@ -43,6 +43,13 @@
       "when": 1779206400000,
       "tag": "0005_email_scan_include_sublabels",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779292800000,
+      "tag": "0006_email_scan_schedule_time_dow",
+      "breakpoints": true
     }
   ]
 }

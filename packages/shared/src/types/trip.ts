@@ -466,6 +466,28 @@ export interface EmailScanSchedule {
   includeSublabels?: boolean;
   frequency: EmailScanFrequency;
   /**
+   * UTC clock time the schedule should target, formatted as `HH:MM`
+   * (24h). Used by `daily` and `weekly` cadences to anchor when the
+   * scan fires within the day. Stored in UTC because the cron tick
+   * runs in UTC; the editor UI converts to / from the user's local
+   * time so the picker still reads naturally. Undefined → the
+   * scheduler bumps `nextRunAt` by a flat 24h / 7d without anchoring
+   * to a specific time-of-day (legacy behaviour for schedules created
+   * before this field existed). `monthly` schedules ignore it — the
+   * calendar-month cadence has no clock-time anchor.
+   */
+  timeOfDay?: string;
+  /**
+   * UTC day-of-week (0 = Sunday, …, 6 = Saturday) the schedule should
+   * target. Only meaningful for the `weekly` cadence. The editor UI
+   * converts between the user's local-zone day and UTC together with
+   * `timeOfDay` so a late-evening pick that crosses midnight UTC
+   * stays consistent (e.g. picking "Sunday 11pm" in UTC-5 stores
+   * `dayOfWeek = 1` + `timeOfDay = "04:00"`). Undefined → fall back
+   * to a flat 7-day bump from the create-time anchor.
+   */
+  dayOfWeek?: number;
+  /**
    * When false, the scheduler skips this row on the cron tick.
    * Distinct from delete — lets the user pause a schedule (e.g.
    * during a trip) and re-enable it later without losing the

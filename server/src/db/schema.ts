@@ -382,6 +382,16 @@ export const emailScanSchedules = pgTable(
     // `<parent>/`. No effect when `label_filter` is null — the scan
     // already covers everything in that case.
     includeSublabels: boolean("include_sublabels").notNull().default(false),
+    // UTC clock time the scan should target, "HH:MM" 24h. Nullable to
+    // preserve the legacy flat-bump behaviour for schedules created
+    // before this column existed. Used by daily + weekly cadences;
+    // monthly ignores it (calendar-month cadence has no clock anchor).
+    timeOfDay: text("time_of_day"),
+    // UTC day-of-week (0 = Sunday, …, 6 = Saturday). Only meaningful
+    // for the weekly cadence. Editor UI converts together with
+    // `time_of_day` so a late-evening local pick that crosses midnight
+    // UTC lands on the correct day.
+    dayOfWeek: integer("day_of_week"),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
