@@ -563,6 +563,11 @@ function EditableCity({
     }
   };
 
+  const cancel = () => {
+    setValue(city);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -577,6 +582,9 @@ function EditableCity({
           onChange={(e) => setValue(e.target.value)}
           className="h-6 w-28 px-1.5 text-sm"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancel();
+          }}
         />
         <Button
           type="submit"
@@ -594,10 +602,7 @@ function EditableCity({
           size="icon"
           aria-label="Cancel"
           className="h-6 w-6"
-          onClick={() => {
-            setValue(city);
-            setEditing(false);
-          }}
+          onClick={cancel}
         >
           <X className="h-3 w-3" />
         </Button>
