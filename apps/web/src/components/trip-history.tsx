@@ -65,16 +65,20 @@ function discStyle(tone: Tone): React.CSSProperties {
 function formatRelativeTime(iso: string): string {
   const then = new Date(iso).getTime();
   const now = Date.now();
-  const seconds = Math.round((now - then) / 1000);
+  // floor (not round) so 90 seconds reads as "1m ago" rather than
+  // "2m ago" — the "ago" convention is "at least X have passed",
+  // which Math.floor models. Math.round pushed labels up by half a
+  // bucket, surfacing a misleadingly larger duration than reality.
+  const seconds = Math.floor((now - then) / 1000);
   if (seconds < 30) return "just now";
   if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
+  const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
+  const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  const weeks = Math.round(days / 7);
+  const weeks = Math.floor(days / 7);
   if (weeks < 5) return `${weeks}w ago`;
   return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
