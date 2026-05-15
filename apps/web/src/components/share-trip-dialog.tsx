@@ -145,7 +145,7 @@ function ExistingShareRow({
         </p>
         {share.originRuleId && (
           <p
-            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-kicker"
             style={{
               background: "var(--status-info-bg)",
               color: "var(--status-info-fg)",
