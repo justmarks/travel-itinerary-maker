@@ -1144,7 +1144,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 and then disappear once the real permission resolves. */}
             {!permission.isLoading && isOwner && (
               <>
-                <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+                <EmailScanDialog tripId={trip.id} triggerLabel="Scan emails" />
                 <Button
                   variant="default"
                   size="sm"

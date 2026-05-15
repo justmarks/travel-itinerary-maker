@@ -141,7 +141,7 @@ type ScanStep =
 
 export function EmailScanDialog({
   tripId,
-  triggerLabel = "Scan Emails",
+  triggerLabel = "Scan emails",
   triggerVariant = "outline",
   triggerSize = "sm",
   defaultOpen = false,
@@ -594,7 +594,7 @@ export function EmailScanDialog({
         `Couldn't dismiss ${failed} email${failed === 1 ? "" : "s"}`,
         {
           description:
-            "They'll stay in the pending list — try again from Scan Emails.",
+            "They'll stay in the pending list — try again from Scan emails.",
         },
       );
     }
