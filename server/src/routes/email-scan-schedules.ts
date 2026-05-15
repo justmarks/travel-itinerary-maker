@@ -180,7 +180,12 @@ export function createEmailScanScheduleRoutes(
         includeSublabels: parsed.data.includeSublabels ?? false,
         frequency: parsed.data.frequency,
         enabled: true,
-        nextRunAt: computeNextRunAt(parsed.data.frequency, now),
+        timeOfDay: parsed.data.timeOfDay,
+        dayOfWeek: parsed.data.dayOfWeek,
+        nextRunAt: computeNextRunAt(parsed.data.frequency, now, {
+          timeOfDay: parsed.data.timeOfDay,
+          dayOfWeek: parsed.data.dayOfWeek,
+        }),
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
       };
@@ -211,11 +216,28 @@ export function createEmailScanScheduleRoutes(
         res.status(404).json({ error: "Schedule not found" });
         return;
       }
-      // If the frequency changed, reset `nextRunAt` so the new cadence
-      // takes effect on the next tick rather than at the old anchor.
-      const frequencyChanged =
-        parsed.data.frequency !== undefined &&
-        parsed.data.frequency !== existing.frequency;
+      // Resolve the new field values first so the cadence reset below
+      // can read them. `null` clears the previous value; `undefined`
+      // leaves it alone; a concrete value replaces it.
+      const nextTimeOfDay =
+        parsed.data.timeOfDay === null
+          ? undefined
+          : parsed.data.timeOfDay ?? existing.timeOfDay;
+      const nextDayOfWeek =
+        parsed.data.dayOfWeek === null
+          ? undefined
+          : parsed.data.dayOfWeek ?? existing.dayOfWeek;
+      const nextFrequency = parsed.data.frequency ?? existing.frequency;
+
+      // Reset `nextRunAt` whenever an anchor changed (frequency, time
+      // of day, or day of week). Without this the schedule keeps
+      // firing at the old wall-clock until the next tick rolls past
+      // its prior `nextRunAt`, which can be a full week's lag for a
+      // weekly schedule.
+      const anchorChanged =
+        nextFrequency !== existing.frequency ||
+        nextTimeOfDay !== existing.timeOfDay ||
+        nextDayOfWeek !== existing.dayOfWeek;
       const updated: EmailScanSchedule = {
         ...existing,
         provider: parsed.data.provider ?? existing.provider,
@@ -227,12 +249,17 @@ export function createEmailScanScheduleRoutes(
           parsed.data.labelName === null
             ? undefined
             : parsed.data.labelName ?? existing.labelName,
-        frequency: parsed.data.frequency ?? existing.frequency,
+        frequency: nextFrequency,
         enabled: parsed.data.enabled ?? existing.enabled,
         includeSublabels:
           parsed.data.includeSublabels ?? existing.includeSublabels ?? false,
-        nextRunAt: frequencyChanged
-          ? computeNextRunAt(parsed.data.frequency!, new Date())
+        timeOfDay: nextTimeOfDay,
+        dayOfWeek: nextDayOfWeek,
+        nextRunAt: anchorChanged
+          ? computeNextRunAt(nextFrequency, new Date(), {
+              timeOfDay: nextTimeOfDay,
+              dayOfWeek: nextDayOfWeek,
+            })
           : existing.nextRunAt,
         updatedAt: new Date().toISOString(),
       };
