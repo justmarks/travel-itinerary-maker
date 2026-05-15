@@ -118,7 +118,7 @@ export function StillLoadingHint({
       )}
       aria-live="polite"
     >
-      Still loading your trips&hellip;
+      Still loading your trips…
     </p>
   );
 }

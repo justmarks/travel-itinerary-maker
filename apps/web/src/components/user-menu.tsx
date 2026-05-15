@@ -72,7 +72,7 @@ export function UserMenu(): React.JSX.Element | null {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setAutoShareOpen(true)}>
           <Repeat className="mr-2 h-4 w-4" />
-          Auto-share&hellip;
+          Auto-share…
         </DropdownMenuItem>
         <NotificationToggleMenu />
         <ThemeToggleMenu />
