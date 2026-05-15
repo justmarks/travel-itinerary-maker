@@ -846,7 +846,8 @@ function CalendarSyncDialogs({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the {providerLabel}{" "}to sync this trip&apos;s events to.
+              Pick which {providerLabel.toLowerCase()} should receive this
+              trip&apos;s events.
             </DialogDescription>
           </DialogHeader>
           {showProviderPicker && (
