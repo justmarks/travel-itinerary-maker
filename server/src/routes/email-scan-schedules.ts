@@ -177,6 +177,7 @@ export function createEmailScanScheduleRoutes(
         provider: parsed.data.provider,
         labelFilter: parsed.data.labelFilter,
         labelName: parsed.data.labelName,
+        includeSublabels: parsed.data.includeSublabels ?? false,
         frequency: parsed.data.frequency,
         enabled: true,
         nextRunAt: computeNextRunAt(parsed.data.frequency, now),
@@ -228,6 +229,8 @@ export function createEmailScanScheduleRoutes(
             : parsed.data.labelName ?? existing.labelName,
         frequency: parsed.data.frequency ?? existing.frequency,
         enabled: parsed.data.enabled ?? existing.enabled,
+        includeSublabels:
+          parsed.data.includeSublabels ?? existing.includeSublabels ?? false,
         nextRunAt: frequencyChanged
           ? computeNextRunAt(parsed.data.frequency!, new Date())
           : existing.nextRunAt,

@@ -36,6 +36,13 @@
       "when": 1779120000000,
       "tag": "0004_email_scan_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779206400000,
+      "tag": "0005_email_scan_include_sublabels",
+      "breakpoints": true
     }
   ]
 }

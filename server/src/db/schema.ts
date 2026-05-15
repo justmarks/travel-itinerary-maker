@@ -375,6 +375,13 @@ export const emailScanSchedules = pgTable(
     labelName: text("label_name"), // cached human-readable label for the UI
     frequency: text("frequency").notNull(), // 'daily' | 'weekly' | 'monthly'
     enabled: boolean("enabled").notNull().default(true),
+    // When true, the schedule scans descendants of `label_filter` too
+    // (e.g. "Travel" → also "Travel/Hotels", "Travel/Flights/Confirmed").
+    // The executor expands the filter at run time by walking the
+    // connector's `listLabels()` and finding entries with name prefix
+    // `<parent>/`. No effect when `label_filter` is null — the scan
+    // already covers everything in that case.
+    includeSublabels: boolean("include_sublabels").notNull().default(false),
     lastRunAt: timestamp("last_run_at", { withTimezone: true }),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })

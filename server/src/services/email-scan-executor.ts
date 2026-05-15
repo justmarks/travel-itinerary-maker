@@ -173,21 +173,78 @@ export async function executeSchedule(
     });
   }
 
-  // 2. Scan the mailbox.
-  let rawEmails;
+  // 2. Resolve which label / folder ids to scan.
+  //
+  // `schedule.labelFilter` is a single id; when `includeSublabels` is
+  // off (or there's no filter at all), that's what we scan. With the
+  // flag on, we list the connection's labels, find the picked one's
+  // descendants by name prefix (`<parent>/...` — Gmail's flat-label
+  // model and Outlook's folder paths both use this separator) and
+  // scan each one. Results are merged by message id at the end so a
+  // message tagged under multiple descendant labels isn't parsed
+  // twice.
+  //
+  // Listing labels can fail (network blip, revoked scope) — falling
+  // back to the parent-only scan in that case is safer than failing
+  // the entire run; the user just doesn't get the widened set this
+  // tick.
+  const labelFiltersToScan: (string | undefined)[] = [];
+  if (schedule.labelFilter && schedule.includeSublabels) {
+    try {
+      const labels = await connector.listLabels();
+      const parent = labels.find((l) => l.id === schedule.labelFilter);
+      if (parent) {
+        const childPrefix = `${parent.name}/`;
+        const descendants = labels.filter(
+          (l) => l.id === parent.id || l.name.startsWith(childPrefix),
+        );
+        if (descendants.length > 0) {
+          labelFiltersToScan.push(...descendants.map((l) => l.id));
+        } else {
+          labelFiltersToScan.push(schedule.labelFilter);
+        }
+      } else {
+        // Label gone (user renamed/deleted between create and run).
+        // Fall back to the stored id; the connector will surface an
+        // empty result if the label truly doesn't exist anymore.
+        labelFiltersToScan.push(schedule.labelFilter);
+      }
+    } catch (err) {
+      console.warn(
+        `${logPrefix} listLabels failed for sublabel expansion — falling back to parent-only scan:`,
+        err,
+      );
+      labelFiltersToScan.push(schedule.labelFilter);
+    }
+  } else {
+    labelFiltersToScan.push(schedule.labelFilter);
+  }
+
+  // 3. Scan each filter and merge results by message id.
+  type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+  let rawEmails: RawEmail[];
   try {
-    rawEmails = await connector.scanEmails({
-      labelFilter: schedule.labelFilter,
-      // Same cap the manual scan uses — keeps a single tick cheap and
-      // bounded even when the user picks a noisy folder.
-      maxResults: 100,
-      // 30-day window is enough for a daily cadence to never miss an
-      // email even with a few skipped runs. Weekly / monthly cadences
-      // also tolerate it because already-processed messages are
-      // filtered out before parsing.
-      newerThanDays: 30,
-      logPrefix,
-    });
+    const seen = new Map<string, RawEmail>();
+    for (const filter of labelFiltersToScan) {
+      const batch = await connector.scanEmails({
+        labelFilter: filter,
+        // Same cap the manual scan uses — keeps a single tick cheap
+        // and bounded even when the user picks a noisy folder. Applies
+        // per-label when expanding sublabels; the aggregate may exceed
+        // 100 across the descendant set, which is fine.
+        maxResults: 100,
+        // 30-day window is enough for a daily cadence to never miss
+        // an email even with a few skipped runs. Weekly / monthly
+        // cadences also tolerate it because already-processed
+        // messages are filtered out before parsing.
+        newerThanDays: 30,
+        logPrefix,
+      });
+      for (const e of batch) {
+        if (!seen.has(e.id)) seen.set(e.id, e);
+      }
+    }
+    rawEmails = Array.from(seen.values());
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`${logPrefix} mailbox scan threw:`, err);
