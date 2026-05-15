@@ -215,7 +215,7 @@ export function TripTodos({
               onClick={() => setSuggestOpen(true)}
               title="Suggest to-dos for missing meals"
             >
-              <Sparkles className="h-3.5 w-3.5" style={{ color: "var(--brand)" }} />
+              <Sparkles className="h-3.5 w-3.5 text-brand" />
               Suggest meals
             </Button>
           )}

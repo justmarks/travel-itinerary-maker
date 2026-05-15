@@ -398,8 +398,7 @@ function FullMapInner({
               href={mapsSearchUrl(selectedPin.query)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs hover:underline"
-              style={{ color: "var(--primary)" }}
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               Open in Google Maps
               <ExternalLink className="h-3 w-3" />

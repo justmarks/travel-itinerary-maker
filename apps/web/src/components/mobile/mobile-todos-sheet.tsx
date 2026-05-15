@@ -255,10 +255,7 @@ export function MobileTodosSheet({
                 aria-label="Suggest meals"
                 className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
               >
-                <Sparkles
-                  className="h-4 w-4"
-                  style={{ color: "var(--brand)" }}
-                />
+                <Sparkles className="h-4 w-4 text-brand" />
               </button>
             )}
             <button
