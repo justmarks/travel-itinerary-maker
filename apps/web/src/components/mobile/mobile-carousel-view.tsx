@@ -240,7 +240,7 @@ export function MobileCarouselView({
       </div>
 
       {/* Map header (shared, swaps as user swipes) */}
-      <div className="shrink-0 border-b bg-zinc-100 dark:bg-zinc-900">
+      <div className="shrink-0 border-b bg-muted">
         <MobileDayMap
           trip={trip}
           activeDate={activeDay?.date}
