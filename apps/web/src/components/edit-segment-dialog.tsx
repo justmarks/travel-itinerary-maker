@@ -322,7 +322,7 @@ export function EditSegmentDialog({
                   Saving…
                 </>
               ) : (
-                "Save Changes"
+                "Save changes"
               )}
             </Button>
           </div>

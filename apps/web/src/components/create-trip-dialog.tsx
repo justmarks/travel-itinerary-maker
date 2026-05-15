@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, AlertCircle } from "lucide-react";
+import { Plus, AlertCircle, Loader2 } from "lucide-react";
 
 interface OverlapInfo {
   id: string;
@@ -219,7 +219,14 @@ export function CreateTripDialog({
               type="submit"
               disabled={!isValid || createTrip.isPending}
             >
-              {createTrip.isPending ? "Creating…" : "Create trip"}
+              {createTrip.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create trip"
+              )}
             </Button>
           </div>
         </form>
