@@ -345,7 +345,16 @@ function RuleRow({
           size="sm"
           className="h-8"
           onClick={togglePermission}
-          aria-label="Toggle permission"
+          aria-label={
+            rule.permission === "edit"
+              ? "Change to view-only"
+              : "Change to can edit"
+          }
+          title={
+            rule.permission === "edit"
+              ? "Change to view-only"
+              : "Change to can edit"
+          }
         >
           {rule.permission === "edit" ? (
             <Pencil className="h-3.5 w-3.5" />
