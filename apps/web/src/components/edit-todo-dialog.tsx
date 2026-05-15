@@ -74,8 +74,9 @@ export function EditTodoDialog({
       {
         todoId: todo.id,
         text: trimmed,
-        // Empty string clears notes server-side.
-        details: details.trim() ? details : "",
+        // Empty string clears notes server-side; trim to drop accidental
+        // leading/trailing whitespace from paste-and-edit.
+        details: details.trim(),
         category:
           category === NO_CATEGORY ? undefined : (category as TodoCategory),
       },
