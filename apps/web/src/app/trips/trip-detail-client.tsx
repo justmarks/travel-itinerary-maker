@@ -408,6 +408,7 @@ function TripActionsMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteTrip = useDeleteTrip();
+  const homeHref = useDemoHref("/");
   const [exporting, setExporting] = useState(false);
 
   const handleDelete = async () => {
@@ -423,7 +424,7 @@ function TripActionsMenu({
         // Bounce to the dashboard so the user isn't stuck on a now-404
         // detail page. The trips list will refresh from the
         // invalidation in the mutation hook.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("delete trip"),
     });
@@ -652,6 +653,7 @@ function LeaveTripMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(tripId);
+  const homeHref = useDemoHref("/");
 
   const handleLeave = async () => {
     const ok = await confirm({
@@ -666,7 +668,7 @@ function LeaveTripMenu({
       onSuccess: () => {
         // The trip is no longer visible to this user — bouncing to the
         // dashboard avoids a 404 the moment the next GET fires.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("leave trip"),
     });
