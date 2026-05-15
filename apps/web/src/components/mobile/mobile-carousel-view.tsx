@@ -352,7 +352,7 @@ export function MobileCarouselView({
                       className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed bg-card px-4 py-6 text-sm text-muted-foreground active:bg-muted/40"
                     >
                       <Plus className="h-4 w-4" />
-                      Add the first segment
+                      Add the first activity
                     </button>
                   ) : (
                     <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
