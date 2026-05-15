@@ -181,7 +181,7 @@ function MobileTripCardLeaveMenu({
           <button
             type="button"
             aria-label="More trip actions"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
