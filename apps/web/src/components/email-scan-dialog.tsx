@@ -850,7 +850,7 @@ export function EmailScanDialog({
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <div className="space-y-1">
                     <p>
-                      Couldn't load {emailLabelNoun(activeEmailProvider)}s for{" "}
+                      Couldn&apos;t load {emailLabelNoun(activeEmailProvider)}s for{" "}
                       {emailProviderLabel(activeEmailProvider)}. Try
                       reconnecting in Settings if the problem persists.
                     </p>

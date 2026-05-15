@@ -64,6 +64,7 @@ import {
   Trash2,
   Users,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
 import { ItineraryDay } from "@/components/itinerary-day";
@@ -742,7 +743,11 @@ function NeedsReviewBanner({
         }
         disabled={confirmAll.isPending}
       >
-        <Check className="mr-1.5 h-3.5 w-3.5" />
+        {confirmAll.isPending ? (
+          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Check className="mr-1.5 h-3.5 w-3.5" />
+        )}
         Confirm all
       </Button>
     </div>
