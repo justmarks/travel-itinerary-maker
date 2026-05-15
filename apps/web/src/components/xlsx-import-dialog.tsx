@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useImportXlsxTrip, ApiError } from "@itinly/api-client";
+import { useDemoMode } from "@/lib/demo";
 import {
   Dialog,
   DialogContent,
@@ -56,6 +57,7 @@ export function XlsxImportDialog({
   onOpenChange?: (open: boolean) => void;
 } = {}): React.JSX.Element {
   const router = useRouter();
+  const isDemo = useDemoMode();
   const importXlsx = useImportXlsxTrip();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -117,7 +119,11 @@ export function XlsxImportDialog({
         onSuccess: (response) => {
           setOpen(false);
           resetState();
-          router.push(`/trips/?id=${response.trip.id}`);
+          router.push(
+            isDemo
+              ? `/trips/?id=${response.trip.id}&demo=true`
+              : `/trips/?id=${response.trip.id}`,
+          );
         },
         onError: (error) => {
           if (error instanceof ApiError) {
