@@ -475,7 +475,7 @@ function SegmentRow({
               redundant with the row click but kept as a discoverable
               visible affordance — its handler is the same. */}
           <div
-            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100"
+            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100 can-hover:group-focus-within/seg:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
             {segment.needsReview && (
@@ -611,7 +611,7 @@ function EditableCity({
     >
       <MapPin className="h-3 w-3" />
       {city || "Set city"}
-      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100" />
+      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100 can-hover:group-focus-within/day:opacity-100" />
     </button>
   );
 }
