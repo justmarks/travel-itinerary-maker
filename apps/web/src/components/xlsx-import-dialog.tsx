@@ -240,7 +240,7 @@ export function XlsxImportDialog({
             </Button>
             <Button type="submit" disabled={!file || importXlsx.isPending}>
               <Upload className="mr-2 h-4 w-4" />
-              {importXlsx.isPending ? "Importing…" : "Import Trip"}
+              {importXlsx.isPending ? "Importing…" : "Import trip"}
             </Button>
           </div>
         </form>
