@@ -673,7 +673,11 @@ describe("EmailParser.emlToEmail", () => {
     expect(out.receivedAt).toBe("2026-06-15T14:30:00.000Z");
   });
 
-  it("prefers the text/html part of a multipart message and strips HTML", async () => {
+  it("falls back to the HTML part when the plain-text part is a short stub", async () => {
+    // Common case for one-line marketing emails: the text/plain part
+    // is a "view in browser" stub, the text/html part has the actual
+    // content. Anything under the PLAIN_TEXT_PREFER_THRESHOLD (400
+    // chars) is treated as a stub and we fall back to the HTML.
     const boundary = "----boundary";
     const eml = [
       "From: noreply@hotel.example",
@@ -698,6 +702,94 @@ describe("EmailParser.emlToEmail", () => {
     expect(out.body).toContain("Reservation ABC123");
     expect(out.body).not.toContain("<strong>");
     expect(out.body).not.toContain("Plain fallback body");
+  });
+
+  it("prefers a substantial plain-text part over a marketing-heavy HTML part", async () => {
+    // Regression: a forwarded Marriott confirmation came back as
+    // `no_travel_content` because the text/plain part was a clean
+    // ~1.5 KB receipt (hotel name + dates + reference + total) while
+    // the text/html part was a marketing-heavy email with the same
+    // booking facts buried inside hundreds of nested table cells,
+    // alt text, and tracking pixels. After htmlToText strips the
+    // markup, the resulting plain text was noisy enough to make
+    // Claude return [].
+    //
+    // The picker now prefers the plain-text part when it crosses
+    // the 400-char threshold, which keeps the booking facts the
+    // dominant signal in what the parser sees.
+    const boundary = "----boundary";
+    // Synthesize a real-looking receipt-style plain-text body that
+    // crosses the threshold (built from short distinct lines so each
+    // booking fact stays separable, mirroring how the actual EML
+    // ships the data).
+    const cleanPlainText = [
+      "Important information about your stay.",
+      "Your getaway provides the opportunity to try new things and",
+      "create cherished memories. Whether you seek relaxation or",
+      "adventure, we want to help you experience a truly",
+      "unforgettable vacation.",
+      "ACCOMMODATIONS",
+      "The Westin Desert Willow Villas",
+      "75 Willow Ridge",
+      "Palm Desert, CA, 92260",
+      "GUEST NAME",
+      "Mr Justin Marks",
+      "REFERENCE NUMBER",
+      "272733661",
+      "LENGTH OF STAY",
+      "4 Days and 3 Nights",
+      "ARRIVAL",
+      "6/18/2026",
+      "DEPARTURE",
+      "6/21/2026",
+      "CHECK-IN",
+      "4 p.m.",
+      "CHECK-OUT",
+      "10 a.m.",
+      "TOTAL PAID",
+      "$748.00",
+      "TOUR DATE",
+      "Your 90-minute timeshare sales presentation is scheduled for 6/20/2026.",
+      "Call 800-782-5410 for any questions about your upcoming stay.",
+    ].join("\n");
+    // Marketing-heavy HTML body padded out so stripping leaves a
+    // noisy result that buries the booking facts. We DON'T need the
+    // facts here at all — the test asserts the picker chose the
+    // plain-text part, not whether Claude can parse this synthetic
+    // marketing soup.
+    const marketingFluff = Array.from({ length: 60 })
+      .map(
+        (_, i) =>
+          `<table><tr><td>Promo banner ${i} — sign up for our newsletter, view in browser, unsubscribe</td></tr></table>`,
+      )
+      .join("\n");
+    const eml = [
+      "From: marriott@example.com",
+      "Subject: Your Vacation Travel Dates Are Confirmed",
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      cleanPlainText,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/html; charset=utf-8",
+      "",
+      `<html><body>${marketingFluff}</body></html>`,
+      "",
+      `--${boundary}--`,
+      "",
+    ].join("\r\n");
+
+    const out = await EmailParser.emlToEmail(eml);
+    // Plain-text booking facts must survive intact (not stripped via
+    // the HTML pipeline) and the marketing fluff must NOT appear.
+    expect(out.body).toContain("The Westin Desert Willow Villas");
+    expect(out.body).toContain("272733661");
+    expect(out.body).toContain("CHECK-IN");
+    expect(out.body).not.toContain("Promo banner");
+    expect(out.body).not.toContain("view in browser");
   });
 
   it("decodes quoted-printable body content", async () => {
