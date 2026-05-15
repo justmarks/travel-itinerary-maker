@@ -26,6 +26,7 @@ import { recordParseFailure } from "../services/email-telemetry";
 import { reportError } from "../services/monitoring";
 import { debugEmailScan } from "../utils/debug-log";
 import { recordHistory } from "../services/trip-history";
+import { expandLabelFilters } from "../services/email-scan-label-expansion";
 import { config } from "../config/env";
 import { requireGmailAuth } from "../middleware/auth";
 import type { TokenStore } from "../services/token-store";
@@ -859,10 +860,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays,
         forceRescan,
         provider: preferProvider,
+        includeSublabels,
       } = parsed.data;
       const storage = getStorage(req);
       console.log(
-        `${scanPrefix} Starting scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+        `${scanPrefix} Starting scan (label=${labelFilter || "none"}${labelFilter && includeSublabels ? " +sublabels" : ""}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
       );
 
       // Load all processed email records
@@ -908,17 +910,36 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
       const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await connector.scanEmails({
+      // Expand the picked label into its descendants when the user
+      // ticked "include sub-folders / sub-labels". The per-filter cap
+      // stays at `maxResults` so a noisy sublabel can't crowd out the
+      // others; the aggregate may exceed it across the descendant set,
+      // which is fine for a user-triggered scan.
+      const labelFiltersToScan = await expandLabelFilters({
+        connector,
         labelFilter,
-        maxResults: effectiveMaxResults,
-        newerThanDays: newerThanDays ?? 365,
+        includeSublabels,
         logPrefix: scanPrefix,
       });
+      type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+      const seenRaw = new Map<string, RawEmail>();
+      for (const filter of labelFiltersToScan) {
+        const batch = await connector.scanEmails({
+          labelFilter: filter,
+          maxResults: effectiveMaxResults,
+          newerThanDays: newerThanDays ?? 365,
+          logPrefix: scanPrefix,
+        });
+        for (const e of batch) {
+          if (!seenRaw.has(e.id)) seenRaw.set(e.id, e);
+        }
+      }
+      const rawEmails = Array.from(seenRaw.values());
 
       console.log(
-        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"}${labelFilter && includeSublabels ? `, expanded to ${labelFiltersToScan.length} filter(s)` : ""})`,
       );
-      if (rawEmails.length >= effectiveMaxResults) {
+      if (rawEmails.length >= effectiveMaxResults * labelFiltersToScan.length) {
         console.warn(
           `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
         );
@@ -1355,10 +1376,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays,
         forceRescan,
         provider: preferProvider,
+        includeSublabels,
       } = parsed.data;
       const storage = getStorage(req);
       console.log(
-        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}${labelFilter && includeSublabels ? " +sublabels" : ""}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
       );
 
       const processedEmails = await storage.getProcessedEmails();
@@ -1393,18 +1415,36 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
       const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await connector.scanEmails({
+      // Expand the picked label into its descendants when the user
+      // ticked "include sub-folders / sub-labels". The per-filter cap
+      // stays at `maxResults`; aggregate may exceed it across the
+      // descendant set. See helper for the failure-fallback semantics.
+      const labelFiltersToScan = await expandLabelFilters({
+        connector,
         labelFilter,
-        maxResults: effectiveMaxResults,
-        newerThanDays: newerThanDays ?? 365,
+        includeSublabels,
         logPrefix: scanPrefix,
       });
+      type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+      const seenRaw = new Map<string, RawEmail>();
+      for (const filter of labelFiltersToScan) {
+        const batch = await connector.scanEmails({
+          labelFilter: filter,
+          maxResults: effectiveMaxResults,
+          newerThanDays: newerThanDays ?? 365,
+          logPrefix: scanPrefix,
+        });
+        for (const e of batch) {
+          if (!seenRaw.has(e.id)) seenRaw.set(e.id, e);
+        }
+      }
+      const rawEmails = Array.from(seenRaw.values());
 
       console.log(
-        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"}${labelFilter && includeSublabels ? `, expanded to ${labelFiltersToScan.length} filter(s)` : ""})`,
       );
       emit("found", { total: rawEmails.length });
-      if (rawEmails.length >= effectiveMaxResults) {
+      if (rawEmails.length >= effectiveMaxResults * labelFiltersToScan.length) {
         console.warn(
           `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
         );

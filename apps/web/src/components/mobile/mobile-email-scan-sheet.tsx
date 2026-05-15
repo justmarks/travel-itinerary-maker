@@ -214,6 +214,7 @@ function ScanBody({
       : "not-connected";
   const [step, setStep] = useState<Step>(initialStep);
   const [labelId, setLabelId] = useState<string | null>(null);
+  const [includeSublabels, setIncludeSublabels] = useState(false);
   const [forceRescan, setForceRescan] = useState(false);
   const [results, setResults] = useState<EmailScanResult[]>([]);
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -361,6 +362,9 @@ function ScanBody({
       const response = await scanEmails.mutateAsync({
         input: {
           labelFilter: labelId || undefined,
+          // Only meaningful with a picked label — on "All mail" the
+          // scan already covers everything by definition.
+          includeSublabels: labelId && includeSublabels ? true : undefined,
           forceRescan: forceRescan || undefined,
           provider: effectiveProvider ?? undefined,
         },
@@ -1112,6 +1116,40 @@ function ScanBody({
             ))}
           </select>
         </div>
+
+        {/*
+          "Include sub-folders / sub-labels" widens the scan to
+          descendants of the picked label/folder. Only meaningful when
+          a specific label is picked — "All mail" already covers
+          everything. Kept in the layout (greyed) when no label is
+          picked so the row doesn't jump as the user toggles the
+          select.
+        */}
+        <label
+          className={cn(
+            "mt-4 flex items-start gap-3 rounded-xl border bg-card p-3",
+            !labelId && "opacity-50",
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={labelId ? includeSublabels : false}
+            onChange={(e) => setIncludeSublabels(e.target.checked)}
+            disabled={!labelId}
+            className="mt-0.5 h-4 w-4 shrink-0"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">
+              Include sub{emailLabelNoun(activeEmailProvider)}s
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Also scan {emailLabelNoun(activeEmailProvider)}s nested under
+              the one above (e.g.{" "}
+              <span className="font-mono text-[10px]">Travel/Hotels</span> when{" "}
+              <span className="font-mono text-[10px]">Travel</span> is picked).
+            </p>
+          </div>
+        </label>
 
         <label className="mt-4 flex items-center gap-3 rounded-xl border bg-card p-3">
           <input

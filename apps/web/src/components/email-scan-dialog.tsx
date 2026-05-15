@@ -180,6 +180,7 @@ export function EmailScanDialog({
   }, [defaultOpen]);
   const [step, setStep] = useState<ScanStep>("loading");
   const [selectedLabel, setSelectedLabel] = useState<string>("");
+  const [includeSublabels, setIncludeSublabels] = useState<boolean>(false);
   const [results, setResults] = useState<EmailScanResult[]>([]);
   const [selections, setSelections] = useState<SegmentSelection[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
@@ -372,7 +373,12 @@ export function EmailScanDialog({
     try {
       const input: Record<string, unknown> = {};
       if (tripId) input.tripId = tripId;
-      if (selectedLabel && selectedLabel !== "__all__") input.labelFilter = selectedLabel;
+      if (selectedLabel && selectedLabel !== "__all__") {
+        input.labelFilter = selectedLabel;
+        // Only meaningful with a picked label; on "All mail" the scan
+        // already covers everything by definition.
+        if (includeSublabels) input.includeSublabels = true;
+      }
       if (forceRescan) input.forceRescan = true;
       if (effectiveProvider) input.provider = effectiveProvider;
 
@@ -798,6 +804,42 @@ export function EmailScanDialog({
                   Leave on &ldquo;All mail&rdquo; to search every message for
                   travel keywords.
                 </p>
+                {/*
+                  "Include sub-folders / sub-labels" widens the scan to
+                  descendants of the picked label/folder. Only meaningful
+                  when a specific label is picked — "All mail" already
+                  covers everything. We keep the row visible but greyed
+                  out when no label is picked, mirroring the
+                  scheduled-scan editor so the layout is stable as the
+                  user toggles between filters.
+                */}
+                <label
+                  className={cn(
+                    "mt-1 flex items-start gap-2 rounded-md border border-border bg-card p-2.5 text-xs cursor-pointer hover:bg-muted/50 transition-colors",
+                    !selectedLabel && "opacity-50 cursor-default hover:bg-card",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedLabel ? includeSublabels : false}
+                    onChange={(e) => setIncludeSublabels(e.target.checked)}
+                    disabled={!selectedLabel}
+                    className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                  />
+                  <div className="space-y-0.5">
+                    <p className="font-medium text-foreground">
+                      Include sub{emailLabelNoun(activeEmailProvider)}s
+                    </p>
+                    <p className="text-muted-foreground">
+                      Also scan {emailLabelNoun(activeEmailProvider)}s nested
+                      under the one above (e.g.{" "}
+                      <span className="font-mono text-[10px]">Travel/Hotels</span>{" "}
+                      when{" "}
+                      <span className="font-mono text-[10px]">Travel</span> is
+                      picked).
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {labelsError && (
