@@ -167,6 +167,7 @@ function MobileTripCardLeaveMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(trip.id);
+  const isDemo = useDemoMode();
 
   if (!trip.sharedShareId) return null;
 
@@ -182,7 +183,7 @@ function MobileTripCardLeaveMenu({
     if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
-        router.push("/m");
+        router.push(isDemo ? "/m?demo=true" : "/m");
       },
       onError: toastMutationError("leave trip"),
     });
