@@ -3,7 +3,7 @@
 import { useSharedTrip } from "@itinly/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
-import { Calendar, MapPin, Pencil, Plane } from "lucide-react";
+import { AlertCircle, Calendar, MapPin, Pencil } from "lucide-react";
 
 function formatDateRange(start: string, end: string) {
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
@@ -12,7 +12,7 @@ function formatDateRange(start: string, end: string) {
 }
 
 export default function SharedTripClient({ token }: { token: string }): React.JSX.Element {
-  const { data: trip, isLoading } = useSharedTrip(token);
+  const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
 
   // If the viewer owns the trip or has edit access via a share, bounce
   // them to their normal trip page instead of the public read-only
@@ -33,15 +33,22 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     );
   }
 
-  if (!trip) {
+  if (isError || !trip) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Plane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-          <h1 className="text-xl font-semibold">Trip not found</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This share link may have expired or been removed.
+        <div className="flex flex-col items-center gap-3 px-6 text-center">
+          <AlertCircle className="h-8 w-8 text-destructive" />
+          <h1 className="sr-only">Shared trip</h1>
+          <p className="text-sm text-muted-foreground">
+            This share link may have expired or been revoked.
           </p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
+          >
+            Try again
+          </button>
         </div>
       </main>
     );

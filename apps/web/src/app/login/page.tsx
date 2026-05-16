@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { AppWordmark } from "@/components/app-wordmark";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle, Info, Sparkles } from "lucide-react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -74,9 +74,13 @@ export default function LoginPage(): React.JSX.Element {
     <main className="flex min-h-screen items-center justify-center">
       <div className="w-full max-w-sm space-y-8 text-center">
         <div>
+          {/* Tab order: skip the wordmark so the first Tab lands on the
+              primary CTA (Sign in with Google). Mouse users can still click
+              it to go to /welcome. */}
           <Link
             href="/welcome"
             aria-label="itinly home"
+            tabIndex={-1}
             className="inline-block rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <AppWordmark className="mx-auto mb-3 h-16" />
@@ -122,7 +126,7 @@ export default function LoginPage(): React.JSX.Element {
         */}
         <Button
           size="lg"
-          className="w-full"
+          className="w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           disabled={apiAvailable === false}
           onClick={async () => {
             setLoginError(null);
@@ -185,7 +189,7 @@ export default function LoginPage(): React.JSX.Element {
         <Button
           size="lg"
           variant="outline"
-          className="w-full"
+          className="w-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           disabled={apiAvailable === false}
           onClick={async () => {
             setLoginError(null);
@@ -252,12 +256,16 @@ export default function LoginPage(): React.JSX.Element {
           reload so the next page mounts with ?demo=true in the URL from
           the start, avoiding any RequireAuth → /login → / flicker loop.
           Relative href stays out of @next/next/no-html-link-for-pages.
+
+          Pill + Sparkles + "Try the demo" copy mirrors /m/login so the
+          two surfaces don't diverge on demo-entry affordance.
         */}
         <a
           href="../?demo=true"
-          className="block text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          className="flex h-10 w-full items-center justify-center gap-1.5 rounded-md border bg-background text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
-          Try with demo data
+          <Sparkles className="h-4 w-4" />
+          Try the demo
         </a>
       </div>
     </main>

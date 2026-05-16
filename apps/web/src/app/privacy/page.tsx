@@ -31,7 +31,7 @@ export default function PrivacyPage(): React.JSX.Element {
             <p>
               itinly (&quot;the Service,&quot; &quot;we,&quot; or
               &quot;us&quot;) is a travel-itinerary application that turns trip
-              confirmations from your Gmail inbox into a structured day-by-day
+              confirmations from your Gmail or Outlook inbox into a structured day-by-day
               itinerary. This policy explains what data we access, where it is
               stored, and the choices you have. By using the Service you agree
               to the practices described below.
