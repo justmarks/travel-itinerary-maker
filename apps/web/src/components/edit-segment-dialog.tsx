@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useUpdateSegment } from "@itinly/api-client";
+import { useDeleteSegment, useUpdateSegment } from "@itinly/api-client";
 import type { Segment, SegmentType } from "@itinly/shared";
 import { toastMutationError } from "@/lib/api-error";
+import { useConfirm } from "@/lib/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import {
   SegmentFormFields,
   getTypeFlags,
@@ -85,6 +86,22 @@ export function EditSegmentDialog({
   );
 
   const updateSegment = useUpdateSegment(tripId);
+  const deleteSegment = useDeleteSegment(tripId);
+  const confirm = useConfirm();
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${segment.title}"?`,
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteSegment.mutate(segment.id, {
+      onSuccess: () => onOpenChange(false),
+      onError: toastMutationError("delete segment"),
+    });
+  };
 
   // Reset form when segment changes or dialog re-opens
   useEffect(() => {
@@ -289,7 +306,20 @@ export function EditSegmentDialog({
             />
           </div>
 
-          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
+          <div className="mt-4 flex shrink-0 items-center gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              disabled={deleteSegment.isPending}
+              title="Delete segment"
+              aria-label="Delete segment"
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <div className="flex-1" />
             <Button
               type="button"
               variant="outline"
