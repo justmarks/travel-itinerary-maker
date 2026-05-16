@@ -82,10 +82,13 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
         // effectively a 404.
         try {
           storage = getStorage(req);
-        } catch (err) {
-          console.warn(
-            `[shared/${tokenLabel}] registry miss, request storage unavailable:`,
-            err instanceof Error ? err.message : err,
+        } catch {
+          // Anonymous viewer hit a token that isn't in the registry —
+          // the registry is durable in production, so this is just a
+          // 404. The request-storage resolve failure is expected here
+          // (no auth on /shared routes), not a config error.
+          console.log(
+            `[shared/${tokenLabel}] share token not found (anonymous viewer)`,
           );
           res.status(404).json({
             error: "Shared trip not found",
