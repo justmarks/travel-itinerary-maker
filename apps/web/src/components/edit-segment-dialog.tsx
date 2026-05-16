@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useDeleteSegment, useUpdateSegment } from "@itinly/api-client";
+import { useUpdateSegment } from "@itinly/api-client";
 import type { Segment, SegmentType } from "@itinly/shared";
 import { toastMutationError } from "@/lib/api-error";
-import { useConfirm } from "@/lib/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   SegmentFormFields,
   getTypeFlags,
@@ -64,8 +63,6 @@ export function EditSegmentDialog({
   tripId,
   segment,
   date,
-  tripStartDate,
-  tripEndDate,
   open,
   onOpenChange,
 }: {
@@ -73,11 +70,6 @@ export function EditSegmentDialog({
   segment: Segment;
   /** The date of the TripDay that currently contains this segment. */
   date: string;
-  /** Owning trip's date range — clamps Date / Check-out / Dropoff /
-   *  Disembark pickers with min/max so out-of-range dates are blocked
-   *  client-side. */
-  tripStartDate?: string;
-  tripEndDate?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
@@ -86,22 +78,6 @@ export function EditSegmentDialog({
   );
 
   const updateSegment = useUpdateSegment(tripId);
-  const deleteSegment = useDeleteSegment(tripId);
-  const confirm = useConfirm();
-
-  const handleDelete = async () => {
-    const ok = await confirm({
-      title: `Delete "${segment.title}"?`,
-      description: "This cannot be undone.",
-      confirmText: "Delete",
-      destructive: true,
-    });
-    if (!ok) return;
-    deleteSegment.mutate(segment.id, {
-      onSuccess: () => onOpenChange(false),
-      onError: toastMutationError("delete segment"),
-    });
-  };
 
   // Reset form when segment changes or dialog re-opens
   useEffect(() => {
@@ -295,8 +271,6 @@ export function EditSegmentDialog({
               form={form}
               onChange={handleChange}
               idPrefix="edit"
-              tripStartDate={tripStartDate}
-              tripEndDate={tripEndDate}
             />
             {/* Bottom-fade scroll indicator —
                 see add-segment-dialog.tsx for the rationale. */}
@@ -306,20 +280,7 @@ export function EditSegmentDialog({
             />
           </div>
 
-          <div className="mt-4 flex shrink-0 items-center gap-2 border-t pt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleDelete}
-              disabled={deleteSegment.isPending}
-              title="Delete segment"
-              aria-label="Delete segment"
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            <div className="flex-1" />
+          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
             <Button
               type="button"
               variant="outline"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSharedTrip } from "@itinly/api-client";
 import type { Segment, Todo } from "@itinly/shared";
 import { AlertCircle, Lock, MapPin, Pencil } from "lucide-react";
@@ -73,17 +73,6 @@ export default function SharedTripClient({
 }: {
   token: string;
 }): React.JSX.Element {
-  // Hold off rendering the real tree until after mount so SSR'd HTML
-  // doesn't try to hydrate against client-only state. Kills the
-  // React #418 hydration error filed in QA bug #25 / the prior
-  // session's report on /shared and /m/shared (including the
-  // not-found branch). User-visible behaviour is unchanged: the
-  // loading skeleton is the same on both renders.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
@@ -108,7 +97,7 @@ export default function SharedTripClient({
     return { cities: Array.from(cities) };
   }, [trip]);
 
-  if (!mounted || isLoading || shouldRedirect) {
+  if (isLoading || shouldRedirect) {
     return (
       <MobileFrame>
         <MobileHeader title="Loading shared trip…" backHref="/" />

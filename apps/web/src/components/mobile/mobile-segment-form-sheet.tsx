@@ -89,16 +89,10 @@ function segmentToFormState(
 export function MobileSegmentFormSheet({
   tripId,
   target,
-  tripStartDate,
-  tripEndDate,
   onClose,
 }: {
   tripId: string;
   target: SegmentFormTarget;
-  /** Owning trip's date range — clamps Date / Check-out / Dropoff /
-   *  Disembark pickers with min/max. */
-  tripStartDate?: string;
-  tripEndDate?: string;
   onClose: () => void;
 }): React.JSX.Element {
   const open = target !== null;
@@ -112,8 +106,6 @@ export function MobileSegmentFormSheet({
     >
       {target && (
         <SegmentFormBody
-          tripStartDate={tripStartDate}
-          tripEndDate={tripEndDate}
           key={
             target.mode === "edit"
               ? `edit-${target.segment.id}`
@@ -131,15 +123,10 @@ export function MobileSegmentFormSheet({
 function SegmentFormBody({
   tripId,
   target,
-  tripStartDate,
-  tripEndDate,
   onClose,
 }: {
   tripId: string;
   target: Exclude<SegmentFormTarget, null>;
-  /** Owning trip's date range — threaded into SegmentFormFields. */
-  tripStartDate?: string;
-  tripEndDate?: string;
   onClose: () => void;
 }): React.JSX.Element {
   const createSegment = useCreateSegment(tripId);
@@ -445,8 +432,6 @@ function SegmentFormBody({
           idPrefix={isAdd ? "m-add" : "m-edit"}
           autoFocusTitle={isAdd}
           useNativeTypeSelect
-          tripStartDate={tripStartDate}
-          tripEndDate={tripEndDate}
         />
       </form>
 

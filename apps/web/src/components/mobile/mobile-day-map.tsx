@@ -221,26 +221,6 @@ export function MobileDayMap({
     );
   }
 
-  // No mappable segments anywhere on this trip → mirror the desktop
-  // Map tab's empty state instead of rendering Google Maps' default
-  // view (which dropped users on a random Tokyo-centered Japan map
-  // for any trip whose segments hadn't been geocoded yet). Matches
-  // CLAUDE.md's desktop/mobile parity contract.
-  if (rawPins.length === 0) {
-    return (
-      <div
-        style={{ height }}
-        className="relative flex flex-col items-center justify-center gap-1 border-y border-border/60 bg-muted/30 px-6 text-center text-muted-foreground"
-      >
-        <MapPin className="h-5 w-5" />
-        <p className="text-xs">
-          No mappable locations yet. Add hotels, restaurants, or activities to see them here.
-        </p>
-        {expandButton}
-      </div>
-    );
-  }
-
   return (
     <div style={{ height }} className="relative">
       <APIProvider apiKey={apiKey}>

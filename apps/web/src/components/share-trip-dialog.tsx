@@ -320,7 +320,7 @@ export function ShareTripDialog({
           <DialogDescription className="pr-8">
             {inSuccessState
               ? "Send this link to anyone you want to share with."
-              : "Send a link so others can view — or invite someone by email to edit."}
+              : "Send a link so others can view — or invite a Gmail account that can edit."}
           </DialogDescription>
         </DialogHeader>
 
@@ -361,7 +361,7 @@ export function ShareTripDialog({
               {createdToken && (
                 <p className="mt-2 text-xs" style={{ color: "var(--status-ok-fg)", opacity: 0.8 }}>
                   {permission === "edit"
-                    ? `${trimmedEmail || "Contributor"} will need to sign in with this email to edit.`
+                    ? `${trimmedEmail || "Contributor"} will need to sign in with this Gmail to edit.`
                     : "Anyone with this link can view."}
                 </p>
               )}
@@ -401,7 +401,7 @@ export function ShareTripDialog({
                 onChange={setPermission}
                 icon={Pencil}
                 label="Can edit"
-                description="Specific email"
+                description="Specific Gmail"
               />
             </div>
 
@@ -412,13 +412,13 @@ export function ShareTripDialog({
               <div className="space-y-1">
                 <Label htmlFor="share-email" className="text-xs">
                   {permission === "edit"
-                    ? "Contributor's email address"
-                    : "Recipient's email (optional)"}
+                    ? "Contributor's Gmail address"
+                    : "Recipient's Gmail (optional)"}
                 </Label>
                 <Input
                   id="share-email"
                   type="email"
-                  placeholder="name@example.com"
+                  placeholder="name@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
