@@ -356,7 +356,7 @@ export function MobileCarouselView({
                     </button>
                   ) : (
                     <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                      Nothing planned this day.
+                      No activities planned.
                     </p>
                   )
                 ) : (
