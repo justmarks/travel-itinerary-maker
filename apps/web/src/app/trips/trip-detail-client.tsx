@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -67,7 +67,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
-import { ItineraryDay } from "@/components/itinerary-day";
+import { ItineraryDay, computeOngoingStays } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
@@ -1087,6 +1087,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // empty beat in exchange — much less jarring than show-then-hide.
   const showCosts = !permission.isLoading && permission.showCosts;
   const showTodos = !permission.isLoading && permission.showTodos;
+
+  // Multi-night segments (Hotel / Car rental / Cruise) live on their
+  // check-in day in the data model — so the intervening nights would
+  // otherwise show "No activities planned." with no indication the
+  // user is still booked at that hotel. Compute a per-day overlay so
+  // each continuation day renders a slim "Still at …" banner.
+  const ongoingStaysByDate = useMemo(
+    () => (trip ? computeOngoingStays(trip) : {}),
+    [trip],
+  );
   // Build the tab list dynamically so tabs the share hides don't even
   // appear. Itinerary / Timeline / Map are always shown; Costs and
   // To-do drop out for shares with the matching toggle off.
@@ -1362,6 +1372,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   tripId={trip.id}
                   tripStartDate={trip.startDate}
                   tripEndDate={trip.endDate}
+                  ongoingStays={ongoingStaysByDate[day.date]}
                   readOnly={isReadOnly}
                   showCosts={showCosts}
                 />
