@@ -165,9 +165,25 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   // server-fingerprint header from every response — small leak, cheap
   // to remove, flagged by ZAP / Mozilla Observatory.
   app.disable("x-powered-by");
-  // Raised from the 100kb default so users can paste/upload full .eml or
-  // .html email sources (which commonly run 100-500kb with embedded styles
-  // and base64 images).
+  // Body-parser limits. Routes split into two buckets:
+  //
+  //   `/api/v1/auth/*` — tiny payloads (OAuth code + redirect URI is
+  //     <2kb, refresh-token POST is <1kb). Cap at 64kb so an attacker
+  //     spending their 30-per-15-min auth quota can't also bomb 10mb
+  //     bodies through the JSON parser (300mb / 15min / IP otherwise).
+  //     The narrow limit bounds the body-bombing path even if the
+  //     rate-limit numbers get tuned looser later.
+  //
+  //   everything else — raised from the 100kb default to 10mb so
+  //     users can paste/upload full .eml or .html email sources
+  //     (commonly 100-500kb with embedded styles and base64 images)
+  //     and base64-encoded XLSX workbooks.
+  //
+  // Run the auth parser as a mounted middleware BEFORE the global
+  // one so it claims the body first; body-parser short-circuits on
+  // its `_body` marker, so the global one becomes a no-op for paths
+  // the tight parser already handled.
+  app.use("/api/v1/auth", express.json({ limit: "64kb" }));
   app.use(express.json({ limit: "10mb" }));
 
   // Root — friendly landing for browser visits
@@ -448,10 +464,29 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   //
   // CORS origin rejections are expected client-side errors (typically
   // scanners forging the Origin header), not server failures. Respond 403
-  // and skip Sentry so they don't generate alerts.
+  // and skip Sentry so they don't generate alerts. Body-parser errors
+  // (PayloadTooLargeError, malformed JSON, etc.) carry an HTTP status
+  // on the error object — surface that status to the client instead of
+  // collapsing them to 500, and skip Sentry for the same "client did a
+  // bad thing" reason.
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof CorsOriginError) {
       res.status(403).json({ error: err.message });
+      return;
+    }
+    const errWithStatus = err as Error & { status?: number; statusCode?: number; type?: string };
+    const clientStatus = errWithStatus.status ?? errWithStatus.statusCode;
+    if (typeof clientStatus === "number" && clientStatus >= 400 && clientStatus < 500) {
+      // body-parser surfaces oversize / malformed JSON as 4xx with a
+      // descriptive `type` (e.g. "entity.too.large", "entity.parse.failed").
+      // Log it tersely and return the status it asked for — Sentry
+      // doesn't need to hear about every malformed POST.
+      console.warn(
+        `[app] client error ${clientStatus}${errWithStatus.type ? ` (${errWithStatus.type})` : ""}: ${err.message}`,
+      );
+      res
+        .status(clientStatus)
+        .json({ error: clientStatus === 413 ? "Request body too large" : err.message });
       return;
     }
     console.error(err);
