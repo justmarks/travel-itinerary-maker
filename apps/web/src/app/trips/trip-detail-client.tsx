@@ -1238,9 +1238,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                     },
                   )
                 }
-                disabled={updateTripStatus.isPending}
                 title={`Status: ${trip.status}. Click to advance.`}
-                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait"
+                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
                 style={statusChipStyle(trip.status)}
               >
                 {trip.status}
