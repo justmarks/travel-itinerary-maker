@@ -12,7 +12,7 @@ import {
   useConfirmAllSegments,
   ApiError,
 } from "@itinly/api-client";
-import type { TripStatus } from "@itinly/shared";
+import type { Trip, TripStatus } from "@itinly/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -215,23 +215,50 @@ function EditableDates({
   tripId,
   startDate,
   endDate,
+  days,
 }: {
   tripId: string;
   startDate: string;
   endDate: string;
+  /** Used to detect segments that would fall outside the new range so we
+   *  can prompt before silently destroying them. */
+  days: Trip["days"];
 }) {
   const [editing, setEditing] = useState(false);
   const [newStart, setNewStart] = useState(startDate);
   const [newEnd, setNewEnd] = useState(endDate);
   const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const updateTrip = useUpdateTrip(tripId);
+  const confirm = useConfirm();
 
   const isValid = newStart && newEnd && newStart <= newEnd;
   const hasChanges = newStart !== startDate || newEnd !== endDate;
 
-  const save = () => {
+  const save = async () => {
     if (!isValid || !hasChanges) return;
     setOverlapError(null);
+
+    // Find segments whose date falls outside the new range — shrinking
+    // the trip dates over them silently deletes them server-side, so
+    // we prompt up-front instead of taking the user's data away.
+    const orphaned = days
+      .filter((d) => d.date < newStart || d.date > newEnd)
+      .flatMap((d) => d.segments);
+
+    if (orphaned.length > 0) {
+      const preview = orphaned.slice(0, 3).map((s) => `• ${s.title}`).join("\n");
+      const more =
+        orphaned.length > 3
+          ? `\n…and ${orphaned.length - 3} more`
+          : "";
+      const ok = await confirm({
+        title: `Remove ${orphaned.length} segment${orphaned.length === 1 ? "" : "s"} outside the new dates?`,
+        description: `${preview}${more}\n\nThese segments fall outside ${newStart} – ${newEnd} and will be deleted. This cannot be undone.`,
+        confirmText: orphaned.length === 1 ? "Remove segment" : `Remove ${orphaned.length} segments`,
+        destructive: true,
+      });
+      if (!ok) return;
+    }
 
     const updates: Record<string, string> = {};
     if (newStart !== startDate) updates.startDate = newStart;
@@ -269,7 +296,7 @@ function EditableDates({
           className="flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            save();
+            void save();
           }}
         >
           <Input
@@ -1265,6 +1292,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 tripId={trip.id}
                 startDate={trip.startDate}
                 endDate={trip.endDate}
+                days={trip.days}
               />
             )}
             <span className="flex items-center gap-1.5">
