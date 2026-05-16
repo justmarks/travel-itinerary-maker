@@ -1290,6 +1290,32 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 </span>
               </span>
             )}
+            {/* Past-trip nudge: end date is in the past but the user hasn't
+                advanced the status. Surface a one-tap "Mark completed"
+                instead of leaving the trip pinned at "Planning" / "Active"
+                forever (QA bug #21). Owner-only. */}
+            {!isReadOnly &&
+              trip.endDate < getTodayIso() &&
+              (trip.status === "planning" || trip.status === "active") && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTripStatus.mutate(
+                      { status: "completed" },
+                      { onError: toastMutationError("update status") },
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    backgroundColor: "var(--status-info-bg)",
+                    color: "var(--status-info-fg)",
+                    borderColor: "var(--status-info-rail)",
+                  }}
+                  title="Mark this trip as completed"
+                >
+                  Mark completed
+                </button>
+              )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {isReadOnly ? (
