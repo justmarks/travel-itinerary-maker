@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
-  queryKeys,
   useApplyParsedSegments,
   useCreateTrip,
   useDismissEmail,
@@ -12,7 +11,6 @@ import {
   useStreamingScanEmails,
   useTrips,
 } from "@itinly/api-client";
-import { useQueryClient } from "@tanstack/react-query";
 import type {
   EmailScanResult,
   NewTripProposal,
@@ -279,18 +277,6 @@ function ScanBody({
     useActiveEmailProvider(true);
   const { providers: connectedEmailProviders } = useConnectedEmailProviders(true);
   const emailGranted = isDemo || autoProvider !== null;
-
-  // Invalidate the connections cache once on mount so connections made
-  // outside this sheet's lifetime (e.g. Settings → Connect Outlook
-  // Mail → bounce back here) are reflected immediately — without this,
-  // React Query's default 30s staleTime keeps showing the
-  // not-connected branch right after a successful link.
-  const queryClient = useQueryClient();
-  useEffect(() => {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.connections });
-    // Mount-only effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Per-user mailbox picker — same shape as the desktop dialog. Stored
   // choice survives session boundaries; falls back to the auto-pick if

@@ -1,8 +1,7 @@
 "use client";
 
 import { useSharedTrip } from "@itinly/api-client";
-import { useMemo } from "react";
-import { ItineraryDay, computeOngoingStays } from "@/components/itinerary-day";
+import { ItineraryDay } from "@/components/itinerary-day";
 import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
 import { Calendar, MapPin, Pencil, Plane } from "lucide-react";
 
@@ -22,14 +21,6 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     tripId: trip?.id,
     targetPath: trip ? `/trips?id=${trip.id}` : "/",
   });
-
-  // Hoisted above the early returns to satisfy the rules-of-hooks
-  // exhaustive-order check. Falls back to an empty lookup when the trip
-  // hasn't loaded yet.
-  const ongoingStaysByDate = useMemo(
-    () => (trip ? computeOngoingStays(trip) : {}),
-    [trip],
-  );
 
   if (isLoading || shouldRedirect) {
     return (
@@ -91,12 +82,7 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
 
         <div className="flex flex-col gap-8">
           {trip.days.map((day) => (
-            <ItineraryDay
-              key={day.date}
-              day={day}
-              ongoingStays={ongoingStaysByDate[day.date]}
-              readOnly
-            />
+            <ItineraryDay key={day.date} day={day} readOnly />
           ))}
         </div>
 

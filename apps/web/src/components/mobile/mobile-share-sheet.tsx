@@ -388,7 +388,7 @@ export function MobileShareSheet({
             onChange={setPermission}
             icon={Pencil}
             label="Can edit"
-            description="Specific email"
+            description="Specific Gmail"
           />
         </div>
 
@@ -399,15 +399,15 @@ export function MobileShareSheet({
               className="text-kicker font-medium text-muted-foreground"
             >
               {permission === "edit"
-                ? "Contributor's email"
-                : "Recipient's email (optional)"}
+                ? "Contributor's Gmail"
+                : "Recipient's Gmail (optional)"}
             </label>
             <input
               id="share-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
+              placeholder="name@gmail.com"
               autoComplete="email"
               className="h-11 w-full rounded-xl border bg-background px-3 text-base text-foreground outline-none focus:border-foreground"
             />

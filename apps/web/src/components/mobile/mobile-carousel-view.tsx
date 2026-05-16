@@ -7,13 +7,11 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Trip, Segment, TripStatus } from "@itinly/shared";
+import type { Trip, Segment } from "@itinly/shared";
 import {
   formatTripDateRange,
   tripDestinationCities,
 } from "@itinly/shared";
-import { useUpdateTrip } from "@itinly/api-client";
-import { toastMutationError } from "@/lib/api-error";
 import {
   ChevronLeft,
   ChevronRight,
@@ -48,68 +46,6 @@ function dayShort(date: string) {
     month: "short",
     day: "numeric",
   });
-}
-
-const TRIP_STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
-  planning: "info",
-  active: "ok",
-  completed: "muted",
-  cancelled: "danger",
-};
-const TRIP_STATUS_CYCLE: TripStatus[] = [
-  "planning",
-  "active",
-  "completed",
-  "cancelled",
-];
-function nextStatus(s: string): TripStatus {
-  const idx = TRIP_STATUS_CYCLE.indexOf(s as TripStatus);
-  return TRIP_STATUS_CYCLE[(idx + 1) % TRIP_STATUS_CYCLE.length];
-}
-
-/**
- * Click-to-cycle status pill that matches the desktop affordance on
- * the trip-detail header. View-only contributors get a static badge
- * (still useful for context, not interactive).
- */
-function MobileTripStatusPill({
-  trip,
-  canEdit,
-}: {
-  trip: Trip;
-  canEdit: boolean;
-}): React.JSX.Element {
-  const updateTrip = useUpdateTrip(trip.id);
-  const token = TRIP_STATUS_TOKEN[trip.status] ?? "muted";
-  const style: React.CSSProperties = {
-    backgroundColor: `var(--status-${token}-bg)`,
-    color: `var(--status-${token}-fg)`,
-  };
-  const className =
-    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize";
-  if (!canEdit) {
-    return (
-      <span className={className} style={style}>
-        {trip.status}
-      </span>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        updateTrip.mutate(
-          { status: nextStatus(trip.status) },
-          { onError: toastMutationError("update status") },
-        )
-      }
-      title={`Status: ${trip.status}. Tap to advance.`}
-      className={cn(className, "active:opacity-80")}
-      style={style}
-    >
-      {trip.status}
-    </button>
-  );
 }
 
 /**
@@ -241,16 +177,14 @@ export function MobileCarouselView({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Trip header — title + status pill + dates on one row, cities below.
-          The status pill mirrors the desktop click-to-cycle affordance so
-          mobile users can change status from this page instead of hunting
-          for it behind ⋮ → Edit trip. */}
+      {/* Trip header — title + dates on one row, cities below. Costs/Todos
+          pills live in the top MobileHeader so they don't crowd the cities
+          row on narrow screens. */}
       <div className="shrink-0 border-b bg-background px-3 pb-2 pt-2.5">
         <div className="flex items-baseline gap-2">
           <h1 className="min-w-0 flex-1 truncate text-base font-bold leading-tight">
             {trip.title}
           </h1>
-          <MobileTripStatusPill trip={trip} canEdit={canEdit} />
           <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
             {formatTripDateRange(trip.startDate, trip.endDate)}
           </span>
@@ -422,7 +356,7 @@ export function MobileCarouselView({
                     </button>
                   ) : (
                     <p className="rounded-xl border border-dashed bg-card px-4 py-6 text-center text-sm text-muted-foreground">
-                      No activities planned.
+                      Nothing planned this day.
                     </p>
                   )
                 ) : (
@@ -462,8 +396,6 @@ export function MobileCarouselView({
       <MobileSegmentFormSheet
         tripId={trip.id}
         target={formTarget}
-        tripStartDate={trip.startDate}
-        tripEndDate={trip.endDate}
         onClose={() => setFormTarget(null)}
       />
 
