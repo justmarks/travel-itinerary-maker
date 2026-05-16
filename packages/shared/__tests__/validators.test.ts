@@ -431,6 +431,26 @@ describe("userSettingsSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a 256-char gmail label filter at the cap", () => {
+    const result = userSettingsSchema.safeParse({
+      gmailLabelFilter: "x".repeat(256),
+      emailScanIntervalMinutes: 30,
+      notificationsEnabled: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an over-long gmail label filter (storage-bloat guard)", () => {
+    // Without the cap, an authenticated user could POST megabytes of
+    // string here and have it persisted to user_settings.
+    const result = userSettingsSchema.safeParse({
+      gmailLabelFilter: "x".repeat(10_000),
+      emailScanIntervalMinutes: 30,
+      notificationsEnabled: true,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("htmlImportRequestSchema", () => {

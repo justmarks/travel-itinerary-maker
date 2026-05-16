@@ -328,9 +328,18 @@ export const createShareSchema = z.object({
   showTodos: z.boolean(),
 });
 
-/** Schema for user settings */
+/**
+ * Schema for user settings.
+ *
+ * `gmailLabelFilter` is a Gmail label NAME the user picked from their
+ * own label list. Gmail itself caps label names at 225 characters, but
+ * nothing on the wire enforced that — an authenticated user could POST
+ * a 5MB string here and we'd happily stuff it into Postgres. Cap at
+ * 256 to leave headroom over Gmail's own limit while keeping storage
+ * bloat / log-line monstrosities off the table.
+ */
 export const userSettingsSchema = z.object({
-  gmailLabelFilter: z.string().optional(),
+  gmailLabelFilter: z.string().max(256).optional(),
   emailScanIntervalMinutes: z.number().int().min(5).max(1440),
   notificationsEnabled: z.boolean(),
 });
