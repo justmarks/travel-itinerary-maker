@@ -4,6 +4,7 @@ import {
   createEmailScanRateLimiter,
   createAuthRateLimiter,
   createShareLinkRateLimiter,
+  createShareRulesWriteRateLimiter,
 } from "../../src/middleware/rate-limit";
 
 /**
@@ -192,5 +193,38 @@ describe("createShareLinkRateLimiter", () => {
       .get("/shared/aaa")
       .set("X-Forwarded-For", "203.0.113.20")
       .expect(200);
+  });
+});
+
+describe("createShareRulesWriteRateLimiter", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+  });
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("caps share-rule writes per user so one user can't spam recipient notifications", async () => {
+    const app = express();
+    app.use((req, _res, next) => {
+      req.userId = req.header("x-user-id");
+      next();
+    });
+    const limiter = createShareRulesWriteRateLimiter({ windowMs: 60_000, limit: 2 });
+    app.post("/share-rules", limiter, (_req, res) => {
+      res.status(201).json({ ok: true });
+    });
+
+    await request(app).post("/share-rules").set("x-user-id", "user-a").expect(201);
+    await request(app).post("/share-rules").set("x-user-id", "user-a").expect(201);
+    const blocked = await request(app)
+      .post("/share-rules")
+      .set("x-user-id", "user-a");
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toMatch(/auto-share rule changes/i);
+
+    // Different user keeps their own quota.
+    await request(app).post("/share-rules").set("x-user-id", "user-b").expect(201);
   });
 });
