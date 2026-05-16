@@ -18,7 +18,9 @@ import {
   usePendingEmails,
   useTrips,
   useCreateTrip,
+  queryKeys,
 } from "@itinly/api-client";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -184,6 +186,19 @@ export function EmailScanDialog({
   const { provider: autoProvider } = useActiveEmailProvider(open);
   const { providers: connectedEmailProviders } = useConnectedEmailProviders(open);
   const emailGranted = isDemo || autoProvider !== null;
+  const queryClient = useQueryClient();
+
+  // Invalidate the connections query every time the dialog opens so
+  // the "not-connected" branch reflects connections that were made
+  // outside this dialog's lifetime (e.g. user just hit Connect Outlook
+  // in Settings and bounced back). Without this, the cached value
+  // from the previous open keeps the dialog stuck on "Connect an
+  // email account" until the default staleTime expires.
+  useEffect(() => {
+    if (open) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.connections });
+    }
+  }, [open, queryClient]);
 
   // Per-user mailbox picker — defaults to the last choice from
   // localStorage if it's still a linked provider, else the resolver's
