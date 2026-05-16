@@ -385,6 +385,33 @@ export interface ConsumedOAuthState {
   returnTo: string;
 }
 
+/**
+ * Defence-in-depth guard against `returnTo` being anything other than
+ * an in-app relative path. Every internal caller passes
+ * `window.location.pathname + window.location.search`, so today this
+ * is never exploitable — but the value travels through a cookie and
+ * sessionStorage on its way to `router.replace(returnTo)`, and the
+ * day someone adds a `?returnTo=…` query-string entry point to the
+ * login flow is the day we'd accidentally have an open redirect /
+ * `javascript:` XSS sink. Reject anything that isn't a single
+ * leading slash followed by a non-slash character — that fails the
+ * `//evil.com` protocol-relative URL, the `\\evil.com` UNC path, the
+ * `javascript:` / `data:` schemes, and the empty / non-string cases.
+ */
+export function isSafeReturnTo(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  if (value.length === 0 || value.length > 2048) return false;
+  // Must start with a single forward slash and not be protocol-
+  // relative ("//evil.com") or backslash-y ("/\\evil.com" which some
+  // routers normalise to "//evil.com").
+  if (value[0] !== "/") return false;
+  if (value[1] === "/" || value[1] === "\\") return false;
+  // Reject CR/LF/NUL — header-injection / log-injection guards. These
+  // shouldn't ever appear in a real pathname.
+  if (/[\r\n\0]/.test(value)) return false;
+  return true;
+}
+
 export function consumeOAuthState(): ConsumedOAuthState {
   // Cookie wins (it survives the PWA / Custom Tab handoff on Android);
   // sessionStorage is a fallback for any sign-in started against the
@@ -392,10 +419,14 @@ export function consumeOAuthState(): ConsumedOAuthState {
   // the round-trip started in this browser, which is all CSRF needs.
   const expectedCsrf =
     readStateCookie(CSRF_KEY) ?? sessionStorage.getItem(CSRF_KEY);
-  const returnTo =
+  const rawReturnTo =
     readStateCookie(RETURN_TO_KEY) ??
     sessionStorage.getItem(RETURN_TO_KEY) ??
     "/";
+  // Anything we can't prove is a safe in-app path collapses to "/".
+  // See `isSafeReturnTo` for why this matters even though every
+  // legitimate caller passes a safe value today.
+  const returnTo = isSafeReturnTo(rawReturnTo) ? rawReturnTo : "/";
   clearStateCookie(CSRF_KEY);
   clearStateCookie(RETURN_TO_KEY);
   sessionStorage.removeItem(CSRF_KEY);
