@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -791,16 +791,15 @@ function MobileTripPageInner() {
     router.replace(`/m/trip?${params.toString()}`);
   };
 
+  useEffect(() => {
+    if (!tripId) router.replace(homeHref);
+  }, [tripId, homeHref, router]);
+
   if (!tripId) {
     return (
       <MobileFrame>
-        <MobileHeader
-          title="No trip"
-          backHref={homeHref}
-          right={<MobileUserMenu />}
-        />
-        <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-          No trip selected.
+        <div className="flex flex-1 items-center justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
         </div>
       </MobileFrame>
     );
