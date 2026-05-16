@@ -209,7 +209,8 @@ export function EmailScanDialog({
   //   - Demo mode → google
   //   - Nothing linked → null → render the "not-connected" step
   // The gate also drives the "Connect Gmail / Outlook" prompt below.
-  const { provider: autoProvider } = useActiveEmailProvider(open);
+  const { provider: autoProvider, isLoading: emailProviderLoading } =
+    useActiveEmailProvider(open);
   const { providers: connectedEmailProviders } = useConnectedEmailProviders(open);
   const emailGranted = isDemo || autoProvider !== null;
 
@@ -284,6 +285,15 @@ export function EmailScanDialog({
     if (!open) return;
     if (step !== "loading") return;
 
+    // Wait for /connections to settle before deciding "no provider is
+    // linked". On dialog open the fetch hasn't started yet, so
+    // `autoProvider` is null *and* `emailProviderLoading` is true →
+    // jumping to "not-connected" here would stick (the gate above
+    // blocks re-evaluation once `step` leaves "loading"). The user
+    // would then see "Connect an email account…" even though their
+    // Outlook / Gmail row exists.
+    if (emailProviderLoading) return;
+
     // No email provider linked — show the provider-agnostic
     // not-connected notice pointing at /settings/account.
     if (!emailGranted) {
@@ -300,7 +310,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, emailGranted, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, emailGranted, emailProviderLoading, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(

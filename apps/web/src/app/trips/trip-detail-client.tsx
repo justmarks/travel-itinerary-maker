@@ -846,8 +846,11 @@ function CalendarSyncDialogs({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Pick which {providerLabel.toLowerCase()} should receive this
-              trip&apos;s events.
+              {/* Built as a single template literal so JSX whitespace
+                  handling around the interpolated provider name can't
+                  swallow the space before "should". Earlier the rendered
+                  output was "Pick which outlook calendarshould receive…". */}
+              {`Pick which ${providerLabel} should receive this trip's events.`}
             </DialogDescription>
           </DialogHeader>
           {showProviderPicker && (
@@ -1229,9 +1232,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                     },
                   )
                 }
-                disabled={updateTripStatus.isPending}
+                // Don't disable while pending — the optimistic update
+                // has already advanced the visible status, and disabling
+                // here drops any clicks the user fires before the PUT
+                // settles. Per CLAUDE.md: rapid taps should advance one
+                // step each.
                 title={`Status: ${trip.status}. Click to advance.`}
-                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait"
+                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
                 style={statusChipStyle(trip.status)}
               >
                 {trip.status}
