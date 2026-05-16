@@ -15,7 +15,7 @@ function TripPageInner() {
   // No id → bounce to the trip list. The route used to render a red
   // "No trip selected." placeholder, which looked like a hard error
   // for a state that's just "URL is malformed / user followed a stale
-  // link". /m/trip already redirects this case to /m.
+  // link". /m/trip is treated the same way below.
   useEffect(() => {
     if (!tripId) router.replace(homeHref);
   }, [tripId, homeHref, router]);

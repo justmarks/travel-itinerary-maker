@@ -1,10 +1,8 @@
 import { redirect } from "next/navigation";
 
-/**
- * /m/settings was unrouted, so any visitor (or stale link) landed on
- * Next.js's bare 404. Account is the only settings page that exists
- * on mobile today, so bounce there.
- */
 export default function MobileSettingsIndex(): never {
+  // Mobile equivalent of /settings → /settings/account. /m/settings
+  // is the obvious guess for the account-management surface, but the
+  // only page under it is /m/settings/account.
   redirect("/m/settings/account");
 }
