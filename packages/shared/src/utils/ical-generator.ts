@@ -76,10 +76,27 @@ function dtstamp(): string {
 
 // ─── Time helpers (mirrors google-calendar.ts) ────────────────────────────────
 
-function addHoursToTime(time: string, hours: number): string {
+function addHoursToTime(
+  time: string,
+  hours: number,
+): { time: string; dayOffset: number } {
   const [h, m] = time.split(":").map(Number);
   const total = h * 60 + (m ?? 0) + hours * 60;
-  return `${String(Math.min(Math.floor(total / 60), 23)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  // Wrap across midnight rather than clamping at 23:59. The previous
+  // Math.min(…, 23) silently truncated late-evening defaults — a
+  // 22:30 flight + 2h default duration produced an end of "23:30"
+  // (clamped) instead of "00:30 next day", so the iCal event ended
+  // mid-evening and clipped the back half of the flight off the
+  // user's calendar. Return the day offset so the caller can advance
+  // the date when needed.
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const dayOffset = Math.floor(total / (24 * 60));
+  const wrappedH = Math.floor(wrapped / 60);
+  const wrappedM = wrapped % 60;
+  return {
+    time: `${String(wrappedH).padStart(2, "0")}:${String(wrappedM).padStart(2, "0")}`,
+    dayOffset,
+  };
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -319,7 +336,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", arrDate, segment.endTime, endTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), startTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, startTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }
@@ -407,7 +427,10 @@ function segmentToVEvent(
         dtEnd = segment.endTime
           ? dtProp("DTEND", day.date, segment.endTime, localTz)
           : segment.startTime
-            ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), localTz)
+            ? (() => {
+                const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+                return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+              })()
             : dtProp("DTEND", addDays(day.date, 1));
       }
       break;
@@ -429,7 +452,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), localTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }
@@ -448,7 +474,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 1), localTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 1);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }

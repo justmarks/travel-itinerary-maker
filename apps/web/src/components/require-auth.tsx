@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useDemoMode } from "@/lib/demo";
 
@@ -38,7 +39,7 @@ export function RequireAuth({
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </main>
     );
   }

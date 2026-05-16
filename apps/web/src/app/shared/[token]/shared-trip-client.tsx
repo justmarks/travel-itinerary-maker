@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSharedTrip } from "@itinly/api-client";
 import { ItineraryDay } from "@/components/itinerary-day";
 import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
@@ -42,6 +43,12 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
           <p className="mt-1 text-sm text-muted-foreground">
             This share link may have expired or been removed.
           </p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/40"
+          >
+            Open itinly
+          </Link>
         </div>
       </main>
     );
@@ -53,7 +60,7 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-kicker text-muted-foreground">
             Shared itinerary
           </p>
           <h1 className="text-2xl font-bold">{trip.title}</h1>

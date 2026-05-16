@@ -144,7 +144,7 @@ export function MobileUserMenu({
         {onAutoShare && (
           <DropdownMenuItem onClick={onAutoShare}>
             <Repeat className="mr-2 h-4 w-4" />
-            Auto-share&hellip;
+            Auto-share…
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleSwitchToDesktop}>

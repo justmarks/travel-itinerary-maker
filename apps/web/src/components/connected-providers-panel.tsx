@@ -100,7 +100,7 @@ function capabilityLabel(
   capability: ConnectionsCapability,
 ): string {
   if (provider === "microsoft") {
-    if (capability === "email") return "Outlook mail";
+    if (capability === "email") return "Outlook Mail";
     if (capability === "calendar") return "Outlook Calendar";
   } else {
     if (capability === "email") return "Gmail";
@@ -354,7 +354,14 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
                       : undefined
                   }
                 >
-                  Unlink
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Unlinking…
+                    </>
+                  ) : (
+                    "Unlink"
+                  )}
                 </Button>
               </li>
             );

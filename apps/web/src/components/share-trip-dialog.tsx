@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Copy,
   Eye,
+  Loader2,
   Pencil,
   Repeat,
   Share2,
@@ -145,7 +146,7 @@ function ExistingShareRow({
         </p>
         {share.originRuleId && (
           <p
-            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-kicker"
             style={{
               background: "var(--status-info-bg)",
               color: "var(--status-info-fg)",
@@ -423,6 +424,9 @@ export function ShareTripDialog({
                 <Input
                   id="share-email"
                   type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   placeholder="name@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -472,7 +476,11 @@ export function ShareTripDialog({
               disabled={!canCreate}
               className="w-full"
             >
-              <Share2 className="mr-2 h-4 w-4" />
+              {createShare.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="mr-2 h-4 w-4" />
+              )}
               {createShare.isPending ? "Creating…" : "Create share link"}
             </Button>
           </>
@@ -482,7 +490,7 @@ export function ShareTripDialog({
             previously created links without dismissing. */}
         {!isLoading && shares.length > 0 && (
           <div className="border-t pt-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-kicker font-semibold text-muted-foreground">
               Active shares · {shares.length}
             </p>
             <ul className="flex flex-col gap-2">

@@ -198,8 +198,11 @@ function EditTripBody({
           </p>
         )}
 
-        <div className="space-y-1.5">
-          <p className="text-kicker font-medium text-muted-foreground">
+        <div className="space-y-1.5" role="group" aria-labelledby="m-edit-trip-status-label">
+          <p
+            id="m-edit-trip-status-label"
+            className="text-kicker font-medium text-muted-foreground"
+          >
             Status
           </p>
           <div className="flex flex-wrap gap-2">

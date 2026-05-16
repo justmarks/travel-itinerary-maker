@@ -70,7 +70,7 @@ export function CreateTripDialog({
     e.preventDefault();
     setOverlapError(null);
     createTrip.mutate(
-      { title, startDate, endDate },
+      { title: title.trim(), startDate, endDate },
       {
         onSuccess: (trip) => {
           setOpen(false);
@@ -120,7 +120,7 @@ export function CreateTripDialog({
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">New Trip</span>
+          <span className="hidden sm:inline">New trip</span>
         </Button>
       </DialogTrigger>
       <DialogContent>

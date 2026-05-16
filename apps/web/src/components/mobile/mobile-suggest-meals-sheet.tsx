@@ -138,7 +138,7 @@ export function MobileSuggestMealsSheet({
             AI suggestions
           </p>
           <h2 className="mt-0.5 flex items-center gap-2 text-2xl font-bold leading-tight">
-            <Sparkles className="h-5 w-5" style={{ color: "var(--brand)" }} />
+            <Sparkles className="h-5 w-5 text-brand" />
             Suggest meals
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">

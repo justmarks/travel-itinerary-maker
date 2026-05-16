@@ -20,7 +20,7 @@ import {
 } from "@/lib/trip-buckets";
 
 export function TripList(): React.JSX.Element {
-  const { data: trips, isLoading, error } = useTrips();
+  const { data: trips, isLoading, error, refetch } = useTrips();
 
   const today = useMemo(() => todayLocalISO(), []);
 
@@ -43,9 +43,18 @@ export function TripList(): React.JSX.Element {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
-        <p className="font-medium">Failed to load trips</p>
-        <p className="mt-1 text-xs opacity-75">{describeError(error)}</p>
+      <div className="flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium">Failed to load trips</p>
+          <p className="mt-1 text-xs opacity-75">{describeError(error)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="shrink-0 rounded-md border border-current px-3 py-1 text-xs font-medium hover:bg-destructive/10"
+        >
+          Retry
+        </button>
       </div>
     );
   }

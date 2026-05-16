@@ -114,6 +114,7 @@ export function TripTodos({
     <li key={todo.id}>
       <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
         <button
+          type="button"
           onClick={() => {
             if (readOnly) return;
             updateTodo.mutate(
@@ -131,6 +132,13 @@ export function TripTodos({
             "mt-0.5 shrink-0",
             readOnly && "cursor-default",
           )}
+          aria-label={
+            readOnly
+              ? undefined
+              : todo.isCompleted
+                ? "Mark incomplete"
+                : "Mark complete"
+          }
           title={
             readOnly
               ? undefined
@@ -215,7 +223,7 @@ export function TripTodos({
               onClick={() => setSuggestOpen(true)}
               title="Suggest to-dos for missing meals"
             >
-              <Sparkles className="h-3.5 w-3.5" style={{ color: "var(--brand)" }} />
+              <Sparkles className="h-3.5 w-3.5 text-brand" />
               Suggest meals
             </Button>
           )}

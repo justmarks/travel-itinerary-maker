@@ -64,6 +64,7 @@ import {
   Trash2,
   Users,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
 import { ItineraryDay } from "@/components/itinerary-day";
@@ -171,6 +172,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save trip name"
           className="h-8 w-8"
           disabled={!value.trim() || updateTrip.isPending}
         >
@@ -180,6 +182,7 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel rename"
           className="h-8 w-8"
           onClick={cancelEdit}
         >
@@ -298,6 +301,7 @@ function EditableDates({
             type="submit"
             variant="ghost"
             size="icon"
+            aria-label="Save dates"
             className="h-7 w-7"
             disabled={!isValid || !hasChanges || updateTrip.isPending}
           >
@@ -307,6 +311,7 @@ function EditableDates({
             type="button"
             variant="ghost"
             size="icon"
+            aria-label="Cancel date edit"
             className="h-7 w-7"
             onClick={cancel}
           >
@@ -403,6 +408,7 @@ function TripActionsMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteTrip = useDeleteTrip();
+  const homeHref = useDemoHref("/");
   const [exporting, setExporting] = useState(false);
 
   const handleDelete = async () => {
@@ -418,7 +424,7 @@ function TripActionsMenu({
         // Bounce to the dashboard so the user isn't stuck on a now-404
         // detail page. The trips list will refresh from the
         // invalidation in the mutation hook.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("delete trip"),
     });
@@ -647,6 +653,7 @@ function LeaveTripMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(tripId);
+  const homeHref = useDemoHref("/");
 
   const handleLeave = async () => {
     const ok = await confirm({
@@ -661,7 +668,7 @@ function LeaveTripMenu({
       onSuccess: () => {
         // The trip is no longer visible to this user — bouncing to the
         // dashboard avoids a 404 the moment the next GET fires.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("leave trip"),
     });
@@ -738,7 +745,11 @@ function NeedsReviewBanner({
         }
         disabled={confirmAll.isPending}
       >
-        <Check className="mr-1.5 h-3.5 w-3.5" />
+        {confirmAll.isPending ? (
+          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Check className="mr-1.5 h-3.5 w-3.5" />
+        )}
         Confirm all
       </Button>
     </div>
@@ -835,7 +846,8 @@ function CalendarSyncDialogs({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the {providerLabel}{" "}to sync this trip&apos;s events to.
+              Pick which {providerLabel.toLowerCase()} should receive this
+              trip&apos;s events.
             </DialogDescription>
           </DialogHeader>
           {showProviderPicker && (
@@ -1106,7 +1118,18 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               </Button>
             </div>
           ) : (
-            <p className="mt-4 text-destructive">Trip not found.</p>
+            <div className="mt-8 flex flex-col items-center gap-3 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground/60" />
+              <p className="text-base font-medium">Trip not found</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                It may have been deleted, or the link could be wrong.
+              </p>
+              <Link href={homeHref}>
+                <Button variant="outline" className="mt-2">
+                  Back to all trips
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </main>
@@ -1140,7 +1163,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 and then disappear once the real permission resolves. */}
             {!permission.isLoading && isOwner && (
               <>
-                <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+                <EmailScanDialog tripId={trip.id} triggerLabel="Scan emails" />
                 <Button
                   variant="default"
                   size="sm"
@@ -1249,10 +1272,17 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         {isOwner && <NeedsReviewBanner trip={trip} />}
 
         {/* Tab navigation — hidden when printing */}
-        <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden">
+        <div
+          role="tablist"
+          aria-label="Trip views"
+          className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden"
+        >
           {visibleTabs.map((tab) => (
             <button
               key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",

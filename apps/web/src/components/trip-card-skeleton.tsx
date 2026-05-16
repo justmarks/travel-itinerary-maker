@@ -39,7 +39,7 @@ export function TripCardSkeleton(): React.JSX.Element {
       >
         {/* Faint dark gradient overlay matches the real hero's bottom
             scrim so the silhouette reads as a card, not a flat block. */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         {/* Title placeholder pinned bottom-left, where the real title sits. */}
         <div className="absolute inset-x-3 bottom-3 space-y-1.5">
           <div className="h-4 w-3/5 rounded bg-white/45" />
@@ -69,7 +69,7 @@ export function MobileTripRowSkeleton(): React.JSX.Element {
         className="relative h-32 w-full animate-pulse"
         style={{ background: HERO_GRADIENT }}
       >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
         <div className="absolute inset-x-3 bottom-3 space-y-1.5">
           <div className="h-3.5 w-3/5 rounded bg-white/45" />
           <div className="h-3 w-2/5 rounded bg-white/30" />
@@ -118,7 +118,7 @@ export function StillLoadingHint({
       )}
       aria-live="polite"
     >
-      Still loading your trips&hellip;
+      Still loading your trips…
     </p>
   );
 }

@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import {
   SegmentFormFields,
   EMPTY_FORM_STATE,
@@ -205,7 +205,14 @@ export function AddSegmentDialog({
               type="submit"
               disabled={!resolvedTitle || createSegment.isPending}
             >
-              {createSegment.isPending ? "Adding…" : "Add segment"}
+              {createSegment.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                "Add segment"
+              )}
             </Button>
           </div>
         </form>

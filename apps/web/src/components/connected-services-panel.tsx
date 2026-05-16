@@ -372,6 +372,9 @@ export function ConnectedServicesPanel(): React.JSX.Element {
             disabled={busyAction === "connect-google-email"}
             onClick={handleConnectGmail}
           >
+            {busyAction === "connect-google-email" && (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            )}
             Connect Gmail
           </Button>
         )}
@@ -384,7 +387,10 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "email", MICROSOFT_MAIL_SCOPES)
             }
           >
-            Connect Outlook mail
+            {busyAction === "connect-microsoft-email" && (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            )}
+            Connect Outlook Mail
           </Button>
         )}
       </CapabilitySection>
@@ -405,6 +411,9 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("google", "calendar", GOOGLE_CALENDAR_SCOPES)
             }
           >
+            {busyAction === "connect-google-calendar" && (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            )}
             Connect Google Calendar
           </Button>
         )}
@@ -417,7 +426,10 @@ export function ConnectedServicesPanel(): React.JSX.Element {
               void startConnect("azure", "calendar", MICROSOFT_CALENDAR_SCOPES)
             }
           >
-            Connect Outlook calendar
+            {busyAction === "connect-microsoft-calendar" && (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            )}
+            Connect Outlook Calendar
           </Button>
         )}
       </CapabilitySection>
@@ -465,7 +477,14 @@ function CapabilitySection({
                 disabled={busyAction === `disconnect-${c.id}`}
                 onClick={() => onDisconnect(c)}
               >
-                Disconnect
+                {busyAction === `disconnect-${c.id}` ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Disconnecting…
+                  </>
+                ) : (
+                  "Disconnect"
+                )}
               </Button>
             </li>
           ))}

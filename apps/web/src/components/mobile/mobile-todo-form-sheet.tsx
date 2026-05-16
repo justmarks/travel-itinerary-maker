@@ -253,7 +253,7 @@ export function MobileTodoFormSheet({
             stays minimal. */}
         {details.trim() && (
           <div className="mt-2 rounded-md border border-dashed bg-muted/40 px-3 py-2">
-            <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="mb-1 text-kicker text-muted-foreground">
               Preview
             </div>
             <MarkdownText className="text-sm">{details}</MarkdownText>

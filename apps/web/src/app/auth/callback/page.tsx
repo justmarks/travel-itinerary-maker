@@ -13,7 +13,7 @@ import {
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { AppLogo } from "@/components/app-logo";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -287,7 +287,7 @@ async function syncConnections(
       returnTo: pending.returnTo ?? null,
       capabilityError: capabilityResult.ok
         ? null
-        : capabilityResult.message ?? "Could not save connection",
+        : capabilityResult.message ?? "Couldn't save connection",
     };
   }
 
@@ -572,7 +572,7 @@ export default function AuthCallbackPage(): React.JSX.Element {
   return (
     <main className="flex min-h-screen items-center justify-center">
       <div className="flex items-center gap-3 text-muted-foreground">
-        <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-5 w-5 animate-spin" />
         <span>Completing sign-in…</span>
       </div>
     </main>

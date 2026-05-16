@@ -35,7 +35,7 @@ export function MobileFrame({
 }): React.JSX.Element {
   const online = useOnlineStatus();
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950">
+    <div className="min-h-screen bg-muted">
       <div
         className={cn(
           // Base: fill the viewport on a real touch device. The phone-frame

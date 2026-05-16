@@ -56,6 +56,25 @@ import {
 } from "@/lib/trip-buckets";
 import { formatTripDateRange } from "@/lib/format-date";
 
+/**
+ * Map each trip status to a `--status-*` token. Mirrors the same
+ * mapping in `trip-card.tsx` so the mobile row's status chip uses
+ * the same palette the desktop card's chip uses.
+ */
+const STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
+  planning:  "info",
+  active:    "ok",
+  completed: "muted",
+  cancelled: "danger",
+};
+
+function statusChipStyle(status: string): React.CSSProperties {
+  const t = STATUS_TOKEN[status] ?? "muted";
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
+}
 
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
@@ -70,8 +89,11 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
   const gradient = gradientFor(seed);
   const delta = daysUntil(trip.startDate);
   const showCountdown = delta > 0 && delta <= 60 && trip.status !== "cancelled";
-  const countdownLabel =
-    delta === 1 ? "Tomorrow" : showCountdown ? `In ${delta} days` : null;
+  const countdownLabel = showCountdown
+    ? delta === 1
+      ? "Tomorrow"
+      : `In ${delta} days`
+    : null;
 
   return (
     <div
@@ -114,7 +136,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
           style={{ top: countdownLabel ? "2.25rem" : "0.5rem" }}
         >
           <Users className="h-3 w-3" />
-          {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
+          {trip.sharedPermission === "edit" ? "Shared · Editor" : "Shared · Viewer"}
         </span>
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
@@ -145,6 +167,7 @@ function MobileTripCardLeaveMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(trip.id);
+  const isDemo = useDemoMode();
 
   if (!trip.sharedShareId) return null;
 
@@ -160,7 +183,7 @@ function MobileTripCardLeaveMenu({
     if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
-        router.push("/m");
+        router.push(isDemo ? "/m?demo=true" : "/m");
       },
       onError: toastMutationError("leave trip"),
     });
@@ -181,7 +204,7 @@ function MobileTripCardLeaveMenu({
           <button
             type="button"
             aria-label="More trip actions"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -227,8 +250,12 @@ function TripRow({
           {formatTripDateRange(trip.startDate, trip.endDate)}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="capitalize">{trip.status}</span>
-          <span aria-hidden>·</span>
+          <span
+            className="inline-flex items-center rounded-full px-1.5 py-0.5 capitalize"
+            style={statusChipStyle(trip.status)}
+          >
+            {trip.status}
+          </span>
           <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>

@@ -126,7 +126,7 @@ function CreateForm({
   return (
     <div className="space-y-3 rounded-xl border bg-card p-4">
       <div className="space-y-1">
-        <label htmlFor="rule-email" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <label htmlFor="rule-email" className="text-kicker text-muted-foreground">
           Email
         </label>
         <input

@@ -249,15 +249,39 @@ export function useUpdateSegment(tripId: string) {
       const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
       if (prev) {
         const { segmentId, ...patch } = input;
-        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
-          ...prev,
-          days: prev.days.map((d) => ({
-            ...d,
-            segments: d.segments.map((s) =>
-              s.id === segmentId ? { ...s, ...patch } : s,
-            ),
-          })),
-        });
+        // Find the existing segment AND the day it currently lives on
+        // so we can re-home it onto a new day when `patch.date` moves
+        // it. Without the cross-day move, an in-place .map left the
+        // segment in its old day even when the form changed its date —
+        // it briefly rendered under the wrong day until onSettled
+        // refetched. mobile-segment-form-sheet sends a `date` field
+        // through this mutation as `Record<string, unknown>` even
+        // though Partial<Segment> doesn't formally include it.
+        let existing: Segment | undefined;
+        let originalDate: string | undefined;
+        for (const d of prev.days) {
+          const found = d.segments.find((s) => s.id === segmentId);
+          if (found) {
+            existing = found;
+            originalDate = d.date;
+            break;
+          }
+        }
+        if (existing && originalDate !== undefined) {
+          const patched = { ...existing, ...patch };
+          const targetDate =
+            (patch as { date?: string }).date ?? originalDate;
+          queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+            ...prev,
+            days: prev.days.map((d) => {
+              const without = d.segments.filter((s) => s.id !== segmentId);
+              if (d.date === targetDate) {
+                return { ...d, segments: [...without, patched] };
+              }
+              return { ...d, segments: without };
+            }),
+          });
+        }
       }
       return { prev };
     },

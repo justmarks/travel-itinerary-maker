@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { getSupabaseClient } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { AppWordmark } from "@/components/app-wordmark";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle, Info, Loader2 } from "lucide-react";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -65,7 +65,7 @@ export default function LoginPage(): React.JSX.Element {
   if (isLoading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </main>
     );
   }

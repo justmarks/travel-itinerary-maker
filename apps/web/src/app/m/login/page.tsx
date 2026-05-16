@@ -8,7 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { useDemoMode } from "@/lib/demo";
 import { MobileFrame } from "@/components/mobile/mobile-shell";
 import { AppWordmark } from "@/components/app-wordmark";
-import { AlertCircle, Info, Sparkles } from "lucide-react";
+import { AlertCircle, Info, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const API_BASE_URL =
@@ -58,7 +58,7 @@ export default function MobileLoginPage(): React.JSX.Element {
     return (
       <MobileFrame>
         <div className="flex flex-1 items-center justify-center">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       </MobileFrame>
     );
