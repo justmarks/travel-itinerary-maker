@@ -233,7 +233,13 @@ function proposalDestination(
 }
 
 function daysBetween(earlier: string, later: string): number {
-  const a = new Date(earlier + "T00:00:00").getTime();
-  const b = new Date(later + "T00:00:00").getTime();
+  // Parse with `Z` (UTC) so a span that crosses a DST transition isn't
+  // off by one. With local-time parsing, two dates 15 calendar days
+  // apart that bracket a "spring forward" lose one hour, so
+  // `(b-a)/MS_PER_DAY` becomes 14.958 and Math.floor yields 14 — which
+  // sneaks under TRIP_GROUPING_GAP_DAYS and clusters two trips that
+  // should stay separate. Pinning to UTC removes the DST offset.
+  const a = new Date(earlier + "T00:00:00Z").getTime();
+  const b = new Date(later + "T00:00:00Z").getTime();
   return Math.floor((b - a) / MS_PER_DAY);
 }
