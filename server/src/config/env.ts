@@ -93,6 +93,29 @@ export const config = {
    */
   corsOriginPattern: process.env.CORS_ORIGIN_PATTERN || "",
   /**
+   * Number of trusted reverse-proxy hops in front of Express. Express's
+   * default (`trust proxy=false`) makes `req.ip` the socket peer, which
+   * on PaaS hosts (Railway, Fly, Cloud Run, etc.) is the platform's
+   * proxy — every user hits rate limiters under the same IP bucket and
+   * one misbehaving client can lock everyone out. Setting `trust proxy`
+   * to N tells Express to take `req.ip` from the leftmost X-Forwarded-For
+   * entry after stripping N hops, which is the client's real IP.
+   *
+   * Defaults to 1 (the standard "one PaaS reverse proxy in front of us")
+   * because that's what every supported deployment target uses. Override
+   * with `TRUST_PROXY_HOPS=0` to disable (e.g. when running Express
+   * directly without a proxy) or `=2`/etc when behind a chain. NEVER set
+   * this higher than the actual hop count — a too-high value lets a
+   * client spoof `req.ip` via a forged X-Forwarded-For header.
+   */
+  trustProxyHops: (() => {
+    const raw = process.env.TRUST_PROXY_HOPS;
+    if (raw === undefined || raw === "") return 1;
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return 1;
+    return parsed;
+  })(),
+  /**
    * VAPID keys for Web Push (RFC 8292). Generate once with
    * `npx web-push generate-vapid-keys` and persist both halves; the
    * public half is also exposed to the browser as

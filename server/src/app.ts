@@ -94,6 +94,14 @@ export interface AppOptions {
  */
 export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
+  // Behind a reverse proxy (Railway, Fly, Cloud Run, …) the socket peer
+  // is always the proxy, not the user. Without trust-proxy, `req.ip`
+  // collapses every request onto one bucket so the auth / share-link /
+  // calendar rate limiters effectively rate-limit the proxy instead of
+  // the user, and one misbehaving client locks everyone out. Number of
+  // hops comes from env so a future deployment with a different topology
+  // can adjust without code changes; see `config.trustProxyHops`.
+  app.set("trust proxy", config.trustProxyHops);
   const {
     mode,
     storage,
