@@ -159,6 +159,21 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+    // HSTS — instructs the browser to refuse plain-HTTP requests to
+    // this origin for the next year. The reverse proxy in front of
+    // us probably also sets this, but a "probably" isn't a security
+    // posture: the PaaS layer is configured separately from the app,
+    // and a misconfigured proxy + missing header here would silently
+    // allow a one-hop downgrade attack against the API itself
+    // (cookies don't apply — the API is Bearer-auth — but an
+    // attacker on the path could MITM the OAuth code exchange and
+    // mint themselves a session). max-age=63072000 (2 years) is the
+    // preload-list recommendation; `includeSubDomains` covers any
+    // future API sub-host we add.
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=63072000; includeSubDomains",
+    );
     next();
   });
   // `app.disable('x-powered-by')` strips the `X-Powered-By: Express`

@@ -57,3 +57,19 @@ describe("body-parser limits per route bucket", () => {
     expect(res.status).not.toBe(413);
   });
 });
+
+describe("security headers", () => {
+  it("sets Strict-Transport-Security on every response", async () => {
+    const app = await createApp({
+      mode: "memory",
+      storage: new InMemoryStorage(),
+      disableRedis: true,
+    });
+    const res = await request(app).get("/health");
+    expect(res.status).toBe(200);
+    const hsts = res.headers["strict-transport-security"];
+    expect(hsts).toBeDefined();
+    expect(hsts).toMatch(/max-age=\d+/);
+    expect(hsts).toMatch(/includeSubDomains/);
+  });
+});
