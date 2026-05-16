@@ -137,12 +137,19 @@ function SegmentRow({
   segment,
   date,
   tripId,
+  tripStartDate,
+  tripEndDate,
   readOnly,
   showCosts = true,
 }: {
   segment: Segment;
   date: string;
   tripId?: string;
+  /** Owning trip's date range — passed through to EditSegmentDialog so
+   *  its Date / Check-out / Dropoff / Disembark pickers can clamp with
+   *  min/max. */
+  tripStartDate?: string;
+  tripEndDate?: string;
   readOnly?: boolean;
   /**
    * When false, suppress the cost line on this row. Threaded from the
@@ -463,6 +470,8 @@ function SegmentRow({
             tripId={tripId}
             segment={segment}
             date={date}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
             open={editOpen}
             onOpenChange={setEditOpen}
           />
@@ -553,11 +562,17 @@ function EditableCity({
 export function ItineraryDay({
   day,
   tripId,
+  tripStartDate,
+  tripEndDate,
   readOnly,
   showCosts = true,
 }: {
   day: TripDay;
   tripId?: string;
+  /** Owning trip's date range — passed through to AddSegmentDialog so the
+   *  Date picker is clamped with min/max client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
   readOnly?: boolean;
   /**
    * When false, hide inline per-segment cost. Used by the contributor
@@ -597,7 +612,12 @@ export function ItineraryDay({
           )}
         </div>
         {!readOnly && tripId && (
-          <AddSegmentDialog tripId={tripId} date={day.date} />
+          <AddSegmentDialog
+            tripId={tripId}
+            date={day.date}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
+          />
         )}
       </div>
 
@@ -613,6 +633,8 @@ export function ItineraryDay({
               segment={seg}
               date={day.date}
               tripId={tripId}
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
               readOnly={readOnly}
               showCosts={showCosts}
             />

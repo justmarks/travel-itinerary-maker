@@ -63,6 +63,8 @@ export function EditSegmentDialog({
   tripId,
   segment,
   date,
+  tripStartDate,
+  tripEndDate,
   open,
   onOpenChange,
 }: {
@@ -70,6 +72,11 @@ export function EditSegmentDialog({
   segment: Segment;
   /** The date of the TripDay that currently contains this segment. */
   date: string;
+  /** Owning trip's date range — clamps Date / Check-out / Dropoff /
+   *  Disembark pickers with min/max so out-of-range dates are blocked
+   *  client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
@@ -271,6 +278,8 @@ export function EditSegmentDialog({
               form={form}
               onChange={handleChange}
               idPrefix="edit"
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
             />
             {/* Bottom-fade scroll indicator —
                 see add-segment-dialog.tsx for the rationale. */}
