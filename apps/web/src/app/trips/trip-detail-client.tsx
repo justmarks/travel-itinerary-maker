@@ -1332,6 +1332,8 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   key={day.date}
                   day={day}
                   tripId={trip.id}
+                  tripStartDate={trip.startDate}
+                  tripEndDate={trip.endDate}
                   readOnly={isReadOnly}
                   showCosts={showCosts}
                 />

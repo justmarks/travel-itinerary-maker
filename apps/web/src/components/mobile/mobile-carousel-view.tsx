@@ -396,6 +396,8 @@ export function MobileCarouselView({
       <MobileSegmentFormSheet
         tripId={trip.id}
         target={formTarget}
+        tripStartDate={trip.startDate}
+        tripEndDate={trip.endDate}
         onClose={() => setFormTarget(null)}
       />
 
