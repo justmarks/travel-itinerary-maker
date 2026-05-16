@@ -4,6 +4,7 @@ import {
   createEmailScanRateLimiter,
   createAuthRateLimiter,
   createShareLinkRateLimiter,
+  createShareRulesWriteRateLimiter,
 } from "../../src/middleware/rate-limit";
 
 /**
@@ -160,5 +161,70 @@ describe("createShareLinkRateLimiter", () => {
     await request(app).get("/shared/aaa").expect(200);
     await request(app).get("/shared/bbb").expect(200);
     await request(app).get("/shared/ccc").expect(429);
+  });
+
+  it("buckets per client IP when `trust proxy` is set (the production config)", async () => {
+    // Production runs behind a reverse proxy that puts the real client
+    // IP in X-Forwarded-For. `app.set('trust proxy', 1)` is the only
+    // thing that makes Express prefer that header over the socket peer
+    // (which would be the proxy itself, collapsing every user into one
+    // bucket). This regression-guards against the trust-proxy setting
+    // getting dropped from `createApp`.
+    const app = express();
+    app.set("trust proxy", 1);
+    const limiter = createShareLinkRateLimiter({ windowMs: 60_000, limit: 1 });
+    app.get("/shared/:token", limiter, (_req, res) => {
+      res.status(200).json({ ok: true });
+    });
+
+    // Client A burns their single request.
+    await request(app)
+      .get("/shared/aaa")
+      .set("X-Forwarded-For", "203.0.113.10")
+      .expect(200);
+    await request(app)
+      .get("/shared/aaa")
+      .set("X-Forwarded-For", "203.0.113.10")
+      .expect(429);
+
+    // Client B (different X-Forwarded-For) still has their own quota —
+    // proves req.ip is reading from X-Forwarded-For, not the socket.
+    await request(app)
+      .get("/shared/aaa")
+      .set("X-Forwarded-For", "203.0.113.20")
+      .expect(200);
+  });
+});
+
+describe("createShareRulesWriteRateLimiter", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  beforeEach(() => {
+    process.env.NODE_ENV = "development";
+  });
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("caps share-rule writes per user so one user can't spam recipient notifications", async () => {
+    const app = express();
+    app.use((req, _res, next) => {
+      req.userId = req.header("x-user-id");
+      next();
+    });
+    const limiter = createShareRulesWriteRateLimiter({ windowMs: 60_000, limit: 2 });
+    app.post("/share-rules", limiter, (_req, res) => {
+      res.status(201).json({ ok: true });
+    });
+
+    await request(app).post("/share-rules").set("x-user-id", "user-a").expect(201);
+    await request(app).post("/share-rules").set("x-user-id", "user-a").expect(201);
+    const blocked = await request(app)
+      .post("/share-rules")
+      .set("x-user-id", "user-a");
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toMatch(/auto-share rule changes/i);
+
+    // Different user keeps their own quota.
+    await request(app).post("/share-rules").set("x-user-id", "user-b").expect(201);
   });
 });

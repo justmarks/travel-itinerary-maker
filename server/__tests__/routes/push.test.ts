@@ -77,6 +77,24 @@ describe("POST /api/v1/push/subscribe", () => {
     expect(store.listForUser("user-1")).toEqual([]);
   });
 
+  it.each([
+    ["http endpoint", "http://push.example/abc"],
+    ["loopback IP", "https://127.0.0.1/push"],
+    ["AWS metadata IP", "https://169.254.169.254/latest/meta-data/"],
+    ["localhost hostname", "https://localhost/push"],
+    ["private IPv4", "https://192.168.1.1/push"],
+  ])("rejects SSRF-shaped subscription endpoints (%s)", async (_label, endpoint) => {
+    const store = new PushSubscriptionStore();
+    const app = buildApp(store, { userId: "user-1", userEmail: "alice@example.com" });
+
+    const res = await request(app)
+      .post("/api/v1/push/subscribe")
+      .send({ subscription: { endpoint, keys: SUB.keys } });
+
+    expect(res.status).toBe(400);
+    expect(store.listForUser("user-1")).toEqual([]);
+  });
+
   it("upserts when the same browser re-subscribes", async () => {
     const store = new PushSubscriptionStore();
     const app = buildApp(store, { userId: "user-1", userEmail: "alice@example.com" });

@@ -306,12 +306,32 @@ describe("POST /auth/google", () => {
     expect(res.status).toBe(200);
   });
 
-  it("returns 401 when Google rejects the auth code", async () => {
-    mockGetToken.mockRejectedValueOnce(new Error("Invalid authorization code"));
+  it("returns 401 with a sanitised generic message when Google rejects the auth code", async () => {
+    // Raw provider error messages can include request IDs, internal
+    // URLs, or verbose JSON dumps. The route should not surface those
+    // verbatim — assert the generic fallback shape instead.
+    mockGetToken.mockRejectedValueOnce(
+      new Error(
+        "Invalid authorization code (request-id: abc-123, see https://oauth-provider.example/debug for stack trace)",
+      ),
+    );
 
     const res = await request(makeApp()).post("/auth/google").send({ code: "bad-code" });
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain("Invalid authorization code");
+    expect(res.body.error).toBe("Authentication failed");
+    expect(res.body.error).not.toMatch(/request-id/);
+    expect(res.body.error).not.toMatch(/oauth-provider/);
+  });
+
+  it("maps invalid_grant to a clear actionable message", async () => {
+    mockGetToken.mockRejectedValueOnce(
+      new Error("invalid_grant: authorization code expired (request-id: xyz)"),
+    );
+
+    const res = await request(makeApp()).post("/auth/google").send({ code: "expired" });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/expired or has already been used/i);
+    expect(res.body.error).not.toMatch(/request-id/);
   });
 });
 
@@ -399,15 +419,37 @@ describe("POST /auth/refresh", () => {
     expect(res.body.expiresAt).toBe(9_999_999);
   });
 
-  it("returns 401 when the refresh token is revoked or invalid", async () => {
-    mockRefreshAccessToken.mockRejectedValueOnce(new Error("Token has been revoked"));
+  it("returns 401 with a sanitised generic message when refresh fails", async () => {
+    // Same rationale as the /google route: don't echo raw provider
+    // error messages back. Internal IDs, URLs, etc. should stay in
+    // server logs.
+    mockRefreshAccessToken.mockRejectedValueOnce(
+      new Error(
+        "Token has been revoked (request-id: xyz-789, https://oauth-provider.example/debug)",
+      ),
+    );
 
     const res = await request(makeApp())
       .post("/auth/refresh")
       .send({ refreshToken: "bad-refresh" });
 
     expect(res.status).toBe(401);
-    expect(res.body.error).toContain("Token has been revoked");
+    expect(res.body.error).toBe("Token refresh failed");
+    expect(res.body.error).not.toMatch(/request-id/);
+    expect(res.body.error).not.toMatch(/oauth-provider/);
+  });
+
+  it("maps invalid_grant on refresh to a clear actionable message", async () => {
+    mockRefreshAccessToken.mockRejectedValueOnce(
+      new Error("invalid_grant — refresh token expired"),
+    );
+
+    const res = await request(makeApp())
+      .post("/auth/refresh")
+      .send({ refreshToken: "expired" });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/expired or has already been used/i);
   });
 });
 
