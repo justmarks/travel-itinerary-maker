@@ -321,7 +321,7 @@ export function ShareTripDialog({
           <DialogDescription className="pr-8">
             {inSuccessState
               ? "Send this link to anyone you want to share with."
-              : "Send a link so others can view — or invite a Gmail account that can edit."}
+              : "Send a link so others can view — or invite someone by email to edit."}
           </DialogDescription>
         </DialogHeader>
 
@@ -367,7 +367,7 @@ export function ShareTripDialog({
               {createdToken && (
                 <p className="mt-2 text-xs" style={{ color: "var(--status-ok-fg)", opacity: 0.8 }}>
                   {permission === "edit"
-                    ? `${trimmedEmail || "Contributor"} will need to sign in with this Gmail to edit.`
+                    ? `${trimmedEmail || "Contributor"} will need to sign in with this email to edit.`
                     : "Anyone with this link can view."}
                 </p>
               )}
@@ -407,7 +407,7 @@ export function ShareTripDialog({
                 onChange={setPermission}
                 icon={Pencil}
                 label="Can edit"
-                description="Specific Gmail"
+                description="Specific email"
               />
             </div>
 
@@ -418,8 +418,8 @@ export function ShareTripDialog({
               <div className="space-y-1">
                 <Label htmlFor="share-email" className="text-xs">
                   {permission === "edit"
-                    ? "Contributor's Gmail address"
-                    : "Recipient's Gmail (optional)"}
+                    ? "Contributor's email address"
+                    : "Recipient's email (optional)"}
                 </Label>
                 <Input
                   id="share-email"
@@ -427,7 +427,7 @@ export function ShareTripDialog({
                   inputMode="email"
                   autoCapitalize="none"
                   spellCheck={false}
-                  placeholder="name@gmail.com"
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
