@@ -87,8 +87,8 @@ export function MobileEditableCity({
               cancel();
             }
           }}
-          placeholder="City"
-          className="h-7 w-32 rounded-full border bg-background px-2.5 text-xs text-foreground outline-none focus:border-foreground"
+          placeholder="e.g. Tokyo"
+          className="h-7 w-40 rounded-full border bg-background px-2.5 text-xs text-foreground outline-none focus:border-foreground"
         />
         <button
           type="submit"

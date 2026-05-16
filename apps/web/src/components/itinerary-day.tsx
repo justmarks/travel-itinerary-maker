@@ -584,7 +584,9 @@ function EditableCity({
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="h-6 w-28 px-1.5 text-sm"
+          className="h-6 w-36 px-1.5 text-sm"
+          placeholder="e.g. Tokyo"
+          aria-label="City"
           autoFocus
         />
         <Button
