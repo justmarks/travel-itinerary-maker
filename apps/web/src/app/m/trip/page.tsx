@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -792,20 +792,14 @@ function MobileTripPageInner() {
     router.replace(`/m/trip?${params.toString()}`);
   };
 
-  if (!tripId) {
-    return (
-      <MobileFrame>
-        <MobileHeader
-          title="No trip"
-          backHref={homeHref}
-          right={<MobileUserMenu />}
-        />
-        <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-          No trip selected.
-        </div>
-      </MobileFrame>
-    );
-  }
+  // No id → bounce to /m. The "No trip selected" placeholder this
+  // used to render was the only entry point a stale link could land
+  // on; the trip list is more useful (and matches desktop /trips).
+  useEffect(() => {
+    if (!tripId) router.replace(homeHref);
+  }, [tripId, homeHref, router]);
+
+  if (!tripId) return null;
 
   return (
     <MobileTripInner tripId={tripId} view={view} onSwitchView={onSwitchView} />
