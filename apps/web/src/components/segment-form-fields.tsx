@@ -471,6 +471,8 @@ export function SegmentFormFields({
   idPrefix,
   autoFocusTitle = false,
   useNativeTypeSelect = false,
+  tripStartDate,
+  tripEndDate,
 }: {
   form: SegmentFormState;
   onChange: (patch: Partial<SegmentFormState>) => void;
@@ -488,6 +490,14 @@ export function SegmentFormFields({
    * gesture model interacts poorly with quick taps on touch.
    */
   useNativeTypeSelect?: boolean;
+  /**
+   * The owning trip's date range. Used to clamp the segment Date /
+   * Check-out Date pickers with `min`/`max` so the browser disallows
+   * out-of-range dates client-side instead of letting the user submit
+   * and bouncing off a 400 "Day not found for given date" toast.
+   */
+  tripStartDate?: string;
+  tripEndDate?: string;
 }): React.JSX.Element {
   const flags = getTypeFlags(form.type);
   const {
@@ -586,6 +596,8 @@ export function SegmentFormFields({
             id={`${idPrefix}-date`}
             type="date"
             value={form.date}
+            min={tripStartDate}
+            max={tripEndDate}
             onChange={(e) => onChange({ date: e.target.value })}
           />
         </div>
@@ -912,6 +924,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("hotel", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -978,6 +992,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("car_rental", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1160,6 +1176,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("cruise", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>

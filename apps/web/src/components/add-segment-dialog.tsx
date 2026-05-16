@@ -25,9 +25,15 @@ import {
 export function AddSegmentDialog({
   tripId,
   date,
+  tripStartDate,
+  tripEndDate,
 }: {
   tripId: string;
   date: string;
+  /** Owning trip's date range — passed through to clamp the Date / Check-out
+   *  pickers with min/max so out-of-range dates are blocked client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<SegmentFormState>({
@@ -170,6 +176,8 @@ export function AddSegmentDialog({
               onChange={handleChange}
               idPrefix="add"
               autoFocusTitle
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
             />
             {/* Bottom-fade scroll indicator. `sticky` keeps it pinned to
                 the bottom of the visible scroll area on iPad landscape

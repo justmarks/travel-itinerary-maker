@@ -7,6 +7,7 @@ import { TRIP_STATUSES } from "@itinly/shared";
 import { AlertCircle, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toastMutationError } from "@/lib/api-error";
+import { useConfirm } from "@/lib/confirm-dialog";
 import { MobileBottomSheet } from "./mobile-bottom-sheet";
 
 interface OverlapInfo {
@@ -84,9 +85,41 @@ function EditTripBody({
     endDate !== trip.endDate ||
     status !== trip.status;
 
-  const handleSave = () => {
+  const confirm = useConfirm();
+
+  const handleSave = async () => {
     if (!canSave || !hasChanges) return;
     setOverlap(null);
+
+    // Mirror the desktop EditableDates orphaned-segment guard — shrinking
+    // the trip's date range silently destroys any segments whose date now
+    // falls outside the range, so we prompt up-front.
+    const datesChanged =
+      startDate !== trip.startDate || endDate !== trip.endDate;
+    if (datesChanged) {
+      const orphaned = trip.days
+        .filter((d) => d.date < startDate || d.date > endDate)
+        .flatMap((d) => d.segments);
+      if (orphaned.length > 0) {
+        const preview = orphaned
+          .slice(0, 3)
+          .map((s) => `• ${s.title}`)
+          .join("\n");
+        const more =
+          orphaned.length > 3 ? `\n…and ${orphaned.length - 3} more` : "";
+        const ok = await confirm({
+          title: `Remove ${orphaned.length} segment${orphaned.length === 1 ? "" : "s"} outside the new dates?`,
+          description: `${preview}${more}\n\nThese segments fall outside ${startDate} – ${endDate} and will be deleted. This cannot be undone.`,
+          confirmText:
+            orphaned.length === 1
+              ? "Remove segment"
+              : `Remove ${orphaned.length} segments`,
+          destructive: true,
+        });
+        if (!ok) return;
+      }
+    }
+
     const updates: Record<string, string> = {};
     if (trimmedTitle !== trip.title) updates.title = trimmedTitle;
     if (startDate !== trip.startDate) updates.startDate = startDate;
@@ -132,7 +165,7 @@ function EditTripBody({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          handleSave();
+          void handleSave();
         }}
         className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 pb-3"
       >
@@ -274,7 +307,7 @@ function EditTripBody({
         </button>
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={!canSave || !hasChanges || updateTrip.isPending}
           className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50"
         >
