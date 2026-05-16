@@ -72,7 +72,10 @@ export default function MobileLoginPage(): React.JSX.Element {
             wordmark/buttons block while keeping the desktop-site link
             anchored at the bottom. */}
         <div className="mt-auto flex flex-col items-center text-center">
-          <Link href="/welcome" aria-label="itinly home">
+          {/* tabIndex=-1 so the first Tab lands on the primary CTA
+              (Sign in with Google) instead of the brand wordmark. Mouse
+              users can still tap it to reach /welcome. */}
+          <Link href="/welcome" aria-label="itinly home" tabIndex={-1}>
             <AppWordmark className="h-16" />
           </Link>
           <p className="mt-3 text-sm text-muted-foreground">

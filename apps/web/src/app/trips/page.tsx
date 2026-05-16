@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { RequireAuth } from "@/components/require-auth";
 import { useDemoHref } from "@/lib/demo";
 import TripDetailClient from "./trip-detail-client";
 
@@ -34,17 +35,19 @@ function TripPageInner() {
 
 export default function TripPage(): React.JSX.Element {
   return (
-    <Suspense
-      fallback={
-        <main className="min-h-screen p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
-            <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-            <div className="h-64 animate-pulse rounded-xl border bg-muted" />
-          </div>
-        </main>
-      }
-    >
-      <TripPageInner />
-    </Suspense>
+    <RequireAuth>
+      <Suspense
+        fallback={
+          <main className="min-h-screen p-8">
+            <div className="mx-auto max-w-7xl space-y-6">
+              <div className="h-8 w-48 animate-pulse rounded bg-muted" />
+              <div className="h-64 animate-pulse rounded-xl border bg-muted" />
+            </div>
+          </main>
+        }
+      >
+        <TripPageInner />
+      </Suspense>
+    </RequireAuth>
   );
 }
