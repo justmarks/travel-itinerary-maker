@@ -328,9 +328,18 @@ export const createShareSchema = z.object({
   showTodos: z.boolean(),
 });
 
-/** Schema for user settings */
+/**
+ * Schema for user settings.
+ *
+ * `gmailLabelFilter` is a Gmail label NAME the user picked from their
+ * own label list. Gmail itself caps label names at 225 characters, but
+ * nothing on the wire enforced that — an authenticated user could POST
+ * a 5MB string here and we'd happily stuff it into Postgres. Cap at
+ * 256 to leave headroom over Gmail's own limit while keeping storage
+ * bloat / log-line monstrosities off the table.
+ */
 export const userSettingsSchema = z.object({
-  gmailLabelFilter: z.string().optional(),
+  gmailLabelFilter: z.string().max(256).optional(),
   emailScanIntervalMinutes: z.number().int().min(5).max(1440),
   notificationsEnabled: z.boolean(),
 });
@@ -339,9 +348,46 @@ export const userSettingsSchema = z.object({
  * Schema for a Web Push subscription payload coming from the browser.
  * Mirrors the shape of `PushSubscription.toJSON()` — what
  * `subscription.toJSON()` returns is exactly `{ endpoint, keys }`.
+ *
+ * The endpoint is whatever URL the user's browser hands us — and the
+ * server later POSTs notification payloads to it via web-push. Without
+ * validation a hostile (or just buggy) caller could register
+ * `http://127.0.0.1:6379/` and turn the notification path into an
+ * SSRF probe into our own infrastructure. The Web Push spec requires
+ * HTTPS push-service URLs; real push services (FCM, Mozilla autopush,
+ * Apple) never live on a private IP or `localhost`, so we hard-reject
+ * those shapes here rather than trusting the route handler to remember.
  */
+export function isSafePushEndpoint(endpoint: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (!host) return false;
+  if (host === "localhost" || host.endsWith(".localhost")) return false;
+  // IPv4 literal — push services use DNS names, never raw IPs.
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return false;
+  // IPv6 literal (Node's URL strips brackets in `hostname`; any colon
+  // in the host is a sufficient signal).
+  if (host.includes(":")) return false;
+  // mDNS / link-local "thing.local" hostnames resolve on the LAN.
+  if (host === "local" || host.endsWith(".local")) return false;
+  return true;
+}
+
 export const pushSubscriptionSchema = z.object({
-  endpoint: z.string().url(),
+  endpoint: z
+    .string()
+    .url()
+    .refine(isSafePushEndpoint, {
+      message:
+        "Push subscription endpoint must be an https:// URL on a public push service " +
+        "(IP literals, localhost, and .local hostnames are rejected).",
+    }),
   keys: z.object({
     p256dh: z.string().min(1),
     auth: z.string().min(1),

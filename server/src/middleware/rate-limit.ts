@@ -105,6 +105,38 @@ export function createAuthRateLimiter(overrides?: Partial<Options>) {
 }
 
 /**
+ * Rate limiter for auto-share-rule creation (`POST /api/v1/share-rules`).
+ *
+ * Each successful rule creation fans out a Postgres write per matching
+ * trip AND fires a consolidated push notification to the recipient. A
+ * single authenticated user creating rules in a tight loop can:
+ *   - flood a victim email's recipient inbox with push notifications
+ *     (one per rule × N trips fan-out), turning the share-rules endpoint
+ *     into an unauthenticated abuse channel against any chosen email
+ *   - amplify the per-call write cost across the whole trip set, which
+ *     is fine for one call but spectacular for thousands
+ *
+ * Keyed per-user (or per-IP for the rare unauth path) so one user's
+ * mistake doesn't blast everyone. 30/hour is well above any legitimate
+ * "I'm setting up auto-share with my partner and parents" cadence.
+ */
+export function createShareRulesWriteRateLimiter(overrides?: Partial<Options>) {
+  return rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 30,
+    standardHeaders: "draft-7",
+    legacyHeaders: false,
+    skip: skipInTests,
+    keyGenerator: userOrIpKey,
+    message: {
+      error:
+        "Too many auto-share rule changes. Wait an hour before adding more — this limit protects recipients from being flooded with notifications.",
+    },
+    ...overrides,
+  });
+}
+
+/**
  * Rate limiter for the public share-link resolver
  * (`GET /api/v1/shared/:token`).
  *

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/node";
 import { config } from "../config/env";
-import { redactShareTokens } from "./sentry-scrub";
+import { redactShareTokens, scrubSensitiveHeaders } from "./sentry-scrub";
 
 /**
  * Sentry error tracking for the server.
@@ -36,8 +36,10 @@ export function initMonitoring(): void {
     // explicitly so a future SDK upgrade can't silently flip it.
     sendDefaultPii: false,
     // Strip share-link tokens out of every event URL / transaction
-    // name before it leaves the server. See `services/sentry-scrub.ts`
-    // for what's redacted and why.
+    // name before it leaves the server, and clear any credential-
+    // carrying headers (Authorization / Cookie / etc.) that a future
+    // `Sentry.setContext({ headers })` or SDK upgrade might attach.
+    // See `services/sentry-scrub.ts` for the exact set.
     beforeSend(event) {
       if (event.request?.url) {
         event.request.url = redactShareTokens(event.request.url);
@@ -45,6 +47,7 @@ export function initMonitoring(): void {
       if (event.transaction) {
         event.transaction = redactShareTokens(event.transaction);
       }
+      scrubSensitiveHeaders(event);
       return event;
     },
     beforeBreadcrumb(breadcrumb) {
