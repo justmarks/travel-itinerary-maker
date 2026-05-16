@@ -198,8 +198,8 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
       className="group/title flex items-center gap-2 text-left"
       title="Rename trip"
     >
-      <h1 className="text-2xl font-bold">{title}</h1>
-      <Pencil className="h-4 w-4 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
+      <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{title}</h1>
+      <Pencil className="h-4 w-4 shrink-0 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
     </button>
   );
 }
@@ -1208,9 +1208,9 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         </div>
 
         <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {isReadOnly ? (
-              <h1 className="text-2xl font-bold">{trip.title}</h1>
+              <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{trip.title}</h1>
             ) : (
               <EditableTitle tripId={trip.id} title={trip.title} />
             )}
