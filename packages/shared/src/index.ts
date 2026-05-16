@@ -53,6 +53,7 @@ export {
   updateShareRuleSchema,
   userSettingsSchema,
   pushSubscriptionSchema,
+  isSafePushEndpoint,
   parsedSegmentSchema,
   segmentMatchSchema,
   segmentFieldDiffSchema,

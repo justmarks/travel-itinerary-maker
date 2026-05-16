@@ -15,6 +15,7 @@ import type { NotificationSender } from "../services/notification-sender";
 import { applyShareToTrip } from "../services/share-fanout";
 import { recordHistory } from "../services/trip-history";
 import { mapWithConcurrency } from "../utils/concurrency";
+import { createShareRulesWriteRateLimiter } from "../middleware/rate-limit";
 
 /**
  * Concurrent saveTrip / cascade-revoke calls in the rule routes. Bounded
@@ -50,6 +51,10 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     typeof resolveStorage === "function" ? resolveStorage : () => resolveStorage;
 
   const router = Router();
+  // Build the write-side limiter once per app boot — the in-memory
+  // counter stays warm across requests instead of resetting on every
+  // route handler.
+  const writeRateLimit = createShareRulesWriteRateLimiter();
 
   router.get("/", async (req: Request, res: Response) => {
     const storage = getStorage(req);
@@ -62,7 +67,7 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     res.json(rules.filter((r) => r.ownerUserId === ownerUserId));
   });
 
-  router.post("/", async (req: Request, res: Response) => {
+  router.post("/", writeRateLimit, async (req: Request, res: Response) => {
     const storage = getStorage(req);
     const ownerUserId = req.userId;
     if (!ownerUserId) {
@@ -208,7 +213,7 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     res.status(201).json({ rule, spawnedShareCount: spawned, upgradedShareCount: upgraded });
   });
 
-  router.put("/:ruleId", async (req: Request, res: Response) => {
+  router.put("/:ruleId", writeRateLimit, async (req: Request, res: Response) => {
     const storage = getStorage(req);
     const ownerUserId = req.userId;
     if (!ownerUserId) {
@@ -292,7 +297,7 @@ export function createShareRuleRoutes(options: ShareRuleRoutesOptions): Router {
     res.json({ rule, updatedShareCount: updated });
   });
 
-  router.delete("/:ruleId", async (req: Request, res: Response) => {
+  router.delete("/:ruleId", writeRateLimit, async (req: Request, res: Response) => {
     const storage = getStorage(req);
     const ownerUserId = req.userId;
     if (!ownerUserId) {

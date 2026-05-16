@@ -18,6 +18,8 @@ import {
   userSettingsSchema,
   htmlImportRequestSchema,
   xlsxImportRequestSchema,
+  pushSubscriptionSchema,
+  isSafePushEndpoint,
 } from "../src/validators/trip";
 
 describe("segmentCostSchema", () => {
@@ -429,6 +431,26 @@ describe("userSettingsSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts a 256-char gmail label filter at the cap", () => {
+    const result = userSettingsSchema.safeParse({
+      gmailLabelFilter: "x".repeat(256),
+      emailScanIntervalMinutes: 30,
+      notificationsEnabled: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an over-long gmail label filter (storage-bloat guard)", () => {
+    // Without the cap, an authenticated user could POST megabytes of
+    // string here and have it persisted to user_settings.
+    const result = userSettingsSchema.safeParse({
+      gmailLabelFilter: "x".repeat(10_000),
+      emailScanIntervalMinutes: 30,
+      notificationsEnabled: true,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("htmlImportRequestSchema", () => {
@@ -695,5 +717,48 @@ describe("xlsxImportRequestSchema", () => {
       title: "",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("pushSubscriptionSchema / isSafePushEndpoint", () => {
+  const KEYS = { p256dh: "x".repeat(8), auth: "y".repeat(8) };
+
+  it("accepts a real FCM push endpoint", () => {
+    const result = pushSubscriptionSchema.safeParse({
+      endpoint:
+        "https://fcm.googleapis.com/fcm/send/abc123:APA91bH...",
+      keys: KEYS,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a Mozilla autopush endpoint", () => {
+    expect(
+      isSafePushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/gA"),
+    ).toBe(true);
+  });
+
+  it.each([
+    ["http instead of https", "http://fcm.googleapis.com/fcm/send/abc"],
+    ["localhost", "https://localhost/push"],
+    ["localhost subdomain", "https://service.localhost/push"],
+    ["IPv4 loopback literal", "https://127.0.0.1/push"],
+    ["IPv4 private (10.x)", "https://10.0.0.5/push"],
+    ["IPv4 private (172.16-31)", "https://172.16.0.1/push"],
+    ["IPv4 private (192.168.x)", "https://192.168.1.1/push"],
+    ["IPv4 link-local (AWS metadata)", "https://169.254.169.254/latest/meta-data/"],
+    ["IPv4 wildcard", "https://0.0.0.0/push"],
+    ["IPv4 public literal", "https://8.8.8.8/push"],
+    ["IPv6 loopback literal", "https://[::1]/push"],
+    ["IPv6 unique-local literal", "https://[fd00::1]/push"],
+    [".local mDNS hostname", "https://printer.local/push"],
+  ])("rejects %s", (_label, endpoint) => {
+    expect(isSafePushEndpoint(endpoint)).toBe(false);
+    const result = pushSubscriptionSchema.safeParse({ endpoint, keys: KEYS });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects malformed URLs", () => {
+    expect(isSafePushEndpoint("not a url")).toBe(false);
   });
 });

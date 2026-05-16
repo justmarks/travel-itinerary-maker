@@ -7,6 +7,37 @@ import { createAuthRateLimiter } from "../middleware/rate-limit";
 import type { TokenStore } from "../services/token-store";
 import type { ShareRegistry } from "../services/share-registry";
 
+/**
+ * Sanitise an upstream OAuth-provider error into a string that's safe
+ * to return to the client. The raw `err.message` from googleapis often
+ * contains provider URLs, request IDs, internal stack frames, or
+ * verbose JSON dumps that we don't want surfacing in a 4xx body and
+ * showing up in a browser console. Map a few known shapes to short,
+ * actionable messages; fall back to a generic phrase for everything
+ * else (the full error is already logged server-side at the call
+ * site / in the global handler, so triage isn't blocked).
+ */
+function sanitiseProviderError(err: unknown, fallback: string): string {
+  const raw = err instanceof Error ? err.message : "";
+  // OAuth code-exchange + refresh failure modes we surface verbatim
+  // (these are the ones the frontend branches on, e.g. to prompt for
+  // re-consent). Match by token, not by substring of arbitrary text,
+  // so a malicious provider response can't influence the dispatch.
+  if (/invalid_grant\b/.test(raw)) {
+    return "Sign-in could not be completed — the authorization is expired or has already been used.";
+  }
+  if (/invalid_client\b/.test(raw)) {
+    return "Sign-in could not be completed — the server's OAuth client credentials are misconfigured.";
+  }
+  if (/invalid_scope\b/.test(raw)) {
+    return "Sign-in could not be completed — the requested scopes were rejected.";
+  }
+  if (/redirect_uri_mismatch/.test(raw)) {
+    return "Sign-in could not be completed — the redirect URI did not match the registered value.";
+  }
+  return fallback;
+}
+
 export interface AuthRoutesOptions {
   tokenStore?: TokenStore;
   /**
@@ -207,8 +238,14 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         },
       });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Authentication failed";
+      // Log the raw provider error server-side for triage; surface a
+      // sanitised message to the client so we don't leak provider
+      // URLs / request IDs / verbose JSON to a browser console.
+      console.warn(
+        "[auth] POST /google code-exchange failed:",
+        err instanceof Error ? err.message : err,
+      );
+      const message = sanitiseProviderError(err, "Authentication failed");
       res.status(401).json({ error: message });
     }
   });
@@ -403,8 +440,14 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
 
         res.json({ scopes: gmailScopesResult.scopes, linkedAt });
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Gmail authentication failed";
+        console.warn(
+          "[auth] POST /google/gmail code-exchange failed:",
+          err instanceof Error ? err.message : err,
+        );
+        const message = sanitiseProviderError(
+          err,
+          "Gmail authentication failed",
+        );
         res.status(401).json({ error: message });
       }
     },
@@ -532,8 +575,11 @@ export function createAuthRoutes(options: AuthRoutesOptions = {}): Router {
         expiresAt: credentials.expiry_date,
       });
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Token refresh failed";
+      console.warn(
+        "[auth] POST /refresh failed:",
+        err instanceof Error ? err.message : err,
+      );
+      const message = sanitiseProviderError(err, "Token refresh failed");
       res.status(401).json({ error: message });
     }
   });
