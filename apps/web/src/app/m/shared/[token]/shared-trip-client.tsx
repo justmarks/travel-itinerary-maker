@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useSharedTrip } from "@itinly/api-client";
 import type { Segment, Todo } from "@itinly/shared";
 import { AlertCircle, Lock, MapPin, Pencil } from "lucide-react";
@@ -73,7 +74,7 @@ export default function SharedTripClient({
 }: {
   token: string;
 }): React.JSX.Element {
-  const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
+  const { data: trip, isLoading, isError } = useSharedTrip(token);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
   // Owner / edit-contributor redirect — same behaviour as the desktop
@@ -118,13 +119,12 @@ export default function SharedTripClient({
           <p className="text-sm text-muted-foreground">
             This share link may have expired or been revoked.
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
+          <Link
+            href="/"
             className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
           >
-            Try again
-          </button>
+            Open itinly
+          </Link>
         </div>
       </MobileFrame>
     );

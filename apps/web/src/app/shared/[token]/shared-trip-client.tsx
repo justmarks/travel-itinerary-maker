@@ -39,9 +39,9 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Plane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-          <h1 className="text-xl font-semibold">Trip not found</h1>
+          <h1 className="text-xl font-semibold">Shared trip</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            This share link may have expired or been removed.
+            This share link may have expired or been revoked.
           </p>
           <Link
             href="/"
