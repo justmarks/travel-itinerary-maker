@@ -31,6 +31,379 @@ export default function ReleaseNotesPage(): React.JSX.Element {
           <section className="space-y-6">
             <header className="space-y-1">
               <h2 className="text-2xl font-semibold tracking-tight">
+                v1.2.0 — Scheduled scans, share target, cruises on the timeline
+              </h2>
+              <p className="text-sm text-muted-foreground">May 16, 2026</p>
+            </header>
+
+            <p>
+              Schedule a scan once and let itinly check your inbox on its own.
+              Send a confirmation straight from any iOS or Android share sheet
+              without going through Gmail at all. Cruises and car rentals get
+              their own multi-day bands on the timeline. The segment add / edit
+              form trims down to its essentials, and a long list of
+              accessibility, parity, and parsing fixes round out the release.
+            </p>
+
+            <Subsection title="Auto email-scan scheduler">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Recurring scans</strong> on a daily or weekly cadence
+                  — pick a folder or label per provider, anchor on a specific
+                  time of day (and day-of-week, for weekly), and itinly polls
+                  the mailbox on its own.
+                </li>
+                <li>
+                  <strong>Multiple schedules per user</strong> — one per
+                  (provider × folder × cadence) tuple, so a personal Gmail{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    Travel/
+                  </code>{" "}
+                  label and a work Outlook folder can run independently on
+                  different rhythms.
+                </li>
+                <li>
+                  <strong>Include sub-folders / sub-labels</strong> — a single
+                  &ldquo;Travel&rdquo; pick optionally fans out to every
+                  descendant (
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    Travel/Hotels
+                  </code>
+                  ,{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    Travel/Flights/Confirmed
+                  </code>
+                  , …) so you don&apos;t have to enumerate them.
+                </li>
+                <li>
+                  <strong>Findings land in the same review queue</strong> as a
+                  manual scan — nothing is auto-applied, so a scheduled scan
+                  can&apos;t silently put a misparsed booking on a real trip.
+                </li>
+                <li>
+                  <strong>Push notification + in-app banner</strong> when a
+                  scheduled scan turns up something new, deep-linking straight
+                  to the review step on either desktop or mobile.
+                </li>
+                <li>
+                  <strong>Pause / resume / edit / delete</strong> each schedule
+                  from{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /settings/account
+                  </code>
+                  , with a &ldquo;Recent runs&rdquo; history dialog (last 50
+                  per schedule).
+                </li>
+                <li>
+                  <strong>Backed by Supabase pg_cron + pg_net</strong> firing a
+                  shared-secret-guarded tick endpoint; per-user row-level
+                  security on the new tables.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="PWA polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>&ldquo;Send to itinly&rdquo; share target</strong> —
+                  pick itinly from any iOS or Android share sheet and the
+                  shared text / URL / page title goes straight into the
+                  parser. Forwarded confirmations from non-Gmail mailboxes
+                  work without leaving Mail.
+                </li>
+                <li>
+                  <strong>&ldquo;Create trip&rdquo; app-icon shortcut</strong>{" "}
+                  — long-press the installed PWA icon (Android) or right-click
+                  it (desktop) to jump straight into a new-trip sheet.
+                </li>
+                <li>
+                  <strong>App-icon badge</strong> on the installed PWA —
+                  incoming push notifications bump a numeric badge on the icon
+                  (Chromium / Edge / iOS 16.4+ Safari); cleared when you bring
+                  the app forward or tap the notification.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Timeline + segment polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>
+                    Cruises render as multi-day bands on the Lodging lane
+                  </strong>{" "}
+                  instead of a single-day pill under Activities — same visual
+                  treatment as a hotel block, but with the ship name + 🚢 +
+                  duration.
+                </li>
+                <li>
+                  <strong>Car rentals get their own multi-day bands</strong>{" "}
+                  on the Transport lane, packed onto the same row as the
+                  per-day flight / train / transfer pills so the rental window
+                  is visible at a glance.
+                </li>
+                <li>
+                  <strong>Overlapping lodging bars no longer disappear</strong>{" "}
+                  — hotels and cruises that overlap (e.g. a hotel on
+                  embarkation day plus the cruise that picks up from there)
+                  pack onto separate tracks instead of one bar silently
+                  clobbering the other.
+                </li>
+                <li>
+                  <strong>Richer car rental titles</strong> like &ldquo;Hertz -
+                  Lihue&rdquo;, with pickup / dropoff cities and times in the
+                  calendar event description; the all-day event spans through
+                  the dropoff date inclusive.
+                </li>
+                <li>
+                  <strong>
+                    Dedicated{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      shipName
+                    </code>{" "}
+                    field on cruises
+                  </strong>{" "}
+                  — extracted automatically by the email parser, used in the
+                  timeline pill and calendar event title; ports of call render
+                  in the calendar description.
+                </li>
+                <li>
+                  <strong>Cost displays always show 2 decimals</strong> (
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    288.40
+                  </code>{" "}
+                  instead of{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    288.4
+                  </code>
+                  ).
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Cleaner segment form">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>&ldquo;More options&rdquo; disclosure</strong> at the
+                  bottom of the add / edit form gathers everything past the
+                  core booking fields — cabin class, baggage info, address,
+                  phone, breakfast included, free-form details, plus Cost and
+                  Confirmation # — into one collapsible section.
+                </li>
+                <li>
+                  <strong>&ldquo;N filled&rdquo; hint</strong> on the
+                  disclosure header so a rich parsed booking still telegraphs
+                  how much sits behind the fold without auto-expanding.
+                </li>
+                <li>
+                  <strong>Whole desktop segment cards are clickable</strong>{" "}
+                  to open the edit dialog (the pencil icon stays for
+                  discoverability); Enter / Space on a focused row works the
+                  same.
+                </li>
+                <li>
+                  <strong>Clearing the cost field now persists</strong> —
+                  previously the empty value silently no-op&apos;d and the
+                  old cost stayed put.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Email parsing">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>
+                    Prefers the plain-text part on noisy multipart
+                    confirmations
+                  </strong>{" "}
+                  when the HTML alternative is dominated by marketing copy and
+                  image alt text. A Marriott Vacation Club receipt that
+                  previously parsed as &ldquo;no travel content&rdquo; now
+                  produces the right hotel + dates + total.
+                </li>
+                <li>
+                  <strong>
+                    No-travel-content emails no longer report to Sentry
+                  </strong>{" "}
+                  — promotional mail that Claude correctly skipped was creating
+                  false-positive operator alerts.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Accessibility + parity pass">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Screen-reader labels on icon-only buttons</strong> —
+                  trip-card rename save / cancel, trip-card overflow menu,
+                  scheduled-scan row Pause / Edit / Delete, to-do panel
+                  add / cancel toggle, EditableCity save / cancel, share-link
+                  &ldquo;ready&rdquo; announcement.
+                </li>
+                <li>
+                  <strong>Escape cancels EditableCity</strong> to match the
+                  rest of the inline editors.
+                </li>
+                <li>
+                  <strong>
+                    Segment row actions reveal on keyboard focus
+                  </strong>{" "}
+                  (Edit / Confirm / Delete + the city-edit pencil) instead of
+                  being hover-only.
+                </li>
+                <li>
+                  <strong>
+                    Empty days surface &ldquo;Add the first activity&rdquo;
+                    CTA
+                  </strong>{" "}
+                  on desktop instead of a flat &ldquo;No activities
+                  planned&rdquo; placeholder.
+                </li>
+                <li>
+                  <strong>
+                    Mobile to-do detail sheet renders a Markdown preview
+                  </strong>{" "}
+                  under the Notes textarea, matching the desktop edit-todo
+                  dialog.
+                </li>
+                <li>
+                  <strong>Dialog inputs stop clipping the focus ring</strong>{" "}
+                  on the left (edit-todo, add / edit segment, html-import,
+                  suggest-meals).
+                </li>
+                <li>
+                  <strong>Schedule editor stores correct UTC during DST</strong>{" "}
+                  — a 9:15 AM PDT pick now writes 16:15 UTC, not 17:15.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Trust and polish">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>
+                    RLS on every{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      email_scan_*
+                    </code>{" "}
+                    table
+                  </strong>{" "}
+                  captured in migration 0004 — idempotent and guarded for
+                  vanilla Postgres so CI integration tests still pass on a
+                  non-Supabase container.
+                </li>
+                <li>
+                  <strong>
+                    Routine{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      [auth] supabase token not used …
+                    </code>{" "}
+                    log gated behind{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      DEBUG_AUTH=1
+                    </code>
+                  </strong>{" "}
+                  so steady-state Railway logs aren&apos;t drowned by Supabase
+                  JWT expiry / legacy Google access-token coexistence noise.
+                </li>
+                <li>
+                  <strong>Trip-card rename input auto-focuses</strong> when it
+                  appears.
+                </li>
+                <li>
+                  <strong>
+                    Stale service workers unregister in dev mode
+                  </strong>{" "}
+                  so a cached{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /m
+                  </code>{" "}
+                  shell from a prior session doesn&apos;t masquerade as the
+                  live build.
+                </li>
+                <li>
+                  <strong>Mobile / desktop parity</strong> in costs editing
+                  and share-link error surfacing.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Under the hood">
+              <ul className="list-disc space-y-2 pl-6">
+                <li>
+                  <strong>Drizzle migrations 0003 – 0006</strong> land the
+                  schedules + runs tables, RLS policies, the{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    include_sublabels
+                  </code>{" "}
+                  flag, and the time-of-day / day-of-week anchor columns.
+                </li>
+                <li>
+                  <strong>
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      ts-node
+                    </code>{" "}
+                    is now an explicit devDependency
+                  </strong>{" "}
+                  on{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    server
+                  </code>{" "}
+                  so a fresh install doesn&apos;t fail the migration runner.
+                </li>
+                <li>
+                  <strong>
+                    Shared{" "}
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      expandLabelFilters
+                    </code>{" "}
+                    helper
+                  </strong>{" "}
+                  keeps the manual{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /emails/scan
+                  </code>{" "}
+                  route and the scheduled executor in agreement on how to
+                  expand a parent label/folder into its descendants.
+                </li>
+                <li>
+                  <strong>
+                    <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                      packIntoTracks
+                    </code>{" "}
+                    helper
+                  </strong>{" "}
+                  centralises the timeline&apos;s overlap-aware lane packing
+                  for hotels, cruises, and rentals.
+                </li>
+                <li>
+                  <strong>SSRF-guarded URL fetch</strong> on the new{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[0.875em]">
+                    /emails/import-shared
+                  </code>{" "}
+                  endpoint — http(s) only, blocks loopback / RFC1918 /
+                  link-local / cloud-metadata hosts, 10s timeout, 1 MB cap,
+                  content-type filter.
+                </li>
+                <li>
+                  <strong>Tests grew from 948 → 967</strong> — new server
+                  coverage for schedules CRUD, the cron tick, share-target
+                  routes, plain-text-preference parsing, and the cost-clear
+                  contract.
+                </li>
+              </ul>
+            </Subsection>
+
+            <Subsection title="Thanks">
+              <p>
+                Schedule one scan; never look at a confirmation email again.
+                Onward to 1.2.x.
+              </p>
+            </Subsection>
+          </section>
+
+          <section className="space-y-6">
+            <header className="space-y-1">
+              <h2 className="text-2xl font-semibold tracking-tight">
                 v1.1.0 — Microsoft + Outlook, end to end
               </h2>
               <p className="text-sm text-muted-foreground">May 10, 2026</p>

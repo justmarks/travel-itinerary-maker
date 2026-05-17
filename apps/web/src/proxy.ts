@@ -107,7 +107,14 @@ function buildCsp(nonce: string): string {
       "https://*.googleapis.com",
       "https://en.wikipedia.org",
       "https://upload.wikimedia.org",
+      // Sentry browser SDK envelope POSTs. New projects are
+      // provisioned on regional ingest hosts (`*.ingest.us.sentry.io`
+      // for US-hosted orgs, `.de.` for EU); the unregionalised
+      // `*.ingest.sentry.io` covers older / non-regional DSNs. Keep
+      // both so a DSN swap doesn't silently kill error reporting.
       "https://*.ingest.sentry.io",
+      "https://*.ingest.us.sentry.io",
+      "https://*.ingest.de.sentry.io",
       "https://*.vercel-insights.com",
       // Supabase Auth (phase 3b): the `@supabase/supabase-js` client
       // calls `https://<project-ref>.supabase.co/auth/v1/...` for the

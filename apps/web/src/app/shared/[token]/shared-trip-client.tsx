@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useSharedTrip } from "@itinly/api-client";
-import { ItineraryDay } from "@/components/itinerary-day";
+import { useMemo } from "react";
+import { ItineraryDay, computeOngoingStays } from "@/components/itinerary-day";
 import { useShareLinkOwnerRedirect } from "@/lib/use-share-redirect";
 import { Calendar, MapPin, Pencil, Plane } from "lucide-react";
 
@@ -22,6 +24,14 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     targetPath: trip ? `/trips?id=${trip.id}` : "/",
   });
 
+  // Hoisted above the early returns to satisfy the rules-of-hooks
+  // exhaustive-order check. Falls back to an empty lookup when the trip
+  // hasn't loaded yet.
+  const ongoingStaysByDate = useMemo(
+    () => (trip ? computeOngoingStays(trip) : {}),
+    [trip],
+  );
+
   if (isLoading || shouldRedirect) {
     return (
       <main className="min-h-screen p-8">
@@ -38,10 +48,16 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
       <main className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Plane className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
-          <h1 className="text-xl font-semibold">Trip not found</h1>
+          <h1 className="text-xl font-semibold">Shared trip</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            This share link may have expired or been removed.
+            This share link may have expired or been revoked.
           </p>
+          <Link
+            href="/"
+            className="mt-4 inline-flex items-center justify-center rounded-md border bg-background px-4 py-2 text-sm font-medium hover:bg-muted/40"
+          >
+            Open itinly
+          </Link>
         </div>
       </main>
     );
@@ -53,7 +69,7 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
     <main className="min-h-screen p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-8">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mb-2 text-kicker text-muted-foreground">
             Shared itinerary
           </p>
           <h1 className="text-2xl font-bold">{trip.title}</h1>
@@ -82,7 +98,12 @@ export default function SharedTripClient({ token }: { token: string }): React.JS
 
         <div className="flex flex-col gap-8">
           {trip.days.map((day) => (
-            <ItineraryDay key={day.date} day={day} readOnly />
+            <ItineraryDay
+              key={day.date}
+              day={day}
+              ongoingStays={ongoingStaysByDate[day.date]}
+              readOnly
+            />
           ))}
         </div>
 

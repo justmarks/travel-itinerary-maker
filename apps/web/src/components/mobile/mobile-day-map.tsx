@@ -221,6 +221,26 @@ export function MobileDayMap({
     );
   }
 
+  // No geocodable segments anywhere on the trip → without this the map
+  // falls back to its `defaultCenter` (Tokyo) and renders a misleading
+  // Japan view for a US-only trip. Mirror the desktop `MapView` empty
+  // state instead of spinning up the map.
+  if (rawPins.length === 0) {
+    return (
+      <div
+        style={{ height }}
+        className="relative flex flex-col items-center justify-center gap-2 bg-muted/30 px-6 text-center text-xs text-muted-foreground"
+      >
+        <MapPin className="h-5 w-5" />
+        <p>
+          No mappable locations yet. Add hotels, restaurants, or activities
+          to see them here.
+        </p>
+        {expandButton}
+      </div>
+    );
+  }
+
   return (
     <div style={{ height }} className="relative">
       <APIProvider apiKey={apiKey}>

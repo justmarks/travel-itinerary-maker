@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Copy,
   Eye,
+  Loader2,
   Pencil,
   Repeat,
   Share2,
@@ -145,7 +146,7 @@ function ExistingShareRow({
         </p>
         {share.originRuleId && (
           <p
-            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider"
+            className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-kicker"
             style={{
               background: "var(--status-info-bg)",
               color: "var(--status-info-fg)",
@@ -320,14 +321,19 @@ export function ShareTripDialog({
           <DialogDescription className="pr-8">
             {inSuccessState
               ? "Send this link to anyone you want to share with."
-              : "Send a link so others can view — or invite a Gmail account that can edit."}
+              : "Send a link so others can view — or invite someone by email to edit."}
           </DialogDescription>
         </DialogHeader>
 
         {inSuccessState ? (
           /* ── Success state: link + copy + close + create another ── */
           <>
-            <div className="rounded-lg border p-3" style={{ backgroundColor: "var(--status-ok-bg)", borderColor: "var(--status-ok-rail)" }}>
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border p-3"
+              style={{ backgroundColor: "var(--status-ok-bg)", borderColor: "var(--status-ok-rail)" }}
+            >
               <p className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: "var(--status-ok-fg)" }}>
                 <CheckCircle2 className="h-4 w-4" />
                 Share link ready
@@ -361,7 +367,7 @@ export function ShareTripDialog({
               {createdToken && (
                 <p className="mt-2 text-xs" style={{ color: "var(--status-ok-fg)", opacity: 0.8 }}>
                   {permission === "edit"
-                    ? `${trimmedEmail || "Contributor"} will need to sign in with this Gmail to edit.`
+                    ? `${trimmedEmail || "Contributor"} will need to sign in with this email to edit.`
                     : "Anyone with this link can view."}
                 </p>
               )}
@@ -401,7 +407,7 @@ export function ShareTripDialog({
                 onChange={setPermission}
                 icon={Pencil}
                 label="Can edit"
-                description="Specific Gmail"
+                description="Specific email"
               />
             </div>
 
@@ -412,13 +418,16 @@ export function ShareTripDialog({
               <div className="space-y-1">
                 <Label htmlFor="share-email" className="text-xs">
                   {permission === "edit"
-                    ? "Contributor's Gmail address"
-                    : "Recipient's Gmail (optional)"}
+                    ? "Contributor's email address"
+                    : "Recipient's email (optional)"}
                 </Label>
                 <Input
                   id="share-email"
                   type="email"
-                  placeholder="name@gmail.com"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -467,7 +476,11 @@ export function ShareTripDialog({
               disabled={!canCreate}
               className="w-full"
             >
-              <Share2 className="mr-2 h-4 w-4" />
+              {createShare.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="mr-2 h-4 w-4" />
+              )}
               {createShare.isPending ? "Creating…" : "Create share link"}
             </Button>
           </>
@@ -477,7 +490,7 @@ export function ShareTripDialog({
             previously created links without dismissing. */}
         {!isLoading && shares.length > 0 && (
           <div className="border-t pt-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="mb-2 text-kicker font-semibold text-muted-foreground">
               Active shares · {shares.length}
             </p>
             <ul className="flex flex-col gap-2">

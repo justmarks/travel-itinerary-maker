@@ -45,17 +45,22 @@ export default function WelcomePage(): React.JSX.Element {
 function Header(): React.JSX.Element {
   return (
     <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-8">
+      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-3 px-4 sm:px-8">
         <Link href="/welcome" className="flex items-center" aria-label="itinly home">
           {/*
             Inline SVG wordmark via the AppWordmark component so the text
             uses currentColor (navy in light, off-white in dark) and the
             mark scales crisply at any header height. Same component the
-            login page uses.
+            login page uses. Smaller on mobile so the in-page anchors fit
+            on the same row.
           */}
-          <AppWordmark className="h-16" />
+          <AppWordmark className="h-10 sm:h-16" />
         </Link>
-        <nav className="hidden items-center gap-7 text-sm text-muted-foreground sm:flex">
+        {/* Compact-inline on mobile, full size from sm: up. Hiding these
+            on mobile (the previous `hidden sm:flex`) left the welcome
+            page with no nav affordance at all under 640px — the sections
+            were only reachable by scroll. */}
+        <nav className="flex items-center gap-3 text-xs text-muted-foreground sm:gap-7 sm:text-sm">
           <a href="#how" className="hover:text-foreground">
             How it works
           </a>
@@ -322,7 +327,7 @@ function Features(): React.JSX.Element {
       icon: Share2,
       title: "Share — view, edit, or auto-share",
       body:
-        "Send a private link to anyone — co-travelers, parents, the dog-sitter. View-only links need no sign-up; edit links let trusted travelers add segments and tick off to-dos with you. Setup Auto-share rules for all existing and future trips.",
+        "Send a private link to anyone — co-travelers, parents, the dog-sitter. View-only links need no sign-up; edit links let trusted travelers add segments and tick off to-dos with you. Set up Auto-share rules for all existing and future trips.",
     },
     {
       icon: Smartphone,

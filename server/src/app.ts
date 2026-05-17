@@ -100,6 +100,14 @@ export interface AppOptions {
  */
 export async function createApp(options: AppOptions): Promise<express.Express> {
   const app = express();
+  // Behind a reverse proxy (Railway, Fly, Cloud Run, …) the socket peer
+  // is always the proxy, not the user. Without trust-proxy, `req.ip`
+  // collapses every request onto one bucket so the auth / share-link /
+  // calendar rate limiters effectively rate-limit the proxy instead of
+  // the user, and one misbehaving client locks everyone out. Number of
+  // hops comes from env so a future deployment with a different topology
+  // can adjust without code changes; see `config.trustProxyHops`.
+  app.set("trust proxy", config.trustProxyHops);
   const {
     mode,
     storage,
@@ -157,15 +165,46 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
     res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+    // HSTS — instructs the browser to refuse plain-HTTP requests to
+    // this origin for the next year. The reverse proxy in front of
+    // us probably also sets this, but a "probably" isn't a security
+    // posture: the PaaS layer is configured separately from the app,
+    // and a misconfigured proxy + missing header here would silently
+    // allow a one-hop downgrade attack against the API itself
+    // (cookies don't apply — the API is Bearer-auth — but an
+    // attacker on the path could MITM the OAuth code exchange and
+    // mint themselves a session). max-age=63072000 (2 years) is the
+    // preload-list recommendation; `includeSubDomains` covers any
+    // future API sub-host we add.
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=63072000; includeSubDomains",
+    );
     next();
   });
   // `app.disable('x-powered-by')` strips the `X-Powered-By: Express`
   // server-fingerprint header from every response — small leak, cheap
   // to remove, flagged by ZAP / Mozilla Observatory.
   app.disable("x-powered-by");
-  // Raised from the 100kb default so users can paste/upload full .eml or
-  // .html email sources (which commonly run 100-500kb with embedded styles
-  // and base64 images).
+  // Body-parser limits. Routes split into two buckets:
+  //
+  //   `/api/v1/auth/*` — tiny payloads (OAuth code + redirect URI is
+  //     <2kb, refresh-token POST is <1kb). Cap at 64kb so an attacker
+  //     spending their 30-per-15-min auth quota can't also bomb 10mb
+  //     bodies through the JSON parser (300mb / 15min / IP otherwise).
+  //     The narrow limit bounds the body-bombing path even if the
+  //     rate-limit numbers get tuned looser later.
+  //
+  //   everything else — raised from the 100kb default to 10mb so
+  //     users can paste/upload full .eml or .html email sources
+  //     (commonly 100-500kb with embedded styles and base64 images)
+  //     and base64-encoded XLSX workbooks.
+  //
+  // Run the auth parser as a mounted middleware BEFORE the global
+  // one so it claims the body first; body-parser short-circuits on
+  // its `_body` marker, so the global one becomes a no-op for paths
+  // the tight parser already handled.
+  app.use("/api/v1/auth", express.json({ limit: "64kb" }));
   app.use(express.json({ limit: "10mb" }));
 
   // Root — friendly landing for browser visits
@@ -507,10 +546,29 @@ export async function createApp(options: AppOptions): Promise<express.Express> {
   //
   // CORS origin rejections are expected client-side errors (typically
   // scanners forging the Origin header), not server failures. Respond 403
-  // and skip Sentry so they don't generate alerts.
+  // and skip Sentry so they don't generate alerts. Body-parser errors
+  // (PayloadTooLargeError, malformed JSON, etc.) carry an HTTP status
+  // on the error object — surface that status to the client instead of
+  // collapsing them to 500, and skip Sentry for the same "client did a
+  // bad thing" reason.
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err instanceof CorsOriginError) {
       res.status(403).json({ error: err.message });
+      return;
+    }
+    const errWithStatus = err as Error & { status?: number; statusCode?: number; type?: string };
+    const clientStatus = errWithStatus.status ?? errWithStatus.statusCode;
+    if (typeof clientStatus === "number" && clientStatus >= 400 && clientStatus < 500) {
+      // body-parser surfaces oversize / malformed JSON as 4xx with a
+      // descriptive `type` (e.g. "entity.too.large", "entity.parse.failed").
+      // Log it tersely and return the status it asked for — Sentry
+      // doesn't need to hear about every malformed POST.
+      console.warn(
+        `[app] client error ${clientStatus}${errWithStatus.type ? ` (${errWithStatus.type})` : ""}: ${err.message}`,
+      );
+      res
+        .status(clientStatus)
+        .json({ error: clientStatus === 413 ? "Request body too large" : err.message });
       return;
     }
     console.error(err);

@@ -54,15 +54,27 @@ import {
   todayLocalISO,
   type TripBucket,
 } from "@/lib/trip-buckets";
+import { formatTripDateRange } from "@/lib/format-date";
 
-function fmtRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  const yr = new Date(end + "T00:00:00").getFullYear();
-  return `${fmt(start)} – ${fmt(end)}, ${yr}`;
+/**
+ * Map each trip status to a `--status-*` token. Mirrors the same
+ * mapping in `trip-card.tsx` so the mobile row's status chip uses
+ * the same palette the desktop card's chip uses.
+ */
+const STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
+  planning:  "info",
+  active:    "ok",
+  completed: "muted",
+  cancelled: "danger",
+};
+
+function statusChipStyle(status: string): React.CSSProperties {
+  const t = STATUS_TOKEN[status] ?? "muted";
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
 }
-
 
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
@@ -77,8 +89,11 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
   const gradient = gradientFor(seed);
   const delta = daysUntil(trip.startDate);
   const showCountdown = delta > 0 && delta <= 60 && trip.status !== "cancelled";
-  const countdownLabel =
-    delta === 1 ? "Tomorrow" : showCountdown ? `In ${delta} days` : null;
+  const countdownLabel = showCountdown
+    ? delta === 1
+      ? "Tomorrow"
+      : `In ${delta} days`
+    : null;
 
   return (
     <div
@@ -121,7 +136,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
           style={{ top: countdownLabel ? "2.25rem" : "0.5rem" }}
         >
           <Users className="h-3 w-3" />
-          {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
+          {trip.sharedPermission === "edit" ? "Shared · Editor" : "Shared · Viewer"}
         </span>
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
@@ -152,6 +167,7 @@ function MobileTripCardLeaveMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(trip.id);
+  const isDemo = useDemoMode();
 
   if (!trip.sharedShareId) return null;
 
@@ -167,7 +183,7 @@ function MobileTripCardLeaveMenu({
     if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
-        router.push("/m");
+        router.push(isDemo ? "/m?demo=true" : "/m");
       },
       onError: toastMutationError("leave trip"),
     });
@@ -188,7 +204,7 @@ function MobileTripCardLeaveMenu({
           <button
             type="button"
             aria-label="More trip actions"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -231,11 +247,15 @@ function TripRow({
       <div className="flex flex-col gap-1 p-3">
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
-          {fmtRange(trip.startDate, trip.endDate)}
+          {formatTripDateRange(trip.startDate, trip.endDate)}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="capitalize">{trip.status}</span>
-          <span aria-hidden>·</span>
+          <span
+            className="inline-flex items-center rounded-full px-1.5 py-0.5 capitalize"
+            style={statusChipStyle(trip.status)}
+          >
+            {trip.status}
+          </span>
           <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
@@ -313,6 +333,8 @@ function Section({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Hide" : "Show"} ${BUCKET_LABEL[bucket].toLowerCase()} trips`}
           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
         >
           {expanded ? (

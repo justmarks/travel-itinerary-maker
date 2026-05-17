@@ -74,8 +74,9 @@ export function EditTodoDialog({
       {
         todoId: todo.id,
         text: trimmed,
-        // Empty string clears notes server-side.
-        details: details.trim() ? details : "",
+        // Empty string clears notes server-side; trim to drop accidental
+        // leading/trailing whitespace from paste-and-edit.
+        details: details.trim(),
         category:
           category === NO_CATEGORY ? undefined : (category as TodoCategory),
       },
@@ -121,7 +122,7 @@ export function EditTodoDialog({
               container border. */}
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
             <div className="space-y-1.5">
-              <Label htmlFor="todo-text">Task</Label>
+              <Label htmlFor="todo-text">To-do</Label>
               <Input
                 id="todo-text"
                 value={text}
@@ -132,13 +133,13 @@ export function EditTodoDialog({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="todo-category">Tag</Label>
+              <Label htmlFor="todo-category">Category</Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger id="todo-category">
-                  <SelectValue placeholder="No tag" />
+                  <SelectValue placeholder="No category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_CATEGORY}>No tag</SelectItem>
+                  <SelectItem value={NO_CATEGORY}>No category</SelectItem>
                   {TODO_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>
                       {c.label}
@@ -167,7 +168,7 @@ export function EditTodoDialog({
               />
               {details.trim() && (
                 <div className="rounded-md border border-dashed bg-muted/40 px-3 py-2">
-                  <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="mb-1 text-kicker text-muted-foreground">
                     Preview
                   </div>
                   <MarkdownText className="text-sm">{details}</MarkdownText>

@@ -141,7 +141,7 @@ type ScanStep =
 
 export function EmailScanDialog({
   tripId,
-  triggerLabel = "Scan Emails",
+  triggerLabel = "Scan emails",
   triggerVariant = "outline",
   triggerSize = "sm",
   defaultOpen = false,
@@ -209,7 +209,8 @@ export function EmailScanDialog({
   //   - Demo mode → google
   //   - Nothing linked → null → render the "not-connected" step
   // The gate also drives the "Connect Gmail / Outlook" prompt below.
-  const { provider: autoProvider } = useActiveEmailProvider(open);
+  const { provider: autoProvider, isLoading: emailProviderLoading } =
+    useActiveEmailProvider(open);
   const { providers: connectedEmailProviders } = useConnectedEmailProviders(open);
   const emailGranted = isDemo || autoProvider !== null;
 
@@ -284,6 +285,15 @@ export function EmailScanDialog({
     if (!open) return;
     if (step !== "loading") return;
 
+    // Wait for /connections to settle before deciding "no provider is
+    // linked". On dialog open the fetch hasn't started yet, so
+    // `autoProvider` is null *and* `emailProviderLoading` is true →
+    // jumping to "not-connected" here would stick (the gate above
+    // blocks re-evaluation once `step` leaves "loading"). The user
+    // would then see "Connect an email account…" even though their
+    // Outlook / Gmail row exists.
+    if (emailProviderLoading) return;
+
     // No email provider linked — show the provider-agnostic
     // not-connected notice pointing at /settings/account.
     if (!emailGranted) {
@@ -300,7 +310,7 @@ export function EmailScanDialog({
     } else {
       setStep("config");
     }
-  }, [open, emailGranted, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, emailGranted, emailProviderLoading, pendingLoading, pendingData, step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Populate results + selections state from an array of EmailScanResult */
   const loadResultsIntoState = useCallback(
@@ -594,7 +604,7 @@ export function EmailScanDialog({
         `Couldn't dismiss ${failed} email${failed === 1 ? "" : "s"}`,
         {
           description:
-            "They'll stay in the pending list — try again from Scan Emails.",
+            "They'll stay in the pending list — try again from Scan emails.",
         },
       );
     }
@@ -638,7 +648,7 @@ export function EmailScanDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            Scan Emails
+            Scan emails
           </DialogTitle>
           <DialogDescription>
             Search your mailbox for travel confirmations and add them to your itinerary.
@@ -850,7 +860,7 @@ export function EmailScanDialog({
                   <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <div className="space-y-1">
                     <p>
-                      Could not load {emailLabelNoun(activeEmailProvider)}s for{" "}
+                      Couldn&apos;t load {emailLabelNoun(activeEmailProvider)}s for{" "}
                       {emailProviderLabel(activeEmailProvider)}. Try
                       reconnecting in Settings if the problem persists.
                     </p>
@@ -884,7 +894,7 @@ export function EmailScanDialog({
                 className="w-full"
               >
                 <Mail className="mr-2 h-4 w-4" />
-                {scanEmails.isPending ? "Scanning…" : "Start Scan"}
+                {scanEmails.isPending ? "Scanning…" : "Start scan"}
               </Button>
             </DialogFooter>
           </>
@@ -896,7 +906,7 @@ export function EmailScanDialog({
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
             {scanProgress.foundTotal === null ? (
               <>
-                <p className="font-medium">Scanning emails...</p>
+                <p className="font-medium">Scanning emails…</p>
                 <p className="text-sm text-muted-foreground">
                   Searching {emailProviderLabel(activeEmailProvider)}.
                 </p>
@@ -1147,7 +1157,7 @@ export function EmailScanDialog({
                     }}
                   >
                     <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Scan More
+                    Scan more
                   </Button>
                 )}
                 {selections.length > 0 && (
@@ -1169,7 +1179,7 @@ export function EmailScanDialog({
         {step === "applying" && (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 py-8">
             <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
-            <p className="font-medium">Adding segments to your trip...</p>
+            <p className="font-medium">Adding segments to your trip…</p>
           </div>
         )}
 
@@ -1196,7 +1206,7 @@ export function EmailScanDialog({
           <>
             <div className="flex flex-1 flex-col items-center justify-center gap-3 py-6 text-center">
               <XCircle className="h-8 w-8 text-destructive" />
-              <p className="text-lg font-medium">Scan Failed</p>
+              <p className="text-lg font-medium">Scan failed</p>
               <p className="text-sm text-muted-foreground">{errorMessage}</p>
             </div>
             <DialogFooter className="flex-row justify-center gap-2">
@@ -1381,7 +1391,7 @@ function SegmentCard({
                 onValueChange={handleTripChange}
               >
                 <SelectTrigger className="h-7 w-full text-xs">
-                  <SelectValue placeholder="Assign to trip..." />
+                  <SelectValue placeholder="Assign to trip…" />
                 </SelectTrigger>
                 <SelectContent>
                   {trips.map((t) => (

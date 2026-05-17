@@ -379,18 +379,18 @@ function FullMapInner({
           onCloseClick={() => setSelectedId(null)}
           pixelOffset={[0, -40]}
         >
-          <div className="text-sm" style={{ maxWidth: 240 }}>
-            <p className="mb-0.5 font-semibold text-gray-900">
+          <div className="text-sm text-foreground" style={{ maxWidth: 240 }}>
+            <p className="mb-0.5 font-semibold">
               {selectedPin.title}
             </p>
-            <p className="mb-1 text-xs text-gray-500">
+            <p className="mb-1 text-xs text-muted-foreground">
               {CATEGORY_LABEL[selectedPin.category]} ·{" "}
               {dayShort(selectedPin.day.date)}
               {selectedPin.segment.startTime &&
                 ` · ${selectedPin.segment.startTime}`}
             </p>
             {selectedPin.segment.address && (
-              <p className="mb-1.5 text-xs text-gray-500">
+              <p className="mb-1.5 text-xs text-muted-foreground">
                 {selectedPin.segment.address}
               </p>
             )}
@@ -398,7 +398,7 @@ function FullMapInner({
               href={mapsSearchUrl(selectedPin.query)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
             >
               Open in Google Maps
               <ExternalLink className="h-3 w-3" />

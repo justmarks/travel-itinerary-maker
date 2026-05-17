@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSharedTrip } from "@itinly/api-client";
 import type { Segment, Todo } from "@itinly/shared";
 import { AlertCircle, Lock, MapPin, Pencil } from "lucide-react";
@@ -73,7 +74,18 @@ export default function SharedTripClient({
 }: {
   token: string;
 }): React.JSX.Element {
-  const { data: trip, isLoading, isError, refetch } = useSharedTrip(token);
+  // Hold off rendering the real tree until after mount so SSR'd HTML
+  // doesn't try to hydrate against client-only state. Kills the
+  // React #418 hydration error filed in QA bug #25 / the prior
+  // session's report on /shared and /m/shared (including the
+  // not-found branch). User-visible behaviour is unchanged: the
+  // loading skeleton is the same on both renders.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { data: trip, isLoading, isError } = useSharedTrip(token);
   const [selectedSegment, setSelectedSegment] = useState<Segment | null>(null);
 
   // Owner / edit-contributor redirect — same behaviour as the desktop
@@ -97,7 +109,7 @@ export default function SharedTripClient({
     return { cities: Array.from(cities) };
   }, [trip]);
 
-  if (isLoading || shouldRedirect) {
+  if (!mounted || isLoading || shouldRedirect) {
     return (
       <MobileFrame>
         <MobileHeader title="Loading shared trip…" backHref="/" />
@@ -118,13 +130,12 @@ export default function SharedTripClient({
           <p className="text-sm text-muted-foreground">
             This share link may have expired or been revoked.
           </p>
-          <button
-            type="button"
-            onClick={() => refetch()}
+          <Link
+            href="/"
             className="rounded-full bg-foreground px-5 py-2 text-sm font-medium text-background"
           >
-            Try again
-          </button>
+            Open itinly
+          </Link>
         </div>
       </MobileFrame>
     );

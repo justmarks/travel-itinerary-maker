@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -16,16 +16,20 @@ import { toast } from "sonner";
 import { describeError, toastMutationError } from "@/lib/api-error";
 import {
   AlertCircle,
+  BookOpen,
   CalendarCheck,
   CalendarDays,
   CalendarPlus,
   CheckSquare,
   CloudOff,
   DollarSign,
+  FileDown,
+  FileText,
   History,
   LayoutGrid,
   LogOut,
   Mail,
+  Loader2,
   MoreVertical,
   Pencil,
   Share2,
@@ -35,6 +39,7 @@ import {
 import { RequireAuth } from "@/components/require-auth";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
+import { useTripExport } from "@/lib/trip-export";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import { useTripPermission } from "@/lib/use-trip-permission";
 import { MobileFrame, MobileHeader } from "@/components/mobile/mobile-shell";
@@ -81,6 +86,7 @@ function MobileTripOverflowMenu({
   showCosts,
   showEdit,
   showCalendarSync,
+  showExport,
   calendarSynced,
   calendarSyncedCount,
   leaveTripShareId,
@@ -106,6 +112,10 @@ function MobileTripOverflowMenu({
    *  Google Calendar mutates the trip (writes calendarEventId on each
    *  segment) so view-only collaborators can't sync. */
   showCalendarSync: boolean;
+  /** Whether to render the four Export-as-… items. Desktop shows these
+   *  to any reader who can see the trip; matching that here closes the
+   *  mobile-parity gap from QA bug #12. */
+  showExport: boolean;
   /** Drives the menu-item label between "Sync to Calendar" and
    *  "Calendar synced (N)". */
   calendarSynced: boolean;
@@ -119,6 +129,7 @@ function MobileTripOverflowMenu({
   const homeHref = useDemoHref("/m");
   const deleteTrip = useDeleteTrip();
   const deleteShare = useDeleteShare(tripId);
+  const tripExport = useTripExport(tripId, tripTitle);
 
   const handleDelete = async () => {
     const ok = await confirm({
@@ -208,6 +219,38 @@ function MobileTripOverflowMenu({
           <History className="mr-2 h-4 w-4" />
           View history
         </DropdownMenuItem>
+        {showExport && (
+          <>
+            <DropdownMenuItem
+              onClick={() => void tripExport.exportMarkdown()}
+              disabled={tripExport.isExporting}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Export as Markdown
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void tripExport.exportOneNote()}
+              disabled={tripExport.isExporting}
+            >
+              <BookOpen className="mr-2 h-4 w-4" />
+              Export as OneNote
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void tripExport.exportPdf()}
+              disabled={tripExport.isExporting}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Export as PDF
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => void tripExport.exportIcal()}
+              disabled={tripExport.isExporting}
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Export as iCal
+            </DropdownMenuItem>
+          </>
+        )}
         {leaveTripShareId && (
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
@@ -257,6 +300,7 @@ function HeaderActions({
   showEditInOverflow,
   showCalendarSyncInOverflow,
   showDeleteInOverflow,
+  showExportInOverflow,
   calendarSynced,
   calendarSyncedCount,
   leaveTripShareId,
@@ -304,6 +348,11 @@ function HeaderActions({
    *  overflow menu. The menu itself is always shown so contributors can
    *  reach the History sheet. */
   showDeleteInOverflow: boolean;
+  /** Whether to render the four Export-as-… items in the overflow menu.
+   *  Matches the desktop menu, which exposes exports to anyone who can
+   *  see the trip (owner + edit contributor). View-only readers don't
+   *  get exports — the server-side route checks the same gate. */
+  showExportInOverflow: boolean;
   /** Drives the calendar-sync menu-item label between "Sync to Calendar"
    *  and "Calendar synced (N)". Sourced from segment `calendarEventId`s. */
   calendarSynced: boolean;
@@ -379,6 +428,7 @@ function HeaderActions({
         showCosts={showCosts}
         showEdit={showEditInOverflow}
         showCalendarSync={showCalendarSyncInOverflow}
+        showExport={showExportInOverflow}
         calendarSynced={calendarSynced}
         calendarSyncedCount={calendarSyncedCount}
         leaveTripShareId={leaveTripShareId}
@@ -680,6 +730,7 @@ function TripFrame({
               showEditInOverflow={permission.canEdit}
               showCalendarSyncInOverflow={permission.canEdit}
               showDeleteInOverflow={permission.isOwner}
+              showExportInOverflow={permission.canEdit}
               calendarSynced={calendarSynced}
               calendarSyncedCount={calendarSyncedCount}
               leaveTripShareId={leaveTripShareId}
@@ -796,20 +847,14 @@ function MobileTripPageInner() {
     router.replace(`/m/trip?${params.toString()}`);
   };
 
-  if (!tripId) {
-    return (
-      <MobileFrame>
-        <MobileHeader
-          title="No trip"
-          backHref={homeHref}
-          right={<MobileUserMenu />}
-        />
-        <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
-          No trip selected.
-        </div>
-      </MobileFrame>
-    );
-  }
+  // No id → bounce to /m. The "No trip selected" placeholder this
+  // used to render was the only entry point a stale link could land
+  // on; the trip list is more useful (and matches desktop /trips).
+  useEffect(() => {
+    if (!tripId) router.replace(homeHref);
+  }, [tripId, homeHref, router]);
+
+  if (!tripId) return null;
 
   return (
     <MobileTripInner tripId={tripId} view={view} onSwitchView={onSwitchView} />
@@ -823,7 +868,7 @@ export default function MobileTripPage(): React.JSX.Element {
         fallback={
           <MobileFrame>
             <div className="flex flex-1 items-center justify-center">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           </MobileFrame>
         }

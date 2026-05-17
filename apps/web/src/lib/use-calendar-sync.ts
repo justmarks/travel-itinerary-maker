@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useApiClient, useTripCalendarSync } from "@itinly/api-client";
 import { toast } from "sonner";
+import { describeError } from "@/lib/api-error";
 import { useDemoMode } from "@/lib/demo";
 import { CALENDAR_SCOPE, requestAdditionalScopes } from "@/lib/oauth";
 import {
@@ -182,8 +183,10 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
           `${total} event${total !== 1 ? "s" : ""} synced to your calendar`,
         );
       }
-    } catch {
-      toast.error("Sync failed — check that Calendar access is granted.");
+    } catch (err) {
+      toast.error("Sync failed — check that Calendar access is granted.", {
+        description: describeError(err),
+      });
     } finally {
       setSyncing(false);
     }
@@ -208,8 +211,10 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
           `Calendar refreshed — ${total} event${total !== 1 ? "s" : ""} up to date`,
         );
       }
-    } catch {
-      toast.error("Refresh failed — check that Calendar access is granted.");
+    } catch (err) {
+      toast.error("Refresh failed — check that Calendar access is granted.", {
+        description: describeError(err),
+      });
     } finally {
       setSyncing(false);
     }
@@ -230,8 +235,10 @@ export function useCalendarSync(trip: CalendarSyncTrip) {
       } else {
         toast.success("Sync removed — calendar events kept");
       }
-    } catch {
-      toast.error("Failed to remove sync.");
+    } catch (err) {
+      toast.error("Couldn't remove sync", {
+        description: describeError(err),
+      });
     } finally {
       setSyncing(false);
     }

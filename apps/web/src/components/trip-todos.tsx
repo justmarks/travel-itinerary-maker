@@ -114,6 +114,7 @@ export function TripTodos({
     <li key={todo.id}>
       <div className="flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-sm transition-colors hover:bg-muted/50">
         <button
+          type="button"
           onClick={() => {
             if (readOnly) return;
             updateTodo.mutate(
@@ -131,6 +132,13 @@ export function TripTodos({
             "mt-0.5 shrink-0",
             readOnly && "cursor-default",
           )}
+          aria-label={
+            readOnly
+              ? undefined
+              : todo.isCompleted
+                ? "Mark incomplete"
+                : "Mark complete"
+          }
           title={
             readOnly
               ? undefined
@@ -139,11 +147,26 @@ export function TripTodos({
                 : "Mark complete"
           }
         >
-          {todo.isCompleted ? (
-            <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Square className="h-4 w-4 text-muted-foreground" />
-          )}
+          {/* Render both icons and toggle visibility — keeps the
+              <svg> nodes stable across rapid clicks instead of
+              unmount/mount-ing a different Lucide component each
+              time, which broke `await button.click(); await
+              button.click()` chains (CLAUDE.md: "tappable in
+              rapid succession"). */}
+          <CheckSquare2
+            className={cn(
+              "h-4 w-4 text-muted-foreground",
+              !todo.isCompleted && "hidden",
+            )}
+            aria-hidden
+          />
+          <Square
+            className={cn(
+              "h-4 w-4 text-muted-foreground",
+              todo.isCompleted && "hidden",
+            )}
+            aria-hidden
+          />
         </button>
         <div className="min-w-0 flex-1">
           <button
@@ -215,7 +238,7 @@ export function TripTodos({
               onClick={() => setSuggestOpen(true)}
               title="Suggest to-dos for missing meals"
             >
-              <Sparkles className="h-3.5 w-3.5" style={{ color: "var(--brand)" }} />
+              <Sparkles className="h-3.5 w-3.5 text-brand" />
               Suggest meals
             </Button>
           )}
@@ -225,7 +248,9 @@ export function TripTodos({
               size="icon"
               className="h-6 w-6"
               onClick={() => setShowAdd(!showAdd)}
-              title="Add todo"
+              aria-label={showAdd ? "Cancel add to-do" : "Add to-do"}
+              aria-expanded={showAdd}
+              title={showAdd ? "Cancel" : "Add to-do"}
             >
               {showAdd ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
             </Button>
@@ -280,7 +305,18 @@ export function TripTodos({
       {todos.length === 0 && !showAdd ? (
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-6 text-center">
           <AppLogo className="h-8 w-8 opacity-60" />
-          <p className="text-sm text-muted-foreground">No tasks yet.</p>
+          <p className="text-sm text-muted-foreground">No to-dos yet.</p>
+          {!readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1 gap-1.5"
+              onClick={() => setShowAdd(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add the first one
+            </Button>
+          )}
         </div>
       ) : (
         <>

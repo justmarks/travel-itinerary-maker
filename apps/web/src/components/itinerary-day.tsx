@@ -40,6 +40,7 @@ import {
   Coffee,
   Trash2,
   Pencil,
+  Plus,
   Check,
   X,
 } from "lucide-react";
@@ -49,6 +50,50 @@ import { AddSegmentDialog } from "@/components/add-segment-dialog";
 
 const RESTAURANT_TYPES = new Set(["restaurant_breakfast", "restaurant_brunch", "restaurant_lunch", "restaurant_dinner"]);
 const HOTEL_TYPES = new Set(["hotel"]);
+/** Segment types whose `date`..`endDate` range spans multiple days. */
+const MULTI_NIGHT_TYPES = new Set(["hotel", "car_rental", "cruise"]);
+
+/**
+ * Build a `{ [date]: ongoingStays[] }` lookup for every day a multi-night
+ * segment (hotel / car rental / cruise) spans, excluding the check-in
+ * day itself (which already renders the full segment card). Used by the
+ * trip-detail and shared-view to render a slim "Still at …" banner on
+ * each continuation night so the user doesn't see "No activities
+ * planned." on a day they're actually booked at a hotel.
+ */
+export function computeOngoingStays(
+  trip: { days: readonly TripDay[] },
+): Record<
+  string,
+  { segment: Segment; nightIndex: number; totalNights: number }[]
+> {
+  const out: Record<
+    string,
+    { segment: Segment; nightIndex: number; totalNights: number }[]
+  > = {};
+  for (const day of trip.days) {
+    for (const seg of day.segments) {
+      if (!MULTI_NIGHT_TYPES.has(seg.type) || !seg.endDate) continue;
+      if (seg.endDate <= day.date) continue;
+      const start = new Date(day.date + "T00:00:00Z");
+      const end = new Date(seg.endDate + "T00:00:00Z");
+      const totalNights = Math.round(
+        (end.getTime() - start.getTime()) / 86400000,
+      );
+      if (totalNights <= 1) continue;
+      for (let i = 1; i < totalNights; i++) {
+        const d = new Date(start.getTime() + i * 86400000);
+        const iso = d.toISOString().slice(0, 10);
+        (out[iso] ||= []).push({
+          segment: seg,
+          nightIndex: i + 1,
+          totalNights,
+        });
+      }
+    }
+  }
+  return out;
+}
 const FLIGHT_TYPES = new Set(["flight"]);
 const TRAIN_TYPES = new Set(["train"]);
 const CAR_RENTAL_TYPES = new Set(["car_rental"]);
@@ -141,12 +186,19 @@ function SegmentRow({
   segment,
   date,
   tripId,
+  tripStartDate,
+  tripEndDate,
   readOnly,
   showCosts = true,
 }: {
   segment: Segment;
   date: string;
   tripId?: string;
+  /** Owning trip's date range — passed through to EditSegmentDialog so
+   *  its Date / Check-out / Dropoff / Disembark pickers can clamp with
+   *  min/max. */
+  tripStartDate?: string;
+  tripEndDate?: string;
   readOnly?: boolean;
   /**
    * When false, suppress the cost line on this row. Threaded from the
@@ -329,7 +381,29 @@ function SegmentRow({
                 )}
               </>
             ) : (
-              <span>{startTime}{endTime ? ` – ${endTime}` : ""}</span>
+              <span>
+                {startTime}
+                {endTime ? ` – ${endTime}` : ""}
+                {/* Overnight indicator — when the arrival time is
+                    smaller than the departure time it means the
+                    segment crosses midnight (most commonly an
+                    overnight flight). Without this the user has to
+                    mentally derive "6:30 is less than 23:00 so it
+                    must be the next day". */}
+                {isFlight && segment.startTime && segment.endTime &&
+                  segment.endTime < segment.startTime && (
+                    <span
+                      className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none"
+                      style={{
+                        backgroundColor: "var(--status-info-bg)",
+                        color: "var(--status-info-fg)",
+                      }}
+                      title="Arrives the next day"
+                    >
+                      +1
+                    </span>
+                  )}
+              </span>
             )}
           </div>
         )}
@@ -475,7 +549,7 @@ function SegmentRow({
               redundant with the row click but kept as a discoverable
               visible affordance — its handler is the same. */}
           <div
-            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100"
+            className="flex shrink-0 gap-1 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/seg:opacity-100 can-hover:group-focus-within/seg:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
             {segment.needsReview && (
@@ -484,6 +558,7 @@ function SegmentRow({
                 size="icon"
                 className="h-7 w-7 hover:opacity-80"
                 style={{ color: "var(--status-ok-fg)" }}
+                aria-label={`Confirm "${segment.title}"`}
                 title="Confirm"
                 onClick={() =>
                   confirmSegment.mutate(segment.id, {
@@ -499,6 +574,7 @@ function SegmentRow({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              aria-label={`Edit "${segment.title}"`}
               title="Edit"
               onClick={() => setEditOpen(true)}
             >
@@ -508,6 +584,7 @@ function SegmentRow({
               variant="ghost"
               size="icon"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              aria-label={`Delete "${segment.title}"`}
               title="Delete"
               onClick={async () => {
                 const ok = await confirm({
@@ -529,6 +606,8 @@ function SegmentRow({
             tripId={tripId}
             segment={segment}
             date={date}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
             open={editOpen}
             onOpenChange={setEditOpen}
           />
@@ -563,6 +642,11 @@ function EditableCity({
     }
   };
 
+  const cancel = () => {
+    setValue(city);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -575,13 +659,19 @@ function EditableCity({
         <Input
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="h-6 w-28 px-1.5 text-sm"
+          className="h-6 w-36 px-1.5 text-sm"
+          placeholder="e.g. Tokyo"
+          aria-label="City"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancel();
+          }}
         />
         <Button
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save city"
           className="h-6 w-6"
           disabled={updateDay.isPending}
         >
@@ -591,11 +681,9 @@ function EditableCity({
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel"
           className="h-6 w-6"
-          onClick={() => {
-            setValue(city);
-            setEditing(false);
-          }}
+          onClick={cancel}
         >
           <X className="h-3 w-3" />
         </Button>
@@ -611,7 +699,7 @@ function EditableCity({
     >
       <MapPin className="h-3 w-3" />
       {city || "Set city"}
-      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100" />
+      <Pencil className="ml-0.5 h-2.5 w-2.5 opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/day:opacity-100 can-hover:group-focus-within/day:opacity-100" />
     </button>
   );
 }
@@ -619,11 +707,23 @@ function EditableCity({
 export function ItineraryDay({
   day,
   tripId,
+  tripStartDate,
+  tripEndDate,
+  ongoingStays,
   readOnly,
   showCosts = true,
 }: {
   day: TripDay;
   tripId?: string;
+  /** Owning trip's date range — passed through to AddSegmentDialog so the
+   *  Date picker is clamped with min/max client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
+  /** Segments whose check-in is on an earlier day and check-out is on a
+   *  later day — rendered as a slim "Still at …" banner above the day's
+   *  own segments so users on a multi-night hotel stay don't see an
+   *  empty "No activities planned." day. */
+  ongoingStays?: ReadonlyArray<{ segment: Segment; nightIndex: number; totalNights: number }>;
   readOnly?: boolean;
   /**
    * When false, hide inline per-segment cost. Used by the contributor
@@ -663,14 +763,67 @@ export function ItineraryDay({
           )}
         </div>
         {!readOnly && tripId && (
-          <AddSegmentDialog tripId={tripId} date={day.date} />
+          <AddSegmentDialog
+            tripId={tripId}
+            date={day.date}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
+          />
         )}
       </div>
 
+      {/* Ongoing multi-night stays (hotels, car rentals, cruises) whose
+          check-in is earlier and check-out is later. Slim banner so the
+          day doesn't look empty when the user is mid-stay. */}
+      {ongoingStays && ongoingStays.length > 0 && (
+        <div className="mb-2 flex flex-col gap-1">
+          {ongoingStays.map((stay) => {
+            const segConfig =
+              SEGMENT_CONFIG[stay.segment.type] ?? SEGMENT_CONFIG.activity;
+            return (
+              <div
+                key={stay.segment.id}
+                className="flex items-center gap-2 rounded-md border border-l-4 bg-muted/30 px-3 py-1.5 text-xs text-muted-foreground"
+                style={{ borderLeftColor: `var(--seg-${segConfig.token}-rail)` }}
+                title={`Continuation of ${stay.segment.title}`}
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                  style={segmentTileStyle(segConfig.token)}
+                >
+                  <segConfig.icon className="h-3 w-3" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  Still at <span className="font-medium text-foreground">{stay.segment.title}</span>
+                </span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wider">
+                  Night {stay.nightIndex} of {stay.totalNights}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {segments.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          No activities planned.
-        </p>
+        !readOnly && tripId ? (
+          <AddSegmentDialog
+            tripId={tripId}
+            date={day.date}
+            trigger={
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add the first activity
+              </button>
+            }
+          />
+        ) : (
+          <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+            No activities planned.
+          </p>
+        )
       ) : (
         <div className="flex flex-col gap-2">
           {segments.map((seg) => (
@@ -679,6 +832,8 @@ export function ItineraryDay({
               segment={seg}
               date={day.date}
               tripId={tripId}
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
               readOnly={readOnly}
               showCosts={showCosts}
             />

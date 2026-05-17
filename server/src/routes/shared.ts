@@ -1,8 +1,27 @@
 import { Router, type Request, type Response } from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { StorageProvider, StorageResolver } from "../services/storage";
 import type { ShareRegistry } from "../services/share-registry";
 import type { ResolveOwnerStorage } from "../services/trip-access";
 import { createShareLinkRateLimiter } from "../middleware/rate-limit";
+
+/**
+ * Constant-time string compare used for the share-token lookup below.
+ * `===` on JS strings short-circuits at the first mismatched character,
+ * which leaks a per-character timing signal — meaningful for legacy
+ * tokens issued before commit #155 swapped `generateShareToken` to
+ * `crypto.randomBytes` (those tokens are only ~40 bits, and a timing
+ * oracle would cut a brute force from "infeasible" down to "scriptable
+ * over a weekend"). Rate-limiting is the primary mitigation, but the
+ * compare itself should also not leak.
+ */
+function tokensEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  // Equal lengths verified above, so timingSafeEqual won't throw.
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 export interface SharedRoutesOptions {
   resolveStorage: StorageResolver | StorageProvider;
@@ -82,10 +101,13 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
         // effectively a 404.
         try {
           storage = getStorage(req);
-        } catch (err) {
-          console.warn(
-            `[shared/${tokenLabel}] registry miss, request storage unavailable:`,
-            err instanceof Error ? err.message : err,
+        } catch {
+          // Anonymous viewer hit a token that isn't in the registry —
+          // the registry is durable in production, so this is just a
+          // 404. The request-storage resolve failure is expected here
+          // (no auth on /shared routes), not a config error.
+          console.log(
+            `[shared/${tokenLabel}] share token not found (anonymous viewer)`,
           );
           res.status(404).json({
             error: "Shared trip not found",
@@ -130,7 +152,7 @@ export function createSharedRoutes(options: SharedRoutesOptions): Router {
     let foundShare = null;
 
     for (const trip of trips) {
-      const share = trip.shares.find((s) => s.shareToken === token);
+      const share = trip.shares.find((s) => tokensEqual(s.shareToken, token));
       if (share) {
         foundTrip = trip;
         foundShare = share;

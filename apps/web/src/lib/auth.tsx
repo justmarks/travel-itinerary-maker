@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseClient } from "./supabase";
+import { CACHE_STORAGE_KEY } from "./query-client";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -349,6 +350,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
           // user menu only triggers one of the two sign-outs at a
           // time; this branch covers the Supabase side.
           setState(EMPTY_AUTH);
+          // Wipe the React-Query persistence cache — same reason as in
+          // logout() above. Catches sign-outs that originate from
+          // another tab or from Supabase's own session-expiry path.
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem(CACHE_STORAGE_KEY);
+            } catch {
+              // ignore
+            }
+          }
         }
       },
     );
@@ -531,6 +542,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }): React
 
   const logout = useCallback(() => {
     setState(EMPTY_AUTH);
+    // Wipe the React-Query persistence cache so the next user of this
+    // browser doesn't see the previous user's cached trips on first
+    // paint (and so the bare localStorage entry isn't readable by
+    // anyone with dev-tools access between sessions).
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(CACHE_STORAGE_KEY);
+      } catch {
+        // Safari private mode etc. — nothing useful to do here.
+      }
+    }
     // Phase 3b: also sign out of Supabase if the user came in through
     // that path. No-op when Supabase isn't configured or there's no
     // active Supabase session.

@@ -410,7 +410,7 @@ export function SegmentTypeSelect({
       <SelectContent position="popper">
         {SEGMENT_TYPE_GROUPS.map((group) => (
           <SelectGroup key={group.label}>
-            <SelectLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <SelectLabel className="text-kicker font-semibold text-muted-foreground">
               {group.label}
             </SelectLabel>
             {group.items.map((item) => (
@@ -594,6 +594,8 @@ export function SegmentFormFields({
   idPrefix,
   autoFocusTitle = false,
   useNativeTypeSelect = false,
+  tripStartDate,
+  tripEndDate,
 }: {
   form: SegmentFormState;
   onChange: (patch: Partial<SegmentFormState>) => void;
@@ -611,6 +613,14 @@ export function SegmentFormFields({
    * gesture model interacts poorly with quick taps on touch.
    */
   useNativeTypeSelect?: boolean;
+  /**
+   * The owning trip's date range. Used to clamp the segment Date /
+   * Check-out Date pickers with `min`/`max` so the browser disallows
+   * out-of-range dates client-side instead of letting the user submit
+   * and bouncing off a 400 "Day not found for given date" toast.
+   */
+  tripStartDate?: string;
+  tripEndDate?: string;
 }): React.JSX.Element {
   const flags = getTypeFlags(form.type);
   const {
@@ -746,6 +756,8 @@ export function SegmentFormFields({
             id={`${idPrefix}-date`}
             type="date"
             value={form.date}
+            min={tripStartDate}
+            max={tripEndDate}
             onChange={(e) => onChange({ date: e.target.value })}
           />
         </div>
@@ -994,6 +1006,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("hotel", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1049,6 +1063,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("car_rental", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1119,6 +1135,7 @@ export function SegmentFormFields({
               <Input
                 id={`${idPrefix}-party`}
                 type="number"
+                inputMode="numeric"
                 min="1"
                 placeholder="e.g. 4"
                 value={form.partySize}
@@ -1187,6 +1204,8 @@ export function SegmentFormFields({
               id={`${idPrefix}-end-date`}
               type="date"
               value={form.endDate || defaultEndDate("cruise", form.date)}
+              min={form.date || tripStartDate}
+              max={tripEndDate}
               onChange={(e) => onChange({ endDate: e.target.value })}
             />
           </div>
@@ -1283,6 +1302,7 @@ export function SegmentFormFields({
             <Input
               id={`${idPrefix}-cost`}
               type="number"
+              inputMode="decimal"
               min="0"
               step="0.01"
               placeholder="0.00"
@@ -1291,12 +1311,12 @@ export function SegmentFormFields({
             />
           </div>
           <div className="col-span-2 space-y-2">
-            <Label>Currency</Label>
+            <Label htmlFor={`${idPrefix}-currency`}>Currency</Label>
             <Select
               value={form.costCurrency}
               onValueChange={(v) => onChange({ costCurrency: v })}
             >
-              <SelectTrigger>
+              <SelectTrigger id={`${idPrefix}-currency`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1536,7 +1556,7 @@ export function SegmentFormFields({
                 ? "e.g. Premium Economy, 2 checked bags included"
                 : isCarRental
                 ? "e.g. Midsize SUV, GPS included"
-                : "Additional notes..."
+                : "Additional notes…"
             }
             value={form.costDetails}
             onChange={(e) => onChange({ costDetails: e.target.value })}

@@ -339,7 +339,15 @@ export function HtmlImportDialog({
       counts.set(c, (counts.get(c) || 0) + 1);
     }
     const topCity = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
-    const year = selections[0]?.date?.slice(0, 4) || "";
+    // Use the earliest segment's year, not selections[0]. The server
+    // returns parsedSegments in match-status / source order — not date
+    // order — so selections[0]?.date could be the LATEST trip date,
+    // tagging "Hawaii 2026" onto a 2025 trip.
+    const earliestDate = selections
+      .map((s) => s.date)
+      .filter(Boolean)
+      .sort()[0];
+    const year = earliestDate?.slice(0, 4) ?? "";
     return year ? `${topCity} ${year}` : topCity;
   }, [selections]);
 
@@ -620,7 +628,7 @@ export function HtmlImportDialog({
                       onClick={() => setShowNewTripForm(true)}
                     >
                       <Plus className="mr-1 h-3 w-3" />
-                      Create Trip
+                      Create trip
                     </Button>
                   </div>
                 </div>
@@ -689,7 +697,7 @@ export function HtmlImportDialog({
                     <Plus className="mr-1.5 h-3.5 w-3.5" />
                   )}
                   {creatingTrip
-                    ? "Creating..."
+                    ? "Creating…"
                     : "Create & Assign Matching Segments"}
                 </Button>
               </div>
@@ -821,7 +829,7 @@ export function HtmlImportDialog({
                                     style={{ color: "var(--status-info-fg)" }}
                                   >
                                     <Plus className="h-3 w-3" />
-                                    Create new trip...
+                                    Create new trip…
                                   </span>
                                 </SelectItem>
                               </SelectContent>

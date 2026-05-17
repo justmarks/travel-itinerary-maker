@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import {
   SegmentFormFields,
   EMPTY_FORM_STATE,
@@ -25,9 +25,23 @@ import {
 export function AddSegmentDialog({
   tripId,
   date,
+  trigger,
+  tripStartDate,
+  tripEndDate,
 }: {
   tripId: string;
   date: string;
+  /**
+   * Optional replacement for the default "+ Add" button. Pass any
+   * React element (typically a `<button>` or `<Button>`) to use as the
+   * dialog trigger — useful for embedding the dialog inside an empty
+   * state where the CTA copy / layout differs from the toolbar button.
+   */
+  trigger?: React.ReactElement;
+  /** Owning trip's date range — passed through to clamp the Date / Check-out
+   *  pickers with min/max so out-of-range dates are blocked client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<SegmentFormState>({
@@ -117,10 +131,12 @@ export function AddSegmentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
-          Add
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader className="shrink-0">
@@ -180,6 +196,8 @@ export function AddSegmentDialog({
               onChange={handleChange}
               idPrefix="add"
               autoFocusTitle
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
             />
           </div>
 
@@ -195,7 +213,14 @@ export function AddSegmentDialog({
               type="submit"
               disabled={!resolvedTitle || createSegment.isPending}
             >
-              {createSegment.isPending ? "Adding..." : "Add Segment"}
+              {createSegment.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                "Add segment"
+              )}
             </Button>
           </div>
         </form>
