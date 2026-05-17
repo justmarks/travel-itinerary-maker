@@ -104,6 +104,7 @@ export const segmentSchema = z.object({
   phone: z.string().optional(),
   endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
   portsOfCall: z.array(cruisePortOfCallSchema).optional(),
+  shipName: z.string().optional(),
   breakfastIncluded: z.boolean().optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
@@ -282,6 +283,7 @@ export const createSegmentSchema = z.object({
   creditCardHold: z.boolean().optional(),
   endDate: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
   portsOfCall: z.array(cruisePortOfCallSchema).optional(),
+  shipName: z.string().optional(),
   cabinClass: z.string().optional(),
   baggageInfo: z.string().optional(),
   seatNumber: z.string().optional(),
@@ -300,6 +302,13 @@ export const updateSegmentSchema = createSegmentSchema.extend({
   // Segments are stored inside TripDay, not on the segment itself. Accepting
   // `date` here lets a PUT move a segment to a different day in one call.
   date: z.string().regex(isoDateRegex, "Must be YYYY-MM-DD").optional(),
+  // `cost` accepts an explicit `null` on UPDATE so the client can clear a
+  // previously-set cost. Without this override, the client has no way to
+  // signal "remove this" — `cost: undefined` would be stripped by
+  // `JSON.stringify` and the server would never see the change. The server
+  // route translates `null` back to `delete found.cost` before saving so
+  // storage doesn't end up with explicit `null` cost objects.
+  cost: segmentCostSchema.nullable().optional(),
 }).partial();
 
 /** Schema for creating a todo */
@@ -443,6 +452,7 @@ export const parsedSegmentSchema = z.object({
   phone: z.string().optional(),
   endDate: z.string().regex(isoDateRegex).optional(),
   portsOfCall: z.array(cruisePortOfCallSchema).optional(),
+  shipName: z.string().optional(),
   breakfastIncluded: z.boolean().optional(),
   seatNumber: z.string().optional(),
   cabinClass: z.string().optional(),
@@ -491,6 +501,49 @@ export const htmlImportRequestSchema = z
   });
 
 /**
+ * Schema for the PWA share-target receiver — POST /emails/import-shared.
+ *
+ * When the user picks "itinly" from an OS share sheet (Mail, Gmail,
+ * Safari, …), the share intent arrives as some combination of:
+ *  - `title` — the subject line / page title
+ *  - `text`  — the selected/full message body or selected text
+ *  - `url`   — a confirmation URL the user wanted to capture
+ *
+ * The receiver collects whichever fields the source app passed along
+ * and forwards them here. At least one of `text` or `url` must be set
+ * (a bare `title` has nothing to parse). The server feeds the content
+ * through the same parser pipeline as the Gmail scan + HTML-import
+ * paths, so the resulting `EmailScanResult` shape is identical and the
+ * existing apply / dismiss endpoints work unchanged.
+ */
+export const importSharedRequestSchema = z
+  .object({
+    /** Subject line / page title from the share intent. Optional. */
+    title: z.string().optional(),
+    /**
+     * Body text from the share intent. May be a forwarded email body,
+     * a hand-pasted confirmation, or selected text from any app.
+     */
+    text: z.string().optional(),
+    /**
+     * URL the user shared (e.g. a booking-confirmation page). Server
+     * fetches it with size + content-type + timeout guards and runs
+     * the resulting HTML through the parser. Only http(s) is allowed.
+     */
+    url: z.string().url().optional(),
+    /**
+     * Optional trip hint — when set, parsed segments are matched
+     * against this trip instead of being auto-matched by date range.
+     * Mirrors the same field on the HTML/EML import schema.
+     */
+    tripId: z.string().optional(),
+  })
+  .refine((data) => Boolean(data.text) || Boolean(data.url), {
+    message: "Provide at least one of `text` or `url`",
+    path: ["text"],
+  });
+
+/**
  * Reasons a user can give when reporting that an email wasn't parsed
  * correctly. Surfaced in the client-side Report dialog, which composes
  * a `mailto:emailerror@itinly.app` draft for the user to send.
@@ -501,6 +554,98 @@ export const PARSE_REPORT_REASONS = [
   "parsed_wrong",      // Segments were extracted but they're incorrect
 ] as const;
 export type ParseReportReason = (typeof PARSE_REPORT_REASONS)[number];
+
+/** Allowed cadences for an auto-scan schedule. */
+export const EMAIL_SCAN_FREQUENCIES = ["daily", "weekly"] as const;
+
+/**
+ * Schema for creating an email-scan schedule. The frontend captures
+ * `provider` + `labelFilter` from whatever the user just ran a manual
+ * scan against, plus a `frequency` from the cadence picker, and POSTs
+ * the result. Server fills in defaults for `enabled` (true), the
+ * `nextRunAt` (now + one tick of `frequency`), and metadata
+ * (`createdAt`, `updatedAt`, `userId`).
+ *
+ * `labelName` is optional and purely cosmetic — the server resolves
+ * the labelFilter against the provider's label list on next-scan to
+ * keep the cached name fresh.
+ */
+/**
+ * `HH:MM` 24h regex (00:00–23:59) used by the `timeOfDay` field on
+ * scheduled scans. Seconds aren't accepted — the scheduler's
+ * granularity is the cron tick, so minute precision is the floor.
+ */
+const scheduleTimeOfDayRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export const createEmailScanScheduleSchema = z.object({
+  provider: z.enum(["google", "microsoft"]),
+  labelFilter: z.string().optional(),
+  labelName: z.string().optional(),
+  frequency: z.enum(EMAIL_SCAN_FREQUENCIES),
+  /**
+   * When true, the schedule scans descendants of `labelFilter` too
+   * (e.g. "Travel" → also "Travel/Hotels", "Travel/Flights"). The
+   * executor expands the filter at run time by walking the
+   * connector's label list. No effect when `labelFilter` is unset.
+   */
+  includeSublabels: z.boolean().optional(),
+  /**
+   * UTC `HH:MM` clock time the scan should target. Optional — when
+   * omitted the scheduler bumps `nextRunAt` by a flat 24h/7d.
+   */
+  timeOfDay: z
+    .string()
+    .regex(scheduleTimeOfDayRegex, "Must be HH:MM (00:00–23:59)")
+    .optional(),
+  /**
+   * UTC day-of-week (0 = Sunday, …, 6 = Saturday). Only meaningful for
+   * the `weekly` cadence.
+   */
+  dayOfWeek: z.number().int().min(0).max(6).optional(),
+});
+
+/**
+ * Schema for updating an existing schedule. Every field is optional so
+ * the user can flip `enabled` from a quick toggle without resending
+ * the whole row. `frequency` change recomputes `nextRunAt` so the
+ * cadence flip takes effect on the next tick.
+ */
+export const updateEmailScanScheduleSchema = z
+  .object({
+    provider: z.enum(["google", "microsoft"]).optional(),
+    labelFilter: z.string().nullable().optional(),
+    labelName: z.string().nullable().optional(),
+    frequency: z.enum(EMAIL_SCAN_FREQUENCIES).optional(),
+    enabled: z.boolean().optional(),
+    includeSublabels: z.boolean().optional(),
+    /**
+     * Nullable so the editor can clear a previously-set value when
+     * the user wants the legacy unanchored behaviour. `undefined` =
+     * leave the existing value alone; `null` = clear; `string` =
+     * set/replace.
+     */
+    timeOfDay: z
+      .string()
+      .regex(scheduleTimeOfDayRegex, "Must be HH:MM (00:00–23:59)")
+      .nullable()
+      .optional(),
+    dayOfWeek: z.number().int().min(0).max(6).nullable().optional(),
+  })
+  .refine(
+    (data) =>
+      data.provider !== undefined ||
+      data.labelFilter !== undefined ||
+      data.labelName !== undefined ||
+      data.frequency !== undefined ||
+      data.enabled !== undefined ||
+      data.includeSublabels !== undefined ||
+      data.timeOfDay !== undefined ||
+      data.dayOfWeek !== undefined,
+    {
+      message:
+        "At least one of provider, labelFilter, labelName, frequency, enabled, includeSublabels, timeOfDay, dayOfWeek must be provided",
+    },
+  );
 
 /** Schema for triggering an email scan */
 export const emailScanRequestSchema = z.object({
@@ -522,6 +667,15 @@ export const emailScanRequestSchema = z.object({
    * picker on the scan dialog.
    */
   provider: z.enum(["google", "microsoft"]).optional(),
+  /**
+   * When true and `labelFilter` is set, widens the scan to include
+   * descendants of the picked label / folder (Gmail "Travel" also
+   * catches "Travel/Hotels", "Travel/Flights/Confirmed"; Outlook
+   * folder paths follow the same shape). The server expands the
+   * filter via `connector.listLabels()` at request time. No effect
+   * when `labelFilter` is unset.
+   */
+  includeSublabels: z.boolean().optional(),
 });
 
 export const APPLY_ACTIONS = ["create", "merge", "replace"] as const;
@@ -570,5 +724,8 @@ export type CreateShareRuleInput = z.infer<typeof createShareRuleSchema>;
 export type UpdateShareRuleInput = z.infer<typeof updateShareRuleSchema>;
 export type EmailScanRequest = z.infer<typeof emailScanRequestSchema>;
 export type HtmlImportRequest = z.infer<typeof htmlImportRequestSchema>;
+export type ImportSharedRequest = z.infer<typeof importSharedRequestSchema>;
 export type ApplyParsedSegmentsInput = z.infer<typeof applyParsedSegmentsSchema>;
 export type XlsxImportRequest = z.infer<typeof xlsxImportRequestSchema>;
+export type CreateEmailScanScheduleInput = z.infer<typeof createEmailScanScheduleSchema>;
+export type UpdateEmailScanScheduleInput = z.infer<typeof updateEmailScanScheduleSchema>;

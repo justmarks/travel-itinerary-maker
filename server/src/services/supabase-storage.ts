@@ -18,9 +18,11 @@
  * Days themselves are derived from `start_date..end_date` plus the
  * trip's `day_cities` jsonb. `dayOfWeek` is computed from the date.
  */
-import { eq, and, inArray, desc, asc } from "drizzle-orm";
+import { eq, and, inArray, desc, asc, lt } from "drizzle-orm";
 import {
   CURRENT_TRIP_SCHEMA_VERSION,
+  type EmailScanRun,
+  type EmailScanSchedule,
   type Trip,
   type TripDay,
   type TripShare,
@@ -41,6 +43,8 @@ import {
   shareRules as shareRulesTable,
   processedEmails as processedEmailsTable,
   userSettings as settingsTable,
+  emailScanSchedules as emailScanSchedulesTable,
+  emailScanRuns as emailScanRunsTable,
 } from "../db/schema";
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -405,6 +409,139 @@ export class SupabaseStorage implements StorageProvider {
     return result.length > 0;
   }
 
+  async listEmailScanSchedules(): Promise<EmailScanSchedule[]> {
+    const rows = await this.db
+      .select()
+      .from(emailScanSchedulesTable)
+      .where(eq(emailScanSchedulesTable.userId, this.userId))
+      .orderBy(asc(emailScanSchedulesTable.createdAt));
+    return rows.map(scheduleFromRow);
+  }
+
+  async getEmailScanSchedule(id: string): Promise<EmailScanSchedule | null> {
+    const rows = await this.db
+      .select()
+      .from(emailScanSchedulesTable)
+      .where(
+        and(
+          eq(emailScanSchedulesTable.id, id),
+          eq(emailScanSchedulesTable.userId, this.userId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ? scheduleFromRow(rows[0]) : null;
+  }
+
+  async saveEmailScanSchedule(schedule: EmailScanSchedule): Promise<void> {
+    // Defence in depth: the route layer scopes storage by req.userId, but
+    // reject a mismatch loudly so a future bug can't smuggle in a row owned
+    // by someone else.
+    if (schedule.userId !== this.userId) {
+      throw new Error(
+        `SupabaseStorage.saveEmailScanSchedule: userId mismatch (got ${schedule.userId}, scoped to ${this.userId})`,
+      );
+    }
+    const row = scheduleToRow(schedule);
+    await this.db
+      .insert(emailScanSchedulesTable)
+      .values(row)
+      .onConflictDoUpdate({
+        target: emailScanSchedulesTable.id,
+        set: {
+          provider: row.provider,
+          labelFilter: row.labelFilter,
+          labelName: row.labelName,
+          includeSublabels: row.includeSublabels,
+          frequency: row.frequency,
+          enabled: row.enabled,
+          timeOfDay: row.timeOfDay,
+          dayOfWeek: row.dayOfWeek,
+          lastRunAt: row.lastRunAt,
+          nextRunAt: row.nextRunAt,
+          updatedAt: row.updatedAt,
+        },
+      });
+  }
+
+  async deleteEmailScanSchedule(id: string): Promise<boolean> {
+    // Cascade FK on email_scan_runs takes care of the run history.
+    const result = await this.db
+      .delete(emailScanSchedulesTable)
+      .where(
+        and(
+          eq(emailScanSchedulesTable.id, id),
+          eq(emailScanSchedulesTable.userId, this.userId),
+        ),
+      )
+      .returning({ id: emailScanSchedulesTable.id });
+    return result.length > 0;
+  }
+
+  async listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]> {
+    // Filter by user_id as well as schedule_id so a stale id from another
+    // user's schedule can never leak runs across accounts.
+    const rows = await this.db
+      .select()
+      .from(emailScanRunsTable)
+      .where(
+        and(
+          eq(emailScanRunsTable.scheduleId, scheduleId),
+          eq(emailScanRunsTable.userId, this.userId),
+        ),
+      )
+      .orderBy(desc(emailScanRunsTable.startedAt))
+      .limit(50);
+    return rows.map(runFromRow);
+  }
+
+  async saveEmailScanRun(run: EmailScanRun): Promise<void> {
+    if (run.userId !== this.userId) {
+      throw new Error(
+        `SupabaseStorage.saveEmailScanRun: userId mismatch (got ${run.userId}, scoped to ${this.userId})`,
+      );
+    }
+    const row = runToRow(run);
+    await this.db
+      .insert(emailScanRunsTable)
+      .values(row)
+      .onConflictDoUpdate({
+        target: emailScanRunsTable.id,
+        set: {
+          finishedAt: row.finishedAt,
+          status: row.status,
+          scannedCount: row.scannedCount,
+          newCount: row.newCount,
+          errorMessage: row.errorMessage,
+        },
+      });
+    // Prune to the most recent 50 entries per schedule. Postgres doesn't
+    // have a slick "delete oldest beyond N" so we read the cutoff
+    // timestamp and delete anything older. Cheap because the schedule_id
+    // index is small.
+    const recent = await this.db
+      .select({ startedAt: emailScanRunsTable.startedAt })
+      .from(emailScanRunsTable)
+      .where(eq(emailScanRunsTable.scheduleId, run.scheduleId))
+      .orderBy(desc(emailScanRunsTable.startedAt))
+      .limit(50);
+    if (recent.length >= 50) {
+      // Cutoff is the oldest row we want to keep — anything strictly
+      // older gets dropped. Pruning is best-effort: failure here just
+      // leaves a few stale rows, which is harmless given the 50-row
+      // cap on reads (`listEmailScanRuns` uses `.limit(50)`).
+      const cutoff = recent[recent.length - 1].startedAt;
+      await this.db
+        .delete(emailScanRunsTable)
+        .where(
+          and(
+            eq(emailScanRunsTable.scheduleId, run.scheduleId),
+            lt(emailScanRunsTable.startedAt, cutoff),
+          ),
+        )
+        .catch(() => undefined);
+    }
+  }
+
   async deleteAllForUser(userId: string): Promise<void> {
     // Defence in depth: the route already constructs storage scoped to
     // `req.userId`, but reject a mismatch loudly so a future bug can't
@@ -430,11 +567,89 @@ export class SupabaseStorage implements StorageProvider {
       await tx
         .delete(processedEmailsTable)
         .where(eq(processedEmailsTable.userId, this.userId));
+      // email_scan_runs cascades via FK when its parent schedule is
+      // dropped, so we only need to delete the schedules row.
+      await tx
+        .delete(emailScanSchedulesTable)
+        .where(eq(emailScanSchedulesTable.userId, this.userId));
       await tx
         .delete(settingsTable)
         .where(eq(settingsTable.userId, this.userId));
     });
   }
+}
+
+// ---- email-scan schedule row ↔ domain conversion ----
+
+type EmailScanScheduleRow = typeof emailScanSchedulesTable.$inferSelect;
+type EmailScanScheduleInsert = typeof emailScanSchedulesTable.$inferInsert;
+type EmailScanRunRow = typeof emailScanRunsTable.$inferSelect;
+type EmailScanRunInsert = typeof emailScanRunsTable.$inferInsert;
+
+function scheduleFromRow(row: EmailScanScheduleRow): EmailScanSchedule {
+  return {
+    id: row.id,
+    userId: row.userId,
+    provider: row.provider as EmailScanSchedule["provider"],
+    labelFilter: row.labelFilter ?? undefined,
+    labelName: row.labelName ?? undefined,
+    includeSublabels: row.includeSublabels,
+    frequency: row.frequency as EmailScanSchedule["frequency"],
+    enabled: row.enabled,
+    timeOfDay: row.timeOfDay ?? undefined,
+    dayOfWeek: row.dayOfWeek ?? undefined,
+    lastRunAt: row.lastRunAt?.toISOString(),
+    nextRunAt: row.nextRunAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function scheduleToRow(s: EmailScanSchedule): EmailScanScheduleInsert {
+  return {
+    id: s.id,
+    userId: s.userId,
+    provider: s.provider,
+    labelFilter: s.labelFilter ?? null,
+    labelName: s.labelName ?? null,
+    includeSublabels: s.includeSublabels ?? false,
+    frequency: s.frequency,
+    enabled: s.enabled,
+    timeOfDay: s.timeOfDay ?? null,
+    dayOfWeek: s.dayOfWeek ?? null,
+    lastRunAt: s.lastRunAt ? new Date(s.lastRunAt) : null,
+    nextRunAt: new Date(s.nextRunAt),
+    createdAt: new Date(s.createdAt),
+    updatedAt: new Date(s.updatedAt),
+  };
+}
+
+function runFromRow(row: EmailScanRunRow): EmailScanRun {
+  return {
+    id: row.id,
+    scheduleId: row.scheduleId,
+    userId: row.userId,
+    startedAt: row.startedAt.toISOString(),
+    finishedAt: row.finishedAt?.toISOString(),
+    status: row.status as EmailScanRun["status"],
+    scannedCount: row.scannedCount,
+    newCount: row.newCount,
+    errorMessage: row.errorMessage ?? undefined,
+  };
+}
+
+function runToRow(r: EmailScanRun): EmailScanRunInsert {
+  return {
+    id: r.id,
+    scheduleId: r.scheduleId,
+    userId: r.userId,
+    startedAt: new Date(r.startedAt),
+    finishedAt: r.finishedAt ? new Date(r.finishedAt) : null,
+    status: r.status,
+    scannedCount: r.scannedCount,
+    newCount: r.newCount,
+    errorMessage: r.errorMessage ?? null,
+  };
 }
 
 // ---- row ↔ domain conversion ----

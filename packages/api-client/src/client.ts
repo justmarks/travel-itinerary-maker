@@ -20,7 +20,12 @@ import type {
   ApplyParsedSegmentsInput,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   XlsxImportRequest,
+  EmailScanSchedule,
+  EmailScanRun,
+  CreateEmailScanScheduleInput,
+  UpdateEmailScanScheduleInput,
 } from "@itinly/shared";
 
 export interface PushStatusResponse {
@@ -652,6 +657,20 @@ export class ApiClient {
     });
   }
 
+  /**
+   * POST a PWA share-target intent (title/text/url) to the server,
+   * which feeds it through the same parser as Gmail-scanned emails
+   * and returns a single EmailScanResult ready for the review UI.
+   */
+  importSharedContent(
+    input: ImportSharedRequest,
+  ): Promise<{ result: EmailScanResult }> {
+    return this.request("/emails/import-shared", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
   applyParsedSegments(
     input: ApplyParsedSegmentsInput,
   ): Promise<{
@@ -678,6 +697,41 @@ export class ApiClient {
     return this.request(`/emails/dismiss/${emailId}`, {
       method: "POST",
     });
+  }
+
+  // ─── Auto email-scan schedules ──────────────────────────
+
+  listEmailScanSchedules(): Promise<EmailScanSchedule[]> {
+    return this.request("/email-scan-schedules");
+  }
+
+  createEmailScanSchedule(
+    input: CreateEmailScanScheduleInput,
+  ): Promise<EmailScanSchedule> {
+    return this.request("/email-scan-schedules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  updateEmailScanSchedule(
+    id: string,
+    input: UpdateEmailScanScheduleInput,
+  ): Promise<EmailScanSchedule> {
+    return this.request(`/email-scan-schedules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  }
+
+  deleteEmailScanSchedule(id: string): Promise<{ status: string }> {
+    return this.request(`/email-scan-schedules/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]> {
+    return this.request(`/email-scan-schedules/${scheduleId}/runs`);
   }
 
   // ─── Export ─────────────────────────────────────────────

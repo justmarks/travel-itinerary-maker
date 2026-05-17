@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from "express";
 import {
   emailScanRequestSchema,
   htmlImportRequestSchema,
+  importSharedRequestSchema,
   applyParsedSegmentsSchema,
   generateId,
   isDateInRange,
@@ -25,6 +26,7 @@ import { recordParseFailure } from "../services/email-telemetry";
 import { reportError } from "../services/monitoring";
 import { debugEmailScan } from "../utils/debug-log";
 import { recordHistory } from "../services/trip-history";
+import { expandLabelFilters } from "../services/email-scan-label-expansion";
 import { config } from "../config/env";
 import { requireGmailAuth } from "../middleware/auth";
 import type { TokenStore } from "../services/token-store";
@@ -43,6 +45,63 @@ function parseEmailProviderQuery(req: Request): ConnectionProvider | undefined {
   const raw = req.query.provider;
   if (raw === "google" || raw === "microsoft") return raw;
   return undefined;
+}
+
+/**
+ * Reject hostnames that should never be reachable from the server's
+ * outbound fetch. The PWA share-target receiver lets an unauthenticated
+ * intent provide a URL; without this guard a malicious share could
+ * coerce us into probing internal services (SSRF). We exclude:
+ * - loopback ("localhost", explicit IPv4/IPv6 loopback ranges)
+ * - link-local + private RFC1918 IPv4 ranges
+ * - link-local + unique-local IPv6 ranges
+ * - cloud metadata services (169.254.169.254 is RFC3927 link-local
+ *   so already covered, but the well-known AWS/GCE metadata names
+ *   like `metadata.google.internal` are not — adding them explicitly).
+ *
+ * Public DNS is intentionally left alone. We're not trying to filter
+ * "bad" sites in the abuse sense — just to keep the server from
+ * accidentally reading internal-network endpoints.
+ */
+function isDisallowedShareHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host) return true;
+  if (host === "localhost" || host === "ip6-localhost" || host === "ip6-loopback") {
+    return true;
+  }
+  if (host === "metadata.google.internal" || host === "metadata.goog") {
+    return true;
+  }
+  // IPv4 dotted-quad
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const [a, b] = v4.slice(1).map((x) => parseInt(x, 10));
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 0) return true;
+    if (a === 169 && b === 254) return true; // link-local + AWS metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a >= 224) return true; // multicast + reserved
+  }
+  // IPv6: anything starting with fc/fd (ULA), fe8/fe9/fea/feb (link-local),
+  // ::1 (loopback), :: (unspecified). Crude but sufficient — the URL
+  // parser strips the surrounding brackets above so the prefix check
+  // runs against the raw address.
+  if (host === "::1" || host === "::" || host.startsWith("::ffff:127.")) {
+    return true;
+  }
+  if (
+    host.startsWith("fc") ||
+    host.startsWith("fd") ||
+    host.startsWith("fe8") ||
+    host.startsWith("fe9") ||
+    host.startsWith("fea") ||
+    host.startsWith("feb")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export interface EmailRoutesOptions {
@@ -114,6 +173,7 @@ function mergeSegments(
     "city", "venueName", "address", "confirmationCode", "provider",
     "carrier", "routeCode", "departureCity", "arrivalCity", "phone",
     "url", "startTime", "endTime", "endDate", "breakfastIncluded", "cabinClass", "baggageInfo",
+    "shipName",
   ] as const;
   for (const field of fillFields) {
     if (!merged[field] && b[field] !== undefined) {
@@ -252,6 +312,7 @@ const COMPARABLE_FIELDS = [
   "phone",
   "endDate",
   "breakfastIncluded",
+  "shipName",
   "seatNumber",
   "cabinClass",
   "baggageInfo",
@@ -537,6 +598,7 @@ function applySegmentFields(
     "phone",
     "endDate",
     "breakfastIncluded",
+    "shipName",
     "seatNumber",
     "cabinClass",
     "baggageInfo",
@@ -655,7 +717,7 @@ const DONE_STATUSES = new Set(["mapped", "skipped"]);
  * per-segment apply minutiae) stay behind `debugEmailScan`.
  */
 function emailLogPrefix(
-  scope: "email-scan" | "email-import" | "email-apply",
+  scope: "email-scan" | "email-import" | "email-apply" | "email-share",
   userEmail: string | undefined,
   trip?: { id: string; title: string },
 ): string {
@@ -801,10 +863,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays,
         forceRescan,
         provider: preferProvider,
+        includeSublabels,
       } = parsed.data;
       const storage = getStorage(req);
       console.log(
-        `${scanPrefix} Starting scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+        `${scanPrefix} Starting scan (label=${labelFilter || "none"}${labelFilter && includeSublabels ? " +sublabels" : ""}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
       );
 
       // Load all processed email records
@@ -850,17 +913,36 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
       const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await connector.scanEmails({
+      // Expand the picked label into its descendants when the user
+      // ticked "include sub-folders / sub-labels". The per-filter cap
+      // stays at `maxResults` so a noisy sublabel can't crowd out the
+      // others; the aggregate may exceed it across the descendant set,
+      // which is fine for a user-triggered scan.
+      const labelFiltersToScan = await expandLabelFilters({
+        connector,
         labelFilter,
-        maxResults: effectiveMaxResults,
-        newerThanDays: newerThanDays ?? 365,
+        includeSublabels,
         logPrefix: scanPrefix,
       });
+      type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+      const seenRaw = new Map<string, RawEmail>();
+      for (const filter of labelFiltersToScan) {
+        const batch = await connector.scanEmails({
+          labelFilter: filter,
+          maxResults: effectiveMaxResults,
+          newerThanDays: newerThanDays ?? 365,
+          logPrefix: scanPrefix,
+        });
+        for (const e of batch) {
+          if (!seenRaw.has(e.id)) seenRaw.set(e.id, e);
+        }
+      }
+      const rawEmails = Array.from(seenRaw.values());
 
       console.log(
-        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"}${labelFilter && includeSublabels ? `, expanded to ${labelFiltersToScan.length} filter(s)` : ""})`,
       );
-      if (rawEmails.length >= effectiveMaxResults) {
+      if (rawEmails.length >= effectiveMaxResults * labelFiltersToScan.length) {
         console.warn(
           `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
         );
@@ -1297,10 +1379,11 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
         newerThanDays,
         forceRescan,
         provider: preferProvider,
+        includeSublabels,
       } = parsed.data;
       const storage = getStorage(req);
       console.log(
-        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
+        `${scanPrefix} Starting stream scan (label=${labelFilter || "none"}${labelFilter && includeSublabels ? " +sublabels" : ""}, maxResults=${maxResults ?? 100}, newerThanDays=${newerThanDays ?? 365}, forceRescan=${!!forceRescan}${tripId ? `, tripId=${tripId}` : ""})`,
       );
 
       const processedEmails = await storage.getProcessedEmails();
@@ -1335,18 +1418,36 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
       }
       const { connector, provider: emailProvider, accountEmail } = resolved;
       const effectiveMaxResults = maxResults ?? 100;
-      const rawEmails = await connector.scanEmails({
+      // Expand the picked label into its descendants when the user
+      // ticked "include sub-folders / sub-labels". The per-filter cap
+      // stays at `maxResults`; aggregate may exceed it across the
+      // descendant set. See helper for the failure-fallback semantics.
+      const labelFiltersToScan = await expandLabelFilters({
+        connector,
         labelFilter,
-        maxResults: effectiveMaxResults,
-        newerThanDays: newerThanDays ?? 365,
+        includeSublabels,
         logPrefix: scanPrefix,
       });
+      type RawEmail = Awaited<ReturnType<typeof connector.scanEmails>>[number];
+      const seenRaw = new Map<string, RawEmail>();
+      for (const filter of labelFiltersToScan) {
+        const batch = await connector.scanEmails({
+          labelFilter: filter,
+          maxResults: effectiveMaxResults,
+          newerThanDays: newerThanDays ?? 365,
+          logPrefix: scanPrefix,
+        });
+        for (const e of batch) {
+          if (!seenRaw.has(e.id)) seenRaw.set(e.id, e);
+        }
+      }
+      const rawEmails = Array.from(seenRaw.values());
 
       console.log(
-        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"})`,
+        `${scanPrefix} mailbox returned ${rawEmails.length} email(s) (maxResults=${effectiveMaxResults}, labelFilter=${labelFilter || "none"}${labelFilter && includeSublabels ? `, expanded to ${labelFiltersToScan.length} filter(s)` : ""})`,
       );
       emit("found", { total: rawEmails.length });
-      if (rawEmails.length >= effectiveMaxResults) {
+      if (rawEmails.length >= effectiveMaxResults * labelFiltersToScan.length) {
         console.warn(
           `${scanPrefix} NOTE: hit the maxResults cap (${effectiveMaxResults}). Older matching emails may be missing — consider increasing maxResults or narrowing with a labelFilter.`,
         );
@@ -1906,6 +2007,312 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
   });
 
   /**
+   * POST /emails/import-shared
+   *
+   * Receiver for the PWA "Send to itinly" share target. The mobile
+   * share page at /m/share collects whatever the OS share intent
+   * passed along (title, text, url) and POSTs it here. The body must
+   * include at least one of `text` or `url`; a bare `title` is
+   * rejected by the schema since there's nothing to parse.
+   *
+   * Pipeline mirrors /emails/import-html — feed the content through
+   * `EmailParser`, match parsed segments to trips, persist a synthetic
+   * processed-email record so /emails/apply and /emails/dismiss work
+   * unchanged — so the share flow lands the user in the exact same
+   * review UI as the email scan and HTML import paths.
+   */
+  router.post("/import-shared", async (req: Request, res: Response) => {
+    const sharePrefix = emailLogPrefix("email-share", req.userEmail);
+    try {
+      const parsed = importSharedRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: parsed.error.issues });
+        return;
+      }
+
+      if (!config.anthropic.apiKey) {
+        res.status(500).json({ error: "Anthropic API key not configured" });
+        return;
+      }
+
+      const { title, text, url, tripId } = parsed.data;
+      const storage = getStorage(req);
+      const isUrlShare = Boolean(url);
+      const sourceLabel = isUrlShare ? "URL" : "text";
+      const sourceLength = isUrlShare ? url!.length : text!.length;
+      console.log(
+        `${sharePrefix} Importing shared ${sourceLabel} "${title ?? "(no title)"}" (${sourceLength} chars${tripId ? `, tripId=${tripId}` : ""})`,
+      );
+
+      const parser = new EmailParser({ apiKey: config.anthropic.apiKey });
+      const nowIso = new Date().toISOString();
+      let body = "";
+      let effectiveSubject = title || "";
+      // `from` is informational only — the parser uses it to anchor
+      // sender-specific heuristics. For shared content we don't have a
+      // real sender, so we tag the source instead so it's recognisable
+      // in the review UI ("From: Shared from web").
+      let effectiveFrom = isUrlShare ? "(Shared link)" : "(Shared text)";
+      let segments: ParsedSegment[] = [];
+      let invalidCount = 0;
+      let rawItemCount = 0;
+
+      try {
+        if (isUrlShare) {
+          // Server-side fetch of the shared URL so the parser sees the
+          // actual page content. Strict guards: http(s) only, 10s
+          // timeout, 1 MB cap, text/html-ish content-type, no redirects
+          // to private/loopback hosts. The fetch happens from the
+          // server's network egress — never trust an arbitrary URL to
+          // be safe to probe, so we filter the hostname before issuing
+          // any request.
+          let parsedUrl: URL;
+          try {
+            parsedUrl = new URL(url!);
+          } catch {
+            res.status(400).json({ error: "Invalid URL" });
+            return;
+          }
+          if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+            res.status(400).json({ error: "Only http(s) URLs are allowed" });
+            return;
+          }
+          if (isDisallowedShareHost(parsedUrl.hostname)) {
+            res.status(400).json({
+              error: "URLs pointing to private or loopback addresses are not allowed",
+            });
+            return;
+          }
+
+          let pageHtml: string;
+          let receivedAt = nowIso;
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10_000);
+            const fetched = await fetch(parsedUrl.toString(), {
+              method: "GET",
+              redirect: "follow",
+              signal: controller.signal,
+              // Some booking sites block the default Node fetch UA. A
+              // browser-shaped UA gets the same HTML a human would see.
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (compatible; ItinlyShareBot/1.0; +https://itinly.app)",
+                Accept: "text/html,application/xhtml+xml",
+              },
+            }).finally(() => clearTimeout(timeout));
+
+            if (!fetched.ok) {
+              res.status(400).json({
+                error: `Couldn't fetch the shared URL (HTTP ${fetched.status}).`,
+              });
+              return;
+            }
+            const contentType = fetched.headers.get("content-type") || "";
+            if (
+              !contentType.includes("text/html") &&
+              !contentType.includes("application/xhtml") &&
+              !contentType.includes("text/plain")
+            ) {
+              res.status(400).json({
+                error: `The shared URL returned ${contentType || "an unsupported content type"}. Only HTML pages are supported.`,
+              });
+              return;
+            }
+            // 1 MB cap — most booking confirmation pages are well under
+            // this. Truncate rather than reject so a heavy page with the
+            // confirmation in the first 1 MB still parses.
+            const buf = await fetched.arrayBuffer();
+            const cap = 1024 * 1024;
+            const slice = buf.byteLength > cap ? buf.slice(0, cap) : buf;
+            pageHtml = new TextDecoder("utf-8", { fatal: false }).decode(slice);
+            // If the server returned a Last-Modified or Date header,
+            // prefer that as the year-inference anchor — otherwise fall
+            // back to the current time.
+            const lastModified = fetched.headers.get("last-modified");
+            if (lastModified) {
+              const dt = new Date(lastModified);
+              if (!isNaN(dt.getTime())) receivedAt = dt.toISOString();
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            res.status(400).json({
+              error: `Couldn't fetch the shared URL: ${msg}`,
+            });
+            return;
+          }
+
+          // Build a parser-friendly subject if the share didn't include
+          // one — the parsed page's <title> would be nicer, but htmlToText
+          // strips it; the URL itself is acceptable signal.
+          effectiveSubject = title?.trim() || parsedUrl.hostname;
+          effectiveFrom = `(Shared from ${parsedUrl.hostname})`;
+          const result = await parser.parseHtml({
+            html: pageHtml,
+            subject: effectiveSubject,
+            from: effectiveFrom,
+            receivedAt,
+          });
+          segments = result.segments;
+          invalidCount = result.invalidCount;
+          rawItemCount = result.rawItemCount;
+        } else {
+          // Plain text share — the body is already plain text, no HTML
+          // stripping needed. parseEmail accepts a plain body directly.
+          effectiveSubject = title?.trim() || "(Shared text)";
+          const result = await parser.parseEmail({
+            subject: effectiveSubject,
+            from: effectiveFrom,
+            body: text!,
+            receivedAt: nowIso,
+          });
+          segments = result.segments;
+          invalidCount = result.invalidCount;
+          rawItemCount = result.rawItemCount;
+        }
+      } catch (err: unknown) {
+        // Same Anthropic error mapping as the import-html route so the
+        // UI surfaces a useful message for billing / auth / overload.
+        const errMsg = err instanceof Error ? err.message : String(err);
+        const errObj = err as Record<string, unknown>;
+        const errStatus = typeof errObj.status === "number" ? errObj.status : 0;
+        const errType = typeof errObj.type === "string" ? errObj.type : "";
+        const isBillingError =
+          errMsg.includes("credit balance") ||
+          errMsg.includes("billing") ||
+          errMsg.includes("too low") ||
+          (errStatus === 400 && errMsg.includes("credit"));
+        const isAuthError =
+          errStatus === 401 ||
+          errMsg.includes("authentication") ||
+          errMsg.includes("invalid x-api-key") ||
+          errMsg.includes("api_key");
+        const isOverloadedError =
+          errStatus === 529 ||
+          errStatus === 503 ||
+          errStatus === 429 ||
+          errType === "overloaded_error" ||
+          errType === "rate_limit_error" ||
+          errMsg.includes("overloaded") ||
+          errMsg.includes("Overloaded") ||
+          errMsg.includes("rate_limit") ||
+          errMsg.includes("rate limit");
+
+        if (isBillingError || isAuthError || isOverloadedError) {
+          const code = isBillingError
+            ? "ANTHROPIC_BILLING"
+            : isAuthError
+              ? "ANTHROPIC_AUTH"
+              : "ANTHROPIC_OVERLOADED";
+          const userMessage = isBillingError
+            ? "The AI service (Anthropic) requires additional credits. Please check your billing at console.anthropic.com."
+            : isAuthError
+              ? "The AI service API key is invalid or expired. Please update ANTHROPIC_API_KEY."
+              : "The AI service is temporarily overloaded. Please try sharing again in a few minutes.";
+          const httpStatus = isBillingError ? 402 : isAuthError ? 401 : 503;
+          res.status(httpStatus).json({ error: userMessage, code });
+          return;
+        }
+
+        console.error(`${sharePrefix} POST /emails/import-shared parser error:`, err);
+        recordParseFailure({
+          outcome: "exception",
+          source: isUrlShare ? "share_url" : "share_text",
+          subject: effectiveSubject,
+          from: effectiveFrom,
+          errorMessage: errMsg,
+        });
+        reportError(err, { source: isUrlShare ? "share_url" : "share_text" });
+        res.status(500).json({ error: errMsg || "Share import failed" });
+        return;
+      }
+
+      const trips = await storage.listTrips();
+      const tripsById = new Map(trips.map((t) => [t.id, t]));
+      const matchedSegments = segments.map((seg) => {
+        const matchingTrip = pickMatchingTrip(seg.date, tripId, trips, tripsById);
+        if (!matchingTrip) {
+          return { ...seg, match: { status: "new" as const } };
+        }
+        const match = matchParsedAgainstTrip(seg, matchingTrip);
+        return { ...seg, suggestedTripId: matchingTrip.id, match };
+      });
+
+      const hasTravel = matchedSegments.length > 0;
+      const validationFailedEverything =
+        !hasTravel && rawItemCount > 0 && invalidCount > 0;
+
+      const emailId = `share-import-${Date.now()}-${generateId()}`;
+      const result: EmailScanResult = {
+        emailId,
+        subject: effectiveSubject || "(Shared content)",
+        from: effectiveFrom,
+        receivedAt: nowIso,
+        parsedSegments: matchedSegments,
+        parseStatus: hasTravel
+          ? "success"
+          : validationFailedEverything
+            ? "failed"
+            : "no_travel_content",
+        ...(validationFailedEverything
+          ? {
+              error: `Claude returned ${rawItemCount} item(s) but none passed schema validation. See server logs for details.`,
+            }
+          : {}),
+      };
+
+      if (hasTravel) {
+        const processedEmails = await storage.getProcessedEmails();
+        processedEmails.push({
+          gmailMessageId: emailId,
+          gmailThreadId: undefined,
+          subject: result.subject,
+          fromAddress: result.from,
+          receivedAt: result.receivedAt,
+          parsedType: matchedSegments[0].type,
+          parseStatus: "parsed",
+          rawParseResult: result,
+          createdAt: nowIso,
+        });
+        await storage.saveProcessedEmails(processedEmails);
+      }
+
+      console.log(
+        `${sharePrefix} Done: "${effectiveSubject || "(no title)"}" → ${segments.length} segment(s)${invalidCount > 0 ? `, ${invalidCount} invalid` : ""} (rawItems=${rawItemCount}, emailId=${emailId})`,
+      );
+
+      const telemetrySource = isUrlShare ? "share_url" : "share_text";
+      if (validationFailedEverything) {
+        recordParseFailure({
+          outcome: "failed",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      } else if (invalidCount > 0) {
+        recordParseFailure({
+          outcome: "parsed_with_invalid",
+          source: telemetrySource,
+          subject: result.subject,
+          from: result.from,
+          receivedAt: result.receivedAt,
+          rawItemCount,
+          invalidCount,
+        });
+      }
+
+      res.status(201).json({ result });
+    } catch (err) {
+      console.error(`${sharePrefix} POST /emails/import-shared error:`, err);
+      const message = err instanceof Error ? err.message : "Share import failed";
+      res.status(500).json({ error: message });
+    }
+  });
+
+  /**
    * POST /emails/apply
    * Apply selected parsed segments to trips.
    * Each segment may specify action=create|merge|replace + existingSegmentId.
@@ -2069,6 +2476,7 @@ export function createEmailRoutes(options: EmailRoutesOptions): Router {
             phone: seg.phone,
             endDate: seg.endDate,
             portsOfCall: seg.portsOfCall,
+            shipName: seg.shipName,
             breakfastIncluded: seg.breakfastIncluded,
             cost: seg.cost,
             source: "email_auto",

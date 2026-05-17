@@ -2,14 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
 import type { TripSummary } from "@itinly/api-client";
 import type { TripStatus } from "@itinly/shared";
 import { useDemoHref } from "@/lib/demo";
 import { useConfirm } from "@/lib/confirm-dialog";
+import { toastMutationError } from "@/lib/api-error";
 import { useDeleteShare, useDeleteTrip, useUpdateTrip } from "@itinly/api-client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { formatTripDateRange } from "@/lib/format-date";
 import {
   daysUntil,
   flagEmoji,
@@ -76,21 +77,6 @@ const STATUS_CYCLE: TripStatus[] = [
 function nextStatus(current: string): TripStatus {
   const idx = STATUS_CYCLE.indexOf(current as TripStatus);
   return STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
-}
-
-function formatDateRange(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const opts: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-  };
-  const startStr = s.toLocaleDateString("en-US", opts);
-  const endStr = e.toLocaleDateString("en-US", {
-    ...opts,
-    year: "numeric",
-  });
-  return `${startStr} – ${endStr}`;
 }
 
 /**
@@ -228,11 +214,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     });
     if (!ok) return;
     deleteTrip.mutate(trip.id, {
-      onError: (err) => {
-        toast.error(
-          `Couldn't delete trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
-      },
+      onError: toastMutationError("delete trip"),
     });
   };
 
@@ -252,11 +234,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
         // ensures any open detail page bounces away.
         router.push(homeHref);
       },
-      onError: (err) => {
-        toast.error(
-          `Couldn't leave trip${err instanceof Error ? `: ${err.message}` : ""}`,
-        );
-      },
+      onError: toastMutationError("leave trip"),
     });
   };
 
@@ -283,13 +261,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     if (trimmed !== trip.title) {
       updateTrip.mutate(
         { title: trimmed },
-        {
-          onError: (err) => {
-            toast.error(
-              `Couldn't rename trip${err instanceof Error ? `: ${err.message}` : ""}`,
-            );
-          },
-        },
+        { onError: toastMutationError("rename trip") },
       );
     }
   };
@@ -302,13 +274,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
     if (!canEdit) return;
     updateTrip.mutate(
       { status: nextStatus(trip.status) },
-      {
-        onError: (err) => {
-          toast.error(
-            `Couldn't update status${err instanceof Error ? `: ${err.message}` : ""}`,
-          );
-        },
-      },
+      { onError: toastMutationError("update status") },
     );
   };
 
@@ -329,7 +295,8 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+                aria-label="Trip actions"
+                className="absolute right-1.5 top-1.5 z-10 h-8 w-8 bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
@@ -415,6 +382,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             type="submit"
             variant="ghost"
             size="icon"
+            aria-label="Save trip name"
             className="h-7 w-7 shrink-0"
             disabled={!newTitle.trim() || updateTrip.isPending}
           >
@@ -424,6 +392,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
             type="button"
             variant="ghost"
             size="icon"
+            aria-label="Cancel rename"
             className="h-7 w-7 shrink-0"
             onClick={() => {
               setNewTitle(trip.title);
@@ -437,7 +406,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
       <CardContent className="mt-auto space-y-2">
         <CardDescription className="flex items-center gap-1">
           <Calendar className="h-3.5 w-3.5" />
-          {formatDateRange(trip.startDate, trip.endDate)}
+          {formatTripDateRange(trip.startDate, trip.endDate)}
         </CardDescription>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <Badge asChild variant="secondary" className="relative z-10 p-0">
@@ -466,7 +435,7 @@ export function TripCard({ trip }: { trip: TripSummary }): React.JSX.Element {
           </span>
           {trip.todoCount > 0 && (
             <span className="text-sm text-muted-foreground">
-              {trip.todoCount} {trip.todoCount === 1 ? "todo" : "todos"}
+              {trip.todoCount} {trip.todoCount === 1 ? "to-do" : "to-dos"}
             </span>
           )}
         </div>

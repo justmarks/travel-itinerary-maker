@@ -341,6 +341,98 @@ export const pushSubscriptions = pgTable(
 // provider or via DELETE /connections/:id) → garbage-collected later.
 // Soft-delete rather than hard so audit trails / re-auth UX know an
 // expired connection used to exist.
+// Phase: auto email-scan scheduler. One row per (user, provider,
+// labelFilter, frequency) — a user can have multiple schedules each
+// targeting a different inbox / folder, and the scheduler treats each
+// independently. `next_run_at` is the trigger column: the cron-tick
+// endpoint selects rows where `enabled AND next_run_at <= now()`,
+// runs the underlying email scan, then bumps `last_run_at` and
+// `next_run_at` (`now() + frequency`).
+//
+// Indexes:
+//  - `email_scan_schedules_user_idx` for the settings UI's
+//    `listForUser` query.
+//  - `email_scan_schedules_due_idx` is the cron-tick hot path —
+//    composite on `(enabled, next_run_at)` so Postgres can do a
+//    single index scan and skip disabled rows.
+//
+// RLS: Both this table and `email_scan_runs` have row-level security
+// enabled in migration 0004 with an owner-only policy
+// (`auth.uid()::text = user_id`). The server connects as `postgres`
+// which has BYPASSRLS, so server reads / writes are unaffected; the
+// policies exist to gate the Supabase-managed PostgREST endpoint
+// against the browser-shipped anon key. **Any new user-scoped table
+// must do the same** — ideally enable RLS in the same migration
+// that creates the table. See `drizzle/0004_email_scan_rls.sql` for
+// the pattern.
+export const emailScanSchedules = pgTable(
+  "email_scan_schedules",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    provider: text("provider").notNull(), // 'google' | 'microsoft'
+    labelFilter: text("label_filter"), // gmail label id or outlook folder id
+    labelName: text("label_name"), // cached human-readable label for the UI
+    frequency: text("frequency").notNull(), // 'daily' | 'weekly'
+    enabled: boolean("enabled").notNull().default(true),
+    // When true, the schedule scans descendants of `label_filter` too
+    // (e.g. "Travel" → also "Travel/Hotels", "Travel/Flights/Confirmed").
+    // The executor expands the filter at run time by walking the
+    // connector's `listLabels()` and finding entries with name prefix
+    // `<parent>/`. No effect when `label_filter` is null — the scan
+    // already covers everything in that case.
+    includeSublabels: boolean("include_sublabels").notNull().default(false),
+    // UTC clock time the scan should target, "HH:MM" 24h. Nullable to
+    // preserve the legacy flat-bump behaviour for schedules created
+    // before this column existed.
+    timeOfDay: text("time_of_day"),
+    // UTC day-of-week (0 = Sunday, …, 6 = Saturday). Only meaningful
+    // for the weekly cadence. Editor UI converts together with
+    // `time_of_day` so a late-evening local pick that crosses midnight
+    // UTC lands on the correct day.
+    dayOfWeek: integer("day_of_week"),
+    lastRunAt: timestamp("last_run_at", { withTimezone: true }),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("email_scan_schedules_user_idx").on(t.userId),
+    index("email_scan_schedules_due_idx").on(t.enabled, t.nextRunAt),
+  ],
+);
+
+// One row per execution of a schedule. Capped to the last 50 per
+// schedule at write time so the settings UI's "Recent runs" panel
+// stays cheap and table growth is bounded. Cascade-delete with the
+// parent schedule.
+export const emailScanRuns = pgTable(
+  "email_scan_runs",
+  {
+    id: text("id").primaryKey(),
+    scheduleId: text("schedule_id")
+      .notNull()
+      .references(() => emailScanSchedules.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    status: text("status").notNull(), // 'running' | 'succeeded' | 'failed'
+    scannedCount: integer("scanned_count").notNull().default(0),
+    newCount: integer("new_count").notNull().default(0),
+    errorMessage: text("error_message"),
+  },
+  (t) => [
+    // Newest-run-first within a schedule is the only access pattern.
+    index("email_scan_runs_schedule_idx").on(t.scheduleId, t.startedAt),
+  ],
+);
+
 export const connections = pgTable(
   "connections",
   {

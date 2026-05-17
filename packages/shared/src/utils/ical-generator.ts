@@ -76,10 +76,27 @@ function dtstamp(): string {
 
 // ─── Time helpers (mirrors google-calendar.ts) ────────────────────────────────
 
-function addHoursToTime(time: string, hours: number): string {
+function addHoursToTime(
+  time: string,
+  hours: number,
+): { time: string; dayOffset: number } {
   const [h, m] = time.split(":").map(Number);
   const total = h * 60 + (m ?? 0) + hours * 60;
-  return `${String(Math.min(Math.floor(total / 60), 23)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  // Wrap across midnight rather than clamping at 23:59. The previous
+  // Math.min(…, 23) silently truncated late-evening defaults — a
+  // 22:30 flight + 2h default duration produced an end of "23:30"
+  // (clamped) instead of "00:30 next day", so the iCal event ended
+  // mid-evening and clipped the back half of the flight off the
+  // user's calendar. Return the day offset so the caller can advance
+  // the date when needed.
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
+  const dayOffset = Math.floor(total / (24 * 60));
+  const wrappedH = Math.floor(wrapped / 60);
+  const wrappedM = wrapped % 60;
+  return {
+    time: `${String(wrappedH).padStart(2, "0")}:${String(wrappedM).padStart(2, "0")}`,
+    dayOffset,
+  };
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -319,7 +336,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", arrDate, segment.endTime, endTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), startTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, startTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }
@@ -337,26 +357,68 @@ function segmentToVEvent(
     }
 
     case "car_rental": {
-      const venue = segment.venueName ?? segment.title;
-      summary = `${label}: ${venue}`;
-      if (segment.address) descParts.push(segment.address);
-      if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
-      location = segment.address ?? segment.city ?? day.city;
+      // Title shape mirrors the Google / Outlook calendar export: prefer
+      // "<Provider> - <Pickup city>" (the auto-title format the editor
+      // produces) and fall back to whatever the segment is titled.
+      const provider = (segment.provider ?? "").trim();
+      const pickup = (segment.departureCity ?? "").trim();
+      summary =
+        provider && pickup
+          ? `${provider} - ${pickup}`
+          : segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
+      if (segment.confirmationCode) {
+        descParts.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      const pickupParts: string[] = [];
+      if (pickup) pickupParts.push(pickup);
+      pickupParts.push(day.date);
+      if (segment.startTime) pickupParts.push(segment.startTime);
+      descParts.push(`Pickup: ${pickupParts.join(", ")}`);
+      const dropoff = (segment.arrivalCity ?? "").trim();
+      const dropoffDate = segment.endDate ?? day.date;
+      const dropoffParts: string[] = [];
+      if (dropoff) dropoffParts.push(dropoff);
+      dropoffParts.push(dropoffDate);
+      if (segment.endTime) dropoffParts.push(segment.endTime);
+      descParts.push(`Dropoff: ${dropoffParts.join(", ")}`);
+      if (segment.cost?.details) descParts.push(segment.cost.details);
+      location = segment.address ?? pickup ?? segment.city ?? day.city;
       dtStart = dtProp("DTSTART", day.date);
-      dtEnd = dtProp("DTEND", segment.endDate ?? addDays(day.date, 1));
+      // DTEND on an all-day VEVENT is exclusive — add one day so the
+      // visible span runs through the dropoff date inclusive.
+      dtEnd = dtProp("DTEND", addDays(segment.endDate ?? day.date, 1));
       break;
     }
 
     case "cruise": {
-      const venue = segment.venueName ?? segment.title;
-      summary = `${label}: ${venue}`;
-      const route = [segment.departureCity, segment.arrivalCity]
-        .filter(Boolean)
-        .join(" → ");
-      if (route) descParts.push(route);
-      if (segment.address) descParts.push(segment.address);
-      if (segment.confirmationCode) descParts.push(`Confirmation: ${segment.confirmationCode}`);
-      location = segment.address ?? segment.city ?? day.city;
+      // Title shape: ship name. Falls back to existing title for cruise
+      // segments that pre-date the dedicated `shipName` field.
+      const ship = (segment.shipName ?? "").trim();
+      summary = ship || segment.title || `${label}: ${segment.venueName ?? ""}`.trim();
+      if (segment.confirmationCode) {
+        descParts.push(`Confirmation: ${segment.confirmationCode}`);
+      }
+      if (segment.portsOfCall && segment.portsOfCall.length > 0) {
+        descParts.push("Ports of call:");
+        for (const port of segment.portsOfCall) {
+          if (port.atSea) {
+            descParts.push(`  ${port.date} — At sea`);
+            continue;
+          }
+          const times: string[] = [];
+          if (port.arrivalTime) times.push(`arr ${port.arrivalTime}`);
+          if (port.departureTime) times.push(`dep ${port.departureTime}`);
+          const timeSuffix = times.length ? ` (${times.join(", ")})` : "";
+          descParts.push(`  ${port.date} — ${port.port ?? "Port TBD"}${timeSuffix}`);
+        }
+      } else {
+        const route = [segment.departureCity, segment.arrivalCity]
+          .filter(Boolean)
+          .join(" → ");
+        if (route) descParts.push(route);
+      }
+      location =
+        segment.departureCity ?? segment.address ?? segment.city ?? day.city;
       if (segment.endDate) {
         dtStart = dtProp("DTSTART", day.date, segment.startTime, startTz);
         dtEnd = dtProp("DTEND", segment.endDate, segment.endTime, endTz);
@@ -365,7 +427,10 @@ function segmentToVEvent(
         dtEnd = segment.endTime
           ? dtProp("DTEND", day.date, segment.endTime, localTz)
           : segment.startTime
-            ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), localTz)
+            ? (() => {
+                const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+                return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+              })()
             : dtProp("DTEND", addDays(day.date, 1));
       }
       break;
@@ -387,7 +452,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 2), localTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 2);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }
@@ -406,7 +474,10 @@ function segmentToVEvent(
       dtEnd = segment.endTime
         ? dtProp("DTEND", day.date, segment.endTime, localTz)
         : segment.startTime
-          ? dtProp("DTEND", day.date, addHoursToTime(segment.startTime, 1), localTz)
+          ? (() => {
+              const { time, dayOffset } = addHoursToTime(segment.startTime, 1);
+              return dtProp("DTEND", addDays(day.date, dayOffset), time, localTz);
+            })()
           : dtProp("DTEND", addDays(day.date, 1));
       break;
     }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useDeleteShare, useTrips } from "@itinly/api-client";
 import type { TripSummary } from "@itinly/api-client";
@@ -35,6 +35,7 @@ import { MobileUserMenu } from "@/components/mobile/mobile-user-menu";
 import { MobileCreateTripSheet } from "@/components/mobile/mobile-create-trip-sheet";
 import { MobileEmailScanSheet } from "@/components/mobile/mobile-email-scan-sheet";
 import { MobileAutoShareSheet } from "@/components/mobile/mobile-auto-share-sheet";
+import { AutoScanBanner } from "@/components/auto-scan-banner";
 import {
   MobileTripRowSkeleton,
   StillLoadingHint,
@@ -53,15 +54,27 @@ import {
   todayLocalISO,
   type TripBucket,
 } from "@/lib/trip-buckets";
+import { formatTripDateRange } from "@/lib/format-date";
 
-function fmtRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  const yr = new Date(end + "T00:00:00").getFullYear();
-  return `${fmt(start)} – ${fmt(end)}, ${yr}`;
+/**
+ * Map each trip status to a `--status-*` token. Mirrors the same
+ * mapping in `trip-card.tsx` so the mobile row's status chip uses
+ * the same palette the desktop card's chip uses.
+ */
+const STATUS_TOKEN: Record<string, "info" | "ok" | "muted" | "danger"> = {
+  planning:  "info",
+  active:    "ok",
+  completed: "muted",
+  cancelled: "danger",
+};
+
+function statusChipStyle(status: string): React.CSSProperties {
+  const t = STATUS_TOKEN[status] ?? "muted";
+  return {
+    backgroundColor: `var(--status-${t}-bg)`,
+    color: `var(--status-${t}-fg)`,
+  };
 }
-
 
 /**
  * Hero band rendered above every mobile TripRow. Mirrors the desktop
@@ -76,8 +89,11 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
   const gradient = gradientFor(seed);
   const delta = daysUntil(trip.startDate);
   const showCountdown = delta > 0 && delta <= 60 && trip.status !== "cancelled";
-  const countdownLabel =
-    delta === 1 ? "Tomorrow" : showCountdown ? `In ${delta} days` : null;
+  const countdownLabel = showCountdown
+    ? delta === 1
+      ? "Tomorrow"
+      : `In ${delta} days`
+    : null;
 
   return (
     <div
@@ -120,7 +136,7 @@ function MobileTripHero({ trip }: { trip: TripSummary }) {
           style={{ top: countdownLabel ? "2.25rem" : "0.5rem" }}
         >
           <Users className="h-3 w-3" />
-          {trip.sharedPermission === "edit" ? "Editor" : "Shared"}
+          {trip.sharedPermission === "edit" ? "Shared · Editor" : "Shared · Viewer"}
         </span>
       )}
       <div className="absolute bottom-2 left-3 right-3 flex items-end gap-2 text-white">
@@ -151,6 +167,7 @@ function MobileTripCardLeaveMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(trip.id);
+  const isDemo = useDemoMode();
 
   if (!trip.sharedShareId) return null;
 
@@ -166,7 +183,7 @@ function MobileTripCardLeaveMenu({
     if (!ok) return;
     deleteShare.mutate(trip.sharedShareId, {
       onSuccess: () => {
-        router.push("/m");
+        router.push(isDemo ? "/m?demo=true" : "/m");
       },
       onError: toastMutationError("leave trip"),
     });
@@ -187,7 +204,7 @@ function MobileTripCardLeaveMenu({
           <button
             type="button"
             aria-label="More trip actions"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-zinc-900 shadow-sm backdrop-blur-sm hover:bg-white dark:bg-zinc-900/85 dark:text-zinc-100 dark:hover:bg-zinc-900"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -230,11 +247,15 @@ function TripRow({
       <div className="flex flex-col gap-1 p-3">
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
-          {fmtRange(trip.startDate, trip.endDate)}
+          {formatTripDateRange(trip.startDate, trip.endDate)}
         </p>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="capitalize">{trip.status}</span>
-          <span aria-hidden>·</span>
+          <span
+            className="inline-flex items-center rounded-full px-1.5 py-0.5 capitalize"
+            style={statusChipStyle(trip.status)}
+          >
+            {trip.status}
+          </span>
           <span>
             {trip.dayCount} {trip.dayCount === 1 ? "day" : "days"}
           </span>
@@ -312,6 +333,8 @@ function Section({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Hide" : "Show"} ${BUCKET_LABEL[bucket].toLowerCase()} trips`}
           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
         >
           {expanded ? (
@@ -465,6 +488,40 @@ function MobileHomeContent(): React.JSX.Element {
   const [createOpen, setCreateOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [autoShareOpen, setAutoShareOpen] = useState(false);
+
+  // URL deep-links into specific sheets. Two triggers today:
+  //   ?new=trip   — PWA "Create trip" shortcut from the manifest
+  //   ?review=1   — AutoScanBanner's "Review" link
+  //
+  // We use `useSearchParams()` here (rather than reading
+  // `window.location.search` once on mount) because Next's `<Link>`
+  // does a soft navigation when the destination matches the current
+  // path. The AutoScanBanner's `/m?review=1` link clicked from the
+  // banner that's rendered on `/m` is the canonical case — without
+  // observing searchParams changes, the URL updates but no
+  // component re-mounts and a mount-only effect never re-fires.
+  //
+  // The handler scrubs the params via `history.replaceState`
+  // immediately after opening the sheet so the next render sees a
+  // clean URL — that keeps the effect from re-popping the sheet if
+  // the user closes it and the searchParams haven't changed.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const wantsCreate = searchParams.get("new") === "trip";
+    const wantsReview = searchParams.get("review") === "1";
+    if (!wantsCreate && !wantsReview) return;
+    if (wantsCreate) setCreateOpen(true);
+    if (wantsReview) setScanOpen(true);
+    const cleaned = new URLSearchParams(searchParams.toString());
+    cleaned.delete("new");
+    cleaned.delete("review");
+    const qs = cleaned.toString();
+    const url =
+      window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash;
+    window.history.replaceState(null, "", url);
+  }, [searchParams]);
+
   return (
     <MobileFrame>
       <header className="sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b border-border/60 bg-background/85 px-4 py-3 backdrop-blur">
@@ -485,6 +542,7 @@ function MobileHomeContent(): React.JSX.Element {
           onAutoShare={() => setAutoShareOpen(true)}
         />
       </header>
+      <AutoScanBanner href="/m" variant="mobile" />
       <div className="flex-1 overflow-y-auto pb-6">
         <MobileTripList onCreateTrip={() => setCreateOpen(true)} />
       </div>
@@ -507,7 +565,15 @@ function MobileHomeContent(): React.JSX.Element {
 export default function MobileHomePage(): React.JSX.Element {
   return (
     <RequireAuth>
-      <MobileHomeContent />
+      {/* `MobileHomeContent` reads `useSearchParams()` to react to
+          `?new=trip` and `?review=1` deep-links — Next 15 requires the
+          consumer to be wrapped in Suspense so the static prerender
+          doesn't blow up. The fallback never visibly fires because
+          `useSearchParams` only suspends during the initial dynamic
+          render, but Next's typechecker insists. */}
+      <Suspense fallback={null}>
+        <MobileHomeContent />
+      </Suspense>
     </RequireAuth>
   );
 }

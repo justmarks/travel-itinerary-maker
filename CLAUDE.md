@@ -300,6 +300,7 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 | `DEBUG_EMAIL_SCAN` | server | Set to `1` to enable verbose per-step logs from the email-scan pipeline (Gmail fetch, parse, dedup, apply). Off by default to keep Railway logs quiet. |
 | `DEBUG_CONNECTIONS` | server | Set to `1` to enable verbose `/api/v1/connections` upsert tracing — logs `prevHadRefreshToken` / `nowHasRefreshToken` so we can tell apart "row was always tokenless" from "we clobbered a working token" without dumping the DB. Adds one extra `findByKey` per POST when enabled; off in prod. |
 | `DEBUG_CALENDAR` | server | Set to `1` to enable the `[calendar-list]` `tokeninfo` diagnostic — on Google calendar 403 scope errors, hits Google's `/tokeninfo` endpoint with the user's access token to dump the actual scopes the token carries. Off by default because the probe sends the token to an external endpoint; only enable when actively triaging a scopes-mismatch incident. |
+| `DEBUG_AUTH` | server | Set to `1` to log the auth middleware's coexistence trace — every request whose Supabase JWT validator rejects (legitimately, because the token is a legacy Google access token OR a stale JWT awaiting client refresh) emits a `[auth] supabase token not used …` line. Routine in steady state; only useful when triaging "why am I getting 401s after sign-in?" reports. Off by default so the log isn't flooded with one of these lines per request. |
 | `TRUST_PROXY_HOPS` | server | Number of reverse-proxy hops in front of Express. Defaults to `1` (single PaaS proxy — Railway / Fly / Cloud Run). Set to `0` for direct exposure (no proxy); set higher (rare) when behind a chain. Powers `app.set('trust proxy', n)` so `req.ip` resolves to the real client IP instead of the proxy's, which is critical for IP-based rate limiting on auth + share-link routes. Never set higher than the actual hop count — overshooting lets a client spoof their IP via a forged `X-Forwarded-For`. |
 | `NEXT_PUBLIC_API_URL` | apps/web | Backend base URL (default: `http://localhost:3001/api/v1`) |
 | `NEXT_PUBLIC_SENTRY_DSN` | apps/web | Sentry browser DSN. Must be `NEXT_PUBLIC_` to be embedded in the static bundle. Unset disables Sentry. |
@@ -345,6 +346,33 @@ The brand and token system is iterated on in **Claude Designer** and exported as
 1. Run `pnpx shadcn@latest add <component>` from `apps/web/` if it's a ShadCN primitive
 2. Create feature component in `apps/web/src/components/`
 3. Use `useApiClient()` + React Query hooks for data fetching
+
+**Add a new Postgres table:**
+
+When you add a new `pgTable` in `server/src/db/schema.ts` AND it stores per-user data (i.e. has a `user_id` or `owner_user_id` column), the same migration that creates the table MUST also enable RLS and add an owner-only policy. Supabase exposes every `public`-schema table through its managed PostgREST endpoint by default; without RLS, the anon key shipped in the browser bundle can read every user's rows directly from `https://<project>.supabase.co/rest/v1/<table>`. The server's `postgres` role has `BYPASSRLS` so server queries are unaffected — the policies exist solely to gate the PostgREST surface.
+
+In the migration file (alongside the `CREATE TABLE` statements). The RLS block MUST be wrapped in a `DO $$ ... END $$;` that checks for the `authenticated` role — otherwise the integration test runner (which uses a vanilla Postgres 16 container without Supabase Auth installed) fails with `role "authenticated" does not exist`:
+
+```sql
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'ALTER TABLE "<table_name>" ENABLE ROW LEVEL SECURITY';
+    EXECUTE 'DROP POLICY IF EXISTS "<table_name>_owner_rw" ON "<table_name>"';
+    EXECUTE $policy$
+      CREATE POLICY "<table_name>_owner_rw" ON "<table_name>"
+        FOR ALL
+        TO authenticated
+        USING (auth.uid()::text = user_id)
+        WITH CHECK (auth.uid()::text = user_id)
+    $policy$;
+  END IF;
+END $$;
+```
+
+The `EXECUTE` wrapping defers parsing of the `auth.uid()` reference — vanilla Postgres doesn't ship that function either, and a direct `CREATE POLICY` would fail at parse time. Inside the `IF EXISTS` branch it's only reached on Supabase environments, where both the role and function are present.
+
+Tables that are only reachable via a parent (e.g. `email_scan_runs` joining through a `schedule_id` FK to `email_scan_schedules`) still need their own RLS — denormalize a `user_id` column on the child if necessary so the policy predicate stays a simple equality check rather than a cross-table join. See `server/drizzle/0004_email_scan_rls.sql` for the canonical pattern.
 
 **Run a single test file:**
 ```bash

@@ -2,6 +2,8 @@
 
 import { useCostSummary } from "@itinly/api-client";
 import { costCategoryLabel, formatCurrency } from "@itinly/shared";
+import { AlertCircle } from "lucide-react";
+import { describeError } from "@/lib/api-error";
 
 function fmtUsd(amount: number) {
   return `$${amount.toLocaleString("en-US", {
@@ -11,7 +13,7 @@ function fmtUsd(amount: number) {
 }
 
 export function TripCosts({ tripId }: { tripId: string }): React.JSX.Element {
-  const { data, isLoading } = useCostSummary(tripId);
+  const { data, isLoading, isError, error, refetch } = useCostSummary(tripId);
 
   return (
     <div>
@@ -22,6 +24,21 @@ export function TripCosts({ tripId }: { tripId: string }): React.JSX.Element {
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-4 animate-pulse rounded bg-muted" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="flex items-start gap-3 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">Couldn&apos;t load costs.</p>
+            <p className="mt-0.5 text-xs opacity-80">{describeError(error)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="rounded-md border border-current px-2 py-0.5 text-xs font-medium hover:bg-destructive/10"
+          >
+            Retry
+          </button>
         </div>
       ) : !data || data.items.length === 0 ? (
         <p className="text-sm text-muted-foreground">No costs recorded yet.</p>

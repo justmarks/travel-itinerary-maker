@@ -29,6 +29,7 @@ import type {
   EmailScanResult,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   ApplyParsedSegmentsInput,
   XlsxImportRequest,
 } from "@itinly/shared";
@@ -256,14 +257,16 @@ const SAMPLE_TRIPS: Trip[] = [
           {
             id: "seg-8b",
             type: "car_rental",
-            title: "Car Rental · Toyota Aqua",
-            venueName: "Times Car Rental Kyoto Station",
-            city: "Kyoto",
+            title: "Times Car Rental - Kyoto",
+            provider: "Times Car Rental",
+            departureCity: "Kyoto",
+            arrivalCity: "Kyoto",
+            address: "Kyoto Station Hachijo Exit, Kyoto",
             startTime: "15:00",
             endTime: "10:00",
             endDate: "2025-04-16",
             confirmationCode: "TCR-KYO-7741",
-            cost: { amount: 180, currency: "USD", details: "3 days · compact" },
+            cost: { amount: 180.5, currency: "USD", details: "3 days · compact" },
             source: "email_confirmed",
             needsReview: false,
             sortOrder: 2,
@@ -773,7 +776,8 @@ const SAMPLE_TRIPS: Trip[] = [
           {
             id: "seg-d5",
             type: "cruise",
-            title: "Disney Fantasy — 7-Night Eastern Caribbean",
+            title: "Disney Fantasy",
+            shipName: "Disney Fantasy",
             departureCity: "Port Canaveral, FL",
             arrivalCity: "Port Canaveral, FL",
             startTime: "12:00",
@@ -2113,6 +2117,24 @@ export class MockApiClient extends ApiClient {
     });
   }
 
+  override importSharedContent(
+    _input: ImportSharedRequest,
+  ): Promise<{ result: EmailScanResult }> {
+    // Demo runs offline — the real endpoint hits Claude. Returning
+    // `no_travel_content` lets the share UI render its empty-state
+    // branch in the demo so the flow is still discoverable.
+    return Promise.resolve({
+      result: {
+        emailId: `share-import-demo-${uid()}`,
+        subject: _input.title || (_input.url ? "(Shared link)" : "(Shared text)"),
+        from: _input.url ? "(Shared from web)" : "(Shared content)",
+        receivedAt: now(),
+        parsedSegments: [],
+        parseStatus: "no_travel_content",
+      },
+    });
+  }
+
   override applyParsedSegments(
     input: ApplyParsedSegmentsInput,
   ): Promise<{ created: Array<{ tripId: string; segmentId: string; title: string }> }> {
@@ -2290,5 +2312,36 @@ export class MockApiClient extends ApiClient {
     }
     this.trips.set(tripId, trip);
     return Promise.resolve({ removed, failed: 0 });
+  }
+
+  // ─── Auto email-scan schedules (demo: not persisted, returns empty) ───
+  //
+  // Demo mode has no real mailbox to schedule scans against, so each
+  // method short-circuits to an empty / no-op response. The settings
+  // page renders the "No scheduled scans" empty state under demo,
+  // which is the right reality — the demo user has nothing to scan.
+
+  override listEmailScanSchedules() {
+    return Promise.resolve([]);
+  }
+
+  override createEmailScanSchedule() {
+    return Promise.reject(
+      new Error("Demo mode can't schedule scans — sign in with a real account."),
+    );
+  }
+
+  override updateEmailScanSchedule() {
+    return Promise.reject(
+      new Error("Demo mode can't schedule scans — sign in with a real account."),
+    );
+  }
+
+  override deleteEmailScanSchedule() {
+    return Promise.resolve({ status: "deleted" });
+  }
+
+  override listEmailScanRuns() {
+    return Promise.resolve([]);
   }
 }

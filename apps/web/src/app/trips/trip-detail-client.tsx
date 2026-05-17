@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +12,7 @@ import {
   useConfirmAllSegments,
   ApiError,
 } from "@itinly/api-client";
-import type { TripStatus } from "@itinly/shared";
+import type { Trip, TripStatus } from "@itinly/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -64,9 +64,10 @@ import {
   Trash2,
   Users,
   LogOut,
+  Loader2,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
-import { ItineraryDay } from "@/components/itinerary-day";
+import { ItineraryDay, computeOngoingStays } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
@@ -80,6 +81,7 @@ import { UserMenu } from "@/components/user-menu";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { useDemoHref } from "@/lib/demo";
 import { describeError, toastMutationError } from "@/lib/api-error";
+import { formatTripDateRange } from "@/lib/format-date";
 import { useCalendarSync } from "@/lib/use-calendar-sync";
 import {
   calendarProviderLabel,
@@ -124,12 +126,6 @@ function nextTripStatus(current: string): TripStatus {
   return TRIP_STATUS_CYCLE[(idx + 1) % TRIP_STATUS_CYCLE.length];
 }
 
-function formatDateRange(start: string, end: string) {
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
-  const fmt = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", opts);
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-
 function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(title);
@@ -149,6 +145,11 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
     }
   };
 
+  const cancelEdit = () => {
+    setValue(title);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
       <form
@@ -163,11 +164,15 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           onChange={(e) => setValue(e.target.value)}
           className="h-9 text-2xl font-bold"
           autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Escape") cancelEdit();
+          }}
         />
         <Button
           type="submit"
           variant="ghost"
           size="icon"
+          aria-label="Save trip name"
           className="h-8 w-8"
           disabled={!value.trim() || updateTrip.isPending}
         >
@@ -177,11 +182,9 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
           type="button"
           variant="ghost"
           size="icon"
+          aria-label="Cancel rename"
           className="h-8 w-8"
-          onClick={() => {
-            setValue(title);
-            setEditing(false);
-          }}
+          onClick={cancelEdit}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -195,8 +198,8 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
       className="group/title flex items-center gap-2 text-left"
       title="Rename trip"
     >
-      <h1 className="text-2xl font-bold">{title}</h1>
-      <Pencil className="h-4 w-4 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
+      <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{title}</h1>
+      <Pencil className="h-4 w-4 shrink-0 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
     </button>
   );
 }
@@ -212,23 +215,50 @@ function EditableDates({
   tripId,
   startDate,
   endDate,
+  days,
 }: {
   tripId: string;
   startDate: string;
   endDate: string;
+  /** Used to detect segments that would fall outside the new range so we
+   *  can prompt before silently destroying them. */
+  days: Trip["days"];
 }) {
   const [editing, setEditing] = useState(false);
   const [newStart, setNewStart] = useState(startDate);
   const [newEnd, setNewEnd] = useState(endDate);
   const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const updateTrip = useUpdateTrip(tripId);
+  const confirm = useConfirm();
 
   const isValid = newStart && newEnd && newStart <= newEnd;
   const hasChanges = newStart !== startDate || newEnd !== endDate;
 
-  const save = () => {
+  const save = async () => {
     if (!isValid || !hasChanges) return;
     setOverlapError(null);
+
+    // Find segments whose date falls outside the new range — shrinking
+    // the trip dates over them silently deletes them server-side, so
+    // we prompt up-front instead of taking the user's data away.
+    const orphaned = days
+      .filter((d) => d.date < newStart || d.date > newEnd)
+      .flatMap((d) => d.segments);
+
+    if (orphaned.length > 0) {
+      const preview = orphaned.slice(0, 3).map((s) => `• ${s.title}`).join("\n");
+      const more =
+        orphaned.length > 3
+          ? `\n…and ${orphaned.length - 3} more`
+          : "";
+      const ok = await confirm({
+        title: `Remove ${orphaned.length} segment${orphaned.length === 1 ? "" : "s"} outside the new dates?`,
+        description: `${preview}${more}\n\nThese segments fall outside ${newStart} – ${newEnd} and will be deleted. This cannot be undone.`,
+        confirmText: orphaned.length === 1 ? "Remove segment" : `Remove ${orphaned.length} segments`,
+        destructive: true,
+      });
+      if (!ok) return;
+    }
 
     const updates: Record<string, string> = {};
     if (newStart !== startDate) updates.startDate = newStart;
@@ -266,7 +296,7 @@ function EditableDates({
           className="flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            save();
+            void save();
           }}
         >
           <Input
@@ -277,6 +307,9 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <span className="text-sm text-muted-foreground">–</span>
           <Input
@@ -287,11 +320,15 @@ function EditableDates({
               setOverlapError(null);
             }}
             className="h-8 w-36 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") cancel();
+            }}
           />
           <Button
             type="submit"
             variant="ghost"
             size="icon"
+            aria-label="Save dates"
             className="h-7 w-7"
             disabled={!isValid || !hasChanges || updateTrip.isPending}
           >
@@ -301,6 +338,7 @@ function EditableDates({
             type="button"
             variant="ghost"
             size="icon"
+            aria-label="Cancel date edit"
             className="h-7 w-7"
             onClick={cancel}
           >
@@ -322,7 +360,7 @@ function EditableDates({
               <ul className="mt-0.5">
                 {overlapError.map((trip) => (
                   <li key={trip.id}>
-                    {trip.title} ({formatDateRange(trip.startDate, trip.endDate)})
+                    {trip.title} ({formatTripDateRange(trip.startDate, trip.endDate)})
                   </li>
                 ))}
               </ul>
@@ -340,7 +378,7 @@ function EditableDates({
       title="Edit dates"
     >
       <Calendar className="h-3.5 w-3.5" />
-      {formatDateRange(startDate, endDate)}
+      {formatTripDateRange(startDate, endDate)}
       <Pencil className="h-3 w-3 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/dates:opacity-100" />
     </button>
   );
@@ -397,6 +435,7 @@ function TripActionsMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteTrip = useDeleteTrip();
+  const homeHref = useDemoHref("/");
   const [exporting, setExporting] = useState(false);
 
   const handleDelete = async () => {
@@ -412,7 +451,7 @@ function TripActionsMenu({
         // Bounce to the dashboard so the user isn't stuck on a now-404
         // detail page. The trips list will refresh from the
         // invalidation in the mutation hook.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("delete trip"),
     });
@@ -641,6 +680,7 @@ function LeaveTripMenu({
   const router = useRouter();
   const confirm = useConfirm();
   const deleteShare = useDeleteShare(tripId);
+  const homeHref = useDemoHref("/");
 
   const handleLeave = async () => {
     const ok = await confirm({
@@ -655,7 +695,7 @@ function LeaveTripMenu({
       onSuccess: () => {
         // The trip is no longer visible to this user — bouncing to the
         // dashboard avoids a 404 the moment the next GET fires.
-        router.push("/");
+        router.push(homeHref);
       },
       onError: toastMutationError("leave trip"),
     });
@@ -732,7 +772,11 @@ function NeedsReviewBanner({
         }
         disabled={confirmAll.isPending}
       >
-        <Check className="mr-1.5 h-3.5 w-3.5" />
+        {confirmAll.isPending ? (
+          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Check className="mr-1.5 h-3.5 w-3.5" />
+        )}
         Confirm all
       </Button>
     </div>
@@ -829,7 +873,11 @@ function CalendarSyncDialogs({
           <DialogHeader>
             <DialogTitle>Choose a calendar</DialogTitle>
             <DialogDescription>
-              Select the {providerLabel}{" "}to sync this trip&apos;s events to.
+              {/* Built as a single template literal so JSX whitespace
+                  handling around the interpolated provider name can't
+                  swallow the space before "should". Earlier the rendered
+                  output was "Pick which outlook calendarshould receive…". */}
+              {`Pick which ${providerLabel} should receive this trip's events.`}
             </DialogDescription>
           </DialogHeader>
           {showProviderPicker && (
@@ -1039,6 +1087,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // empty beat in exchange — much less jarring than show-then-hide.
   const showCosts = !permission.isLoading && permission.showCosts;
   const showTodos = !permission.isLoading && permission.showTodos;
+
+  // Multi-night segments (Hotel / Car rental / Cruise) live on their
+  // check-in day in the data model — so the intervening nights would
+  // otherwise show "No activities planned." with no indication the
+  // user is still booked at that hotel. Compute a per-day overlay so
+  // each continuation day renders a slim "Still at …" banner.
+  const ongoingStaysByDate = useMemo(
+    () => (trip ? computeOngoingStays(trip) : {}),
+    [trip],
+  );
   // Build the tab list dynamically so tabs the share hides don't even
   // appear. Itinerary / Timeline / Map are always shown; Costs and
   // To-do drop out for shares with the matching toggle off.
@@ -1100,7 +1158,18 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
               </Button>
             </div>
           ) : (
-            <p className="mt-4 text-destructive">Trip not found.</p>
+            <div className="mt-8 flex flex-col items-center gap-3 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground/60" />
+              <p className="text-base font-medium">Trip not found</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                It may have been deleted, or the link could be wrong.
+              </p>
+              <Link href={homeHref}>
+                <Button variant="outline" className="mt-2">
+                  Back to all trips
+                </Button>
+              </Link>
+            </div>
           )}
         </div>
       </main>
@@ -1134,7 +1203,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 and then disappear once the real permission resolves. */}
             {!permission.isLoading && isOwner && (
               <>
-                <EmailScanDialog tripId={trip.id} triggerLabel="Scan Emails" />
+                <EmailScanDialog tripId={trip.id} triggerLabel="Scan emails" />
                 <Button
                   variant="default"
                   size="sm"
@@ -1176,9 +1245,9 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         </div>
 
         <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {isReadOnly ? (
-              <h1 className="text-2xl font-bold">{trip.title}</h1>
+              <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{trip.title}</h1>
             ) : (
               <EditableTitle tripId={trip.id} title={trip.title} />
             )}
@@ -1200,9 +1269,13 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                     },
                   )
                 }
-                disabled={updateTripStatus.isPending}
+                // Don't disable while pending — the optimistic update
+                // has already advanced the visible status, and disabling
+                // here drops any clicks the user fires before the PUT
+                // settles. Per CLAUDE.md: rapid taps should advance one
+                // step each.
                 title={`Status: ${trip.status}. Click to advance.`}
-                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80 disabled:cursor-wait"
+                className="cursor-pointer rounded-full px-2.5 py-0.5 text-xs font-medium capitalize transition-opacity hover:opacity-80"
                 style={statusChipStyle(trip.status)}
               >
                 {trip.status}
@@ -1217,18 +1290,45 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 </span>
               </span>
             )}
+            {/* Past-trip nudge: end date is in the past but the user hasn't
+                advanced the status. Surface a one-tap "Mark completed"
+                instead of leaving the trip pinned at "Planning" / "Active"
+                forever (QA bug #21). Owner-only. */}
+            {!isReadOnly &&
+              trip.endDate < getTodayIso() &&
+              (trip.status === "planning" || trip.status === "active") && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTripStatus.mutate(
+                      { status: "completed" },
+                      { onError: toastMutationError("update status") },
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    backgroundColor: "var(--status-info-bg)",
+                    color: "var(--status-info-fg)",
+                    borderColor: "var(--status-info-rail)",
+                  }}
+                  title="Mark this trip as completed"
+                >
+                  Mark completed
+                </button>
+              )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {isReadOnly ? (
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                {formatDateRange(trip.startDate, trip.endDate)}
+                {formatTripDateRange(trip.startDate, trip.endDate)}
               </span>
             ) : (
               <EditableDates
                 tripId={trip.id}
                 startDate={trip.startDate}
                 endDate={trip.endDate}
+                days={trip.days}
               />
             )}
             <span className="flex items-center gap-1.5">
@@ -1243,10 +1343,17 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         {isOwner && <NeedsReviewBanner trip={trip} />}
 
         {/* Tab navigation — hidden when printing */}
-        <div className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden">
+        <div
+          role="tablist"
+          aria-label="Trip views"
+          className="no-scrollbar mb-6 flex gap-0 overflow-x-auto border-b border-border print-hidden"
+        >
           {visibleTabs.map((tab) => (
             <button
               key={tab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors",
@@ -1282,13 +1389,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
           <div className="grid grid-cols-1 gap-8 lg:h-full lg:grid-cols-[minmax(0,1fr)_280px]">
             <div
               ref={itineraryDaysRef}
-              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pr-2 print:overflow-visible"
+              className="flex min-w-0 flex-col gap-8 lg:overflow-y-auto lg:pb-2 lg:pl-1 lg:pr-2 lg:pt-1 print:overflow-visible"
             >
               {trip.days.map((day) => (
                 <ItineraryDay
                   key={day.date}
                   day={day}
                   tripId={trip.id}
+                  tripStartDate={trip.startDate}
+                  tripEndDate={trip.endDate}
+                  ongoingStays={ongoingStaysByDate[day.date]}
                   readOnly={isReadOnly}
                   showCosts={showCosts}
                 />

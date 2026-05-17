@@ -7,6 +7,7 @@ import { EmailScanDialog } from "@/components/email-scan-dialog";
 import { HtmlImportDialog } from "@/components/html-import-dialog";
 import { XlsxImportDialog } from "@/components/xlsx-import-dialog";
 import { TripList } from "@/components/trip-list";
+import { AutoScanBanner } from "@/components/auto-scan-banner";
 import { RequireAuth } from "@/components/require-auth";
 import { UserMenu } from "@/components/user-menu";
 import { AppLogo } from "@/components/app-logo";
@@ -53,6 +54,31 @@ function CreateTripDialogFromQuery(): React.JSX.Element {
   return <CreateTripDialog defaultOpen={autoOpen} />;
 }
 
+/**
+ * Reads `?review=1` (the AutoScanBanner's "Review" link) and pops the
+ * email-scan dialog open into its review step — the dialog's internal
+ * state machine lands there when `usePendingEmails` returns parsed-
+ * but-unconfirmed rows. Strips the param after first render so a
+ * refresh / back-nav doesn't keep reopening it.
+ */
+function EmailScanDialogFromQuery(): React.JSX.Element {
+  const searchParams = useSearchParams();
+  const autoOpen = searchParams.get("review") === "1";
+
+  useEffect(() => {
+    if (!autoOpen || typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("review");
+    const qs = params.toString();
+    const url = qs
+      ? `${window.location.pathname}?${qs}`
+      : window.location.pathname;
+    window.history.replaceState(null, "", url);
+  }, [autoOpen]);
+
+  return <EmailScanDialog triggerSize="default" defaultOpen={autoOpen} />;
+}
+
 export default function Home(): React.JSX.Element {
   const [htmlImportOpen, setHtmlImportOpen] = useState(false);
   const [xlsxImportOpen, setXlsxImportOpen] = useState(false);
@@ -70,7 +96,9 @@ export default function Home(): React.JSX.Element {
               <h1 className="truncate text-2xl font-bold">My Trips</h1>
             </div>
             <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-              <EmailScanDialog triggerSize="default" />
+              <Suspense fallback={<EmailScanDialog triggerSize="default" />}>
+                <EmailScanDialogFromQuery />
+              </Suspense>
               <Suspense fallback={<CreateTripDialog />}>
                 <CreateTripDialogFromQuery />
               </Suspense>
@@ -108,6 +136,7 @@ export default function Home(): React.JSX.Element {
               <UserMenu />
             </div>
           </div>
+          <AutoScanBanner href="/" variant="desktop" />
           <TripList />
         </div>
       </main>

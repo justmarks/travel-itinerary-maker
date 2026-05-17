@@ -44,6 +44,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/lib/confirm-dialog";
 import { sortByPrimaryEmail } from "@itinly/shared";
+import { Loader2 } from "lucide-react";
 
 type LinkableProvider = "google" | "azure";
 type ConnectionsProvider = "google" | "microsoft";
@@ -99,7 +100,7 @@ function capabilityLabel(
   capability: ConnectionsCapability,
 ): string {
   if (provider === "microsoft") {
-    if (capability === "email") return "Outlook mail";
+    if (capability === "email") return "Outlook Mail";
     if (capability === "calendar") return "Outlook Calendar";
   } else {
     if (capability === "email") return "Gmail";
@@ -154,7 +155,7 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
   if (identities === null) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" />
         Loading sign-in methods…
       </div>
     );
@@ -353,7 +354,14 @@ export function ConnectedProvidersPanel(): React.JSX.Element {
                       : undefined
                   }
                 >
-                  Unlink
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Unlinking…
+                    </>
+                  ) : (
+                    "Unlink"
+                  )}
                 </Button>
               </li>
             );

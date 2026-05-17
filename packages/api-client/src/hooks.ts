@@ -24,7 +24,12 @@ import type {
   ApplyParsedSegmentsInput,
   EmailScanRequest,
   HtmlImportRequest,
+  ImportSharedRequest,
   XlsxImportRequest,
+  EmailScanSchedule,
+  EmailScanRun,
+  CreateEmailScanScheduleInput,
+  UpdateEmailScanScheduleInput,
 } from "@itinly/shared";
 import { generateId } from "@itinly/shared";
 import type {
@@ -52,6 +57,9 @@ export const queryKeys = {
   pushConfig: ["push", "config"] as const,
   pushStatus: (endpoint?: string) =>
     endpoint ? (["push", "status", endpoint] as const) : (["push", "status"] as const),
+  emailScanSchedules: ["email-scan-schedules"] as const,
+  emailScanRuns: (scheduleId: string) =>
+    ["email-scan-schedules", scheduleId, "runs"] as const,
 };
 
 // ─── Trip Queries ─────────────────────────────────────────
@@ -241,15 +249,39 @@ export function useUpdateSegment(tripId: string) {
       const prev = queryClient.getQueryData<Trip>(queryKeys.trip(tripId));
       if (prev) {
         const { segmentId, ...patch } = input;
-        queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
-          ...prev,
-          days: prev.days.map((d) => ({
-            ...d,
-            segments: d.segments.map((s) =>
-              s.id === segmentId ? { ...s, ...patch } : s,
-            ),
-          })),
-        });
+        // Find the existing segment AND the day it currently lives on
+        // so we can re-home it onto a new day when `patch.date` moves
+        // it. Without the cross-day move, an in-place .map left the
+        // segment in its old day even when the form changed its date —
+        // it briefly rendered under the wrong day until onSettled
+        // refetched. mobile-segment-form-sheet sends a `date` field
+        // through this mutation as `Record<string, unknown>` even
+        // though Partial<Segment> doesn't formally include it.
+        let existing: Segment | undefined;
+        let originalDate: string | undefined;
+        for (const d of prev.days) {
+          const found = d.segments.find((s) => s.id === segmentId);
+          if (found) {
+            existing = found;
+            originalDate = d.date;
+            break;
+          }
+        }
+        if (existing && originalDate !== undefined) {
+          const patched = { ...existing, ...patch };
+          const targetDate =
+            (patch as { date?: string }).date ?? originalDate;
+          queryClient.setQueryData<Trip>(queryKeys.trip(tripId), {
+            ...prev,
+            days: prev.days.map((d) => {
+              const without = d.segments.filter((s) => s.id !== segmentId);
+              if (d.date === targetDate) {
+                return { ...d, segments: [...without, patched] };
+              }
+              return { ...d, segments: without };
+            }),
+          });
+        }
       }
       return { prev };
     },
@@ -943,6 +975,22 @@ export function useImportHtmlEmail() {
   });
 }
 
+/**
+ * PWA "Send to itinly" share-target intent → parsed segments.
+ * Backed by POST /emails/import-shared.
+ */
+export function useImportSharedContent() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportSharedRequest) =>
+      client.importSharedContent(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
+    },
+  });
+}
+
 export function useApplyParsedSegments() {
   const client = useApiClient();
   const queryClient = useQueryClient();
@@ -972,5 +1020,72 @@ export function useDismissEmail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.processedEmails });
     },
+  });
+}
+
+// ─── Auto email-scan schedules ───────────────────────────────────
+
+export function useEmailScanSchedules(
+  options?: Omit<UseQueryOptions<EmailScanSchedule[]>, "queryKey" | "queryFn">,
+) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.emailScanSchedules,
+    queryFn: () => client.listEmailScanSchedules(),
+    ...options,
+  });
+}
+
+export function useCreateEmailScanSchedule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateEmailScanScheduleInput) =>
+      client.createEmailScanSchedule(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailScanSchedules });
+    },
+  });
+}
+
+export function useUpdateEmailScanSchedule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string;
+      input: UpdateEmailScanScheduleInput;
+    }) => client.updateEmailScanSchedule(id, input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailScanSchedules });
+    },
+  });
+}
+
+export function useDeleteEmailScanSchedule() {
+  const client = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => client.deleteEmailScanSchedule(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailScanSchedules });
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailScanRuns(id) });
+    },
+  });
+}
+
+export function useEmailScanRuns(
+  scheduleId: string,
+  options?: Omit<UseQueryOptions<EmailScanRun[]>, "queryKey" | "queryFn">,
+) {
+  const client = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.emailScanRuns(scheduleId),
+    queryFn: () => client.listEmailScanRuns(scheduleId),
+    enabled: Boolean(scheduleId),
+    ...options,
   });
 }

@@ -115,7 +115,7 @@ export function SuggestMealsDialog({
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" style={{ color: "var(--brand)" }} />
+            <Sparkles className="h-5 w-5 text-brand" />
             Suggest meals
           </DialogTitle>
           <DialogDescription>
@@ -128,7 +128,7 @@ export function SuggestMealsDialog({
         {/* Three-region layout (header / scrollable body / pinned footer)
             so the action buttons stay visible on short viewports when the
             suggestion list is long. */}
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="min-h-0 flex-1 overflow-y-auto px-1">
           {suggestions.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
               <Utensils className="mx-auto mb-2 h-6 w-6 opacity-50" />

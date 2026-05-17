@@ -1,6 +1,25 @@
 export const config = {
   port: parseInt(process.env.PORT || "3001", 10),
   nodeEnv: process.env.NODE_ENV || "development",
+  // Convenience alias used by guard logic that only differs between
+  // dev/test and prod. Mirrors `nodeEnv === "production"` so callers
+  // don't have to think about the legacy variable name.
+  env: process.env.NODE_ENV === "production" ? "production" : "development",
+  /**
+   * Cron-tick shared secret. Supabase pg_cron sends this in the
+   * `X-Cron-Secret` header on every call to
+   * `POST /email-scan-schedules/tick`; the route compares it against
+   * this value and 401s on a mismatch. When unset the tick endpoint
+   * is open in dev mode (so tests can exercise the executor without
+   * env setup) but returns 503 in production.
+   *
+   * Generate with `openssl rand -hex 32`. Configure on Railway
+   * alongside the matching value in your Supabase project's pg_cron
+   * job (see docs/auto-email-scan-setup.md).
+   */
+  cron: {
+    secret: process.env.CRON_SECRET || "",
+  },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || "",
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",

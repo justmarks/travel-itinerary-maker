@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import {
   SegmentFormFields,
   EMPTY_FORM_STATE,
@@ -25,9 +25,23 @@ import {
 export function AddSegmentDialog({
   tripId,
   date,
+  trigger,
+  tripStartDate,
+  tripEndDate,
 }: {
   tripId: string;
   date: string;
+  /**
+   * Optional replacement for the default "+ Add" button. Pass any
+   * React element (typically a `<button>` or `<Button>`) to use as the
+   * dialog trigger — useful for embedding the dialog inside an empty
+   * state where the CTA copy / layout differs from the toolbar button.
+   */
+  trigger?: React.ReactElement;
+  /** Owning trip's date range — passed through to clamp the Date / Check-out
+   *  pickers with min/max so out-of-range dates are blocked client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
 }): React.JSX.Element {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<SegmentFormState>({
@@ -101,6 +115,7 @@ export function AddSegmentDialog({
         contactName: form.contactName || undefined,
         phone: form.phone || undefined,
         breakfastIncluded: form.breakfastIncluded || undefined,
+        shipName: form.type === "cruise" && form.shipName ? form.shipName : undefined,
         cost,
       },
       {
@@ -116,10 +131,12 @@ export function AddSegmentDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
-          Add
-        </Button>
+        {trigger ?? (
+          <Button variant="outline" size="sm" className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Add
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-lg">
         <DialogHeader className="shrink-0">
@@ -164,22 +181,23 @@ export function AddSegmentDialog({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {/* `min-h-0 flex-1 overflow-y-auto`: scrolls when content
+              overflows the dialog's max-height (e.g. More options
+              expanded with many type-specific advanced rows), stays
+              static otherwise.
+
+              The earlier sticky-bottom gradient that hinted "more
+              content below" was removed when the form collapsed to a
+              short default — the hint was misleading (nothing below)
+              and the fade made the Cancel button read as faded. */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}
               idPrefix="add"
               autoFocusTitle
-            />
-            {/* Bottom-fade scroll indicator. `sticky` keeps it pinned to
-                the bottom of the visible scroll area on iPad landscape
-                so the user can see Cost / Currency / Details live below
-                URL — iOS Safari hides scrollbars, so without this the
-                form looked like it ended at URL. `-mt-6` overlaps the
-                last content row so the fade reads as "more below". */}
-            <div
-              aria-hidden
-              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
             />
           </div>
 
@@ -195,7 +213,14 @@ export function AddSegmentDialog({
               type="submit"
               disabled={!resolvedTitle || createSegment.isPending}
             >
-              {createSegment.isPending ? "Adding..." : "Add Segment"}
+              {createSegment.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Adding…
+                </>
+              ) : (
+                "Add segment"
+              )}
             </Button>
           </div>
         </form>

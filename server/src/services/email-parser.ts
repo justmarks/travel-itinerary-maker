@@ -37,6 +37,7 @@ Each item in the array must be a JSON object with these fields:
 - "partySize": total number of travelers/guests
 - "endDate": end/return date in YYYY-MM-DD format for multi-day bookings. For hotels, this is the check-out date. For car_rental, this is the dropoff date. For cruise, this is the disembarkation date.
 - "breakfastIncluded": boolean (for hotels, if mentioned)
+- "shipName": for cruises only — the name of the ship (e.g. "Symphony of the Seas", "Disney Fantasy"). Extract verbatim, without the cruise line prefix or trailing itinerary descriptors.
 - "phone": contact phone number (if available)
 - "url": booking URL (if available)
 - "cost": { "amount": number, "currency": "USD"|"EUR"|etc, "details": "description" } (if price mentioned). The "amount" MUST be a plain number with no currency symbol (e.g. 547.20, NOT "$547.20"). The "currency" must be a string like "USD", "EUR", etc. ALWAYS extract flight prices, hotel prices, car rental prices, and any other costs mentioned in the email.
@@ -48,7 +49,7 @@ IMPORTANT RULES:
   - type "car_rental", date = pickup date, startTime = pickup time, endDate = dropoff date, endTime = dropoff time. Title format: "Company - City" (e.g. "National - Lihue"). ALWAYS populate the "city" field with the pickup city (same city that appears in the title). If the pickup location is an airport, also put the airport name/code in "venueName" (e.g. "Lihue Airport (LIH)") and the city in "city". If the dropoff is in a different city, put it in "arrivalCity".
   - Car rental cost: The cost "amount" should be the BASE RENTAL RATE only — the total for the car itself BEFORE taxes, airport concession fees, vehicle license fees, customer facility charges, or any other surcharges. Do NOT include tax lines in the amount. Put the car class/type (e.g. "Midsize SUV", "Full-size") in "details". If taxes and fees are shown as a separate total, mention them briefly in "details" (e.g. "+$120 taxes & fees") but keep them out of "amount".
 - **CRUISES**: Return ONE segment spanning the full cruise:
-  - type "cruise", date = embarkation date, startTime = boarding time, endDate = disembarkation date, endTime = disembark time. Put the ship name in "title" (e.g. "Disney Fantasy — 7-Night Eastern Caribbean"). "departureCity" = embarkation port, "arrivalCity" = disembarkation port (often the same for round-trip cruises). Do NOT set "venueName", "city", "address", or "provider" on cruises — ports go in "departureCity" / "arrivalCity".
+  - type "cruise", date = embarkation date, startTime = boarding time, endDate = disembarkation date, endTime = disembark time. Put the ship name in BOTH "shipName" (e.g. "Disney Fantasy", "Symphony of the Seas") AND "title". If the email describes the itinerary distinctly (e.g. "7-Night Eastern Caribbean"), it's OK for "title" to read as a longer descriptor that includes the ship name plus the itinerary ("Disney Fantasy — 7-Night Eastern Caribbean"); "shipName" must be the bare ship name only. "departureCity" = embarkation port, "arrivalCity" = disembarkation port (often the same for round-trip cruises). Do NOT set "venueName", "city", "address", or "provider" on cruises — ports go in "departureCity" / "arrivalCity".
   - "portsOfCall": REQUIRED if the email contains a per-day itinerary / "Ports of Call" table. An ARRAY with ONE ENTRY FOR EACH DAY of the cruise (embarkation day through disembarkation day, inclusive — no gaps). Each entry: { "date": "YYYY-MM-DD", "port": "City Name", "arrivalTime"?: "HH:MM", "departureTime"?: "HH:MM", "atSea"?: true }.
     - For sea days (rows labeled "At Sea", "Cruising", "Day at Sea", etc.), set "atSea": true and OMIT "port".
     - For the embarkation day, set "port" to the embarkation port and "departureTime" to the ship's departure time; OMIT "arrivalTime".
@@ -285,18 +286,52 @@ export class EmailParser {
       fromAddr = parsed.from.text.trim();
     }
 
-    // Prefer HTML body, otherwise plain text. mailparser gives us the
-    // richest available form; we run the HTML through htmlToText so the
-    // downstream pipeline receives plain text either way.
-    let body = "";
-    if (typeof parsed.html === "string" && parsed.html.trim()) {
-      body = EmailParser.htmlToText(parsed.html);
-    } else if (typeof parsed.text === "string" && parsed.text.trim()) {
-      body = parsed.text
+    // Pick the body the parser will see. multipart/alternative emails
+    // give us BOTH a plain-text part and an HTML part — same content,
+    // different formats — and the sender intentionally curates the
+    // plain-text version to be the no-formatting fallback. For most
+    // travel confirmations that means the plain-text part reads like a
+    // receipt (hotel name + dates + reference + total on consecutive
+    // lines) while the HTML part is the marketing email surrounding
+    // the same facts with 500 KB of nested-table layout, banner
+    // images, alt text, and tracking pixels.
+    //
+    // Stripping that HTML to text leaves a noisy soup of marketing
+    // copy that buries the booking facts, which is enough to make
+    // Claude return `[]` ("no travel content"). Preferring the clean
+    // plain-text part fixes that case while staying compatible with
+    // the simple cases (plain-text-only emails, HTML-only emails).
+    //
+    // Threshold: we still fall back to HTML when the plain-text part
+    // is a stub ("If you can't see this, view in browser…") rather
+    // than a real body. 400 chars is empirically enough to catch
+    // every real travel confirmation we've seen while skipping the
+    // common stub strings.
+    const PLAIN_TEXT_PREFER_THRESHOLD = 400;
+    const normalizePlain = (s: string): string =>
+      s
         .split(/\r?\n/)
         .map((line) => line.replace(/[ \t\f\v]+/g, " ").trim())
         .filter((line) => line.length > 0)
         .join("\n");
+
+    let body = "";
+    const textBody =
+      typeof parsed.text === "string" && parsed.text.trim()
+        ? normalizePlain(parsed.text)
+        : "";
+    const hasHtml = typeof parsed.html === "string" && parsed.html.trim();
+
+    if (textBody && textBody.length >= PLAIN_TEXT_PREFER_THRESHOLD) {
+      // Real plain-text body — use it directly. Best signal-to-noise
+      // for Claude.
+      body = textBody;
+    } else if (hasHtml) {
+      // HTML-only OR stub plain-text — fall back to stripping the HTML.
+      body = EmailParser.htmlToText(parsed.html as string);
+    } else if (textBody) {
+      // Stub plain-text but no HTML either — use what we have.
+      body = textBody;
     } else if (typeof parsed.textAsHtml === "string") {
       body = EmailParser.htmlToText(parsed.textAsHtml);
     }

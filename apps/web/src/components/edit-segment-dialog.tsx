@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useUpdateSegment } from "@itinly/api-client";
+import { useDeleteSegment, useUpdateSegment } from "@itinly/api-client";
 import type { Segment, SegmentType } from "@itinly/shared";
 import { toastMutationError } from "@/lib/api-error";
+import { useConfirm } from "@/lib/confirm-dialog";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import {
   SegmentFormFields,
   getTypeFlags,
@@ -52,8 +53,12 @@ function segmentToFormState(
     contactName: segment.contactName ?? "",
     phone: segment.phone ?? "",
     breakfastIncluded: segment.breakfastIncluded ?? false,
+    shipName: segment.shipName ?? "",
     endDate: segment.endDate ?? "",
-    costAmount: segment.cost?.amount?.toString() ?? "",
+    // Force 2-decimal display so a stored 288.4 renders as 288.40 — the
+    // bare .toString() truncated trailing zeros and made costs look
+    // like typos. Input still accepts any step="0.01" value.
+    costAmount: segment.cost ? segment.cost.amount.toFixed(2) : "",
     costCurrency: segment.cost?.currency ?? "USD",
     costDetails: segment.cost?.details ?? "",
   };
@@ -63,6 +68,8 @@ export function EditSegmentDialog({
   tripId,
   segment,
   date,
+  tripStartDate,
+  tripEndDate,
   open,
   onOpenChange,
 }: {
@@ -70,6 +77,11 @@ export function EditSegmentDialog({
   segment: Segment;
   /** The date of the TripDay that currently contains this segment. */
   date: string;
+  /** Owning trip's date range — clamps Date / Check-out / Dropoff /
+   *  Disembark pickers with min/max so out-of-range dates are blocked
+   *  client-side. */
+  tripStartDate?: string;
+  tripEndDate?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): React.JSX.Element {
@@ -78,6 +90,22 @@ export function EditSegmentDialog({
   );
 
   const updateSegment = useUpdateSegment(tripId);
+  const deleteSegment = useDeleteSegment(tripId);
+  const confirm = useConfirm();
+
+  const handleDelete = async () => {
+    const ok = await confirm({
+      title: `Delete "${segment.title}"?`,
+      description: "This cannot be undone.",
+      confirmText: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    deleteSegment.mutate(segment.id, {
+      onSuccess: () => onOpenChange(false),
+      onError: toastMutationError("delete segment"),
+    });
+  };
 
   // Reset form when segment changes or dialog re-opens
   useEffect(() => {
@@ -99,14 +127,27 @@ export function EditSegmentDialog({
     e.preventDefault();
 
     const flags = getTypeFlags(form.type);
-    const cost =
-      form.costAmount && parseFloat(form.costAmount) >= 0
+    // Cost cleared → send explicit `null` so the server clears the stored
+    // cost. Sending `undefined` would be dropped by `JSON.stringify` and
+    // the segment would keep its old cost on the next read.
+    //
+    // We only send `null` when the segment ACTUALLY had a cost previously
+    // (and the user cleared it). Otherwise — adding a fresh segment with
+    // no cost, or an existing cost-less segment that still has no cost —
+    // we omit the field entirely so the patch stays minimal and the
+    // history diff doesn't note a no-op cost change.
+    const hadCost = Boolean(segment.cost);
+    const filledCost = Boolean(form.costAmount) && parseFloat(form.costAmount) >= 0;
+    const cost: { amount: number; currency: string; details?: string } | null | undefined =
+      filledCost
         ? {
             amount: parseFloat(form.costAmount),
             currency: form.costCurrency,
             details: form.costDetails || undefined,
           }
-        : undefined;
+        : hadCost
+          ? null
+          : undefined;
 
     const updates: Record<string, unknown> = {
       segmentId: segment.id,
@@ -206,6 +247,7 @@ export function EditSegmentDialog({
     if (flags.isCruise) {
       updates.endDate =
         form.endDate || defaultEndDate("cruise", form.date) || undefined;
+      updates.shipName = form.shipName || undefined;
     }
 
     // Restaurant
@@ -266,21 +308,42 @@ export function EditSegmentDialog({
           }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          {/* `min-h-0` lets the scroll area shrink within the dialog's
+              max-height so long forms (More options expanded with many
+              advanced fields) scroll cleanly. `overflow-y-auto` engages
+              only when content overflows — short forms keep their
+              natural height and the footer sits right below the last
+              row, no empty gap.
+
+              The earlier sticky-bottom gradient that hinted "more
+              content below" has been removed: now that the form
+              collapses to a short default the hint was misleading
+              (nothing below) and the overlay made the Cancel button
+              feel un-clickable. */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-1">
             <SegmentFormFields
               form={form}
               onChange={handleChange}
               idPrefix="edit"
-            />
-            {/* Bottom-fade scroll indicator —
-                see add-segment-dialog.tsx for the rationale. */}
-            <div
-              aria-hidden
-              className="sticky bottom-0 -mt-6 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none"
+              tripStartDate={tripStartDate}
+              tripEndDate={tripEndDate}
             />
           </div>
 
-          <div className="mt-4 flex shrink-0 justify-end gap-2 border-t pt-3">
+          <div className="mt-4 flex shrink-0 items-center gap-2 border-t pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              disabled={deleteSegment.isPending}
+              title="Delete segment"
+              aria-label="Delete segment"
+              className="text-destructive hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            <div className="flex-1" />
             <Button
               type="button"
               variant="outline"
@@ -295,10 +358,10 @@ export function EditSegmentDialog({
               {updateSegment.isPending ? (
                 <>
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  Saving...
+                  Saving…
                 </>
               ) : (
-                "Save Changes"
+                "Save changes"
               )}
             </Button>
           </div>

@@ -531,6 +531,58 @@ describe("Segment routes", () => {
     expect(res.body.cost.amount).toBe(1200);
   });
 
+  it("clears a previously-set cost when the client sends cost: null", async () => {
+    // Regression: the client used to send `cost: undefined` when the user
+    // cleared the cost field, which `JSON.stringify` would strip — leaving
+    // the server unaware of the change. The current contract uses `null`
+    // as the explicit "clear this field" signal.
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "hotel",
+        title: "Hotel with cost",
+        cost: { amount: 250, currency: "USD" },
+      });
+    expect(createRes.body.cost).toEqual({ amount: 250, currency: "USD" });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ cost: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body.cost).toBeUndefined();
+
+    // Re-fetch the trip to confirm the cleared cost survives storage.
+    const tripRes = await request(app).get(`/api/v1/trips/${tripId}`);
+    const seg = tripRes.body.days
+      .find((d: { date: string }) => d.date === "2025-12-19")
+      .segments.find((s: { id: string }) => s.id === createRes.body.id);
+    expect(seg.cost).toBeUndefined();
+  });
+
+  it("ignores a missing `cost` key on update (preserves existing cost)", async () => {
+    // Counterpart to the null test above — when the client doesn't send
+    // `cost` at all in the patch body, the server must NOT touch the
+    // existing cost. This is the "user edited the title but didn't open
+    // More options to look at cost" case.
+    const createRes = await request(app)
+      .post(`/api/v1/trips/${tripId}/segments`)
+      .send({
+        date: "2025-12-19",
+        type: "hotel",
+        title: "Hotel",
+        cost: { amount: 250, currency: "USD" },
+      });
+
+    const res = await request(app)
+      .put(`/api/v1/trips/${tripId}/segments/${createRes.body.id}`)
+      .send({ title: "Hotel — renamed" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.cost).toEqual({ amount: 250, currency: "USD" });
+  });
+
   it("relocates a segment to a different day when date is updated", async () => {
     const createRes = await request(app)
       .post(`/api/v1/trips/${tripId}/segments`)

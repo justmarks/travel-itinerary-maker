@@ -56,7 +56,7 @@ export function MobileUserMenu({
 
   const handleSwitchToDesktop = () => {
     setDesktopOverride();
-    router.replace("/");
+    router.replace(isDemo ? "/?demo=true" : "/");
   };
 
   // In demo mode without auth, show a sign-in shortcut.
@@ -144,7 +144,7 @@ export function MobileUserMenu({
         {onAutoShare && (
           <DropdownMenuItem onClick={onAutoShare}>
             <Repeat className="mr-2 h-4 w-4" />
-            Auto-share&hellip;
+            Auto-share…
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={handleSwitchToDesktop}>

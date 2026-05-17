@@ -85,6 +85,13 @@ export interface Segment {
   // Cruise-specific: per-day ports of call. When present, applying the
   // segment updates TripDay.city for each day in range to match the port.
   portsOfCall?: CruisePortOfCall[];
+  /**
+   * Cruise-specific: the name of the ship. Surfaced in the calendar
+   * description and the auto-generated title falls back to it when no
+   * cruise title was given. Optional — older cruise segments stored
+   * the ship name in `venueName` or `title` and still render fine.
+   */
+  shipName?: string;
   // Hotel-specific
   breakfastIncluded?: boolean;
   // Flight-specific
@@ -376,6 +383,8 @@ export interface ParsedSegment {
   phone?: string;
   endDate?: string;
   portsOfCall?: CruisePortOfCall[];
+  /** Cruise-only: name of the ship (e.g. "Disney Fantasy"). */
+  shipName?: string;
   breakfastIncluded?: boolean;
   seatNumber?: string;
   cabinClass?: string;
@@ -404,4 +413,120 @@ export interface GmailLabel {
   id: string;
   name: string;
   type: "system" | "user";
+}
+
+/** Frequency cadence for an auto email-scan schedule. */
+export type EmailScanFrequency = "daily" | "weekly";
+
+/**
+ * A user-owned schedule that re-runs an email scan on a regular
+ * cadence. After a successful first scan against a given (provider,
+ * labelFilter) pair, the user can persist the same scan as a schedule
+ * so new confirmations land as `needsReview: true` segments without
+ * the user having to run the scan dialog each time.
+ *
+ * Multiple schedules per user are allowed — each one is independently
+ * scoped to a single (provider, labelFilter, frequency) triple. Two
+ * schedules pointing at the same provider+folder with different
+ * cadences is supported but uncommon; the typical use case is one
+ * schedule per inbox the user wants watched.
+ */
+export interface EmailScanSchedule {
+  id: string;
+  /** Owner — schedules are private to the user who created them. */
+  userId: string;
+  /** Which mailbox provider this schedule scans. */
+  provider: "google" | "microsoft";
+  /**
+   * Provider-specific filter the scan honors. For Gmail this is a
+   * label id ("INBOX", "Label_5"); for Outlook it's a folder id.
+   * Optional — when omitted, the scan runs over the entire mailbox
+   * (same default as a manual scan with no label filter chosen).
+   */
+  labelFilter?: string;
+  /**
+   * Human-readable label / folder name resolved at create time and
+   * persisted alongside the id so the settings UI can render
+   * "Travel/Hotels" without having to re-query the provider for the
+   * mapping on every page load. Stays in sync via a periodic refresh
+   * the next time a scan runs.
+   */
+  labelName?: string;
+  /**
+   * When true, the scheduled scan widens its match to include every
+   * label/folder nested under `labelFilter` — e.g. picking "Travel"
+   * with this flag set also scans "Travel/Hotels",
+   * "Travel/Flights/Confirmed", etc. Implemented at execute time by
+   * resolving `labelFilter`'s descendants from the connector's
+   * `listLabels()` and scanning each one. Has no effect when
+   * `labelFilter` is unset (all-mail scans already cover everything).
+   * Defaults to false — picking "Travel" by itself only matches that
+   * exact label, matching Gmail's flat-label model.
+   */
+  includeSublabels?: boolean;
+  frequency: EmailScanFrequency;
+  /**
+   * UTC clock time the schedule should target, formatted as `HH:MM`
+   * (24h). Used by both supported cadences (`daily` and `weekly`) to
+   * anchor when the scan fires within the day. Stored in UTC because
+   * the cron tick runs in UTC; the editor UI converts to / from the
+   * user's local time so the picker still reads naturally. Undefined
+   * → the scheduler bumps `nextRunAt` by a flat 24h / 7d without
+   * anchoring to a specific time-of-day (legacy behaviour for
+   * schedules created before this field existed).
+   */
+  timeOfDay?: string;
+  /**
+   * UTC day-of-week (0 = Sunday, …, 6 = Saturday) the schedule should
+   * target. Only meaningful for the `weekly` cadence. The editor UI
+   * converts between the user's local-zone day and UTC together with
+   * `timeOfDay` so a late-evening pick that crosses midnight UTC
+   * stays consistent (e.g. picking "Sunday 11pm" in UTC-5 stores
+   * `dayOfWeek = 1` + `timeOfDay = "04:00"`). Undefined → fall back
+   * to a flat 7-day bump from the create-time anchor.
+   */
+  dayOfWeek?: number;
+  /**
+   * When false, the scheduler skips this row on the cron tick.
+   * Distinct from delete — lets the user pause a schedule (e.g.
+   * during a trip) and re-enable it later without losing the
+   * configured cadence or run history.
+   */
+  enabled: boolean;
+  /**
+   * ISO datetime of the most recent run (success OR failure). Used
+   * for ordering + relative-time labels in the settings UI.
+   */
+  lastRunAt?: string;
+  /**
+   * ISO datetime the scheduler will next consider this row. The
+   * cron-tick endpoint selects schedules with
+   * `enabled = true AND nextRunAt <= now()`.
+   */
+  nextRunAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Outcome of a single execution of a schedule. Capped at the most
+ * recent 50 per schedule on insert so storage doesn't grow unbounded;
+ * surfaced in the settings UI's "Recent runs" panel.
+ */
+export interface EmailScanRun {
+  id: string;
+  scheduleId: string;
+  userId: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: "running" | "succeeded" | "failed";
+  /** Number of emails the connector returned (pre-parse). */
+  scannedCount: number;
+  /**
+   * Number of segments the run actually added to a trip. Drives the
+   * "X new items" push body and the banner-pill count.
+   */
+  newCount: number;
+  /** Sentence-form error message when status === "failed". */
+  errorMessage?: string;
 }

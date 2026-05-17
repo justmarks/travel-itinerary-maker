@@ -1,3 +1,106 @@
+# itinly v1.2.0
+
+Schedule a scan once and let itinly check your inbox on its own. Send a confirmation straight from any iOS or Android share sheet without going through Gmail at all. Cruises and car rentals get their own multi-day bands on the timeline. The segment add/edit form trims down to its essentials, and a long list of accessibility, parity, and parsing fixes round out the release.
+
+## Auto email-scan scheduler
+
+- **Recurring scans** on a daily or weekly cadence — pick a folder or label per provider, anchor on a specific time of day (and day-of-week, for weekly), and itinly polls the mailbox on its own.
+- **Multiple schedules per user** — one per (provider × folder × cadence) tuple, so a personal Gmail `Travel/` label and a work Outlook folder can run independently on different rhythms.
+- **Include sub-folders / sub-labels** — a single "Travel" pick optionally fans out to every descendant (`Travel/Hotels`, `Travel/Flights/Confirmed`, …) so you don't have to enumerate them.
+- **Findings land in the same review queue** as a manual scan — nothing is auto-applied, so a scheduled scan can't silently put a misparsed booking on a real trip.
+- **Push notification + in-app banner** when a scheduled scan turns up something new, deep-linking straight to the review step on either desktop or mobile.
+- **Pause / resume / edit / delete** each schedule from `/settings/account`, with a "Recent runs" history dialog (last 50 per schedule).
+- **Backed by Supabase pg_cron + pg_net** firing a shared-secret-guarded tick endpoint; per-user row-level security on the new tables.
+
+## PWA polish
+
+- **"Send to itinly" share target** — pick itinly from any iOS or Android share sheet and the shared text / URL / page title goes straight into the parser. Forwarded confirmations from non-Gmail mailboxes work without leaving Mail.
+- **"Create trip" app-icon shortcut** — long-press the installed PWA icon (Android) or right-click it (desktop) to jump straight into a new-trip sheet.
+- **App-icon badge** on the installed PWA — incoming push notifications bump a numeric badge on the icon (Chromium / Edge / iOS 16.4+ Safari); cleared when you bring the app forward or tap the notification.
+
+## Timeline + segment polish
+
+- **Cruises render as multi-day bands on the Lodging lane** instead of a single-day pill under Activities — same visual treatment as a hotel block, but with the ship name + 🚢 + duration.
+- **Car rentals get their own multi-day bands** on the Transport lane, packed onto the same row as the per-day flight / train / transfer pills so the rental window is visible at a glance.
+- **Overlapping lodging bars no longer disappear** — hotels and cruises that overlap (e.g. a hotel on embarkation day plus the cruise that picks up from there) pack onto separate tracks instead of one bar silently clobbering the other.
+- **Richer car rental titles** like "Hertz - Lihue", with pickup / dropoff cities and times in the calendar event description; the all-day event spans through the dropoff date inclusive.
+- **Dedicated `shipName` field on cruises** — extracted automatically by the email parser, used in the timeline pill and calendar event title; ports of call render in the calendar description.
+- **Multi-night hotels show "Still at … Night N of M"** on every day in between — the middle days previously looked empty even when you were sitting in the same hotel.
+- **Overnight flights carry a `+1` pill** when the segment crosses midnight (departs 23:00, lands 06:30 next day), so you can tell at a glance whether the row spans two calendar days.
+- **Past trips get a one-tap "Mark completed" pill** on the trip header — trips with an end date in the past used to stay stuck on "Planning" forever unless you remembered to advance the status manually.
+- **Cost displays always show 2 decimals** (`288.40` instead of `288.4`).
+
+## Cleaner segment form
+
+- **"More options" disclosure** at the bottom of the add/edit form gathers everything past the core booking fields — cabin class, baggage info, address, phone, breakfast included, free-form details, plus Cost and Confirmation # — into one collapsible section.
+- **"N filled" hint** on the disclosure header so a rich parsed booking still telegraphs how much sits behind the fold without auto-expanding.
+- **Whole desktop segment cards are clickable** to open the edit dialog (the pencil icon stays for discoverability); Enter / Space on a focused row works the same.
+- **Clearing the cost field now persists** — previously the empty value silently no-op'd and the old cost stayed put.
+
+## Email parsing
+
+- **Prefers the plain-text part on noisy multipart confirmations** when the HTML alternative is dominated by marketing copy and image alt text. A Marriott Vacation Club receipt that previously parsed as "no travel content" now produces the right hotel + dates + total.
+- **No-travel-content emails no longer report to Sentry** — promotional mail that Claude correctly skipped was creating false-positive operator alerts.
+
+## Accessibility + parity pass
+
+- **Screen-reader labels on icon-only buttons** — trip-card rename save/cancel, trip-card overflow menu, scheduled-scan row Pause / Edit / Delete, to-do panel add/cancel toggle, EditableCity save/cancel, share-link "ready" announcement.
+- **Escape cancels EditableCity** to match the rest of the inline editors.
+- **Segment row actions reveal on keyboard focus** (Edit / Confirm / Delete + the city-edit pencil) instead of being hover-only.
+- **Empty days surface "Add the first activity" CTA** on desktop instead of a flat "No activities planned" placeholder.
+- **Mobile to-do detail sheet renders a Markdown preview** under the Notes textarea, matching the desktop edit-todo dialog.
+- **Dialog inputs stop clipping the focus ring** on the left (edit-todo, add/edit segment, html-import, suggest-meals).
+- **Visible focus rings on `/login` provider buttons** so keyboard users can see which one they're on; the wordmark above is skipped on tab so the first stop is the primary CTA.
+- **Mobile "More" menu now exposes the four Export options** (Markdown / OneNote / PDF / iCal) that desktop has had — previously mobile users had no export affordance at all.
+- **Mobile trip header gets the click-to-cycle status pill** that desktop has had — view-only contributors see a static badge.
+- **Segment delete reachable from the Edit dialog footer**, not only from the hover-only desktop row action.
+- **Date pickers clamp to the trip's date range** (and to the segment's own start for end-dates) so out-of-range picks are blocked client-side instead of bouncing off a 400.
+- **Share dialog drops every "Gmail" mention** — Outlook contacts have been first-class on the server for a while; the copy lagged.
+- **Schedule editor stores correct UTC during DST** — a 9:15 AM PDT pick now writes 16:15 UTC, not 17:15.
+- **Shrinking a trip's date range over existing segments** pops a confirm dialog listing the segments that would be destroyed instead of silently deleting them on save.
+- **Branded 404 page** (app logo + "We can't find that page" + "Back to itinly" CTA) replaces Next.js's bare 404 for everything that doesn't resolve.
+
+## Trust and polish
+
+- **RLS on every `email_scan_*` table** captured in migration 0004 — idempotent and guarded for vanilla Postgres so CI integration tests still pass on a non-Supabase container.
+- **`/trips` is auth-gated** like every other authenticated route — previously you could land on the trip-detail shell unauthenticated. `/m/trip` was already gated.
+- **`/settings` and `/m/settings`** now redirect to their `/account` children instead of falling through to a bare Next.js 404.
+- **`/trips` and `/m/trip` with no `id`** redirect to the trip list instead of rendering a red "No trip selected." placeholder that looked like a hard error.
+- **Mobile trip map renders the desktop empty state** ("No mappable locations yet…") when a trip has no geocodable segments — previously the inline map defaulted to Tokyo on US-only trips.
+- **Scan emails dialog no longer sticks on "Connect an email account"** when the `/connections` fetch was still in flight at dialog-open time. The race made a fresh Outlook link look like it hadn't taken.
+- **Calendar-sync "Choose a calendar" copy** renders the provider name with the right spacing ("Pick which Outlook Calendar should receive…") instead of the squashed "outlook calendarshould".
+- **React #418 hydration error on `/shared/<token>`** (and `/m/shared/<token>`, including the not-found branch) is gone — the public share view defers its real tree until after mount.
+- **React Query localStorage cache is wiped on sign-out** so the next user of the same browser can't read the previous user's serialized trip data via DevTools.
+- **Routine `[auth] supabase token not used …` log gated behind `DEBUG_AUTH=1`** so steady-state Railway logs aren't drowned by Supabase JWT expiry / legacy Google access-token coexistence noise.
+- **Trip-card rename input auto-focuses** when it appears.
+- **Stale service workers unregister in dev mode** so a cached `/m` shell from a prior session doesn't masquerade as the live build.
+- **Mobile / desktop parity** in costs editing, share-link error surfacing, and share-not-found copy / CTAs.
+- **`/welcome` shows the in-page section anchors on mobile** ("How it works" / "Features") instead of hiding the nav under 640px.
+- **Privacy Policy mentions Outlook** alongside Gmail — the page was the last surface still suggesting we only read Gmail.
+
+## Privacy + security audit
+
+- **SSRF defense on push subscriptions** — `pushSubscriptionSchema` rejects `http://`, IP literals, `localhost`, `.local`, and `0.0.0.0` URLs so a subscription endpoint can't be used to probe internal infrastructure.
+- **Rate limiters now actually attribute per-client** — `app.set('trust proxy', n)` (driven by the new `TRUST_PROXY_HOPS` env var) means the auth / share-link / calendar limiters bucket by real client IP instead of the single platform-proxy IP every request used to land on.
+- **Body-size caps on every JSON / text route** to refuse oversized payloads at the edge instead of letting them buffer into memory. Covered by a new `app-body-limits.test.ts` suite.
+- **Sentry breadcrumb + event scrubbing** keeps tokens, emails, and trip text out of error reports — useful both for compliance and for keeping reports actionable instead of dominated by user-data noise.
+- **CSP `connect-src` allows the regional Sentry ingest hosts** (`*.ingest.us.sentry.io`, `*.ingest.de.sentry.io`) so frontend errors actually reach the dashboard. Previously the policy only listed `*.ingest.sentry.io`, which is a different domain, so every browser-side envelope POST was silently blocked by the page's own CSP.
+
+## Under the hood
+
+- **Drizzle migrations 0003 – 0006** land the schedules + runs tables, RLS policies, the `include_sublabels` flag, and the time-of-day / day-of-week anchor columns.
+- **`ts-node` is now an explicit devDependency** on `server` so a fresh install doesn't fail the migration runner.
+- **Shared `expandLabelFilters` helper** keeps the manual `/emails/scan` route and the scheduled executor in agreement on how to expand a parent label/folder into its descendants.
+- **`packIntoTracks` helper** centralises the timeline's overlap-aware lane packing for hotels, cruises, and rentals.
+- **SSRF-guarded URL fetch** on the new `/emails/import-shared` endpoint — http(s) only, blocks loopback / RFC1918 / link-local / cloud-metadata hosts, 10s timeout, 1 MB cap, content-type filter.
+- **Tests grew from 948 → 1036** — new server coverage for schedules CRUD, the cron tick, share-target routes, plain-text-preference parsing, the cost-clear contract, body-size caps, Sentry PII scrubbing, and the trust-proxy + rate-limit attribution flow.
+
+## Thanks
+
+Schedule one scan; never look at a confirmation email again. Onward to 1.2.x.
+
+---
+
 # itinly v1.1.0
 
 The 1.1 release is mostly **plumbing under the floorboards** — but the floorboards are now sturdy enough to support Outlook + Microsoft accounts as first-class citizens alongside Google. Sign in with either provider, scan either inbox, sync to either calendar, and link both to the same account if you want to mix them.
