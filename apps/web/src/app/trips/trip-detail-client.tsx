@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,7 +12,7 @@ import {
   useConfirmAllSegments,
   ApiError,
 } from "@itinly/api-client";
-import type { TripStatus } from "@itinly/shared";
+import type { Trip, TripStatus } from "@itinly/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,7 +67,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { ShareTripDialog } from "@/components/share-trip-dialog";
-import { ItineraryDay } from "@/components/itinerary-day";
+import { ItineraryDay, computeOngoingStays } from "@/components/itinerary-day";
 import { TripTodos } from "@/components/trip-todos";
 import { TripCosts } from "@/components/trip-costs";
 import { TimelineView } from "@/components/timeline-view";
@@ -198,8 +198,8 @@ function EditableTitle({ tripId, title }: { tripId: string; title: string }) {
       className="group/title flex items-center gap-2 text-left"
       title="Rename trip"
     >
-      <h1 className="text-2xl font-bold">{title}</h1>
-      <Pencil className="h-4 w-4 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
+      <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{title}</h1>
+      <Pencil className="h-4 w-4 shrink-0 text-muted-foreground opacity-100 transition-opacity can-hover:opacity-0 can-hover:group-hover/title:opacity-100" />
     </button>
   );
 }
@@ -215,23 +215,50 @@ function EditableDates({
   tripId,
   startDate,
   endDate,
+  days,
 }: {
   tripId: string;
   startDate: string;
   endDate: string;
+  /** Used to detect segments that would fall outside the new range so we
+   *  can prompt before silently destroying them. */
+  days: Trip["days"];
 }) {
   const [editing, setEditing] = useState(false);
   const [newStart, setNewStart] = useState(startDate);
   const [newEnd, setNewEnd] = useState(endDate);
   const [overlapError, setOverlapError] = useState<OverlapInfo[] | null>(null);
   const updateTrip = useUpdateTrip(tripId);
+  const confirm = useConfirm();
 
   const isValid = newStart && newEnd && newStart <= newEnd;
   const hasChanges = newStart !== startDate || newEnd !== endDate;
 
-  const save = () => {
+  const save = async () => {
     if (!isValid || !hasChanges) return;
     setOverlapError(null);
+
+    // Find segments whose date falls outside the new range — shrinking
+    // the trip dates over them silently deletes them server-side, so
+    // we prompt up-front instead of taking the user's data away.
+    const orphaned = days
+      .filter((d) => d.date < newStart || d.date > newEnd)
+      .flatMap((d) => d.segments);
+
+    if (orphaned.length > 0) {
+      const preview = orphaned.slice(0, 3).map((s) => `• ${s.title}`).join("\n");
+      const more =
+        orphaned.length > 3
+          ? `\n…and ${orphaned.length - 3} more`
+          : "";
+      const ok = await confirm({
+        title: `Remove ${orphaned.length} segment${orphaned.length === 1 ? "" : "s"} outside the new dates?`,
+        description: `${preview}${more}\n\nThese segments fall outside ${newStart} – ${newEnd} and will be deleted. This cannot be undone.`,
+        confirmText: orphaned.length === 1 ? "Remove segment" : `Remove ${orphaned.length} segments`,
+        destructive: true,
+      });
+      if (!ok) return;
+    }
 
     const updates: Record<string, string> = {};
     if (newStart !== startDate) updates.startDate = newStart;
@@ -269,7 +296,7 @@ function EditableDates({
           className="flex items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            save();
+            void save();
           }}
         >
           <Input
@@ -1060,6 +1087,16 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
   // empty beat in exchange — much less jarring than show-then-hide.
   const showCosts = !permission.isLoading && permission.showCosts;
   const showTodos = !permission.isLoading && permission.showTodos;
+
+  // Multi-night segments (Hotel / Car rental / Cruise) live on their
+  // check-in day in the data model — so the intervening nights would
+  // otherwise show "No activities planned." with no indication the
+  // user is still booked at that hotel. Compute a per-day overlay so
+  // each continuation day renders a slim "Still at …" banner.
+  const ongoingStaysByDate = useMemo(
+    () => (trip ? computeOngoingStays(trip) : {}),
+    [trip],
+  );
   // Build the tab list dynamically so tabs the share hides don't even
   // appear. Itinerary / Timeline / Map are always shown; Costs and
   // To-do drop out for shares with the matching toggle off.
@@ -1208,9 +1245,9 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
         </div>
 
         <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
             {isReadOnly ? (
-              <h1 className="text-2xl font-bold">{trip.title}</h1>
+              <h1 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">{trip.title}</h1>
             ) : (
               <EditableTitle tripId={trip.id} title={trip.title} />
             )}
@@ -1253,6 +1290,32 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 </span>
               </span>
             )}
+            {/* Past-trip nudge: end date is in the past but the user hasn't
+                advanced the status. Surface a one-tap "Mark completed"
+                instead of leaving the trip pinned at "Planning" / "Active"
+                forever (QA bug #21). Owner-only. */}
+            {!isReadOnly &&
+              trip.endDate < getTodayIso() &&
+              (trip.status === "planning" || trip.status === "active") && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTripStatus.mutate(
+                      { status: "completed" },
+                      { onError: toastMutationError("update status") },
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
+                  style={{
+                    backgroundColor: "var(--status-info-bg)",
+                    color: "var(--status-info-fg)",
+                    borderColor: "var(--status-info-rail)",
+                  }}
+                  title="Mark this trip as completed"
+                >
+                  Mark completed
+                </button>
+              )}
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {isReadOnly ? (
@@ -1265,6 +1328,7 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                 tripId={trip.id}
                 startDate={trip.startDate}
                 endDate={trip.endDate}
+                days={trip.days}
               />
             )}
             <span className="flex items-center gap-1.5">
@@ -1332,6 +1396,9 @@ export default function TripDetailClient({ tripId }: { tripId: string }): React.
                   key={day.date}
                   day={day}
                   tripId={trip.id}
+                  tripStartDate={trip.startDate}
+                  tripEndDate={trip.endDate}
+                  ongoingStays={ongoingStaysByDate[day.date]}
                   readOnly={isReadOnly}
                   showCosts={showCosts}
                 />

@@ -147,11 +147,26 @@ export function TripTodos({
                 : "Mark complete"
           }
         >
-          {todo.isCompleted ? (
-            <CheckSquare2 className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Square className="h-4 w-4 text-muted-foreground" />
-          )}
+          {/* Render both icons and toggle visibility — keeps the
+              <svg> nodes stable across rapid clicks instead of
+              unmount/mount-ing a different Lucide component each
+              time, which broke `await button.click(); await
+              button.click()` chains (CLAUDE.md: "tappable in
+              rapid succession"). */}
+          <CheckSquare2
+            className={cn(
+              "h-4 w-4 text-muted-foreground",
+              !todo.isCompleted && "hidden",
+            )}
+            aria-hidden
+          />
+          <Square
+            className={cn(
+              "h-4 w-4 text-muted-foreground",
+              todo.isCompleted && "hidden",
+            )}
+            aria-hidden
+          />
         </button>
         <div className="min-w-0 flex-1">
           <button
