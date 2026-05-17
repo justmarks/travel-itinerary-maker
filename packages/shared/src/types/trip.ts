@@ -530,3 +530,33 @@ export interface EmailScanRun {
   /** Sentence-form error message when status === "failed". */
   errorMessage?: string;
 }
+
+/**
+ * Per-(trip, user) calendar-sync state. Backs the
+ * `trip_user_calendar_syncs` table — one row per user who has synced
+ * the trip to their OWN Google / Outlook calendar.
+ *
+ * Replaces the legacy single-user model where `trip.calendarId` and
+ * `segment.calendarEventId` lived on the trip row directly. Those
+ * legacy fields still exist on the in-memory Trip / Segment types so
+ * route handlers can merge a requester's sync state into the
+ * response for backward compat with the frontend reading them; new
+ * writes go through this type instead.
+ */
+export interface TripUserCalendarSync {
+  id: string;
+  tripId: string;
+  /** The user whose calendar the trip is synced to. */
+  userId: string;
+  /** Provider-side calendar id (Google "primary" / Microsoft id). */
+  calendarId: string;
+  /**
+   * `{ [segmentId]: calendarEventId }`. Empty when the user has
+   * picked a calendar but no segment has been pushed yet (or after
+   * an unsync that preserves the calendar choice). Segments absent
+   * from the map have not been pushed to this user's calendar.
+   */
+  segmentEventMap: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}

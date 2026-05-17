@@ -48,6 +48,7 @@ export {
   useUpdateEmailScanSchedule,
   useDeleteEmailScanSchedule,
   useEmailScanRuns,
+  useTripCalendarSync,
   useApplyParsedSegments,
   useProcessedEmails,
   useDismissEmail,

@@ -65,6 +65,7 @@ function CalendarSyncBody({
     calendarGranted,
     isSynced,
     syncedCount,
+    syncedCalendarId,
     syncedCalendarName,
     syncing,
     calendars,
@@ -87,7 +88,7 @@ function CalendarSyncBody({
       : "pick";
   const [step, setStep] = useState<Step>(initialStep);
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>(
-    trip.calendarId ?? "primary",
+    syncedCalendarId ?? "primary",
   );
   const [deleteChoice, setDeleteChoice] = useState<"delete" | "keep">("delete");
 
@@ -97,7 +98,7 @@ function CalendarSyncBody({
     void loadCalendars().then((cals) => {
       if (cancelled) return;
       const primary = cals.find((c) => c.primary);
-      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+      setSelectedCalendarId(syncedCalendarId ?? primary?.id ?? "primary");
     });
     return () => {
       cancelled = true;
@@ -132,7 +133,7 @@ function CalendarSyncBody({
     // dialog has.
     void loadCalendars(next).then((cals) => {
       const primary = cals.find((c) => c.primary);
-      setSelectedCalendarId(trip.calendarId ?? primary?.id ?? "primary");
+      setSelectedCalendarId(syncedCalendarId ?? primary?.id ?? "primary");
     });
   };
 

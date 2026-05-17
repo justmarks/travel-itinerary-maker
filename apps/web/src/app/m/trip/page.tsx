@@ -9,6 +9,7 @@ import {
   useDeleteShare,
   useDeleteTrip,
   useTrip,
+  useTripCalendarSync,
 } from "@itinly/api-client";
 import type { Segment, Trip } from "@itinly/shared";
 import { toast } from "sonner";
@@ -684,12 +685,16 @@ function TripFrame({
     ? null
     : permission.sharedShareId ?? null;
 
-  // Mirrors the desktop `CalendarSyncButton` derivations — count any
-  // segment carrying a `calendarEventId` so the menu label flips to
-  // "Calendar synced (N)" once at least one event is on Google.
-  const calendarSyncedCount = trip.days
-    .flatMap((d) => d.segments)
-    .filter((s) => s.calendarEventId).length;
+  // Per-user calendar-sync state lives in `trip_user_calendar_syncs`
+  // (one row per user who has synced the trip to their OWN calendar).
+  // The menu label flips to "Calendar synced (N)" once the current
+  // user's row has at least one event in its segmentEventMap.
+  const { data: calendarSyncState } = useTripCalendarSync(trip.id, {
+    enabled: permission.canEdit,
+  });
+  const calendarSyncedCount = calendarSyncState
+    ? Object.keys(calendarSyncState.segmentEventMap).length
+    : 0;
   const calendarSynced = calendarSyncedCount > 0;
 
   return (

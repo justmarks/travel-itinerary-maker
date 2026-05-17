@@ -24,6 +24,7 @@ import type {
   XlsxImportRequest,
   EmailScanSchedule,
   EmailScanRun,
+  TripUserCalendarSync,
   CreateEmailScanScheduleInput,
   UpdateEmailScanScheduleInput,
 } from "@itinly/shared";
@@ -418,6 +419,16 @@ export class ApiClient {
   ): Promise<Array<{ id: string; summary: string; primary: boolean }>> {
     const qs = provider ? `?provider=${provider}` : "";
     return this.request(`/trips/calendar/list${qs}`);
+  }
+
+  /**
+   * Returns the requester's per-user calendar-sync state for this
+   * trip — calendarId + segmentEventMap — or `null` when they
+   * haven't synced yet. Each user (trip owner + shared-edit
+   * recipients) has their own row.
+   */
+  getTripCalendarSync(tripId: string): Promise<TripUserCalendarSync | null> {
+    return this.request(`/trips/${tripId}/calendar/sync`);
   }
 
   syncCalendar(

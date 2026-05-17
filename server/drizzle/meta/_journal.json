@@ -50,6 +50,13 @@
       "when": 1779292800000,
       "tag": "0006_email_scan_schedule_time_dow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779379200000,
+      "tag": "0007_per_user_calendar_sync",
+      "breakpoints": true
     }
   ]
 }

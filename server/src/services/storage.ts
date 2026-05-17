@@ -4,6 +4,7 @@ import type {
   EmailScanSchedule,
   Trip,
   TripShareRule,
+  TripUserCalendarSync,
   UserSettings,
 } from "@itinly/shared";
 import type { ProcessedEmail } from "./processed-email";
@@ -37,6 +38,29 @@ export interface StorageProvider {
   deleteEmailScanSchedule(id: string): Promise<boolean>;
   listEmailScanRuns(scheduleId: string): Promise<EmailScanRun[]>;
   saveEmailScanRun(run: EmailScanRun): Promise<void>;
+  /**
+   * Per-(trip, user) calendar sync state. Reads and writes are keyed
+   * by BOTH `tripId` and `userId` because a single trip may have
+   * separate sync rows for its owner and each shared-edit recipient
+   * — each pushing the same trip to their own Google / Outlook
+   * calendar. Implementations must enforce user isolation
+   * (Supabase via RLS; in-memory by just walking the keyed map).
+   *
+   * `delete` clears the row entirely; the calendar-sync route uses
+   * it when the user explicitly unlinks (or asks the server to also
+   * remove events from the remote calendar — that happens BEFORE
+   * the row is dropped).
+   */
+  getTripUserCalendarSync(
+    tripId: string,
+    userId: string,
+  ): Promise<TripUserCalendarSync | null>;
+  saveTripUserCalendarSync(state: TripUserCalendarSync): Promise<void>;
+  deleteTripUserCalendarSync(tripId: string, userId: string): Promise<void>;
+  /** List every sync row for a single user — used by deleteAllForUser. */
+  listTripUserCalendarSyncsForUser(
+    userId: string,
+  ): Promise<TripUserCalendarSync[]>;
   /**
    * Hard-delete every row this provider knows about for `userId`.
    * Irreversible. Used by the account-deletion endpoint.
@@ -75,7 +99,13 @@ export class InMemoryStorage implements StorageProvider {
   private emailScanSchedules: Map<string, EmailScanSchedule> = new Map();
   /** Run history, keyed by scheduleId. Capped at 50 per schedule. */
   private emailScanRuns: Map<string, EmailScanRun[]> = new Map();
+  /** Calendar sync state, keyed by `${tripId}::${userId}`. */
+  private tripUserCalendarSyncs: Map<string, TripUserCalendarSync> = new Map();
   private static readonly RUN_HISTORY_CAP = 50;
+
+  private syncKey(tripId: string, userId: string): string {
+    return `${tripId}::${userId}`;
+  }
 
   async listTrips(): Promise<Trip[]> {
     return Array.from(this.trips.values())
@@ -176,6 +206,36 @@ export class InMemoryStorage implements StorageProvider {
     this.emailScanRuns.set(run.scheduleId, capped);
   }
 
+  async getTripUserCalendarSync(
+    tripId: string,
+    userId: string,
+  ): Promise<TripUserCalendarSync | null> {
+    const found = this.tripUserCalendarSyncs.get(this.syncKey(tripId, userId));
+    return found ? structuredClone(found) : null;
+  }
+
+  async saveTripUserCalendarSync(state: TripUserCalendarSync): Promise<void> {
+    this.tripUserCalendarSyncs.set(
+      this.syncKey(state.tripId, state.userId),
+      structuredClone(state),
+    );
+  }
+
+  async deleteTripUserCalendarSync(
+    tripId: string,
+    userId: string,
+  ): Promise<void> {
+    this.tripUserCalendarSyncs.delete(this.syncKey(tripId, userId));
+  }
+
+  async listTripUserCalendarSyncsForUser(
+    userId: string,
+  ): Promise<TripUserCalendarSync[]> {
+    return Array.from(this.tripUserCalendarSyncs.values())
+      .filter((s) => s.userId === userId)
+      .map((s) => structuredClone(s));
+  }
+
   async deleteAllForUser(_userId: string): Promise<void> {
     // Memory mode has no per-user scoping — everything in this
     // singleton belongs to the one (anonymous) caller. Mirror the
@@ -192,5 +252,6 @@ export class InMemoryStorage implements StorageProvider {
     this.shareRules.clear();
     this.emailScanSchedules.clear();
     this.emailScanRuns.clear();
+    this.tripUserCalendarSyncs.clear();
   }
 }
